@@ -1,0 +1,1615 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist/wght-italic.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+/* The character's voice: a reading sans drawn for legibility, with a true italic. */
+@import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
+@import "@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css";
+/* The wordmark's face: inscriptional capitals, latin only, as it sets one word. */
+@import "@fontsource/marcellus/latin-400.css";
+
+@source "../node_modules/streamdown/dist/*.js";
+
+/*
+ * Themes follow the system; `data-theme` on <html> forces one. Every color
+ * token is defined once with light-dark(), so it follows `color-scheme`.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
+/* Coarse pointers (touch) get 44px targets; fine pointers keep compact controls. */
+@custom-variant touch (@media (pointer: coarse));
+
+/*
+ * Palettes: every colour token, defined once per palette as a light-dark()
+ * pair, so the theme picks the scheme and the palette only the colours.
+ * `data-palette` on <html> (core PALETTES, saved in Settings) chooses one;
+ * on a swatch it scopes one to the swatch. Lamplight, Ephemera's own, needs
+ * no attribute. Every palette holds Lamplight's contrast floors in both
+ * schemes (e2e/design.spec.ts).
+ */
+:root,
+[data-palette="lamplight"] {
+  /* Warm plaster by day, a lamplit room by night, one amber lamp. */
+  --canvas-base: light-dark(#e6e2dc, #17130f);
+  --surface-base: light-dark(#f0ede8, #211c16);
+  --surface-hover-base: light-dark(#d9d4cd, #2b241d);
+  --surface-pressed-base: light-dark(#cdc6bd, #352d25);
+  --surface-selected-base: light-dark(#d6d0c7, #302820);
+  --rush-base: light-dark(#cec8c0, #2f2821);
+
+  --ink: light-dark(#2a231e, #ede4d6);
+  --narration: light-dark(#4f463e, #d0c3ae);
+  /*
+   * Scene inks (chat/voices.ts, `voice-scene`): actions in a warm grey,
+   * 6.4:1 on the canvas by day and 7.5:1 by night, thoughts a step dimmer,
+   * 5.0:1 and 5.9:1, and plain narration in a cool grey, 4.9:1 and 6.6:1,
+   * all well below speech in ink so the spoken lines stand out.
+   */
+  --ink-action: light-dark(#574d45, #b0a38d);
+  --ink-thought: light-dark(#675d55, #9a9083);
+  --ink-narration: light-dark(#5a6065, #969b9f);
+  --reed: light-dark(#625850, #a0937f);
+  --control-edge: light-dark(#837a70, #7a6d5e);
+  --dusk: light-dark(#c77f1e, #e3a54a);
+  --dusk-hover: light-dark(#b7731a, #ecb35f);
+  --dusk-line: light-dark(#9a6210, #e3a54a);
+  --on-dusk: light-dark(#17130f, #1b1510);
+  --ember: light-dark(#9e3325, #e8876c);
+  /*
+   * Highlight inks (chat/highlight.ts): madder, verdigris and iris, set apart
+   * from the amber lamp and the ember of errors, and mist, a quiet slate for
+   * whole passages; each reads at 4.5:1 or more on the canvas and on
+   * surfaces, its own wash included (composited as the browser blends it).
+   */
+  --tone-rose: light-dark(#7c3253, #f1aec7);
+  --tone-sage: light-dark(#1a5d45, #8ed6b6);
+  --tone-iris: light-dark(#4e4388, #c1bcf9);
+  --tone-mist: light-dark(#525c67, #adb9c5);
+  --error-surface: light-dark(#f0dad2, #3a2521);
+  --text-disabled: light-dark(#9a928a, #6a5f52);
+  --scrim: light-dark(rgb(42 35 30 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(42 35 30 / 0.14), rgb(0 0 0 / 0.5));
+}
+
+/* Catppuccin: Latte by day, Mocha by night, a mauve accent. */
+[data-palette="catppuccin"] {
+  --canvas-base: light-dark(#e6e9ef, #181825);
+  --surface-base: light-dark(#eff1f5, #1e1e2e);
+  --surface-hover-base: light-dark(#dce0e8, #28283a);
+  --surface-pressed-base: light-dark(#ccd0da, #313244);
+  --surface-selected-base: light-dark(#d5d9e3, #2c2d40);
+  --rush-base: light-dark(#ccd0da, #313244);
+  --ink: light-dark(#3d405a, #cdd6f4);
+  --narration: light-dark(#50536b, #bac2de);
+  --ink-action: light-dark(#4e5168, #99a0bb);
+  --ink-thought: light-dark(#5e6177, #878ea8);
+  --ink-narration: light-dark(#57647a, #8898b0);
+  --reed: light-dark(#5d6076, #8893ad);
+  --control-edge: light-dark(#81828d, #6c7086);
+  --dusk: light-dark(#8839ef, #cba6f7);
+  --dusk-hover: light-dark(#7a2ee0, #d7b9fa);
+  --dusk-line: light-dark(#8839ef, #cba6f7);
+  --on-dusk: light-dark(#eff1f5, #11111b);
+  --ember: light-dark(#c50434, #f38ba8);
+  --tone-rose: light-dark(#9c287e, #f5c2e7);
+  --tone-sage: light-dark(#1a6903, #a6e3a1);
+  --tone-iris: light-dark(#024ad9, #89b4fa);
+  --tone-mist: light-dark(#646776, #9399b2);
+  --error-surface: light-dark(#f2dce2, #3a2433);
+  --text-disabled: light-dark(#9ca0b0, #585b70);
+  --scrim: light-dark(rgb(61 64 90 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(61 64 90 / 0.14), rgb(0 0 0 / 0.5));
+}
+
+/* Rosé Pine: Dawn by day, the main variant by night, a rose accent. */
+[data-palette="rose-pine"] {
+  --canvas-base: light-dark(#f4ede8, #191724);
+  --surface-base: light-dark(#fffaf3, #1f1d2e);
+  --surface-hover-base: light-dark(#f2e9e1, #26233a);
+  --surface-pressed-base: light-dark(#dfdad9, #2f2c45);
+  --surface-selected-base: light-dark(#ebe2dc, #2a2740);
+  --rush-base: light-dark(#dfdad9, #2f2c45);
+  --ink: light-dark(#48436a, #e0def4);
+  --narration: light-dark(#575279, #d3d0e8);
+  --ink-action: light-dark(#565270, #a19dba);
+  --ink-thought: light-dark(#66627f, #8f8ba9);
+  --ink-narration: light-dark(#576978, #849aa3);
+  --reed: light-dark(#696583, #8f8aa8);
+  --control-edge: light-dark(#888593, #6e6a86);
+  --dusk: light-dark(#d7827e, #ebbcba);
+  --dusk-hover: light-dark(#cc716d, #f2cbc9);
+  --dusk-line: light-dark(#b4637a, #ebbcba);
+  --on-dusk: light-dark(#191724, #191724);
+  --ember: light-dark(#905168, #eb6f92);
+  --tone-rose: light-dark(#864c63, #eb6f92);
+  --tone-sage: light-dark(#20657e, #9ccfd8);
+  --tone-iris: light-dark(#6a5774, #c4a7e7);
+  --tone-mist: light-dark(#6c687f, #908caa);
+  --error-surface: light-dark(#f5dfe0, #3a2133);
+  --text-disabled: light-dark(#b6b1c0, #524f67);
+  --scrim: light-dark(rgb(72 67 106 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(72 67 106 / 0.14), rgb(0 0 0 / 0.5));
+}
+
+/* Nord: Snow Storm by day, Polar Night by night, a frost accent. */
+[data-palette="nord"] {
+  --canvas-base: light-dark(#e5e9f0, #2e3440);
+  --surface-base: light-dark(#eceff4, #3b4252);
+  --surface-hover-base: light-dark(#d8dee9, #434c5e);
+  --surface-pressed-base: light-dark(#cbd2de, #4c566a);
+  --surface-selected-base: light-dark(#d2d8e3, #465063);
+  --rush-base: light-dark(#cdd3df, #434c5e);
+  --ink: light-dark(#2e3440, #eef1f6);
+  --narration: light-dark(#3b4252, #e5e9f0);
+  --ink-action: light-dark(#495265, #c4cad4);
+  --ink-thought: light-dark(#586277, #b0b7c4);
+  --ink-narration: light-dark(#516675, #a5b9bf);
+  --reed: light-dark(#566175, #b6becc);
+  --control-edge: light-dark(#778499, #8092ab);
+  --dusk: light-dark(#4f72a0, #88c0d0);
+  --dusk-hover: light-dark(#45679a, #9acbd9);
+  --dusk-line: light-dark(#4f72a0, #88c0d0);
+  --on-dusk: light-dark(#f4f7fc, #2e3440);
+  --ember: light-dark(#954c55, #e89f83);
+  --tone-rose: light-dark(#695567, #e6c0df);
+  --tone-sage: light-dark(#515f3f, #b9d4a2);
+  --tone-iris: light-dark(#3c5f76, #afcfef);
+  --tone-mist: light-dark(#4c566a, #a7b1c2);
+  --error-surface: light-dark(#f0dcde, #4a3a43);
+  --text-disabled: light-dark(#a3acbd, #616e88);
+  --scrim: light-dark(rgb(46 52 64 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(46 52 64 / 0.14), rgb(0 0 0 / 0.5));
+}
+
+/* Gruvbox: its light and dark grounds, an orange accent. */
+[data-palette="gruvbox"] {
+  --canvas-base: light-dark(#f2e5bc, #1d2021);
+  --surface-base: light-dark(#fbf1c7, #282828);
+  --surface-hover-base: light-dark(#ebdbb2, #32302f);
+  --surface-pressed-base: light-dark(#d5c4a1, #3c3836);
+  --surface-selected-base: light-dark(#e3d3a8, #383432);
+  --rush-base: light-dark(#d5c4a1, #3c3836);
+  --ink: light-dark(#3c3836, #ebdbb2);
+  --narration: light-dark(#504945, #d5c4a1);
+  --ink-action: light-dark(#564f4b, #b4a58a);
+  --ink-thought: light-dark(#685e56, #a3947e);
+  --ink-narration: light-dark(#5d635b, #92a091);
+  --reed: light-dark(#685d55, #a8997f);
+  --control-edge: light-dark(#8a7f70, #7e7166);
+  --dusk: light-dark(#af3a03, #fe8019);
+  --dusk-hover: light-dark(#9a3302, #ff9440);
+  --dusk-line: light-dark(#af3a03, #fe8019);
+  --on-dusk: light-dark(#fbf1c7, #1d2021);
+  --ember: light-dark(#9d0006, #fe5a45);
+  --tone-rose: light-dark(#893c6e, #db8ea3);
+  --tone-sage: light-dark(#5a5c04, #b8bb26);
+  --tone-iris: light-dark(#065f71, #8bada0);
+  --tone-mist: light-dark(#706358, #bdae93);
+  --error-surface: light-dark(#f5d7c0, #3c2422);
+  --text-disabled: light-dark(#a89984, #665c54);
+  --scrim: light-dark(rgb(60 56 54 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(60 56 54 / 0.14), rgb(0 0 0 / 0.5));
+}
+
+/* Tokyo Night: Day by day, Night by night, a blue accent. */
+[data-palette="tokyo-night"] {
+  --canvas-base: light-dark(#e1e2e7, #16161e);
+  --surface-base: light-dark(#e9e9ed, #1a1b26);
+  --surface-hover-base: light-dark(#d6d8e2, #222436);
+  --surface-pressed-base: light-dark(#c4c8da, #292e42);
+  --surface-selected-base: light-dark(#d0d3e2, #24283b);
+  --rush-base: light-dark(#c4c8da, #292e42);
+  --ink: light-dark(#343b58, #c0caf5);
+  --narration: light-dark(#414868, #a9b1d6);
+  --ink-action: light-dark(#454d6d, #969ec2);
+  --ink-thought: light-dark(#4b5b97, #838bb5);
+  --ink-narration: light-dark(#466376, #7999ad);
+  --reed: light-dark(#4a5a92, #828cb7);
+  --control-edge: light-dark(#7b7d97, #5d6697);
+  --dusk: light-dark(#2668cf, #7aa2f7);
+  --dusk-hover: light-dark(#1f5cbd, #8db0f9);
+  --dusk-line: light-dark(#2e7de9, #7aa2f7);
+  --on-dusk: light-dark(#f4f5f8, #16161e);
+  --ember: light-dark(#bf024f, #f7768e);
+  --tone-rose: light-dark(#7e20bd, #bb9af7);
+  --tone-sage: light-dark(#425f23, #9ece6a);
+  --tone-iris: light-dark(#035d7d, #7dcfff);
+  --tone-mist: light-dark(#516290, #a9b1d6);
+  --error-surface: light-dark(#f0d7df, #3a1f2b);
+  --text-disabled: light-dark(#a1a6c5, #414868);
+  --scrim: light-dark(rgb(52 59 88 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(52 59 88 / 0.14), rgb(0 0 0 / 0.5));
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* The palette's surfaces as the app uses them (`data-atmosphere` tints them). */
+  --canvas: var(--canvas-base);
+  --surface: var(--surface-base);
+  --surface-hover: var(--surface-hover-base);
+  --surface-pressed: var(--surface-pressed-base);
+  --surface-selected: var(--surface-selected-base);
+  --rush: var(--rush-base);
+  /* The dusk wash on what an AI Rework writes: its insertions and the fields it just filled. */
+  --dusk-wash: color-mix(in oklab, var(--dusk) 18%, transparent);
+
+  --radius: 0.5rem;
+
+  /*
+   * Motion: a calm spring without overshoot for movement, a quick curve for
+   * opacity. Reduced motion zeroes every distance and shortens every duration.
+   */
+  --ease-spring: linear(0, 0.25 9%, 0.6 20%, 0.84 33%, 0.95 46%, 0.99 62%, 1);
+  --ease-fade: cubic-bezier(0.2, 0, 0, 1);
+  /*
+   * The lamp's breath: its curve, a breath at rest, and one while a reply is
+   * written. Everything that breathes in step with the lamp reads these
+   * (components/icons.tsx derives the halo's playback rate from the two).
+   */
+  --ease-breath: cubic-bezier(0.37, 0, 0.63, 1);
+  --breath-rest: 6s;
+  --breath-writing: 3.6s;
+  --duration-press: 80ms;
+  --duration-release: 140ms;
+  /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
+  --duration-tint: 100ms;
+  --duration-quick: 120ms;
+  --duration-arrive: 180ms;
+  --duration-panel-in: 240ms;
+  --duration-panel-out: 180ms;
+  /* A drawer swiped away at full strength; its swipe strength scales it. */
+  --duration-swipe-out: 400ms;
+  /* The glow on fields an AI Rework just wrote: a fade, so reduced motion keeps it. */
+  --duration-settle: 700ms;
+  /* The dusk wash on what the cast's newest snapshot changed (chat/Cast.tsx WASH_MS): a fade. */
+  --duration-wash: 1200ms;
+  --rise: 4px;
+  --panel-shift: 12px;
+  --press-scale: 0.98;
+}
+
+/*
+ * Atmosphere: in the chat the room leans a few percent toward the hue of the
+ * character's portrait (portraits/atmosphere.ts sets both properties). The
+ * mix happens in OKLCH toward a colour of each surface's own lightness, so
+ * lightness and every text contrast hold; the hue stays near the palette's.
+ * Each surface is restated in OKLCH first: Chromium reads a near-grey hex as
+ * hueless, which would hand the mix the portrait's hue whole.
+ */
+@property --tint-mix {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 0%;
+}
+@property --tint-h {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+:root {
+  transition:
+    --tint-mix var(--duration-panel-in) var(--ease-fade),
+    --tint-h var(--duration-panel-in) var(--ease-fade);
+}
+
+:root[data-atmosphere] {
+  --canvas: color-mix(
+    in oklch shorter hue,
+    oklch(from var(--canvas-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--canvas-base) l 0.06 var(--tint-h))
+  );
+  --surface: color-mix(
+    in oklch shorter hue,
+    oklch(from var(--surface-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-base) l 0.06 var(--tint-h))
+  );
+  --surface-hover: color-mix(
+    in oklch shorter hue,
+    oklch(from var(--surface-hover-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-hover-base) l 0.06 var(--tint-h))
+  );
+  --surface-pressed: color-mix(
+    in oklch shorter hue,
+    oklch(from var(--surface-pressed-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-pressed-base) l 0.06 var(--tint-h))
+  );
+  --surface-selected: color-mix(
+    in oklch shorter hue,
+    oklch(from var(--surface-selected-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-selected-base) l 0.06 var(--tint-h))
+  );
+  --rush: color-mix(
+    in oklch shorter hue,
+    oklch(from var(--rush-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--rush-base) l 0.06 var(--tint-h))
+  );
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ease-spring: var(--ease-fade);
+    --duration-press: 0ms;
+    --duration-release: 0ms;
+    --duration-arrive: var(--duration-quick);
+    --duration-panel-in: var(--duration-quick);
+    --duration-panel-out: var(--duration-quick);
+    --duration-swipe-out: var(--duration-quick);
+    --rise: 0px;
+    --panel-shift: 0px;
+    --press-scale: 1;
+  }
+}
+
+/*
+ * Layout, defined once and always emitted, so app/form-factor.ts reads the
+ * breakpoints and arbitrary values can reach a width. Breakpoints are media
+ * queries, so they stay at the browser's default size; the widths and the
+ * container thresholds are rem and grow with the root on large displays.
+ */
+@theme static {
+  --breakpoint-tablet: 45rem;
+  --breakpoint-desktop: 75rem;
+  /* Rail, full-width thread and Session panel side by side; below this Session overlays. */
+  --breakpoint-dock: 85rem;
+
+  /* Content columns. */
+  --container-form: 47rem;
+  --container-wide: 72rem;
+  --container-page: 50.5rem;
+  --container-column: 44rem;
+  --container-creator: 66rem;
+  --container-browse: 160rem;
+  /* The lorebook's entry list beside its editor. */
+  --container-entries: 27rem;
+  /* The character sheet's index beside its form, and the gap between them. */
+  --container-index: 11rem;
+  --gap-index: 3rem;
+  /* The prompt preset sheet's formatting key beside its form, at the same gap. */
+  --container-key: 17rem;
+  /* Measures: the story and interface prose, a floating notice, help beside controls, an empty state's sentence. */
+  --container-measure: 40rem;
+  --container-notice: 38.5rem;
+  --container-help: 34rem;
+  --container-empty: 30rem;
+
+  /* Container query thresholds: a card's columns side by side, the chat's roomy script. */
+  --container-card: 41.5rem;
+  --container-chat-roomy: 76rem;
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-display: "Marcellus", serif;
+  --font-story: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-pressed: var(--surface-pressed);
+  --color-surface-selected: var(--surface-selected);
+  --color-ink: var(--ink);
+  --color-narration: var(--narration);
+  --color-reed: var(--reed);
+  --color-rush: var(--rush);
+  --color-control-edge: var(--control-edge);
+  --color-dusk: var(--dusk);
+  --color-dusk-hover: var(--dusk-hover);
+  --color-dusk-line: var(--dusk-line);
+  --color-on-dusk: var(--on-dusk);
+  --color-ember: var(--ember);
+  --color-error-surface: var(--error-surface);
+  --color-text-disabled: var(--text-disabled);
+  --color-scrim: var(--scrim);
+
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+
+  /* Type scale after Bringhurst, with explicit leading. */
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+  --text-note: 0.8125rem;
+  --text-note--line-height: 1.125rem;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
+  --text-lead: 1rem;
+  --text-lead--line-height: 1.375rem;
+  --text-turn: 1rem;
+  --text-turn--line-height: 1.625rem;
+  /* The owner's lines: one step quieter than the character's prose. */
+  --text-line: 1rem;
+  --text-line--line-height: 1.625rem;
+  --text-story-phone: 1.0625rem;
+  --text-story-phone--line-height: 1.75rem;
+  --text-story: 1.125rem;
+  --text-story--line-height: 1.875rem;
+  --text-heading: 1.25rem;
+  --text-heading--line-height: 1.625rem;
+  /* The character sheet's name: 28/36 on phones, 32/40 from tablet. */
+  --text-title-phone: 1.75rem;
+  --text-title-phone--line-height: 2.25rem;
+  --text-title: 2rem;
+  --text-title--line-height: 2.5rem;
+
+  --ease-spring: var(--ease-spring);
+  --ease-fade: var(--ease-fade);
+  --shadow-overlay: 0 12px 32px var(--shadow-overlay);
+  /* A focused field's ring, beside its dusk border. */
+  --shadow-focus: 0 0 0 3px color-mix(in oklab, var(--dusk) 22%, transparent);
+}
+
+@layer base {
+  /*
+   * Past full HD the whole interface grows with the window, keyed on its
+   * width and its height separately (the smaller step wins), so ultrawide,
+   * short and portrait windows do not over-scale. With a 16px default:
+   * 16px up to 1920x1080, 18px at 2560x1440 and 3440x1440, 20px (the cap,
+   * a quarter larger) at 3840x2160, and 16px on a 1440x2560 portrait
+   * screen. Media queries keep the default size, so no breakpoint moves.
+   */
+  html {
+    font-size: clamp(100%, min(0.625rem + 0.3125vw, 0.625rem + 0.5556vh), 125%);
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--dusk-line);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--dusk) 28%, transparent);
+  }
+
+  :root {
+    caret-color: var(--dusk-line);
+    accent-color: var(--dusk);
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-color: var(--control-edge) transparent;
+  }
+
+  * {
+    scrollbar-width: thin;
+  }
+
+  button:not(:disabled, [data-disabled]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+/*
+ * Story prose: roleplay actions (*like this*) are italic in `--ink-em`
+ * where a scene sets it and in the narration ink elsewhere, highlights (:rose[like this]) take their tone; links and images
+ * arrive inert, their destination shown as quieter text.
+ */
+/*
+ * A highlight is its tone's ink on a faint wash of it, which fades in as it
+ * arrives: the story's highlights and the cast record's toned fields.
+ * `data-tone` picks the tone, rose unless sage or iris.
+ */
+@utility tone-wash {
+  --tone: var(--tone-rose);
+  border-radius: 0.25em;
+  background-color: color-mix(in oklab, var(--tone) 14%, transparent);
+  /* The wash reaches past the words without moving the text around them. */
+  margin-inline: -0.1em;
+  padding-inline: 0.15em;
+  color: var(--tone);
+  box-decoration-break: clone;
+  transition: background-color var(--duration-arrive) var(--ease-fade);
+  @starting-style {
+    background-color: transparent;
+  }
+  &[data-tone="sage"] {
+    --tone: var(--tone-sage);
+  }
+  &[data-tone="iris"] {
+    --tone: var(--tone-iris);
+  }
+}
+
+@utility prose-turn {
+  overflow-wrap: break-word;
+  & em {
+    color: var(--ink-em, var(--narration));
+    font-style: italic;
+  }
+  & strong {
+    font-weight: 600;
+  }
+  & code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+  }
+  & pre {
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    padding: 0.75rem 1rem;
+    font-size: var(--text-note);
+  }
+  & span[data-tone] {
+    @apply tone-wash;
+  }
+  /* Mist colours whole passages, so it is the ink alone. */
+  & span[data-tone="mist"] {
+    --tone: var(--tone-mist);
+    margin-inline: 0;
+    background-color: transparent;
+    padding-inline: 0;
+  }
+  & span[data-tone] em {
+    color: inherit;
+  }
+  & [data-inert="destination"] {
+    color: var(--reed);
+    font-size: 0.875em;
+    overflow-wrap: anywhere;
+  }
+  /*
+   * Beside the portrait floated at the head of the latest reply (Presence.tsx),
+   * text wraps around it, while a block drawn with a rule or markers moves
+   * clear of it whole instead of running its edge under the art.
+   */
+  & :is(blockquote, ul, ol, hr) {
+    display: flow-root;
+  }
+}
+
+/*
+ * Two voices: the character speaks in the reading sans, open on the canvas and a
+ * touch heavier on dark canvases; the owner's lines stay in the interface
+ * sans, set on a slip at the trailing edge (`slip`).
+ */
+@utility voice-story {
+  color: var(--ink);
+  font-family: var(--font-story);
+  font-weight: 400;
+  font-feature-settings: "onum" 0;
+  text-wrap: pretty;
+  @variant dark {
+    font-weight: 420;
+  }
+}
+
+/*
+ * A scene's four voices (chat/voices.ts), loudest first, all at one size:
+ * speech in ink and a touch heavier, actions in italic (prose-turn) in
+ * their own ink, thoughts in italic in theirs, and narration upright in
+ * its own; by night everything but speech drops the story's extra weight.
+ * Blockquotes and lists (the location line, the present block) keep the
+ * plain story look: only the scene's own paragraphs carry
+ * `data-scene-line`. A character's turn in the chat is a scene; other
+ * story prose (the creator's card text) is not.
+ */
+@utility voice-scene {
+  /* Actions take `--ink-em` (prose-turn); emphasis inside speech or a thought keeps its ink. */
+  & p[data-scene-line] {
+    --ink-em: var(--ink-action);
+    color: var(--ink-narration);
+    @variant dark {
+      font-weight: 400;
+    }
+  }
+  & [data-voice="speech"] {
+    --ink-em: var(--ink);
+    color: var(--ink);
+    font-weight: 460;
+    @variant dark {
+      font-weight: 480;
+    }
+  }
+  /*
+   * Bold (Streamdown's own element) keeps its weight where a quote runs
+   * through it; emphasis there is stress, in the speech ink, not an action.
+   */
+  & [data-streamdown="strong"] [data-voice="speech"] {
+    font-weight: inherit;
+  }
+  & [data-voice="thought"] {
+    --ink-em: var(--ink-thought);
+    color: var(--ink-thought);
+    font-style: italic;
+  }
+  /* A line that is only a cue and a thought sits inset, every wrapped line with it. */
+  & p[data-scene-line="thought"] {
+    padding-inline-start: 1.25em;
+  }
+  /*
+   * A cue names its speaker as a play script does: the name in the story
+   * face, semibold, a step smaller than the prose and in the narration ink,
+   * so each of several speakers reads at a glance while the turn's nameplate
+   * stays the loudest name, and the age after it as a quiet aside. Its colon
+   * and space stay in the text, visually hidden here, and the margin stands
+   * in for them. The owner's lines show a cue as written.
+   */
+  & [data-cue] {
+    margin-inline-end: 0.5em;
+    font-size: 0.84em;
+    font-style: normal;
+  }
+  & [data-cue-name] {
+    color: var(--narration);
+    font-weight: 600;
+  }
+  & [data-cue-age] {
+    color: var(--reed);
+    font-size: 0.85em;
+    font-weight: 400;
+  }
+  /*
+   * The present block opens each woman's line with her name, upright,
+   * semibold and in ink against the quote's quiet italic, so where one
+   * entry ends and the next begins reads at a glance.
+   */
+  & [data-present-name] {
+    color: var(--ink);
+    font-style: normal;
+    font-weight: 600;
+  }
+  /*
+   * Streamdown spaces its blocks 1rem apart (`space-y-4`, a bottom margin
+   * on all but the last); story paragraphs take 1em instead, and two
+   * character lines in a row sit closer, at 0.5em.
+   */
+  & p[data-scene-line]:has(+ p) {
+    margin-block-end: 1em;
+  }
+  &
+    p:not([data-scene-line="narration"]):has(
+      + p[data-scene-line]:not([data-scene-line="narration"])
+    ) {
+    margin-block-end: 0.5em;
+  }
+  & [data-cue-separator] {
+    @apply sr-only;
+  }
+}
+
+@utility voice-line {
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/*
+ * A colour input drawn as a round swatch of its colour, ringed so a colour
+ * near the ground still shows its edge (Chromium only, as the app is).
+ */
+@utility colour-swatch {
+  appearance: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  flex: none;
+  border: 1px solid var(--control-edge);
+  border-radius: 9999px;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  transition: scale var(--duration-press) var(--ease-fade);
+  &::-webkit-color-swatch-wrapper {
+    padding: 2px;
+  }
+  &::-webkit-color-swatch {
+    border: none;
+    border-radius: 9999px;
+  }
+  &:active {
+    scale: 0.94;
+  }
+  &:focus-visible {
+    outline-offset: 3px;
+  }
+  @variant touch {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+  }
+}
+
+/*
+ * The owner's line as sent: a slip on a quiet surface at the trailing edge of
+ * the measure, as wide as its text up to most of the measure, its corner
+ * toward the edge tighter. Alignment and the surface tell the owner's turns
+ * from the story at a glance, without colour. An edit takes the full measure
+ * instead.
+ */
+@utility slip {
+  width: fit-content;
+  max-width: min(34rem, 92%);
+  margin-inline-start: auto;
+  border: 1px solid var(--rush);
+  border-radius: 1.125rem;
+  border-end-end-radius: 0.3125rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px -16px var(--shadow-overlay);
+  padding: 0.625rem 1.125rem 0.6875rem;
+  /* A code block keeps a panel of its own on the slip's surface. */
+  & pre {
+    background: var(--canvas);
+  }
+  @variant tablet {
+    max-width: min(34rem, 88%);
+  }
+  /* A roomy chat column (its larger portrait alike) gives the slip more width, at the same share. */
+  @container chat (width >= --theme(--container-chat-roomy)) {
+    max-width: min(40rem, 88%);
+  }
+}
+
+/*
+ * Nameplates: each turn opens with its speaker's name in the voice that
+ * follows. The character's is in ink, the loudest name in the story, with a
+ * hairline from it to the story's edge that opens the reply; the owner's
+ * is a quiet label over the slip, at the trailing edge with it. It sticks a
+ * little below the top of the story while its turn scrolls past, on the
+ * canvas (the shadow fills the space above it), and only then lets the text
+ * below fade out under it, so the edge never cuts a line in half.
+ */
+@utility nameplate {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 1;
+  container-type: scroll-state;
+  margin-bottom: 0.25rem;
+  background: var(--canvas);
+  box-shadow: 0 -0.75rem 0 var(--canvas);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  &[data-voice="story"] {
+    display: flex;
+    gap: 0.875rem;
+    margin-bottom: 0.5rem;
+    font-family: var(--font-story);
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.5rem;
+    /* Level with the name's first line, however many it takes. */
+    &::after {
+      content: "";
+      flex: 1 0 1.5rem;
+      height: 1px;
+      margin-top: 0.75rem;
+      background: var(--rush);
+    }
+  }
+  &[data-voice="line"] {
+    padding-inline-end: 0.375rem;
+    color: var(--reed);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.5rem;
+    text-align: end;
+  }
+}
+
+/*
+ * At most two lines, so a long name never curtains the story while it
+ * sticks; the full name stays in the text and the title.
+ */
+@utility nameplate-name {
+  display: -webkit-box;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  /* biome-ignore lint/style/noDescendingSpecificity: & is .nameplate-name here, another element than .nameplate[data-voice="story"]::after; Biome cannot read @utility. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 1.5rem;
+    background: linear-gradient(var(--canvas), transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-quick) var(--ease-fade);
+  }
+  @container scroll-state(stuck: top) {
+    &::after {
+      opacity: 1;
+    }
+  }
+}
+
+/* Focus inside a turn scrolls its control clear of the nameplate stuck above it. */
+@layer base {
+  [data-message] :is(a[href], button, summary, input, textarea, select, [tabindex]) {
+    scroll-margin-top: 4.5rem;
+  }
+}
+
+/* The streaming caret: a 2px lamp-colored bar that breathes; still under reduced motion. */
+@keyframes breathe {
+  to {
+    opacity: 0.35;
+  }
+}
+
+@utility stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  border-radius: 1px;
+  background: var(--dusk-line);
+  vertical-align: -0.15em;
+}
+
+@utility caret {
+  @apply stream-caret;
+  animation: breathe 1.2s ease-in-out infinite alternate;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/*
+ * The mark's lamp at rest: a halo behind the crescent that rises and settles
+ * ten times a minute, rising faster than it settles. Both ends of the cycle
+ * are the same frame at zero speed, so the loop has no seam. Under reduced
+ * motion the halo holds its resting glow.
+ */
+@keyframes lamp-breathe {
+  0%,
+  100% {
+    opacity: 0.3;
+    scale: 0.75;
+  }
+  40% {
+    opacity: 0.8;
+    scale: 1;
+  }
+}
+
+@utility lamp-halo {
+  position: absolute;
+  z-index: -1;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--dusk) 30%, transparent);
+  pointer-events: none;
+  opacity: 0.3;
+  scale: 0.75;
+  animation: lamp-breathe var(--breath-rest) var(--ease-breath) infinite;
+  transition: filter var(--duration-panel-in) var(--ease-fade);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/*
+ * Streamdown's last block carries the caret while text streams. It holds
+ * steady: the words arriving are the motion, and the caret breathes only
+ * while nothing has come yet.
+ */
+@utility caret-after {
+  & > :last-child::after {
+    @apply stream-caret;
+    content: "";
+    margin-left: 3px;
+  }
+}
+
+/*
+ * Streamed words arrive with a short fade, never a slide or blur, so they
+ * already hold their space. Streamdown's animate plugin wraps each new word
+ * and sets its timing in CSS variables; the keyframes are Ephemera's own.
+ * Under reduced motion words appear at once.
+ */
+@keyframes sd-fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+[data-sd-animate] {
+  animation: var(--sd-animation) var(--sd-duration) var(--ease-fade) var(--sd-delay, 0ms) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/*
+ * Inside the creator's frame while the card or its art is in progress: the
+ * lamp's light pooling up from the lower edge, under whatever the frame
+ * holds. It fades in and out with the work and stays still, so the glow
+ * behind the frame and the writing edge carry the motion.
+ */
+@utility frame-lamp {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 70% at 50% 108%,
+    color-mix(in oklab, var(--dusk) 16%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity var(--duration-panel-in) var(--ease-fade);
+  [data-writing] & {
+    opacity: 1;
+  }
+}
+
+/*
+ * The frame's lower edge while the art's stage has no measure: a short soft
+ * light glides along it and back, one way per breath of the lamp in flight
+ * (3.6 s, its curve), so it moves with the glow and never against it.
+ * Under reduced motion it is not drawn; the caption says what happens.
+ */
+@keyframes drift {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 250% 0;
+  }
+}
+
+@utility frame-drift {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  transition: opacity var(--duration-panel-in) var(--ease-fade);
+  @starting-style {
+    opacity: 0;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, var(--dusk), transparent);
+    animation: drift var(--breath-writing) var(--ease-breath) infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    display: none;
+  }
+}
+
+/*
+ * The portrait's glow while a reply is in flight: a soft lamp-colored field
+ * behind the frame that breathes with the mark's lamp, 3.6 s a breath
+ * (`glow-breathe` has the lamp's shape), and settles when the reply ends.
+ * Light canvases get a pale amber lighter than the canvas, dark ones a half
+ * mix of the lamp. The element fades; its ::before breathes on top of that
+ * opacity. While the owner writes in the composer it holds a faint, still
+ * light. Under reduced motion it shows still while busy. The phone header's
+ * small portrait has a tight one (`data-header-glow`).
+ */
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    scale: 0.98;
+  }
+  40% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@utility presence-glow {
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-panel-in) var(--ease-fade);
+  @variant dark {
+    inset: -6%;
+  }
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 18%;
+    background: light-dark(
+      oklch(from var(--dusk) 0.955 0.07 h),
+      color-mix(in oklab, var(--dusk) 50%, transparent)
+    );
+    filter: blur(24px);
+    opacity: 0.55;
+    scale: 0.98;
+    transition:
+      opacity var(--duration-panel-in) var(--ease-fade),
+      scale var(--duration-panel-in) var(--ease-fade);
+    @variant dark {
+      filter: blur(22px);
+    }
+  }
+  &[data-header-glow] {
+    inset: -3px;
+    &::before {
+      border-radius: 6px;
+      filter: blur(8px);
+    }
+  }
+  /*
+   * The creator's frame: the light pools lower and wider, as from a lamp
+   * set beneath the card, and its softer edge stays clear of the top of
+   * the scrolling column, which would cut it off.
+   */
+  &[data-frame-glow] {
+    inset: 5% -8% -9%;
+    &::before {
+      border-radius: 40%;
+      filter: blur(30px);
+    }
+  }
+  [data-writing] & {
+    opacity: 1;
+    &::before {
+      animation: glow-breathe var(--breath-writing) var(--ease-breath) infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      opacity: 0.45;
+      &::before {
+        animation: none;
+        opacity: 1;
+        scale: 1;
+      }
+    }
+  }
+  main:not([data-writing]):has(form textarea:focus:not(:placeholder-shown)) & {
+    opacity: 0.45;
+    @variant dark {
+      opacity: 0.3;
+    }
+    &[data-header-glow] {
+      opacity: 0.3;
+    }
+    &::before {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+}
+
+/*
+ * A scene picture's own glow while it is painted: the portrait's lamp light
+ * pooled behind its plate, breathing with `glow-breathe`. Lit only by its
+ * own `data-painting`, never by a reply in flight, so a finished picture
+ * stays still while the story is written; it fades out on any end. Under
+ * reduced motion it holds still at 0.45.
+ */
+@utility scene-glow {
+  position: absolute;
+  inset: 3% -6% -5%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-panel-in) var(--ease-fade);
+  /* biome-ignore lint/style/noDescendingSpecificity: & is .scene-glow here, another element than .nameplate[data-voice="story"]::after; Biome cannot read @utility. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 40%;
+    background: light-dark(
+      oklch(from var(--dusk) 0.955 0.07 h),
+      color-mix(in oklab, var(--dusk) 50%, transparent)
+    );
+    filter: blur(30px);
+    opacity: 0.55;
+    scale: 0.98;
+  }
+  &[data-painting] {
+    opacity: 1;
+    &::after {
+      animation: glow-breathe var(--breath-writing) var(--ease-breath) infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      opacity: 0.45;
+      &::after {
+        animation: none;
+        opacity: 1;
+        scale: 1;
+      }
+    }
+  }
+}
+
+/* Words in the creator's focused description field light the mark's lamp faintly, without movement. */
+:root:has(textarea[data-lamp-field]:focus:not(:placeholder-shown)) .lamp-halo {
+  filter: brightness(1.2) saturate(1.15);
+}
+
+/* Appears only after six seconds without text: no timer in script. */
+@keyframes appear {
+  to {
+    opacity: 1;
+  }
+}
+
+@utility still-waiting {
+  opacity: 0;
+  animation: appear var(--duration-quick) var(--ease-fade) 6s forwards;
+}
+
+/*
+ * A native disclosure (details) that grows to its content on the spring and
+ * fades; reduced motion keeps only the fade.
+ */
+@utility disclosure {
+  interpolate-size: allow-keywords;
+  &::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    opacity: 0;
+    transition:
+      block-size var(--duration-panel-in) var(--ease-spring),
+      opacity var(--duration-quick) var(--ease-fade),
+      content-visibility var(--duration-panel-in) allow-discrete;
+  }
+  &[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &::details-content {
+      transition:
+        opacity var(--duration-quick) var(--ease-fade),
+        content-visibility var(--duration-quick) allow-discrete;
+    }
+  }
+}
+
+/*
+ * A disclosure's chevron (components/ui/disclosure.tsx): it turns as its
+ * details opens, on the spring; reduced motion turns it at once.
+ */
+@utility disclosure-chevron {
+  rotate: var(--chevron-closed, 0deg);
+  transition: rotate var(--duration-arrive) var(--ease-spring);
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+details[open] > summary .disclosure-chevron {
+  rotate: var(--chevron-open, 180deg);
+}
+
+/* The header hairline appears once the screen's content scrolls beneath it. */
+@keyframes hairline {
+  from {
+    border-bottom-color: transparent;
+  }
+  to {
+    border-bottom-color: var(--rush);
+  }
+}
+
+@utility header-hairline {
+  border-bottom-color: transparent;
+  animation: hairline linear both;
+  animation-timeline: --thread;
+  animation-range: 0 3rem;
+}
+
+/*
+ * View transitions: routes and theme changes crossfade the page; shared
+ * elements that carry `view-transition-class: glide` (the nav marker, the
+ * creator's art, a character's portrait, a book's name) glide on the
+ * spring. Reduced motion keeps only a short fade.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: var(--ease-fade);
+}
+
+::view-transition-group(.glide) {
+  animation-duration: var(--duration-panel-in);
+  animation-timing-function: var(--ease-spring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation: none;
+  }
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: var(--duration-quick);
+  }
+}
+
+/*
+ * An imported portrait surfaces out of blur, like a reflection settling on
+ * the water: the gallery's one orchestrated moment. Reduced motion keeps a
+ * short fade.
+ */
+@utility surface-in {
+  transition:
+    filter var(--surface-duration, 400ms) var(--ease-fade),
+    opacity var(--surface-duration, 400ms) var(--ease-fade);
+  @starting-style {
+    opacity: 0;
+    filter: blur(8px) saturate(0.4);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: opacity var(--duration-quick) var(--ease-fade);
+    @starting-style {
+      filter: none;
+    }
+  }
+}
+
+/*
+ * The creator's reveal, its one bold moment: the chosen portrait develops
+ * like a print in the portrait entrance's language drawn out to 480 ms, and
+ * the alternates fade in together over 180 ms from 300 ms. Reduced motion
+ * keeps a short fade at once, without blur or stagger.
+ */
+@utility develop-in {
+  @apply surface-in;
+  --surface-duration: 480ms;
+}
+
+@utility alternates-in {
+  transition: opacity var(--duration-arrive) var(--ease-fade) 300ms;
+  @starting-style {
+    opacity: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: opacity var(--duration-quick) var(--ease-fade);
+  }
+}
+
+/* The sheet's name joins its header once the name field scrolls beneath it. */
+@keyframes title-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--rise);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* Hidden until scrolling drives it in; a sheet too short to scroll keeps its name in the field. */
+@utility title-in {
+  opacity: 0;
+  animation: title-in linear both;
+  animation-timeline: --thread;
+  animation-range: 3rem 5.5rem;
+}
+
+/*
+ * The phone header's portrait: hidden while the band's portrait is in view,
+ * fading in as it scrolls out. Without the band (no timeline) it stays hidden.
+ */
+@utility presence-in {
+  opacity: 0;
+  animation: title-in linear both;
+  animation-timeline: --presence;
+  animation-range: exit 0% exit 100%;
+}
+
+/*
+ * A library book's name glides between its row and its editor's title, the
+ * library's one orchestrated moment. Only the name's text wrapper moves.
+ * Under reduced motion it does not travel: every group's animation is off
+ * (above) and the name only crossfades in place, briefly.
+ */
+::view-transition-old(lorebook-name),
+::view-transition-new(lorebook-name) {
+  /* The row's name and the title differ in size: each keeps its own, left aligned, never stretched. */
+  height: 100%;
+  object-fit: none;
+  object-position: left center;
+}
+
+/* A portrait grows out of its place into the viewer and settles back: the longest travel, so a longer spring. */
+::view-transition-group(portrait-viewer) {
+  animation-duration: 340ms;
+  animation-timing-function: var(--ease-spring);
+}
+
+/* Press feedback: a quick press, a spring release; colors fade. */
+@utility press {
+  transition:
+    scale var(--duration-release) var(--ease-spring),
+    background-color var(--duration-tint) var(--ease-fade),
+    border-color var(--duration-tint) var(--ease-fade),
+    color var(--duration-tint) var(--ease-fade);
+  &:active:not(:disabled, [data-disabled]) {
+    scale: var(--press-scale);
+    transition-duration:
+      var(--duration-press), var(--duration-tint), var(--duration-tint), var(--duration-tint);
+  }
+}
+
+/*
+ * How something new arrives: a short rise on the spring and a fade, from its
+ * starting style. A turn, a name on the cast roster, a notice or a revealed
+ * field arrive this way. Reduced motion zeroes the rise, leaving the fade;
+ * a horizontal translate the element carries stays.
+ */
+@utility arrive {
+  transition:
+    opacity var(--duration-arrive) var(--ease-spring),
+    translate var(--duration-arrive) var(--ease-spring);
+  @starting-style {
+    opacity: 0;
+    translate: var(--tw-translate-x, 0) var(--rise);
+  }
+}
+
+/* Popups rise 4px and fade; Base UI's starting and ending styles keep it interruptible. */
+@utility pop {
+  transition:
+    opacity var(--duration-quick) var(--ease-fade),
+    translate var(--duration-arrive) var(--ease-spring);
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    translate: 0 var(--rise);
+  }
+}
+
+/*
+ * A bar that rises from under the scroller on the spring and fades in, and
+ * leaves the same way, quicker (the AI Rework dock). Reduced motion zeroes
+ * the shift, leaving the fade.
+ */
+@utility dock-rise {
+  transition:
+    translate var(--duration-panel-in) var(--ease-spring),
+    opacity var(--duration-panel-in) var(--ease-fade);
+  @starting-style {
+    opacity: 0;
+    translate: 0 var(--panel-shift);
+  }
+  &[data-leaving] {
+    opacity: 0;
+    translate: 0 var(--panel-shift);
+    transition-duration: var(--duration-panel-out);
+  }
+}
+
+/*
+ * AI Rework's tracked changes. Insertions: ink on the dusk wash with a
+ * dusk-line underline. Deletions: full-strength ember, struck through
+ * once. Wash and colour back up <ins>, <del> and their spoken prefixes.
+ * A rejected change (`data-decision="rejected"` on its group) swaps
+ * emphasis in place: the original returns to ink, the proposal fades to
+ * 40 %; a rejected pure insertion (`data-pure`) folds away.
+ */
+@utility ins-wash {
+  color: var(--ink);
+  text-decoration: none;
+  background-color: var(--dusk-wash);
+  box-shadow: inset 0 -1px var(--dusk-line);
+}
+
+@utility tracked-ins {
+  @apply ins-wash;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  transition:
+    opacity var(--duration-quick) var(--ease-fade),
+    background-color var(--duration-quick) var(--ease-fade),
+    box-shadow var(--duration-quick) var(--ease-fade),
+    display var(--duration-quick) allow-discrete;
+}
+
+@utility tracked-del {
+  color: var(--ember);
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: currentColor;
+  transition:
+    color var(--duration-quick) var(--ease-fade),
+    text-decoration-color var(--duration-quick) var(--ease-fade);
+}
+
+/* A keyword or tag the change removes: struck ember on the error surface. */
+@utility tracked-chip-del {
+  color: var(--ember);
+  background-color: var(--error-surface);
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1px;
+  transition:
+    color var(--duration-quick) var(--ease-fade),
+    background-color var(--duration-quick) var(--ease-fade),
+    text-decoration-color var(--duration-quick) var(--ease-fade);
+}
+
+/* A keyword or tag the change adds: on the dusk wash. */
+@utility tracked-chip-ins {
+  @apply ins-wash;
+  transition:
+    opacity var(--duration-quick) var(--ease-fade),
+    background-color var(--duration-quick) var(--ease-fade),
+    box-shadow var(--duration-quick) var(--ease-fade);
+}
+
+/* Whole new parts (a new entry) fold away when rejected; reduced motion fades only. */
+@utility tracked-fold {
+  interpolate-size: allow-keywords;
+  overflow-y: clip;
+  transition:
+    block-size var(--duration-panel-in) var(--ease-spring),
+    opacity var(--duration-quick) var(--ease-fade);
+  @media (prefers-reduced-motion: reduce) {
+    transition: opacity var(--duration-quick) var(--ease-fade);
+  }
+}
+
+[data-decision="rejected"] .tracked-ins {
+  opacity: 0.4;
+  background-color: transparent;
+  box-shadow: none;
+}
+[data-decision="rejected"][data-pure] .tracked-ins {
+  display: none;
+  opacity: 0;
+}
+[data-decision="rejected"] .tracked-del {
+  color: var(--ink);
+  text-decoration-color: transparent;
+}
+[data-decision="rejected"] .tracked-chip-del {
+  color: var(--ink);
+  background-color: var(--surface-selected);
+  text-decoration-color: transparent;
+}
+[data-decision="rejected"] .tracked-chip-ins {
+  opacity: 0.4;
+  background-color: var(--surface-selected);
+  box-shadow: none;
+}
+[data-decision="rejected"] .tracked-fold {
+  block-size: 0;
+  opacity: 0;
+}
+
+/*
+ * A change's group, which Previous and Next focus: the current one carries a
+ * 2px dusk-line rule at its inline start. Inline groups repeat it at each
+ * line they wrap to, inside the space before them, so nothing reflows.
+ */
+@utility change-mark {
+  outline: none;
+  scroll-margin-block: 6rem;
+  box-decoration-break: clone;
+  box-shadow: inset 2px 0 transparent;
+  transition: box-shadow var(--duration-quick) var(--ease-fade);
+  &[data-current] {
+    box-shadow: inset 2px 0 var(--dusk-line);
+  }
+}
+
+/* A change arrives as a fade only (R6); reduced motion shortens it. */
+@utility change-arrive {
+  transition: opacity var(--duration-arrive) var(--ease-fade);
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+/*
+ * Fields an AI Rework just wrote hold the dusk wash, then settle to nothing
+ * over --duration-settle. An overlay, so it reads the same on a textarea,
+ * a title or a list.
+ */
+@keyframes settle {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@utility settle-glow {
+  position: relative;
+  /* biome-ignore lint/style/noDescendingSpecificity: & is .settle-glow here, another element than .nameplate[data-voice="story"]::after; Biome cannot read @utility. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    background-color: var(--dusk-wash);
+    opacity: 0;
+    pointer-events: none;
+  }
+  &[data-settle]::after {
+    animation: settle var(--duration-settle) var(--ease-fade) both;
+  }
+}
+
+/*
+ * The cast panel. What the newest snapshot changed holds the dusk wash, then
+ * settles to nothing over --duration-settle, once (a fade, so reduced motion
+ * keeps it); a layer over a toned field's own wash, line by line. A field
+ * the owner corrected carries a dusk hairline at its start.
+ */
+@property --cast-wash {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+/* It holds a moment, so the eye finds it, then fades. */
+@keyframes cast-settle {
+  0%,
+  25% {
+    --cast-wash: var(--dusk-wash);
+  }
+  100% {
+    --cast-wash: transparent;
+  }
+}
+
+[data-cast-changed] {
+  border-radius: 0.25em;
+  background-image: linear-gradient(var(--cast-wash), var(--cast-wash));
+  box-decoration-break: clone;
+  animation: cast-settle var(--duration-wash) var(--ease-fade) both;
+}
+
+/*
+ * An edit mode field: a quiet hairline under the value at rest, so it reads
+ * as editable, turning to the focus colour, thicker, while it is edited.
+ */
+@utility cast-field {
+  border-bottom: 1px solid var(--control-edge);
+  transition:
+    border-color var(--duration-quick) var(--ease-fade),
+    box-shadow var(--duration-quick) var(--ease-fade);
+  &:focus-visible {
+    outline: none;
+    border-bottom-color: var(--dusk-line);
+    box-shadow: 0 1px 0 var(--dusk-line);
+  }
+}
+
+[data-cast-corrected] {
+  border-inline-start: 2px solid var(--dusk);
+  padding-inline-start: 0.3em;
+}
+
+/*
+ * Base UI's scroll areas and aligned selects inject a scrollbar-hiding style
+ * element unless CSPProvider disables it; this rule replaces it (Base UI docs).
+ */
+.base-ui-disable-scrollbar {
+  scrollbar-width: none;
+}

@@ -1,0 +1,92 @@
+# Assembled from the official templates for this stack: bun init (Bun 1.4),
+# create-vite react-ts, github/gitignore Node, Playwright; plus project rules.
+
+# Dependencies (bun.lock stays tracked)
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+out/
+*.tgz
+*.tsbuildinfo
+
+# Tool caches
+.cache/
+.vite/
+.tanstack/
+.eslintcache
+vite.config.*.timestamp-*
+
+# Tests and coverage
+coverage/
+.vitest/
+*.lcov
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/.e2e/
+
+# Logs and diagnostic reports
+logs/
+*.log
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+
+# Persisted user data: characters, personas, presets, avatars
+/data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# Working plans, specs, design comps and audit output stay out of the repository
+docs/plans/
+docs/specs/
+docs/audit/
+
+# Machine-local deployment overrides
+infra/docker/docker-compose.override.yml
+
+# Local AI coding tools: instructions and settings stay with each developer
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+.claude/
+.codex/
+.agents/
+.cursor/
+.cursorrules
+.windsurfrules
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.github/agents/
+.github/hooks/
+.mcp.json
+.gemini/
+.windsurf/
+.devin/
+.aider*
+.opencode/
+opencode.json
+opencode.jsonc
+t3.json
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sw?
+.DS_Store

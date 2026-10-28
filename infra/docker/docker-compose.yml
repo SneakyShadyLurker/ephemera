@@ -1,0 +1,80 @@
+# Ephemera's one container (docs/PRINCIPLES.md 1, Container). Machine-local
+# limits and the published port live in docker-compose.override.yml (see the
+# committed example); infra/docker/contract.ts checks the resolved result
+# before every start and the running container after it.
+name: ephemera
+
+services:
+  ephemera:
+    image: ephemera:latest
+    # A fixed name for the runbook's `docker container inspect ... ephemera`.
+    container_name: ephemera
+    # A host pins its architecture (`platform`, and `build.platforms` for bake)
+    # in docker-compose.override.yml; see the committed example.
+    build:
+      # A deploy can build from a `git archive` of the deployed commit, so ignored
+      # files never enter the context, for example with `docker buildx bake`
+      # under a candidate tag (bake reads this file and the override). The default is
+      # the checkout, which .dockerignore narrows to what the Dockerfile copies.
+      context: ${EPHEMERA_BUILD_CONTEXT:-../..}
+      dockerfile: infra/docker/Dockerfile
+      args:
+        VCS_REF: ${EPHEMERA_BUILD_REVISION:-unknown}
+    env_file:
+      - path: .env
+        required: true
+    # Fixed values override the env file. EPHEMERA_DATA_DIR, COMFYUI_CA_FILE and
+    # EPHEMERA_WORKFLOWS_DIR there are host paths, used only by the binds below;
+    # the container reads the read-only copies, and none of the CA or the extra
+    # workflows while their variable is unset.
+    environment:
+      EPHEMERA_HOST: 0.0.0.0
+      EPHEMERA_DATA_DIR: /data
+      EPHEMERA_STATIC_DIR: /app/apps/web/dist
+      COMFYUI_CA_FILE: ${COMFYUI_CA_FILE:+/run/comfyui-ca.pem}
+      EPHEMERA_WORKFLOWS_DIR: ${EPHEMERA_WORKFLOWS_DIR:+/run/workflows}
+    read_only: true
+    # RAM-backed; the short syntax is the one that takes noexec, nosuid and nodev.
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    volumes:
+      # An unset or empty path fails interpolation, and a missing one fails the
+      # start: never a fresh empty directory in place of the encrypted volume.
+      - type: bind
+        source: ${EPHEMERA_DATA_DIR:?EPHEMERA_DATA_DIR must name the data directory on the encrypted volume}
+        target: /data
+        bind:
+          create_host_path: false
+      # The PEM CA certificate the owner's ComfyUI chains to, read-only. Without
+      # one, the empty placeholder beside this file is bound in its place.
+      - type: bind
+        source: ${COMFYUI_CA_FILE:-./no-comfyui-ca}
+        target: /run/comfyui-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      # A directory of extra ComfyUI workflow graphs, read-only, read once at
+      # startup. Without one, the empty placeholder directory is bound instead.
+      - type: bind
+        source: ${EPHEMERA_WORKFLOWS_DIR:-./no-workflows}
+        target: /run/workflows
+        read_only: true
+        bind:
+          create_host_path: false
+    # No log exists by design; diagnostics follow docs/PRINCIPLES.md 1.
+    logging:
+      driver: none
+    init: true
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "bun", "infra/docker/healthcheck.ts"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s

@@ -1,0 +1,18 @@
+# Copy to docker-compose.override.yml (Git-ignored) on the host and adjust.
+# The memory limit and the swap limit stay equal, so the container never swaps.
+# Steady state stays far below 2g: portrait PNGs live in their own files, not
+# in the in-memory databases. The headroom covers an upload's decode (up to
+# 25 MP, about 100 MB raw) beside an art stream.
+# The only published port is on the host's loopback; the app listens on its
+# default 8790 inside the container. Pick any free host port.
+# A host that pins its architecture does it here, for the start and for bake.
+services:
+  ephemera:
+    # platform: linux/arm64
+    # build:
+    #   platforms: [linux/arm64]
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 2
+    ports:
+      - "127.0.0.1:8000:8790"

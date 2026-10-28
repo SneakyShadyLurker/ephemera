@@ -1,0 +1,31 @@
+[
+  {
+    "Id": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "RepoTags": ["ephemera:candidate", "ephemera:latest"],
+    "Config": {
+      "User": "1000:1000",
+      "ExposedPorts": {
+        "8790/tcp": {}
+      },
+      "Env": [
+        "PATH=<placeholder>",
+        "BUN_RUNTIME_TRANSPILER_CACHE_PATH=<placeholder>",
+        "BUN_INSTALL_BIN=<placeholder>",
+        "NODE_ENV=<placeholder>"
+      ],
+      "Entrypoint": ["bun", "apps/server/src/index.ts"],
+      "WorkingDir": "/app",
+      "Labels": {
+        "org.opencontainers.image.created": "2026-01-01T00:00:00.000Z",
+        "org.opencontainers.image.description": "Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one",
+        "org.opencontainers.image.licenses": "NOASSERTION",
+        "org.opencontainers.image.revision": "scratch",
+        "org.opencontainers.image.source": "https://github.com/oven-sh/bun",
+        "org.opencontainers.image.title": "bun",
+        "org.opencontainers.image.url": "https://github.com/oven-sh/bun",
+        "org.opencontainers.image.version": "1.4.2-alpine"
+      },
+      "ArgsEscaped": true
+    }
+  }
+]

@@ -1,0 +1,205 @@
+{
+  "$comment": "Reviewed persistence behavior of every direct dependency (PRINCIPLES.md 1). Adding a dependency requires an entry: does it persist state by default, and how is that prevented here? scripts/persistence-audit.ts enforces this list.",
+  "dependencies": {
+    "@ai-sdk/openai-compatible": {
+      "persistsByDefault": false,
+      "note": "Server-side HTTP provider; holds nothing beyond the request."
+    },
+    "@axe-core/playwright": {
+      "persistsByDefault": false,
+      "note": "Development tool; accessibility scans in e2e, results kept in memory."
+    },
+    "@base-ui/react": {
+      "persistsByDefault": false,
+      "note": "UI primitives; no storage. Its inline style elements are disabled through CSPProvider; the prehydration script is opt-in and unused."
+    },
+    "@biomejs/biome": {
+      "persistsByDefault": false,
+      "note": "Development tool; never shipped."
+    },
+    "@fontsource-variable/atkinson-hyperlegible-next": {
+      "persistsByDefault": false,
+      "note": "Font files and CSS for the character's prose, bundled as same-origin assets."
+    },
+    "@fontsource-variable/geist": {
+      "persistsByDefault": false,
+      "note": "Font files and CSS, bundled as same-origin assets."
+    },
+    "@fontsource-variable/geist-mono": {
+      "persistsByDefault": false,
+      "note": "Font files and CSS, bundled as same-origin assets."
+    },
+    "@fontsource/marcellus": {
+      "persistsByDefault": false,
+      "note": "Font files and CSS for the wordmark, bundled as same-origin assets."
+    },
+    "@hono/bun": {
+      "persistsByDefault": false,
+      "note": "serveStatic only reads files from the SPA build."
+    },
+    "@hono/zod-validator": {
+      "persistsByDefault": false,
+      "note": "Validation only. Its default hook echoes issues, so the chat route uses a generic hook."
+    },
+    "@playwright/test": {
+      "persistsByDefault": true,
+      "note": "Development tool; traces and reports hold page content, but only synthetic test content, in ignored folders."
+    },
+    "@tailwindcss/vite": {
+      "persistsByDefault": false,
+      "note": "Build tool; never shipped."
+    },
+    "@tanstack/react-query": {
+      "persistsByDefault": false,
+      "note": "In-memory cache for server data only. Persisters are separate packages and not installed; chat content never enters a query."
+    },
+    "@tanstack/react-router": {
+      "persistsByDefault": false,
+      "note": "Scroll restoration writes sessionStorage when enabled; it stays off (the default). History state carries only router keys; navigation never passes chat state."
+    },
+    "@tanstack/router-plugin": {
+      "persistsByDefault": false,
+      "note": "Build-time route generation; never shipped."
+    },
+    "@types/bun": {
+      "persistsByDefault": false,
+      "note": "Types only."
+    },
+    "@types/hast": {
+      "persistsByDefault": false,
+      "note": "Types only."
+    },
+    "@types/mdast": {
+      "persistsByDefault": false,
+      "note": "Types only."
+    },
+    "@types/react": {
+      "persistsByDefault": false,
+      "note": "Types only."
+    },
+    "@types/react-dom": {
+      "persistsByDefault": false,
+      "note": "Types only."
+    },
+    "@vitejs/plugin-react": {
+      "persistsByDefault": false,
+      "note": "Build tool; never shipped."
+    },
+    "ai": {
+      "persistsByDefault": false,
+      "note": "Streams in memory. Telemetry stays off (no registerTelemetry), DevTools is never registered (it would write prompts to .devtools/), request and response bodies are excluded from results by default, warnings go to the operational log as type and feature or setting only (never their message or details), and the server replaces the console.error default of onError. The web uses readUIMessageStream, not useChat."
+    },
+    "class-variance-authority": {
+      "persistsByDefault": false,
+      "note": "Class name composition only."
+    },
+    "cn": {
+      "persistsByDefault": false,
+      "note": "Class name merging only."
+    },
+    "dayjs": {
+      "persistsByDefault": false,
+      "note": "Formats `{{datetimeformat}}` and the other date macros in the clock's zone, in core; the utc and timezone plugins use Intl and cache one Intl.DateTimeFormat per zone name, never text. Dist scanned 2026-09-29 (dayjs.min.js, plugin/utc.js, plugin/timezone.js): no storage, eval, Function, DOM or HTML sinks, no network; globalThis and self appear only in the UMD wrapper. Output is plain text."
+    },
+    "decode-named-character-reference": {
+      "persistsByDefault": false,
+      "note": "micromark's entity decoder, a direct dependency only so Vite can alias its table-based build; the browser build assigns innerHTML, which Trusted Types forbid."
+    },
+    "diff": {
+      "persistsByDefault": false,
+      "note": "Pure text differencing in the browser for the rework review; no storage, no I/O."
+    },
+    "drizzle-orm": {
+      "persistsByDefault": true,
+      "note": "Writes SQLite rows when asked. Used only inside apps/server/src/persistence, whose stores parse each saved entity's schema (core's, or the server's portrait schema) on every write, none of which holds chat content; the audit keeps every other server file from importing it. drizzle-kit is not a dependency: it runs on demand (bun run db:generate) to write migrations."
+    },
+    "fast-png": {
+      "persistsByDefault": false,
+      "note": "Server: only its tests encode and decode fixture PNGs with it; card export inserts tEXt chunks and card import reads them with a bounded chunk walker, since decode() inflates all image data without a limit. Pure JavaScript with synchronous inflate (no worker, Blob, eval or Function); no storage."
+    },
+    "gpt-tokenizer": {
+      "persistsByDefault": false,
+      "note": "Server only: token estimates for the prompt budget. Pure functions over bundled BPE tables; no file, network or storage access and no eval or Function (checked in 4.0.0). Its merge cache would keep pieces of counted text in process memory across requests, so tokens.ts sets its size to 0 at load."
+    },
+    "hono": {
+      "persistsByDefault": false,
+      "note": "Server framework and RPC client. Its logger middleware prints URLs and is not used; onError and notFound are overridden."
+    },
+    "mdast-util-directive": {
+      "persistsByDefault": false,
+      "note": "Turns directive tokens into syntax tree nodes in the Markdown pipeline; no storage."
+    },
+    "micromark-extension-directive": {
+      "persistsByDefault": false,
+      "note": "Syntax extension in the Markdown pipeline; only its text directive construct is used, for :tone[words] highlights; no storage."
+    },
+    "motion": {
+      "persistsByDefault": false,
+      "note": "Gestures and springs through the CSSOM and WAAPI; no storage, cookies, eval or HTML sinks (13.4.5 inspected). Its only <style> elements come from AnimatePresence mode=\"popLayout\", AnimateView and motion-dom's view helpers, which Ephemera does not use; the e2e policy watcher covers the swipe paths."
+    },
+    "oxc-transform-react": {
+      "persistsByDefault": false,
+      "note": "Build-time React Compiler; never shipped."
+    },
+    "re2js": {
+      "persistsByDefault": false,
+      "note": "Pure JS RE2 port used to run card regex keys in linear time; no storage, no eval, no DOM access. Dist scanned 2026-09-29; its only `eval` is an internal prefilter method of that name."
+    },
+    "react": {
+      "persistsByDefault": false,
+      "note": "No storage."
+    },
+    "react-dom": {
+      "persistsByDefault": false,
+      "note": "No storage."
+    },
+    "remark-breaks": {
+      "persistsByDefault": false,
+      "note": "Text transform in the Markdown pipeline: a single newline becomes a line break; no storage."
+    },
+    "remark-smartypants": {
+      "persistsByDefault": false,
+      "note": "Text transform in the Markdown pipeline; no storage."
+    },
+    "remend": {
+      "persistsByDefault": false,
+      "note": "Pure string function that completes unfinished Markdown while a reply streams, pinned to Streamdown's version; no storage."
+    },
+    "sharp": {
+      "persistsByDefault": false,
+      "note": "Server only: memory buffers in and out; toFile is forbidden, only PNG/JPEG/WebP buffer loaders are unblocked, and the operation cache is off. Includes the uploaded image-card draft and its vision copy before Keep, plus saved portraits; ComfyUI candidates bypass sharp. Reviewed sharp 0.35.5/libvips 8.18.7: buffer access defaults to sequential, PNG/JPEG use sequential or partial loading, and rotation uses copy_memory. Single-page WebP at the 25 MP cap is at most 100,000,000 bytes (4 UCHAR channels), below libvips' 104,857,600-byte default disk threshold; the repository sets no VIPS_DISC_THRESHOLD override. These bounded paths stay in memory."
+    },
+    "streamdown": {
+      "persistsByDefault": false,
+      "note": "Renders Markdown in memory. Its code and table controls download files and copy to the clipboard; controls stay off. Raw HTML and its permissive link and image defaults are replaced by the sanitizer plus rehypeInert."
+    },
+    "tailwindcss": {
+      "persistsByDefault": false,
+      "note": "Build tool; never shipped."
+    },
+    "typescript": {
+      "persistsByDefault": false,
+      "note": "Development tool; never shipped."
+    },
+    "use-stick-to-bottom": {
+      "persistsByDefault": false,
+      "note": "Scroll anchoring in memory; no storage."
+    },
+    "vite": {
+      "persistsByDefault": false,
+      "note": "Build tool. No PWA or service worker plugin; the client receives no environment variables (envDir: false)."
+    },
+    "vitest": {
+      "persistsByDefault": false,
+      "note": "Development tool; caches only synthetic test data in ignored folders."
+    },
+    "zod": {
+      "persistsByDefault": false,
+      "note": "Validation only."
+    },
+    "zustand": {
+      "persistsByDefault": false,
+      "note": "The persist middleware writes browser storage; importing zustand/middleware is forbidden by this audit."
+    }
+  }
+}
