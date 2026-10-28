@@ -191,6 +191,11 @@ test("a model without a context window reopens the composer with what to do", as
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).not.toHaveAttribute(
     "aria-readonly",
   );
+  // Settings opens on that model's window field.
+  await composer(page).getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Context window for mock-nowindow", exact: true }),
+  ).toBeFocused();
 });
 
 test("a rework started after the saved book changed elsewhere builds on the newer book", async ({

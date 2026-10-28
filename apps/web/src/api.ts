@@ -113,7 +113,7 @@ export const isNotFound = (error: unknown): boolean =>
 export const entityRetry = (count: number, error: Error): boolean =>
   retryable(error) && !isNotFound(error) && count < 2;
 
-/** The models CLIProxyAPI offers, with each one's context window and reasoning levels. */
+/** The models the provider lists, with each one's context window and reasoning levels where reported. */
 export const modelsQuery = queryOptions({
   queryKey: ["models"],
   queryFn: async ({ signal }) => {

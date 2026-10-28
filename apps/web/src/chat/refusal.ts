@@ -1,6 +1,6 @@
 import type { RefusalCode } from "@ephemera/core";
 
-const WINDOW_UNKNOWN = "the model has no known context window";
+export const WINDOW_UNKNOWN = "the model has no known context window";
 
 /** Why a reply was not sent, when the server would not build its prompt. */
 export const REFUSAL_NOTE: Record<RefusalCode, string> = {

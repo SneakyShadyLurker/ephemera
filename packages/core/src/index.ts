@@ -13,6 +13,7 @@ export {
   MAX_RETRY_AFTER_S,
   MAX_SWIPE_ID,
   type MacroRuntime,
+  modelIdSchema,
   type PreviewRequest,
   previewRequestSchema,
   type RefusalCode,

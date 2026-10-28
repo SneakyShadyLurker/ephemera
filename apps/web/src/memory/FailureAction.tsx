@@ -1,7 +1,10 @@
+import { memoryModelOf } from "@ephemera/core";
 import { Link } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { chatStore } from "../chat/session.ts";
+import { useSettings } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { FAILURE_ACTION_LABEL, type FailureAction } from "./failure.ts";
 
 /** A quiet action in a line of small text, 44px on touch. */
@@ -19,6 +22,7 @@ export function MemoryFailureAction({
   action: FailureAction;
   characterId: string;
 }) {
+  const settings = useSettings();
   if (action === null) return null;
   const label = FAILURE_ACTION_LABEL[action];
   switch (action) {
@@ -33,6 +37,11 @@ export function MemoryFailureAction({
         </Button>
       );
     case "window":
+      return (
+        <WindowLink model={memoryModelOf(settings)} className={ACTION}>
+          {label}
+        </WindowLink>
+      );
     case "settings":
       return (
         <Link to="/settings" className={ACTION}>

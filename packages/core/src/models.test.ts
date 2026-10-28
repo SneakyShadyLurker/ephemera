@@ -151,6 +151,185 @@ describe("model catalog", () => {
   });
 });
 
+/** Trimmed `/models` answers in the shapes each provider documents. */
+describe("model catalogs of other providers", () => {
+  const only = (body: unknown) => {
+    const models = modelsFromCatalog(body);
+    expect(models).toHaveLength(1);
+    return models?.[0];
+  };
+
+  it("reads OpenRouter's window, image input and efforts", () => {
+    expect(
+      only({
+        data: [
+          {
+            id: "vendor/model",
+            context_length: 200_000,
+            top_provider: { context_length: 128_000 },
+            architecture: { input_modalities: ["text", "image"] },
+            reasoning: { supported_efforts: ["low", "high", "ultra"] },
+            supported_parameters: ["reasoning", "include_reasoning"],
+          },
+        ],
+      }),
+    ).toEqual({
+      id: "vendor/model",
+      contextWindow: 200_000,
+      reasoning: ["low", "high"],
+      images: true,
+    });
+  });
+
+  it("falls back to OpenRouter's top provider window", () => {
+    expect(only({ data: [{ id: "m", top_provider: { context_length: 128_000 } }] })).toEqual({
+      id: "m",
+      contextWindow: 128_000,
+      reasoning: null,
+      images: null,
+    });
+  });
+
+  it("reads a detailed list with top-level reasoning efforts", () => {
+    expect(
+      only({
+        object: "list",
+        data: [
+          {
+            id: "m",
+            context_length: 131_072,
+            capabilities: { vision: true, reasoning: true },
+            reasoning_efforts: ["medium", "xhigh"],
+          },
+        ],
+      }),
+    ).toEqual({ id: "m", contextWindow: 131_072, reasoning: ["medium", "xhigh"], images: true });
+  });
+
+  it("invents no efforts from a bare reasoning flag", () => {
+    expect(only({ data: [{ id: "m", capabilities: { reasoning: true } }] })).toEqual({
+      id: "m",
+      contextWindow: null,
+      reasoning: null,
+      images: null,
+    });
+  });
+
+  it("reads a model that reports no reasoning as offering none", () => {
+    expect(only({ data: [{ id: "m", capabilities: { reasoning: false } }] })).toEqual({
+      id: "m",
+      contextWindow: null,
+      reasoning: [],
+      images: null,
+    });
+  });
+
+  it("reads Together AI's bare array", () => {
+    expect(only([{ id: "m", context_length: 32_768, type: "chat" }])).toEqual({
+      id: "m",
+      contextWindow: 32_768,
+      reasoning: null,
+      images: null,
+    });
+  });
+
+  it("reads Groq's window", () => {
+    expect(
+      only({ object: "list", data: [{ id: "m", context_window: 131_072 }] })?.contextWindow,
+    ).toBe(131_072);
+  });
+
+  it("reads Mistral's window and a vision flag that says no", () => {
+    expect(
+      only({ data: [{ id: "m", max_context_length: 32_768, capabilities: { vision: false } }] }),
+    ).toEqual({ id: "m", contextWindow: 32_768, reasoning: null, images: false });
+  });
+
+  it("reads DeepSeek's window, modalities and effort levels", () => {
+    expect(
+      only({
+        data: [
+          {
+            id: "m",
+            context_window: 128_000,
+            input_modalities: ["text"],
+            effort: { supported_levels: ["high"] },
+          },
+        ],
+      }),
+    ).toEqual({ id: "m", contextWindow: 128_000, reasoning: ["high"], images: false });
+  });
+
+  it("reads vLLM's serving limit", () => {
+    expect(only({ data: [{ id: "m", max_model_len: 65_536 }] })?.contextWindow).toBe(65_536);
+  });
+
+  it("never reads llama.cpp's training context as the window", () => {
+    expect(only({ data: [{ id: "m", meta: { n_ctx_train: 131_072 } }] })).toEqual({
+      id: "m",
+      contextWindow: null,
+      reasoning: null,
+      images: null,
+    });
+  });
+
+  it("reads DeepInfra's metadata window and vision tag", () => {
+    expect(
+      only({
+        data: [{ id: "m", metadata: { context_length: 16_384, tags: ["vision", "reasoning"] } }],
+      }),
+    ).toEqual({ id: "m", contextWindow: 16_384, reasoning: null, images: true });
+    expect(only({ data: [{ id: "m", metadata: { tags: ["reasoning"] } }] })?.images).toBeNull();
+  });
+
+  it("reads xAI's reasoning efforts", () => {
+    expect(
+      only({ data: [{ id: "m", capabilities: { reasoning_effort: ["low", "high"] } }] })?.reasoning,
+    ).toEqual(["low", "high"]);
+  });
+
+  it("reads Ollama's list with nothing reported beyond each id", () => {
+    expect(
+      only({
+        object: "list",
+        data: [{ id: "llama3:8b", object: "model", created: 1_700_000_000, owned_by: "library" }],
+      }),
+    ).toEqual({ id: "llama3:8b", contextWindow: null, reasoning: null, images: null });
+  });
+
+  it("takes the first well-formed field and treats malformed ones as not reported", () => {
+    expect(
+      only({
+        data: [
+          {
+            id: "m",
+            context_window: "big",
+            max_model_len: 0,
+            context_length: 8_192,
+            input_modalities: "text,image",
+            capabilities: { vision: "yes" },
+            metadata: { tags: ["vision"] },
+            supported_reasoning_levels: "high",
+            effort: { supported_levels: ["medium"] },
+          },
+        ],
+      }),
+    ).toEqual({ id: "m", contextWindow: 8_192, reasoning: ["medium"], images: true });
+    expect(only({ data: [{ id: "m", top_provider: "x", metadata: [] }] })).toEqual({
+      id: "m",
+      contextWindow: null,
+      reasoning: null,
+      images: null,
+    });
+  });
+
+  it("refuses a bare array with more entries than any real one", () => {
+    expect(
+      modelsFromCatalog(Array.from({ length: 2_001 }, (_, i) => ({ id: `m${i}` }))),
+    ).toBeUndefined();
+  });
+});
+
 describe("offered reasoning efforts", () => {
   it("narrows to the model's reported efforts, after the model default", () => {
     expect(

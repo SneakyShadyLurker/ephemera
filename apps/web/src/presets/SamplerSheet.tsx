@@ -139,7 +139,7 @@ function SamplerPresetEditor({
       : !offered.includes(values.reasoning)
         ? `${replyModel} doesn't offer ${REASONING_LABELS[values.reasoning].toLowerCase()}, so no effort is sent. Choose one it offers.`
         : modelInfo.reasoning === null
-          ? `How long a reasoning model thinks first. CLIProxyAPI doesn't say which levels ${replyModel} supports, so every level shows.`
+          ? `How long a reasoning model thinks first. The provider doesn't say which levels ${replyModel} supports, so every level shows.`
           : modelInfo.reasoning.length === 0
             ? `${replyModel} offers no reasoning levels; replies use its default.`
             : `How long ${replyModel} thinks first. Showing the levels it offers.`;

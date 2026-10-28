@@ -81,7 +81,7 @@ export const samplerPresetsResponseSchema = z.object({
 });
 export const samplerPresetResponseSchema = z.object({ preset: storedSamplerPresetSchema });
 
-/** The models CLIProxyAPI offers. */
+/** The models the provider offers. */
 export const modelsResponseSchema = z.object({ models: z.array(modelInfoSchema) });
 
 /** A book in a character's card, as the library lists it: the character's name and its entry count. */

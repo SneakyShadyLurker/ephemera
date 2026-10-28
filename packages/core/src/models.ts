@@ -4,10 +4,11 @@ import { REASONING_EFFORTS, type ReasoningEffort } from "./preset/sampler.ts";
 import type { Settings } from "./settings.ts";
 
 /*
- * Per-model limits from the upstream's model catalog: CLIProxyAPI's
- * (`/v1/models?client_version=`) or the standard `/v1/models` list, the only
- * owner of a model's context window. The catalog is untrusted input:
- * unknown fields are ignored and a malformed value reads as "not reported".
+ * Per-model limits from the upstream's model catalog (`/models`), the only
+ * owner of a model's context window. Providers report the same facts under
+ * different field names; each is read where a provider documents it. The
+ * catalog is untrusted input: unknown fields are ignored and a malformed
+ * value reads as "not reported".
  */
 
 /** The efforts the AI SDK can send; "provider-default" sends nothing. */
@@ -18,7 +19,7 @@ const SENT_EFFORTS = REASONING_EFFORTS.filter(
 
 export const modelInfoSchema = z.strictObject({
   id: modelIdSchema,
-  /** Tokens; null when CLIProxyAPI reports none. */
+  /** Tokens; null when the provider reports none. */
   contextWindow: z.number().int().positive().nullable(),
   /** The efforts the model offers that Ephemera can send; null when not reported. */
   reasoning: z.array(z.enum(SENT_EFFORTS)).nullable(),
@@ -31,8 +32,9 @@ export type ModelInfo = z.infer<typeof modelInfoSchema>;
 const MAX_CATALOG_MODELS = 2_000;
 const entriesSchema = z.array(z.unknown()).max(MAX_CATALOG_MODELS);
 /**
- * CLIProxyAPI's rich catalog (`{models:[{slug}]}`) or the standard OpenAI
- * list (`{object:"list",data:[{id}]}`); the rich one wins when a body has both.
+ * A rich catalog (`{models:[{slug}]}`), the standard OpenAI list
+ * (`{object:"list",data:[{id}]}`) or a bare array of `{id}` entries; the rich
+ * one wins when a body has both.
  */
 const catalogSchema = z.union([
   z
@@ -41,13 +43,44 @@ const catalogSchema = z.union([
   z
     .looseObject({ data: entriesSchema })
     .transform(({ data }) => ({ key: "id" as const, models: data })),
+  entriesSchema.transform((models) => ({ key: "id" as const, models })),
 ]);
-/** The fields an entry may report beside its id; each is read only when well formed. */
+
+/** A field read only when well formed; anything else reads as not reported. */
+const reported = <T extends z.ZodType>(schema: T) => schema.optional().catch(undefined);
+const nested = <S extends z.ZodRawShape>(shape: S) => reported(z.looseObject(shape));
+const windowField = reported(z.number().int().positive());
+const stringsField = reported(z.array(z.string()));
+
+/**
+ * The fields an entry may report beside its id, in the shapes providers
+ * document; the order they are read in is below. `meta.n_ctx_train` is
+ * deliberately not read: it is a training context, not the serving limit,
+ * and a wrong window fails replies where an unknown one asks the owner.
+ */
 const reportedShape = {
-  context_window: z.unknown().optional(),
-  supported_reasoning_levels: z.unknown().optional(),
-  /** Codex-format catalogs list what a model reads, such as `["text", "image"]`. */
-  input_modalities: z.unknown().optional(),
+  context_window: windowField,
+  max_model_len: windowField,
+  context_length: windowField,
+  max_context_length: windowField,
+  top_provider: nested({ context_length: windowField }),
+  metadata: nested({ context_length: windowField, tags: stringsField }),
+  /** What a model reads, such as `["text", "image"]`. */
+  input_modalities: stringsField,
+  architecture: nested({ input_modalities: stringsField }),
+  capabilities: nested({
+    vision: reported(z.boolean()),
+    reasoning: reported(z.boolean()),
+    reasoning_effort: stringsField,
+  }),
+  supported_reasoning_levels: reported(
+    z
+      .array(z.looseObject({ effort: z.string() }))
+      .transform((levels) => levels.map((level) => level.effort)),
+  ),
+  effort: nested({ supported_levels: stringsField }),
+  reasoning: nested({ supported_efforts: stringsField }),
+  reasoning_efforts: stringsField,
   /** "hide" marks a model the catalog keeps out of lists (image models). */
   visibility: z.unknown().optional(),
 };
@@ -58,16 +91,48 @@ const entrySchemas = {
     .transform(({ slug, ...entry }) => ({ ...entry, id: slug })),
   id: z.looseObject({ id: modelIdSchema, ...reportedShape }),
 };
+type Entry = z.infer<(typeof entrySchemas)["id"]>;
 
-const windowSchema = z.number().int().positive();
-const levelsSchema = z.array(z.looseObject({ effort: z.string() }));
-const modalitiesSchema = z.array(z.string());
+/** The first window reported. */
+function windowOf(entry: Entry): number | null {
+  return (
+    entry.context_window ??
+    entry.max_model_len ??
+    entry.context_length ??
+    entry.max_context_length ??
+    entry.top_provider?.context_length ??
+    entry.metadata?.context_length ??
+    null
+  );
+}
+
+/** Image input from the modalities, else a vision flag, else a "vision" tag (which only says yes). */
+function imagesOf(entry: Entry): boolean | null {
+  const modalities = entry.input_modalities ?? entry.architecture?.input_modalities;
+  if (modalities !== undefined) return modalities.includes("image");
+  if (entry.capabilities?.vision !== undefined) return entry.capabilities.vision;
+  return entry.metadata?.tags?.includes("vision") === true ? true : null;
+}
+
+/**
+ * The listed efforts Ephemera can send; none when the model says it does not
+ * reason. A bare "reasons" flag lists no efforts, so it leaves them unknown.
+ */
+function reasoningOf(entry: Entry): SentEffort[] | null {
+  const listed =
+    entry.supported_reasoning_levels ??
+    entry.effort?.supported_levels ??
+    entry.reasoning?.supported_efforts ??
+    entry.reasoning_efforts ??
+    entry.capabilities?.reasoning_effort ??
+    (entry.capabilities?.reasoning === false ? [] : undefined);
+  return listed === undefined ? null : SENT_EFFORTS.filter((effort) => listed.includes(effort));
+}
 
 /**
  * The listed models in a catalog response, sorted by id; hidden entries are
- * left out and the first entry of an id wins. A standard list reports no
- * window, efforts or image support unless an entry carries the rich fields.
- * Undefined when it is not a catalog.
+ * left out and the first entry of an id wins. Undefined when it is not a
+ * catalog.
  */
 export function modelsFromCatalog(body: unknown): ModelInfo[] | undefined {
   const parsed = catalogSchema.safeParse(body);
@@ -79,15 +144,11 @@ export function modelsFromCatalog(body: unknown): ModelInfo[] | undefined {
     if (!valid.success) continue;
     const entry = valid.data;
     if (entry.visibility === "hide" || byId.has(entry.id)) continue;
-    const window = windowSchema.safeParse(entry.context_window);
-    const levels = levelsSchema.safeParse(entry.supported_reasoning_levels);
-    const reported = new Set(levels.success ? levels.data.map((level) => level.effort) : []);
-    const modalities = modalitiesSchema.safeParse(entry.input_modalities);
     byId.set(entry.id, {
       id: entry.id,
-      contextWindow: window.success ? window.data : null,
-      reasoning: levels.success ? SENT_EFFORTS.filter((effort) => reported.has(effort)) : null,
-      images: modalities.success ? modalities.data.includes("image") : null,
+      contextWindow: windowOf(entry),
+      reasoning: reasoningOf(entry),
+      images: imagesOf(entry),
     });
   }
   return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -114,7 +175,7 @@ export function effortFor(model: ModelInfo | undefined, chosen: ReasoningEffort)
   return offeredEfforts(model).includes(chosen) ? chosen : "provider-default";
 }
 
-/** Bounds of a context window the owner sets for a model CLIProxyAPI reports none for. */
+/** Bounds of a context window the owner sets for a model the provider reports none for. */
 export const CONTEXT_WINDOW_RANGE = { min: 1_024, max: 10_000_000, step: 1_024 } as const;
 const MAX_PER_MODEL_ENTRIES = 500;
 
@@ -146,7 +207,7 @@ const tokenCount = z.number().int().min(0);
 export const effectiveWindowSchema = z.strictObject({
   /** What a prompt is fitted to: the model's window, capped by the owner's limit. */
   tokens: tokenCount,
-  /** "catalog": reported by CLIProxyAPI; "owner": set in Settings because none is reported. */
+  /** "catalog": reported by the provider's catalog; "owner": set in Settings because none is reported. */
   source: z.enum(["catalog", "owner"]),
   /** The model's own window, before the limit. */
   model: tokenCount,

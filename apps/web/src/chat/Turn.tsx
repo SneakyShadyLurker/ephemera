@@ -3,12 +3,13 @@ import { Component, lazy, type ReactNode, Suspense } from "react";
 import { cn } from "@/lib/cn";
 import { MODEL_BUSY } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { speakerName, useChatCharacter, usePersona } from "./character.ts";
 import { EditField } from "./EditField.tsx";
 import { loadMarkdown } from "./markdown-chunk.ts";
 import { Presence } from "./Presence.tsx";
 import { HiddenReasoning, Reasoning } from "./Reasoning.tsx";
-import { REFUSAL_NOTE } from "./refusal.ts";
+import { REFUSAL_NOTE, WINDOW_UNKNOWN } from "./refusal.ts";
 import { SwipeFrame } from "./Swipe.tsx";
 import { useChat } from "./session.ts";
 import { type AssistantMessage, type MessageStatus, type Reply, shownReply } from "./store.ts";
@@ -225,9 +226,23 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
           : "text-reed",
       )}
     >
-      {note}
+      {!reply.failed && reply.refusal === "context_window_unknown" ? <WindowRefusal /> : note}
     </p>
   ) : null;
+}
+
+/**
+ * A reply refused for want of a context window. A reply does not record its
+ * model, so the link opens Context without choosing one; the composer's
+ * notice links the current model's window.
+ */
+function WindowRefusal() {
+  return (
+    <>
+      Not sent: {WINDOW_UNKNOWN}. <WindowLink model={null}>Set one in Settings</WindowLink>, or
+      choose another model.
+    </>
+  );
 }
 
 function ReplyTurn({

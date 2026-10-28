@@ -225,7 +225,7 @@ async function infer(
   cacheKey: string,
   options: Options,
   endpoint: URL,
-  apiKey: string,
+  apiKey: string | undefined,
   fetcher: ComparisonFetch,
   overall: AbortSignal,
 ): Promise<{ observation: Observation; text?: string }> {
@@ -240,7 +240,7 @@ async function infer(
       signal,
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
+        ...(apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` }),
         ...shared.headers,
       },
       body: JSON.stringify({
@@ -251,7 +251,7 @@ async function infer(
         temperature: shared.temperature,
         top_p: shared.topP,
         ...(shared.reasoning === undefined ? {} : { reasoning_effort: shared.reasoning }),
-        ...shared.providerOptions?.cliproxyapi,
+        ...shared.providerOptions?.upstream,
       }),
     });
     if (!response.ok) {
@@ -382,11 +382,11 @@ export async function runComparison(args: string[], dependencies: Dependencies =
   };
   if (!options.live) return { ...base, code: "offline", calls: 0, quality: "not_run" };
   const env = dependencies.env ?? process.env;
-  const apiKey = env.EPHEMERA_UPSTREAM_API_KEY;
+  // Empty or unset for a local server that needs no key.
+  const apiKey = env.EPHEMERA_UPSTREAM_API_KEY || undefined;
   let endpoint: URL;
   try {
-    if (!apiKey || !env.EPHEMERA_UPSTREAM_BASE_URL)
-      throw new Refusal("upstream_environment_required");
+    if (!env.EPHEMERA_UPSTREAM_BASE_URL) throw new Refusal("upstream_environment_required");
     endpoint = new URL(env.EPHEMERA_UPSTREAM_BASE_URL);
     if (
       !["http:", "https:"].includes(endpoint.protocol) ||

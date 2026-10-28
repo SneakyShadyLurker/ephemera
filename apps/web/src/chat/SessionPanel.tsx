@@ -24,7 +24,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { formatCount } from "@/lib/text";
-import { modelsQuery, useContextWindow, useModelInfo, useModelOptions } from "../api.ts";
+import { useContextWindow, useModelInfo, useModelOptions } from "../api.ts";
 import { charactersQuery } from "../characters/queries.ts";
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import {
@@ -41,6 +41,7 @@ import {
   samplerSummary,
 } from "../presets/queries.ts";
 import { useSettings, useUpdateSettings } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { useStartChat } from "./StartChat.tsx";
@@ -389,7 +390,6 @@ const presetPlaceholder = (list: { isPending: boolean; isError: boolean; data?: 
       : "Choose a preset";
 
 function ModelField() {
-  const models = useQuery(modelsQuery);
   const settings = useSettings();
   const { model } = settings;
   const options = useModelOptions(model);
@@ -397,9 +397,7 @@ function ModelField() {
   const window = useContextWindow(model, settings);
   const windowNote =
     window === null
-      ? model === null
-        ? ""
-        : " No known context window: set one in Settings to send."
+      ? ""
       : window === "loading"
         ? ""
         : window.limit === "owner"
@@ -411,29 +409,26 @@ function ModelField() {
   return (
     <Field
       label="Model"
-      note={`Used for every reply from now on, and kept after a reload.${windowNote}`}
-    >
-      {(labelId) =>
-        models.data !== undefined ? (
-          <ModelSelect
-            labelId={labelId}
-            options={options}
-            value={model}
-            onChange={(chosen) => updateSettings({ model: chosen })}
-            className="max-w-none tablet:w-full"
-          />
-        ) : models.isPending ? (
-          <p className="text-note text-reed">Loading models…</p>
+      note={
+        window === null && model !== null ? (
+          <>
+            Used for every reply from now on, and kept after a reload. No known context window:{" "}
+            <WindowLink model={model}>set one</WindowLink> to send.
+          </>
         ) : (
-          // A failed background refetch keeps the list it already has; this is the first load failing.
-          <div role="alert" className="grid justify-items-start gap-2">
-            <p className="text-ember text-note">The model list could not be loaded.</p>
-            <Button variant="outline" onClick={() => void models.refetch()}>
-              Try again
-            </Button>
-          </div>
+          `Used for every reply from now on, and kept after a reload.${windowNote}`
         )
       }
+    >
+      {(labelId) => (
+        <ModelSelect
+          labelId={labelId}
+          options={options}
+          value={model}
+          onChange={(chosen) => updateSettings({ model: chosen })}
+          className="max-w-none tablet:w-full"
+        />
+      )}
     </Field>
   );
 }

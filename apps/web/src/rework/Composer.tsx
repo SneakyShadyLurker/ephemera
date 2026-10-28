@@ -1,5 +1,4 @@
 import { REWORK_LIMITS, type ReworkCard, type ReworkErrorCode } from "@ephemera/core";
-import { Link } from "@tanstack/react-router";
 import { type FormEvent, type KeyboardEvent, type ReactNode, type RefObject, useId } from "react";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import { ReasoningSelect, useEffortChoice } from "../creator/ReasoningSelect.tsx
 import { REQUEST_FIELD } from "../creator/request-field.ts";
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import { Leaf } from "../portraits/Portrait.tsx";
+import { WindowLink } from "../settings/window-link.tsx";
 import { portraitDefault } from "./portrait-switch.ts";
 import { reworkStore, useRework } from "./session.ts";
 import type { Refused } from "./store.ts";
@@ -53,10 +53,7 @@ function NoticeText({ notice }: { notice: ComposerNotice }) {
       return (
         <>
           {notice.model} reports no context window. Set one in{" "}
-          <Link to="/settings" className="text-ink underline underline-offset-4">
-            Settings
-          </Link>
-          .
+          <WindowLink model={notice.model}>Settings</WindowLink>.
         </>
       );
     case "not_found":

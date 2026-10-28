@@ -107,7 +107,7 @@ test("unknown reasoning support offers every level and explains why", async ({ p
   await page.getByRole("textbox", { name: "Name" }).fill(presetName);
   await expect(
     page.getByText(
-      "How long a reasoning model thinks first. CLIProxyAPI doesn't say which levels mock-unreported supports, so every level shows.",
+      "How long a reasoning model thinks first. The provider doesn't say which levels mock-unreported supports, so every level shows.",
     ),
   ).toBeVisible();
   await page.getByRole("combobox", { name: "Reasoning", exact: true }).click();

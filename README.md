@@ -86,6 +86,43 @@ bun run dev            # http://localhost:5173
 container and its deploy checklist are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) § Deployment.
 
+## Model providers
+
+Ephemera talks to one OpenAI-compatible upstream, set for the whole server in
+`.env` (or `infra/docker/.env` for the container):
+
+```sh
+EPHEMERA_UPSTREAM_BASE_URL=https://openrouter.ai/api/v1
+EPHEMERA_UPSTREAM_API_KEY=your-key   # leave empty for a local server without one
+```
+
+Restart the server after a change. The model list comes from the provider's
+`/models`, and every model picker also takes a model ID typed in full. Where the
+provider reports a model's context window, reasoning levels or image input,
+Ephemera uses them; where it does not, set the window in Settings, under
+Context, before chatting with that model.
+
+| Provider | Base URL | Key | Context windows reported |
+|---|---|---|---|
+| OpenRouter | `https://openrouter.ai/api/v1` | Required | Yes |
+| DeepSeek | `https://api.deepseek.com` | Required | Yes |
+| Groq | `https://api.groq.com/openai/v1` | Required | Yes |
+| Mistral | `https://api.mistral.ai/v1` | Required | Yes |
+| Together AI | `https://api.together.ai/v1` | Required | Yes |
+| vLLM | `http://<host>:8000/v1` | Only if started with one | Yes |
+| llama.cpp server | `http://<host>:8080/v1` | Only if started with one | No |
+| Ollama | `http://<host>:11434/v1` | None | No |
+| LM Studio | `http://<host>:1234/v1` | Only if enabled | No |
+| CLIProxyAPI | `http://<host>:8317/v1` | One of its client keys | Yes |
+
+Each chat sends a prompt cache key (`prompt_cache_key` and an
+`x-session-affinity` header) so providers that cache prompts can reuse them. A
+provider that refuses the field gets the request again without it, and the
+server stops sending it; `EPHEMERA_UPSTREAM_SESSION_CACHE=off` turns it off from
+the start. Inside the container, `localhost` is the container itself: point a
+server on the host at an address the container can reach, such as
+`host.docker.internal`.
+
 ## Documentation
 
 [Product](docs/PRODUCT.md) · [Principles](docs/PRINCIPLES.md) ·

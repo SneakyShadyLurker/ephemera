@@ -20,6 +20,7 @@ import { inChatText } from "../lorebook/copy.ts";
 import { personasQuery } from "../personas/queries.ts";
 import { REASONING_LABELS } from "../presets/queries.ts";
 import { useSetting } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { type CacheBreak, cacheBreak } from "./cache-break.ts";
 import { speakerName, useChatCharacter } from "./character.ts";
 import { LorebookReport } from "./LorebookReport.tsx";
@@ -189,8 +190,8 @@ function PreviewBody({
     case "context_window_unknown":
       return (
         <Status intro={intro} tone="ember">
-          {model} has no known context window, so the prompt can't be sized or sent. Set one in
-          Settings, or choose another model.
+          {model} has no known context window, so the prompt can't be sized or sent.{" "}
+          <WindowLink model={model}>Set one in Settings</WindowLink>, or choose another model.
         </Status>
       );
     case "prompt_too_long":

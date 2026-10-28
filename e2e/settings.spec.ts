@@ -747,14 +747,21 @@ test("a model without a known context window blocks sending until a window is se
   await page.getByLabel("Message", { exact: true }).fill(canary("in"));
   await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
 
+  // The link carries the model: Context opens on its window field, empty and focused.
   await notice.getByRole("link", { name: "Set a context window" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
-  await expect(page.getByText("Not set: replies can't be sent")).toBeVisible();
-  await page.getByRole("button", { name: "Set Context window for mock-nowindow" }).click();
   const field = page.getByRole("textbox", {
     name: "Context window for mock-nowindow",
     exact: true,
   });
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("");
+  await expect(field).toHaveAccessibleDescription(
+    "Use the window your provider documents for this model.",
+  );
+  await expect(field).toBeInViewport();
+  // Shown, the model leaves the address.
+  await expect(page).toHaveURL(/\/settings$/);
   await field.fill("16384");
   await field.press("Tab");
   await expect(field).toHaveValue("16,384");
@@ -779,6 +786,167 @@ test("a model without a known context window blocks sending until a window is se
   await page.getByRole("link", { name: "Settings", exact: true }).first().click();
   await page.getByRole("button", { name: "Reset Context window for mock-nowindow" }).click();
   await expect(page.getByText("Not set: replies can't be sent")).toBeVisible();
+
+  // Set opens an empty field and saves nothing until a window is committed.
+  await page.getByRole("button", { name: "Set Context window for mock-nowindow" }).click();
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("");
+  await expect.poll(async () => (await savedSettings(page)).contextWindows).toEqual({});
+  await page.getByRole("button", { name: "Cancel Context window for mock-nowindow" }).click();
+  await expect(page.getByText("Not set: replies can't be sent")).toBeVisible();
+});
+
+test("a model the provider does not list can be typed, and its window note leads to Context", async ({
+  page,
+}) => {
+  const typed = "vendor/typed-model-7";
+  await page.goto("/settings");
+  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  await model.click();
+  const find = page.getByRole("combobox", { name: "Find a model", exact: true });
+  await expect(find).toBeFocused();
+  // Padding is not part of the ID; nothing matches, so the typed row is the highlighted answer.
+  await find.fill(`  ${typed} `);
+  const use = page.getByRole("option", { name: `Use "${typed}"`, exact: true });
+  await expect(use).toHaveAccessibleDescription("Not on the provider's list");
+  await expect(use).toHaveAttribute("data-highlighted", "");
+  await find.press("Enter");
+  await expect(model).toHaveText(typed);
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect.poll(async () => (await savedSettings(page)).model).toBe(typed);
+
+  // Kept: a reload shows it, with the note that it has no window yet.
+  await page.reload();
+  await expect(model).toHaveText(typed);
+  const note = page.getByRole("link", { name: `Set a context window for ${typed}`, exact: true });
+  await expect(note).toBeVisible();
+  await note.click();
+  const field = page.getByRole("textbox", { name: `Context window for ${typed}`, exact: true });
+  await expect(field).toBeFocused();
+  await expect(field).toBeInViewport();
+  await field.fill("32768");
+  await field.press("Tab");
+  await expect(field).toHaveValue("32,768");
+  await expect(note).toHaveCount(0);
+  await expect
+    .poll(async () => (await savedSettings(page)).contextWindows)
+    .toEqual({ [typed]: 32_768 });
+
+  // An ID past the model rule's length is refused in words, not offered.
+  await model.click();
+  await find.fill("x".repeat(201));
+  await expect(page.getByText("Model IDs are at most 200 characters.")).toBeVisible();
+  await expect(page.getByRole("option", { name: /^Use "/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(model).toBeFocused();
+  await expect(model).toHaveText(typed);
+});
+
+test("finding a model narrows the list, and Enter picks the highlighted row", async ({ page }) => {
+  await page.goto("/settings");
+  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  await model.click();
+  const find = page.getByRole("combobox", { name: "Find a model", exact: true });
+  // Any part of the ID, in any case.
+  await find.fill("LOW");
+  // The matches, then the query as typed, which no listed ID equals.
+  await expect(page.getByRole("option")).toHaveCount(3);
+  await expect(page.getByRole("option").nth(0)).toHaveAccessibleName("mock-lowonly");
+  await expect(page.getByRole("option").nth(1)).toHaveAccessibleName("mock-slow");
+  await expect(page.getByRole("option").nth(2)).toHaveAccessibleName('Use "LOW"');
+  const first = page.getByRole("option", { name: "mock-lowonly", exact: true });
+  await expect(first).toHaveAttribute("data-highlighted", "");
+  await expect(first).toHaveAccessibleDescription("Context window 131,072 tokens");
+  await find.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "mock-slow", exact: true })).toHaveAttribute(
+    "data-highlighted",
+    "",
+  );
+  await find.press("ArrowUp");
+  await find.press("Enter");
+  await expect(model).toHaveText("mock-lowonly");
+
+  // Opening again starts from the whole list.
+  await model.click();
+  await expect(find).toHaveValue("");
+  await expect(page.getByRole("option", { name: "mock-fast", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(model).toHaveText("mock-lowonly");
+});
+
+test("a long model list shows the first 200 matches and asks for more letters", async ({
+  page,
+}) => {
+  const models = Array.from({ length: 2_000 }, (_, index) => ({
+    id: `vendor-${String(index).padStart(4, "0")}/model`,
+    contextWindow: 200_000,
+    reasoning: null,
+    images: null,
+  }));
+  await page.route("**/api/models", (route) => route.fulfill({ json: { models } }));
+  await page.goto("/settings");
+  await page.getByRole("combobox", { name: "Model", exact: true }).click();
+  await expect(page.getByText("Showing 200 of 2,000. Keep typing to narrow.")).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(200);
+  const find = page.getByRole("combobox", { name: "Find a model", exact: true });
+  await find.fill("vendor-19");
+  // 100 matches and the typed row.
+  await expect(page.getByRole("option")).toHaveCount(101);
+  await expect(page.getByText(/Keep typing to narrow/)).toHaveCount(0);
+  // An exact listed ID is not offered again as typed.
+  await find.fill("vendor-1999/model");
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByRole("option")).toHaveAccessibleName("vendor-1999/model");
+});
+
+test("a model list that didn't load says so, retries, and still takes a typed ID", async ({
+  page,
+}) => {
+  // Each failed load is retried before it is reported.
+  test.setTimeout(90_000);
+  let failing = true;
+  let asked = 0;
+  await page.route("**/api/models", (route) => {
+    asked += 1;
+    return failing ? route.fulfill({ status: 503, body: "" }) : route.fallback();
+  });
+  await page.goto("/settings");
+  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  // Never disabled for want of a list.
+  await expect(model).toBeEnabled();
+  await model.click();
+  await expect(page.getByText("The model list didn't load.", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  const find = page.getByRole("combobox", { name: "Find a model", exact: true });
+  await find.fill("mock-fast");
+  const use = page.getByRole("option", { name: 'Use "mock-fast"', exact: true });
+  await expect(use).toHaveAccessibleDescription("Typed model ID");
+  await use.click();
+  await expect(model).toHaveText("mock-fast");
+
+  // Choosing refetches the list, which fails again; Try again asks once more.
+  // The popup's own Try again: Context's note says the same words while the
+  // popup may still be loading through the query's retries.
+  await model.click();
+  const tryAgain = page.getByRole("button", { name: "Try again" });
+  await expect(tryAgain).toBeVisible({ timeout: 20_000 });
+  const before = asked;
+  await tryAgain.click();
+  await expect.poll(() => asked).toBeGreaterThan(before);
+  // Once the provider answers, Try again or a background refetch, whichever
+  // comes first, brings the list in.
+  failing = false;
+  await expect(async () => {
+    if (await tryAgain.isVisible()) await tryAgain.click({ timeout: 2_000 });
+    await expect(page.getByRole("option", { name: "mock-slow", exact: true })).toBeVisible({
+      timeout: 2_000,
+    });
+  }).toPass({ timeout: 30_000 });
+  await expect(page.getByText("The model list didn't load.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "mock-slow", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
 test("a chat model the catalog does not list can still get a context window", async ({ page }) => {
@@ -792,7 +960,9 @@ test("a chat model the catalog does not list can still get a context window", as
 /** The settings as the server holds them. */
 const savedSettings = async (page: import("@playwright/test").Page) =>
   (await (await page.request.get("/api/settings")).json()).settings as {
+    model: string | null;
     contextLimits: Record<string, number>;
+    contextWindows: Record<string, number>;
   };
 
 test("the context limit caps a model's window, clamps to its maximum and is kept", async ({

@@ -44,7 +44,16 @@ describe("GET /api/models", () => {
     expect(await response.json()).toEqual({
       models: [{ id: "a", contextWindow: FAKE_WINDOW, reasoning: expect.any(Array), images: null }],
     });
-    expect(new URL(seen[0] ?? "").searchParams.has("client_version")).toBe(true);
+    expect(seen[0]).toBe(`${config.upstreamBaseUrl}/models?client_version=&detailed=true`);
+  });
+
+  it("sends no Authorization header to an upstream that needs no key", async () => {
+    const upstream = fakeUpstream({ models: ["a"], catalogQueryMissing: true });
+    const { app } = testApp({ fetch: upstream.fetch }, { upstreamApiKey: undefined });
+    const response = await app.request("/api/models", { headers: ownerHeaders() });
+    expect(response.status).toBe(200);
+    expect(upstream.modelRequests).toHaveLength(2);
+    expect(upstream.modelRequests.map((request) => request.authorization)).toEqual([null, null]);
   });
 
   it.each([
@@ -63,7 +72,7 @@ describe("GET /api/models", () => {
   });
 });
 
-describe("an upstream without CLIProxyAPI's catalog", () => {
+describe("an upstream without the rich catalog", () => {
   /** The model list requests' URLs, in order. */
   const recording = (fetch: UpstreamFetch) => {
     const seen: string[] = [];
@@ -76,6 +85,7 @@ describe("an upstream without CLIProxyAPI's catalog", () => {
     };
   };
   const plain = `${config.upstreamBaseUrl}/models`;
+  const rich = `${plain}?client_version=&detailed=true`;
   const modelLogs = (lines: string[]) =>
     lines.map((line) => JSON.parse(line)).filter((line) => line.event === "upstream.models");
 
@@ -90,7 +100,7 @@ describe("an upstream without CLIProxyAPI's catalog", () => {
         { id: "b", contextWindow: null, reasoning: null, images: null },
       ],
     });
-    expect(seen).toEqual([`${plain}?client_version=`, plain]);
+    expect(seen).toEqual([rich, plain]);
     expect(upstream.modelRequests[1]?.authorization).toBe(`Bearer ${config.upstreamApiKey}`);
     expect(modelLogs(lines)).toEqual([expect.objectContaining({ status: 404 })]);
   });
@@ -106,7 +116,7 @@ describe("an upstream without CLIProxyAPI's catalog", () => {
     expect(await response.json()).toEqual({
       models: [{ id: "a", contextWindow: null, reasoning: null, images: null }],
     });
-    expect(seen).toEqual([`${plain}?client_version=`, plain]);
+    expect(seen).toEqual([rich, plain]);
     expect(modelLogs(lines)).toEqual([
       expect.objectContaining({ errorClass: "InvalidModelCatalog" }),
     ]);
@@ -209,7 +219,7 @@ describe("a catalog past its bounds", () => {
 });
 
 describe("the catalog for generation", () => {
-  it("keeps using the last good catalog while CLIProxyAPI cannot answer", async () => {
+  it("keeps using the last good catalog while the upstream cannot answer", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       let down = false;
@@ -234,7 +244,7 @@ describe("the catalog for generation", () => {
     ["refuses its query", async () => new Response("leaked", { status: 404 })],
     ["answers something else", async () => Response.json({ data: "leaked catalog text" })],
   ])(
-    "keeps a served catalog's windows and reasoning when CLIProxyAPI later %s, without the plain list",
+    "keeps a served catalog's windows and reasoning when the upstream later %s, without the plain list",
     async (_label, failing) => {
       vi.useFakeTimers({ toFake: ["Date"] });
       try {
@@ -258,7 +268,7 @@ describe("the catalog for generation", () => {
         seen.length = 0;
         vi.setSystemTime(Date.now() + 120_000);
         expect(await catalog.current(signal)).toEqual(served);
-        expect(seen).toEqual([`${config.upstreamBaseUrl}/models?client_version=`]);
+        expect(seen).toEqual([`${config.upstreamBaseUrl}/models?client_version=&detailed=true`]);
       } finally {
         vi.useRealTimers();
       }
@@ -284,7 +294,7 @@ describe("the catalog for generation", () => {
 });
 
 describe("a request the client gave up on", () => {
-  it("is not logged as CLIProxyAPI failing", async () => {
+  it("is not logged as the upstream failing", async () => {
     const { app, lines } = testApp({
       fetch: (_input, init) =>
         new Promise((_resolve, reject) => {
