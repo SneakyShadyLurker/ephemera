@@ -1,9 +1,9 @@
-import { Link } from "@tanstack/react-router";
 import { NoticeCard } from "@/app/NoticeCard.tsx";
 import { setSessionOpen } from "@/app/ui.ts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useContextWindow } from "../api.ts";
 import { useSettings } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { SCRIPT_FRAME } from "./frame.ts";
 
 /**
@@ -25,12 +25,12 @@ export function WindowNotice() {
         body={`${model} has no known context window, so the prompt can't be sized. Set one for it, or choose another model.`}
         actions={
           <>
-            <Link
-              to="/settings"
+            <WindowLink
+              model={model}
               className={buttonVariants({ variant: "outline", className: "px-2.5" })}
             >
               Set a context window
-            </Link>
+            </WindowLink>
             <Button className="px-2.5" onClick={() => setSessionOpen(true)}>
               Choose a model
             </Button>

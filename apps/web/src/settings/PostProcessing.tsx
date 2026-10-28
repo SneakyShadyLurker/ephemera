@@ -73,20 +73,21 @@ export function PostProcessing() {
           ))}
         </ul>
       )}
-      {offered.length > 0 && (
-        <div className="grid gap-1.5">
-          <span id={addLabel} className="font-medium text-ink text-ui">
-            Add a model
-          </span>
-          <ModelSelect
-            labelId={addLabel}
-            options={offered}
-            value={null}
-            onChange={(id) => save(id, "semiStrict")}
-            className="max-w-sm tablet:w-full"
-          />
-        </div>
-      )}
+      <div className="grid gap-1.5">
+        <span id={addLabel} className="font-medium text-ink text-ui">
+          Add a model
+        </span>
+        <ModelSelect
+          labelId={addLabel}
+          options={offered}
+          value={null}
+          onChange={(id) => {
+            // A typed model already set keeps its mode.
+            if (!Object.hasOwn(promptProcessing, id)) save(id, "semiStrict");
+          }}
+          className="max-w-sm tablet:w-full"
+        />
+      </div>
     </div>
   );
 }

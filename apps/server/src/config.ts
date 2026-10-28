@@ -33,8 +33,12 @@ const envSchema = z.object({
   EPHEMERA_UPSTREAM_BASE_URL: z
     .url({ protocol: /^https?$/ })
     .transform((url) => url.replace(/\/+$/, "")),
-  EPHEMERA_UPSTREAM_API_KEY: z.string().min(1),
-  /** CLIProxyAPI's session cache: body `prompt_cache_key` and header `x-session-affinity`; off for an upstream that rejects them. */
+  /** Empty or unset for a local server that needs no key. */
+  EPHEMERA_UPSTREAM_API_KEY: optional(z.string()),
+  /**
+   * The session cache extensions: body `prompt_cache_key` and header `x-session-affinity`.
+   * An upstream that refuses them by name loses them by itself (upstream.ts); off sends them never.
+   */
   EPHEMERA_UPSTREAM_SESSION_CACHE: optional(z.enum(["on", "off"])).transform(
     (value) => value !== "off",
   ),
@@ -72,7 +76,8 @@ const envSchema = z.object({
 
 export interface AppConfig {
   upstreamBaseUrl: string;
-  upstreamApiKey: string;
+  /** Sent as a bearer token; none for an upstream that needs no key. */
+  upstreamApiKey: string | undefined;
   /** Whether a call's cache key reaches the upstream (upstream.ts). */
   upstreamSessionCache: boolean;
   proxyKey: string;

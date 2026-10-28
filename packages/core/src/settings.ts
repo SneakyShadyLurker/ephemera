@@ -79,7 +79,7 @@ export const settingsSchema = z.strictObject({
   defaultPersonaId: reference,
   promptPresetId: reference,
   samplerPresetId: reference,
-  /** Windows the owner set for models CLIProxyAPI reports none for. */
+  /** Windows the owner set for models the provider reports none for. */
   contextWindows: contextWindowsSchema,
   /**
    * The most of each model's window a prompt may use; a model not listed uses

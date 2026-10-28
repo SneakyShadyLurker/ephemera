@@ -62,7 +62,7 @@ Major versions are architectural choices; exact versions live in
 | Dates | dayjs with `utc`, `timezone`, `duration` and `relativeTime` | Date macros, UTC offsets and relative differences in `packages/core`; naive dates use the browser's zone, including DST. It reaches the browser in the shared API chunk |
 | API | Hono 4 with `@hono/bun`, Zod 4 | Validated routes, streaming, typed RPC client, static SPA |
 | LLM | AI SDK 7, `@ai-sdk/openai-compatible` | Streaming, abort, reasoning parts, provider quirks |
-| Storage | `bun:sqlite`, Drizzle ORM, `node:crypto` | One SQLite database per user, in memory while in use and encrypted at rest (§ Users and storage): characters, personas and their character bindings, prompt presets with their Author's Note (a nullable column; a row without one reads as the default) and sampler presets, library lorebooks (`lorebooks`: a name and the whole book in the embedded book's schema and limits, its compact JSON within the card limit, the book's own `name` mirroring the row's, and the counts the library lists, written with the book and brought up to date when the database opens, so listing never parses a book) and their links to characters (`character_lorebooks`: at most `LOREBOOK_LINKS`, 8, per character, each at a position; a link is appended after the last in one transaction, linking again changes nothing, unlinking leaves the others' positions, deleting either side removes the link, and duplicating a character copies its links), events (`events`: at most `EVENT_LIMITS.events`, 200, each a one-line text, a chance, a cooldown in replies, an on/off flag and a scope of all cards or chosen character ids and tags, the ids held without a reference so an unknown one matches nothing; definitions only, with no column for which event fired where), a character's memory (`memory_notebooks`: one row per character, keyed by it, with the on/off flag, the situation, relationships, facts and threads, and `opening`, the next chat's opening (at most `MEMORY_LIMITS.opening`, 600 characters, empty when there is none); a PATCH carries the notebook whole, and one without the notebook or the opening keeps the stored one; `memories`: at most `MEMORY_LIMITS.episodes`, 2,000, per character, each an episode or a chapter with a per-character `seq`, a title, a summary, cues, how many turns it covered, the chapter that absorbed it and a pinned flag; both cascade with their character, and neither has a column for the turns, the chat or the span a memory came from), characters' cast sheets (`cast_sheets`: one row per character, keyed by it and cascading with it, holding the card fingerprint it was read at, its entries' fixed records without any state, at most `CAST_LIMITS.sheetEntries`, 8, and a `revision` each write increments; a chat's register has no column), up to three custom palettes (`custom_palettes`: by slot 1 to 3, a name, the palette it started from, its colours and the base's by scheme, the roles set by hand; deleting the chosen one returns the setting to its built-in base, or Lamplight, in the same transaction), one row of UI settings (theme, colour palette, model, image prompt model (null leaves each image prompt on its surface's default), chosen character and persona, default persona, chosen presets, context windows the owner set for models CLIProxyAPI reports none for, the owner's context limit per model, the ComfyUI address and workflow for card portraits, memory's model, effort and sizes, the cast calls' model and effort (null follows memory's), and `memoryOpening`, whether a new chat opens on the memory's opening, a column with SQL default true; references clear themselves when their target is deleted), and portraits of characters and personas in one table (each row belongs to exactly one owner and holds its dimensions, version and WebP thumbnail, and names the encrypted file under the user's folder that holds its PNG), so an entity and its portrait row change in one transaction, and a portrait's file is durable before any database image that names it. One store per entity, each parsing its core schema on every write. Characters, personas, presets, lorebooks, events, notebooks and memories carry a `revision` that each update increments; a PATCH names the revision its sheet loaded, and a stale one is refused with 409 and the current revision, checked and written in one transaction, so a tab behind another never overwrites it unasked (the sheet offers Reload or Keep mine, which saves the tab's whole version). A stale PATCH that would change nothing, such as a retry after a lost answer, is answered as saved and writes nothing; after a save whose answer was lost, the sheet sends it again alone, as it was, before newer edits, so it learns the revision instead of meeting a false conflict. drizzle-kit runs on demand (`bun run db:generate`, from outside the workspace) to generate migrations; the server applies them when a user's database opens, with foreign keys off (Drizzle runs them in one transaction, where a migration's own `PRAGMA foreign_keys=OFF` does nothing, so a table rebuild would cascade), checks the result with `PRAGMA foreign_key_check` and only then turns enforcement on. A migration therefore never relies on a cascade. At start the server verifies migrations and the native data upgrade, then durably encrypts every changed database before listening; failure refuses startup. The deploy's pre-migration snapshot is the way back |
+| Storage | `bun:sqlite`, Drizzle ORM, `node:crypto` | One SQLite database per user, in memory while in use and encrypted at rest (§ Users and storage): characters, personas and their character bindings, prompt presets with their Author's Note (a nullable column; a row without one reads as the default) and sampler presets, library lorebooks (`lorebooks`: a name and the whole book in the embedded book's schema and limits, its compact JSON within the card limit, the book's own `name` mirroring the row's, and the counts the library lists, written with the book and brought up to date when the database opens, so listing never parses a book) and their links to characters (`character_lorebooks`: at most `LOREBOOK_LINKS`, 8, per character, each at a position; a link is appended after the last in one transaction, linking again changes nothing, unlinking leaves the others' positions, deleting either side removes the link, and duplicating a character copies its links), events (`events`: at most `EVENT_LIMITS.events`, 200, each a one-line text, a chance, a cooldown in replies, an on/off flag and a scope of all cards or chosen character ids and tags, the ids held without a reference so an unknown one matches nothing; definitions only, with no column for which event fired where), a character's memory (`memory_notebooks`: one row per character, keyed by it, with the on/off flag, the situation, relationships, facts and threads, and `opening`, the next chat's opening (at most `MEMORY_LIMITS.opening`, 600 characters, empty when there is none); a PATCH carries the notebook whole, and one without the notebook or the opening keeps the stored one; `memories`: at most `MEMORY_LIMITS.episodes`, 2,000, per character, each an episode or a chapter with a per-character `seq`, a title, a summary, cues, how many turns it covered, the chapter that absorbed it and a pinned flag; both cascade with their character, and neither has a column for the turns, the chat or the span a memory came from), characters' cast sheets (`cast_sheets`: one row per character, keyed by it and cascading with it, holding the card fingerprint it was read at, its entries' fixed records without any state, at most `CAST_LIMITS.sheetEntries`, 8, and a `revision` each write increments; a chat's register has no column), up to three custom palettes (`custom_palettes`: by slot 1 to 3, a name, the palette it started from, its colours and the base's by scheme, the roles set by hand; deleting the chosen one returns the setting to its built-in base, or Lamplight, in the same transaction), one row of UI settings (theme, colour palette, model, image prompt model (null leaves each image prompt on its surface's default), chosen character and persona, default persona, chosen presets, context windows the owner set for models the provider reports none for, the owner's context limit per model, the ComfyUI address and workflow for card portraits, memory's model, effort and sizes, the cast calls' model and effort (null follows memory's), and `memoryOpening`, whether a new chat opens on the memory's opening, a column with SQL default true; references clear themselves when their target is deleted), and portraits of characters and personas in one table (each row belongs to exactly one owner and holds its dimensions, version and WebP thumbnail, and names the encrypted file under the user's folder that holds its PNG), so an entity and its portrait row change in one transaction, and a portrait's file is durable before any database image that names it. One store per entity, each parsing its core schema on every write. Characters, personas, presets, lorebooks, events, notebooks and memories carry a `revision` that each update increments; a PATCH names the revision its sheet loaded, and a stale one is refused with 409 and the current revision, checked and written in one transaction, so a tab behind another never overwrites it unasked (the sheet offers Reload or Keep mine, which saves the tab's whole version). A stale PATCH that would change nothing, such as a retry after a lost answer, is answered as saved and writes nothing; after a save whose answer was lost, the sheet sends it again alone, as it was, before newer edits, so it learns the revision instead of meeting a false conflict. drizzle-kit runs on demand (`bun run db:generate`, from outside the workspace) to generate migrations; the server applies them when a user's database opens, with foreign keys off (Drizzle runs them in one transaction, where a migration's own `PRAGMA foreign_keys=OFF` does nothing, so a table rebuild would cascade), checks the result with `PRAGMA foreign_key_check` and only then turns enforcement on. A migration therefore never relies on a cascade. At start the server verifies migrations and the native data upgrade, then durably encrypts every changed database before listening; failure refuses startup. The deploy's pre-migration snapshot is the way back |
 | Cards | Own PNG chunk walker, own Zod schemas | Native character JSON uses a strict versioned envelope. Native PNG reads and writes one base64 `ephemera` text chunk. Import-only readers accept foreign V2/V3 `ccv3` then `chara` chunks. Native data takes precedence; duplicates, unsupported versions, mixed shapes and malformed native markers fail closed. Recognized foreign fields become typed camelCase data and unknown metadata is dropped with an import report. Import fits lorebook keywords, names and tags to their limits. Compact serialization and UTF-8 limits live in `packages/core`. The bounded PNG walker strips compressed text before portrait decoding and validates at most one ICC profile within a 1 MiB inflation limit; portrait output strips metadata |
 | Images | sharp | Portraits: only the PNG, JPEG and WebP loaders unblocked, header-checked pixel cap, re-encoded to PNG plus a WebP thumbnail, metadata stripped; a JPEG vision copy for model calls; prebuilt for linux-arm64 |
 | Lorebook keys | re2js, `Intl.Segmenter` | A character book's regex keys run only on re2js, a linear-time RE2 port, never on the native `RegExp` (card patterns are untrusted; JavaScriptCore's backtracking limit answers "no match" instead of failing). Plain keys match with `includes`; whole words by `Intl.Segmenter` boundaries or punctuation beside the key, so scripts without spaces and possessives work. Every assembly's scan has a deterministic work bound, and entry text is filled and counted only up to the budget's cutoff, within a per-assembly allowance; entries past either are reported, not scanned. A request assembles at most `MEMORY_LIMITS.held` plus three times (Memory, step 9), each attempt with its own bounds so a fold never changes which entries activate. Secondary keys match on the same rules; recursive passes test each key against each chat or entry text once, charged to the same bound, and entries a bound kept a pass from reaching are reported unscanned. An entry's sparse native settings are read and written through one core owner (`entrySettings` and `withEntrySettings` in `lorebook/settings.ts`), and timed effects by another (`lorebook/timed.ts`), whose per-chat state names entries by their library book (absent for the book in the card), their index inside it and a digest of the entry (`Bun.hash`, injected by the server) so an edited entry loses its effect and an effect never moves to another book. re2js reaches the browser only in the lorebook editor's chunks, where the editor flags keys that never match |
@@ -85,22 +85,34 @@ Major versions are architectural choices; exact versions live in
    clock and timezone for `{{time}}` and `{{date}}`, and the chat's cache
    affinity id (`cacheKey`, a UUID; previews carry none).
    Model limits come from the upstream's model catalog. The server asks
-   `/v1/models?client_version=` first, CLIProxyAPI's rich catalog
-   (`{models:[{slug}]}` with each model's context window, reasoning
-   levels, input modalities and visibility), and on a 4xx or a body that
-   is no catalog asks the plain `/v1/models` once within the same 8-second
-   budget. Core's `modelsFromCatalog` reads either envelope, the rich one or
-   the standard OpenAI list (`{object:"list",data:[{id}]}`), preferring the
-   rich one when a body has both; a standard entry reports no window,
-   efforts or image support unless it carries the rich fields, and a body
-   that is neither is invalid. Both requests log operational fields only
-   (`upstream.models` with status or error class). The server keeps the
-   last catalog for a minute, and requests arriving together share one
-   refresh; it is model metadata, not chat content. A request whose client left while the catalog loaded is
-   not assembled. For a model CLIProxyAPI has no registry metadata for,
-   its catalog clones a template entry (v8.0.32: a 272k window, image input
-   and efforts low to xhigh) and overwrites only what the model's config
-   gives, so that window, image input and those efforts are not measured
+   `/v1/models?client_version=&detailed=true` first (CLIProxyAPI reads
+   `client_version` and answers its rich catalog, `{models:[{slug}]}`;
+   providers that read `detailed=true` add each model's limits; other
+   providers ignore both), and on a 4xx or a body that is no catalog asks
+   the plain `/v1/models` once within the same 8-second budget. Core's
+   `modelsFromCatalog` reads three envelopes, `{models:[...]}`,
+   `{data:[...]}` and a bare array, preferring `models` when a body has
+   both, and is the one place that knows each provider's field names. Each
+   value is read only when well formed, first field first: the context
+   window from `context_window`, `max_model_len`, `context_length`,
+   `max_context_length`, `top_provider.context_length` or
+   `metadata.context_length` (never llama.cpp's `meta.n_ctx_train`, the
+   training context rather than the serving limit); image input from
+   `input_modalities`, `architecture.input_modalities`,
+   `capabilities.vision` or a `vision` tag in `metadata.tags`; reasoning
+   levels from `supported_reasoning_levels`, `effort.supported_levels`,
+   `reasoning.supported_efforts` or `capabilities.reasoning_effort`, with
+   `capabilities.reasoning: false` meaning none. Anything else reads as not
+   reported, and a body that is no catalog is invalid. Both requests log
+   operational fields only (`upstream.models` with status or error class)
+   and carry no `Authorization` header when no key is configured. The
+   server keeps the last catalog for a minute, and requests arriving
+   together share one refresh; it is model metadata, not chat content. A
+   request whose client left while the catalog loaded is not assembled.
+   For a model CLIProxyAPI has no registry metadata for, its catalog clones
+   a template entry (v8.0.32: a 272k window, image input and efforts low to
+   xhigh) and overwrites only what the model's config gives, so that
+   window, image input and those efforts are not measured
    values; the owner's per-model context limit below is what caps the
    window. A model with no reported window uses
    the one the owner set in Settings, else nothing is sent to it.
@@ -224,26 +236,33 @@ Major versions are architectural choices; exact versions live in
    for every intermediate selection under arbitrary nonmonotonic token
    counters. The inspected prompt's `trimming` says which happened
    (`exact`, `blocks`, `blocks-fallback`).
-3. AI SDK `streamText` calls CLIProxyAPI through `upstream.ts`, the one
+3. AI SDK `streamText` calls the upstream through `upstream.ts`, the one
    owner of every model call (the provider, call settings, effort, cache
    key, retries, error logging and codes), with streamed usage enabled
    (`includeUsage`) and the chosen sampler preset's set values as call
    settings; values left at the model default are not sent, and every
-   effort, `max` included, goes as the SDK's `reasoning` setting.
+   effort, `max` included, goes as the SDK's `reasoning` setting. Without
+   a configured key no `Authorization` header is sent, for a local server
+   that needs none.
    CLIProxyAPI v8.0.32's Codex translator drops `temperature`, `top_p` and
    `max_tokens` and sends `reasoning.effort` medium when none is given, so
-   on the GPT (Codex) models the sampler preset's values have no effect and
-   only an effort does. A request
+   on the GPT (Codex) models behind it the sampler preset's values have no
+   effect and only an effort does. A request
    with a `cacheKey` sends it as body `prompt_cache_key` (an option the
    OpenAI-compatible provider spreads into the body) and header
    `x-session-affinity`, held only for the request. CLIProxyAPI forwards
    both: its Fireworks provider has `support-prompt-cache-key: true`, and
    in v8.0.32 `X-Session-Affinity` is a general session-affinity input to
    its credential selection, ahead of `prompt_cache_key`. Every model call
-   sends one: the creator's per request, memory's per character.
-   `EPHEMERA_UPSTREAM_SESSION_CACHE` (`on` unless set to `off`) switches
-   both off for an upstream that rejects unknown fields; the key is then
-   left out of every call (`Upstream.settings`). A call
+   sends one: the creator's per request, memory's per character. A
+   provider that refuses the field (a 400 or 422 whose error body names
+   `prompt_cache_key`, read in memory up to 64 KiB and never logged) gets
+   the call once more without the field and the header; once such a retry
+   succeeds, the upstream sends neither again until the server restarts,
+   and logs `upstream.cache_extensions_off` once. An error that does not
+   name the field is not retried. `EPHEMERA_UPSTREAM_SESSION_CACHE`
+   (`on` unless set to `off`) switches both off from the start; the key is
+   then left out of every call (`Upstream.settings`). A call
    the provider answers with 408, 409, 429 or 5xx before any output is
    retried twice by the AI SDK, after the provider's `Retry-After` (up to
    60 s) or a backoff of 2 s then 4 s; the request's deadline ends any
@@ -2342,7 +2361,8 @@ card request before Ephemera's does.
 - Access rules naming every intended user, followed by a deny rule for the
   same host. Ephemera admits whoever they admit.
 - An OpenAI-compatible upstream verified per principle 1 and reachable from
-  the container.
+  the container (README § Model providers lists common ones). Its API key
+  may stay empty for a local server that needs none.
 - For card portraits, a ComfyUI that meets principle 1's ComfyUI
   prerequisites (a plain ComfyUI or Atelier's private worker), reachable
   from the container, its address saved in Settings.

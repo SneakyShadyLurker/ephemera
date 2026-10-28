@@ -5,25 +5,33 @@ import {
   effectiveWindow,
 } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { NumberField } from "@/components/ui/number-field";
 import { formatCount } from "@/lib/text";
 import { modelsQuery } from "../api.ts";
+import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useNumberDraft } from "./number-draft.ts";
 import { useSettings, useUpdateSettings } from "./settings.ts";
 
 const HELP = "text-pretty text-note text-reed";
-/** Where Set starts: a common window, changed right away in the field. */
-const SET_START = 32_768;
 
 /**
  * How much of each model's window a prompt may use, the window itself for a
- * model CLIProxyAPI reports none for, and how history is trimmed to fit
+ * model the provider reports none for, and how history is trimmed to fit
  * (PRODUCT.md § Models). The window in use comes from `effectiveWindow` alone.
+ * Listed: the reply model, models with a stored window or limit, models added
+ * here, and `windowFor`, a model a link asked to set a window for, which is
+ * scrolled to with its window editor focused; `onWindowShown` follows.
  */
-export function ContextSize() {
+export function ContextSize({
+  windowFor,
+  onWindowShown,
+}: {
+  windowFor: string | null;
+  onWindowShown: () => void;
+}) {
   const models = useQuery(modelsQuery);
   const settings = useSettings();
   const { contextLimits, contextWindows, model } = settings;
@@ -31,6 +39,12 @@ export function ContextSize() {
   const addLabel = useId();
   // Rows added here stay listed while the screen is open, even at the default.
   const [added, setAdded] = useState<string[]>([]);
+  // The model a link asked for, and each ask counted, so asking again focuses again.
+  const [asked, setAsked] = useState<{ id: string | null; count: number }>({ id: null, count: 0 });
+  if (windowFor !== asked.id) {
+    setAsked({ id: windowFor, count: asked.count + (windowFor === null ? 0 : 1) });
+    if (windowFor !== null && !added.includes(windowFor)) setAdded([...added, windowFor]);
+  }
   const catalog = models.data;
   const reported = new Map((catalog ?? []).map((info) => [info.id, info.contextWindow]));
   const ids = models.isPending
@@ -40,7 +54,6 @@ export function ContextSize() {
           ...(model === null ? [] : [model]),
           ...Object.keys(contextLimits),
           ...Object.keys(contextWindows),
-          ...(catalog ?? []).filter((info) => info.contextWindow === null).map((info) => info.id),
           ...added,
         ]),
       ].sort();
@@ -63,12 +76,12 @@ export function ContextSize() {
       <div className="grid gap-3">
         <p className={HELP}>
           How much of each model's context window a prompt may use,{" "}
-          {formatCount(DEFAULT_CONTEXT_LIMIT)} tokens unless set here. A model CLIProxyAPI reports
+          {formatCount(DEFAULT_CONTEXT_LIMIT)} tokens unless set here. A model the provider reports
           no window for needs one set before replies can be sent.
         </p>
-        {models.isError && (
+        {models.isError && catalog === undefined && (
           <p className="text-ember text-note">
-            The model list could not be loaded, so reported windows are unknown.
+            The model list didn't load. Reported windows are unknown until it does.
           </p>
         )}
         {ids.length > 0 && (
@@ -85,28 +98,34 @@ export function ContextSize() {
                 window={effectiveWindow(id, catalog, settings)}
                 onWindow={(value) => saveWindow(id, value)}
                 onLimit={(value) => saveLimit(id, value)}
+                focus={id === asked.id ? asked.count : 0}
+                onFocused={onWindowShown}
               />
             ))}
           </ul>
         )}
-        {offered.length > 0 && (
-          <div className="grid gap-1.5">
-            <span id={addLabel} className="font-medium text-ink text-ui">
-              Add a model
-            </span>
-            <ModelSelect
-              label="Add a model's context limit"
-              options={offered}
-              value={null}
-              onChange={(id) => setAdded([...added, id])}
-              className="max-w-sm tablet:w-full"
-            />
-          </div>
-        )}
+        <div className="grid gap-1.5">
+          <span id={addLabel} className="font-medium text-ink text-ui">
+            Add a model
+          </span>
+          <ModelSelect
+            label="Add a model's context limit"
+            options={offered}
+            value={null}
+            onChange={(id) => {
+              if (!ids.includes(id)) setAdded([...added, id]);
+            }}
+            className="max-w-sm tablet:w-full"
+          />
+        </div>
       </div>
     </div>
   );
 }
+
+/** The visible input of a row's window or limit field. */
+const fieldIn = (row: HTMLElement | null, field: "window" | "limit") =>
+  row?.querySelector<HTMLInputElement>(`[data-field="${field}"] input:not([aria-hidden])`);
 
 function ModelRow({
   id,
@@ -116,6 +135,8 @@ function ModelRow({
   window,
   onWindow,
   onLimit,
+  focus,
+  onFocused,
 }: {
   id: string;
   /** The catalog's window, null when it reports none. */
@@ -127,37 +148,67 @@ function ModelRow({
   window: EffectiveWindow | null;
   onWindow: (value: number | null) => void;
   onLimit: (value: number | null) => void;
+  /** Counts each time a link asks to focus this row's window editor; 0 when none did. */
+  focus: number;
+  onFocused: () => void;
 }) {
   const windowLabel = `Context window for ${id}`;
+  const hintId = useId();
+  const row = useRef<HTMLLIElement>(null);
+  // Set opens an empty window field; nothing is saved until a value is committed.
+  const [editing, setEditing] = useState(false);
+  const [focused, setFocused] = useState(0);
+  const unset = reported === null && fallback === null;
+  if (focus !== focused) {
+    setFocused(focus);
+    if (focus > 0 && unset) setEditing(true);
+  }
+  const editor = reported === null && (fallback !== null || editing);
+  // A link asked for this row: scroll to it and focus its window field, else its limit.
+  useEffect(() => {
+    if (focus === 0) return;
+    row.current?.scrollIntoView({ block: "center", behavior: scrollBehavior() });
+    (fieldIn(row.current, "window") ?? fieldIn(row.current, "limit"))?.focus({
+      preventScroll: true,
+    });
+    onFocused();
+  }, [focus, onFocused]);
+  // Set moves focus to the field it opens.
+  useEffect(() => {
+    if (editing) fieldIn(row.current, "window")?.focus({ preventScroll: true });
+  }, [editing]);
+
   // A window below the smallest limit has nothing to limit: the whole of it is used.
   const limit =
     window === null || window.model < CONTEXT_WINDOW_RANGE.min ? null : (
-      <LimitField id={id} window={window} limited={stored !== null} onChange={onLimit} />
+      <span data-field="limit" className="contents">
+        <LimitField id={id} window={window} limited={stored !== null} onChange={onLimit} />
+      </span>
     );
   return (
-    <li className={`grid gap-2 border-rush border-b py-3 arrive`}>
+    <li ref={row} className="grid scroll-my-6 gap-2 border-rush border-b py-3 arrive">
       <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 touch:min-h-11">
         <span className="min-w-0 flex-1 truncate font-medium text-ink text-ui max-tablet:basis-full">
           {id}
         </span>
         {reported !== null ? (
           limit
-        ) : fallback === null ? (
+        ) : !editor ? (
           <span className="flex items-center gap-2">
             <span className="text-ember text-note">Not set: replies can't be sent</span>
             <Button
               variant="outline"
               aria-label={`Set ${windowLabel}`}
               className="h-8 px-2.5 text-note touch:h-11"
-              onClick={() => onWindow(SET_START)}
+              onClick={() => setEditing(true)}
             >
               Set
             </Button>
           </span>
         ) : (
-          <span className={`flex items-center gap-2 arrive`}>
+          <span data-field="window" className="flex items-center gap-2 arrive">
             <NumberField
-              defaultValue={fallback}
+              {...(fallback === null ? { describedBy: hintId } : { defaultValue: fallback })}
               min={CONTEXT_WINDOW_RANGE.min}
               max={CONTEXT_WINDOW_RANGE.max}
               step={CONTEXT_WINDOW_RANGE.step}
@@ -170,20 +221,38 @@ function ModelRow({
               }}
             />
             <span className="text-note text-reed">tokens</span>
-            <Button
-              aria-label={`Reset ${windowLabel}`}
-              className="h-8 px-2 text-note touch:h-11"
-              onClick={() => onWindow(null)}
-            >
-              Reset
-            </Button>
+            {fallback === null ? (
+              <Button
+                aria-label={`Cancel ${windowLabel}`}
+                className="h-8 px-2 text-note touch:h-11"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                aria-label={`Reset ${windowLabel}`}
+                className="h-8 px-2 text-note touch:h-11"
+                onClick={() => {
+                  setEditing(false);
+                  onWindow(null);
+                }}
+              >
+                Reset
+              </Button>
+            )}
           </span>
         )}
       </div>
+      {editor && fallback === null && (
+        <p id={hintId} className={`${HELP} arrive`}>
+          Use the window your provider documents for this model.
+        </p>
+      )}
       {reported !== null && fallback !== null && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-note text-reed">
-            Not used: CLIProxyAPI reports {formatCount(reported)}.
+            Not used: the provider reports {formatCount(reported)}.
           </span>
           <Button
             aria-label={`Remove the window set for ${id}`}

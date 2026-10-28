@@ -294,7 +294,7 @@ export const settings = sqliteTable(
     defaultPersonaId: text().references(() => personas.id, { onDelete: "set null" }),
     promptPresetId: text().references(() => promptPresets.id, { onDelete: "set null" }),
     samplerPresetId: text().references(() => samplerPresets.id, { onDelete: "set null" }),
-    /** Owner-set windows for models CLIProxyAPI reports none for (models.ts). */
+    /** Owner-set windows for models the provider reports none for (models.ts). */
     contextWindows: text({ mode: "json" }).$type<ContextWindows>().notNull().default({}),
     /** Owner-set limits on how much of each model's window a prompt uses (models.ts). */
     contextLimits: text({ mode: "json" }).$type<ContextLimits>().notNull().default({}),

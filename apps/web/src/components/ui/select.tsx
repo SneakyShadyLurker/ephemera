@@ -6,6 +6,14 @@ import { cn } from "@/lib/cn";
 
 const Select = SelectPrimitive.Root;
 
+/** A closed list's look, shared by the searchable model picker's trigger. */
+const TRIGGER =
+  "press flex h-9 w-full items-center justify-between gap-2 rounded-md border border-control-edge bg-surface pr-2 pl-3 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover data-disabled:cursor-default data-disabled:border-rush data-disabled:bg-surface data-disabled:text-text-disabled touch:h-11";
+
+/** The trigger's chevron, turning while the list is open. */
+const TRIGGER_ICON =
+  "text-reed in-data-disabled:text-text-disabled transition-[rotate] duration-(--duration-arrive) ease-spring in-data-popup-open:rotate-180 motion-reduce:transition-none";
+
 /**
  * Shows the selected item's text, or `children` when given (such as a portrait
  * beside the name). Disabled, it takes the disabled controls' Rush outline and
@@ -18,20 +26,14 @@ function SelectTrigger({
   ...props
 }: SelectPrimitive.Trigger.Props & { placeholder: string }) {
   return (
-    <SelectPrimitive.Trigger
-      className={cn(
-        "press flex h-9 w-full items-center justify-between gap-2 rounded-md border border-control-edge bg-surface pr-2 pl-3 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover data-disabled:cursor-default data-disabled:border-rush data-disabled:bg-surface data-disabled:text-text-disabled touch:h-11",
-        className,
-      )}
-      {...props}
-    >
+    <SelectPrimitive.Trigger className={cn(TRIGGER, className)} {...props}>
       {children ?? (
         <SelectPrimitive.Value
           placeholder={placeholder}
           className="min-w-0 flex-1 truncate data-placeholder:text-reed"
         />
       )}
-      <SelectPrimitive.Icon className="text-reed in-data-disabled:text-text-disabled transition-[rotate] duration-(--duration-arrive) ease-spring in-data-popup-open:rotate-180 motion-reduce:transition-none">
+      <SelectPrimitive.Icon className={TRIGGER_ICON}>
         <ChevronDownIcon size={16} />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
@@ -123,4 +125,4 @@ function SelectItem({
   );
 }
 
-export { LEAF_TRIGGER, Select, SelectContent, SelectItem, SelectTrigger };
+export { LEAF_TRIGGER, Select, SelectContent, SelectItem, SelectTrigger, TRIGGER, TRIGGER_ICON };

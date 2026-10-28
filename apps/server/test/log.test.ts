@@ -53,6 +53,13 @@ describe("loadConfig", () => {
     });
   });
 
+  it("reads an upstream key, and none for a local server that needs none", () => {
+    expect(loadConfig(valid).upstreamApiKey).toBe("upstream");
+    expect(loadConfig({ ...valid, EPHEMERA_UPSTREAM_API_KEY: "" }).upstreamApiKey).toBeUndefined();
+    const { EPHEMERA_UPSTREAM_API_KEY: _, ...keyless } = valid;
+    expect(loadConfig(keyless).upstreamApiKey).toBeUndefined();
+  });
+
   it("reads the allowed ComfyUI origins; none turns ComfyUI off, and anything but an origin is refused", () => {
     expect(loadConfig(valid).comfyuiAllowedOrigins).toEqual([]);
     expect(loadConfig({ ...valid, COMFYUI_ALLOWED_ORIGINS: "" }).comfyuiAllowedOrigins).toEqual([]);

@@ -5,11 +5,11 @@ import {
   type Settings,
 } from "@ephemera/core";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { sharedCallFailure } from "../model-call.ts";
-import { currentSettings } from "../settings/settings.ts";
+import { currentSettings, useSettings } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { SHEET_GRID } from "../sheet/fields.ts";
 import { ageOf } from "./age.ts";
 import { CAST_SHEET_KEY, type CastFailure, castSheetQuery, ensureCastSheet } from "./queries.ts";
@@ -222,20 +222,29 @@ export function CastSheetView({
 /** A failed read: what went wrong and, where it is Settings, the link there. */
 function ReadFailure({ reason }: { reason: CastReadFailure }) {
   const { text, action } = castReadFailure(reason);
+  const look = cn(buttonVariants({ variant: "quiet" }), "h-8 px-2 text-ink text-note touch:h-11");
   return (
     <div role="alert" className="flex flex-wrap items-center gap-x-1 gap-y-1">
       <p className="text-pretty text-ember text-note">{text}</p>
-      {action !== null && (
-        <Link
-          to="/settings"
-          className={cn(
-            buttonVariants({ variant: "quiet" }),
-            "h-8 px-2 text-ink text-note touch:h-11",
-          )}
-        >
-          {CAST_ACTION_LABEL[action]}
-        </Link>
+      {action === "window" ? (
+        <CastWindowLink className={look} />
+      ) : (
+        action === "settings" && (
+          <WindowLink model={null} className={look}>
+            {CAST_ACTION_LABEL.settings}
+          </WindowLink>
+        )
       )}
     </div>
+  );
+}
+
+/** To Context, on the window field of the model cast calls go to. */
+function CastWindowLink({ className }: { className: string }) {
+  const model = castModelOf(useSettings());
+  return (
+    <WindowLink model={model} className={className}>
+      {CAST_ACTION_LABEL.window}
+    </WindowLink>
   );
 }

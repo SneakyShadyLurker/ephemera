@@ -24,8 +24,10 @@ import {
   RetryError,
   wrapLanguageModel,
 } from "ai";
+import { z } from "zod";
 import type { Catalog, UpstreamFetch } from "./catalog.ts";
 import type { AppConfig } from "./config.ts";
+import { readBounded } from "./lifetime.ts";
 import { errorClass, type LogFields, type Logger } from "./log.ts";
 import { startReasoningMiddleware } from "./reasoning.ts";
 import type { CallRecorder } from "./usage.ts";
@@ -37,8 +39,8 @@ import type { CallRecorder } from "./usage.ts";
  * content: only classes, statuses and fixed names are logged.
  */
 
-/** The provider's name; its options travel under this key (`providerOptions.cliproxyapi`). */
-const UPSTREAM_PROVIDER = "cliproxyapi";
+/** The provider's name; its options travel under this key (`providerOptions.upstream`). */
+const UPSTREAM_PROVIDER = "upstream";
 
 /**
  * Retries of a call the provider answered with a retryable status (408, 409,
@@ -256,21 +258,82 @@ export async function resolveModel(
   return { info: modelInfo(models, id), window: effectiveWindow(id, models, settings) };
 }
 
-/** The configured upstream: CLIProxyAPI's OpenAI-compatible chat models. */
+/** The body field and header that carry a cache key (`upstreamSettings`). */
+const CACHE_FIELD = "prompt_cache_key";
+const AFFINITY_HEADER = "x-session-affinity";
+/** Far past any provider's refusal; a longer error body is not read for the field's name. */
+const MAX_REFUSAL_BYTES = 64 * 1024;
+/** A request body that carries a cache key. */
+const cachedBodySchema = z.looseObject({ [CACHE_FIELD]: z.string() });
+
+/**
+ * The request without the cache extensions; undefined when it carries none.
+ * The body is chat content: parsed in memory for this call only.
+ */
+function withoutCacheExtensions(init: RequestInit | undefined): RequestInit | undefined {
+  if (init?.method !== "POST" || typeof init.body !== "string") return undefined;
+  let json: unknown;
+  try {
+    json = JSON.parse(init.body);
+  } catch {
+    return undefined;
+  }
+  const body = cachedBodySchema.safeParse(json);
+  if (!body.success) return undefined;
+  const { [CACHE_FIELD]: _key, ...rest } = body.data;
+  const headers = new Headers(init.headers);
+  headers.delete(AFFINITY_HEADER);
+  return { ...init, body: JSON.stringify(rest), headers };
+}
+
+/**
+ * Whether an error answer refuses the cache key by name. A clone is read, at
+ * most `MAX_REFUSAL_BYTES`, so the answer stays whole for the AI SDK; the
+ * text is the provider's message, compared and dropped, never logged.
+ */
+async function refusesCacheKey(response: Response, signal: AbortSignal | undefined) {
+  const body = response.clone().body;
+  if (body === null) return false;
+  const bytes = await readBounded(body, MAX_REFUSAL_BYTES, signal).catch(() => undefined);
+  return bytes !== undefined && new TextDecoder().decode(bytes).includes(CACHE_FIELD);
+}
+
+/**
+ * The configured upstream: any OpenAI-compatible provider's chat models. The
+ * session cache extensions are a convention some providers refuse: a call
+ * refused for its cache key is sent once more without them, and once that
+ * answers, this upstream sends them no more.
+ */
 export function createUpstream(
   config: Pick<AppConfig, "upstreamBaseUrl" | "upstreamApiKey" | "upstreamSessionCache">,
   fetch: UpstreamFetch,
+  log: Logger,
 ) {
+  let cacheRefused = false;
+  async function send(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+    if (cacheRefused) return fetch(input, withoutCacheExtensions(init) ?? init);
+    const response = await fetch(input, init);
+    if (response.status !== 400 && response.status !== 422) return response;
+    const retry = withoutCacheExtensions(init);
+    if (retry === undefined || !(await refusesCacheKey(response, init?.signal ?? undefined))) {
+      return response;
+    }
+    await response.body?.cancel().catch(() => {});
+    const second = await fetch(input, retry);
+    if (second.ok && !cacheRefused) {
+      cacheRefused = true;
+      log.warn({ event: "upstream.cache_extensions_off" });
+    }
+    return second;
+  }
   const provider = createOpenAICompatible({
     name: UPSTREAM_PROVIDER,
     baseURL: config.upstreamBaseUrl,
-    apiKey: config.upstreamApiKey,
+    // None sends no Authorization header, for a local server that needs no key.
+    ...(config.upstreamApiKey === undefined ? {} : { apiKey: config.upstreamApiKey }),
     includeUsage: true,
     // Bun's fetch type adds `preconnect`; a no-op keeps the wrapper assignable in every runtime.
-    fetch: Object.assign(
-      (input: string | URL | Request, init?: RequestInit) => fetch(input, init),
-      { preconnect: () => {} },
-    ),
+    fetch: Object.assign(send, { preconnect: () => {} }),
   });
   return {
     /** A call's settings (`upstreamSettings`), its cache key left out while the session cache is off. */

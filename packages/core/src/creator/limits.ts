@@ -14,8 +14,8 @@ export const CREATOR_LIMITS = {
   imageCardDirectionLength: 2_000,
   /**
    * `maxOutputTokens` for every creator call (card, rework, image prompt): above
-   * what a card needs, and a value each provider behind CLIProxyAPI accepts.
-   * Sent because a provider's default when it is omitted can be far lower.
+   * what a card needs. Sent because a provider's default when it is omitted
+   * can be far lower.
    */
   maxOutputTokens: 100_000,
   /** Token cap for one subject block; over it is reported, never cut. */

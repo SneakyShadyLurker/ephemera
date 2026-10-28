@@ -46,22 +46,24 @@ const COPY: Record<CreatorKind, { heading: string; placeholder: string; create: 
 };
 
 /**
- * The models to write with: the listed ones, and the saved one even when the
- * list failed or omits it. `chosen` is the owner's pick in this surface; null
- * or unlisted follows the saved model.
+ * The models to write with: the listed ones, the saved one even when the list
+ * failed or omits it, and `chosen`, the owner's pick in this surface, which
+ * may be a typed model the list omits. Null `chosen` follows the saved model.
+ * `unavailable` says why no model is chosen yet, when none can be; typing a
+ * model ID in the picker still chooses one.
  */
 export function useModelChoice(chosen: string | null) {
   const saved = useSetting((settings) => settings.model);
   const models = useQuery(modelsQuery);
-  const options = useModelOptions(saved);
-  const model =
-    chosen !== null && options.includes(chosen) ? chosen : (saved ?? options[0] ?? null);
+  const listed = useModelOptions(saved);
+  const options = chosen === null || listed.includes(chosen) ? listed : [...listed, chosen];
+  const model = chosen ?? saved ?? listed[0] ?? null;
   const unavailable =
-    options.length > 0 || models.isPending
+    model !== null || models.isPending
       ? null
       : models.isError
-        ? "No model can be listed: the model list did not load, so there is nothing to write with."
-        : "No model can be listed: CLIProxyAPI offers none, so there is nothing to write with.";
+        ? "The model list didn't load. Type a model ID under Model to write with it."
+        : "The provider lists no models. Type a model ID under Model to write with it.";
   return { options, model, unavailable };
 }
 

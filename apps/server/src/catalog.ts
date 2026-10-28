@@ -20,11 +20,13 @@ type CatalogResult =
   | { ok: false; error: "upstream_unavailable" | "upstream_invalid" };
 
 /**
- * The upstream's model catalog: CLIProxyAPI's lists each model's context
- * window and reasoning levels, where the `client_version` parameter selects
- * the catalog format and its empty value keeps every reasoning level; other
- * upstreams answer the plain model list. Model metadata, never chat content,
- * so the last good catalog may be reused.
+ * The upstream's model catalog, read by `modelsFromCatalog` whatever shape the
+ * provider answers. The first query asks for the richest list providers
+ * offer: `client_version` selects a catalog with each model's window and
+ * reasoning levels (its empty value keeps every level), `detailed=true` adds
+ * windows and capabilities where a provider supports it; others ignore both
+ * or refuse them, and the plain list answers. Model metadata, never chat
+ * content, so the last good catalog may be reused.
  */
 export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logger) {
   /** `rich` when the catalog came from the rich query; a plain list never replaces such a one. */
@@ -40,7 +42,10 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
     let response: Response;
     try {
       response = await fetch(url, {
-        headers: { Authorization: `Bearer ${config.upstreamApiKey}` },
+        headers:
+          config.upstreamApiKey === undefined
+            ? {}
+            : { Authorization: `Bearer ${config.upstreamApiKey}` },
         signal: bounded,
       });
     } catch (error) {
@@ -72,7 +77,7 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
   async function load(signal: AbortSignal): Promise<CatalogResult> {
     const bounded = AbortSignal.any([signal, AbortSignal.timeout(CATALOG_TIMEOUT_MS)]);
     const base = `${config.upstreamBaseUrl}/models`;
-    const rich = await ask(`${base}?client_version=`, signal, bounded);
+    const rich = await ask(`${base}?client_version=&detailed=true`, signal, bounded);
     if (rich.result.ok) {
       cached = { models: rich.result.models, at: Date.now(), rich: true };
       return rich.result;
@@ -88,7 +93,7 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
     load,
     /**
      * The catalog for a generation: reused while recent, and the last good one
-     * while CLIProxyAPI cannot answer; undefined when there never was one.
+     * while the upstream cannot answer; undefined when there never was one.
      * Requests arriving together share one refresh, which no single request's
      * disconnect cancels (only its own timeout ends it); a request that ends
      * stops waiting for it at once.

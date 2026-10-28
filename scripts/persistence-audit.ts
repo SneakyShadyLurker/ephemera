@@ -188,6 +188,12 @@ export const EXEMPTIONS: { file: string; problem: string; reason: string }[] = [
       "A full memory book's way out opens the memory screen with the constant `from=chat`, as the chat's Memory mark does; no chat content is in reach.",
   },
   {
+    file: "apps/web/src/settings/window-link.tsx",
+    problem: "passes router state, search or hash, which reach the URL or history",
+    reason:
+      "Links to Settings with a model ID (a setting, validated as one) so Context focuses that model's window field, then clears it; no chat content is in reach.",
+  },
+  {
     file: "apps/server/src/persistence/encrypted-file.ts",
     problem: "writes files",
     reason:

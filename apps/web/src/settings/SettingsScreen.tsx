@@ -33,6 +33,7 @@ import {
   useSettings,
   useUpdateSettings,
 } from "./settings.ts";
+import { WindowNote } from "./WindowNote.tsx";
 
 /** A model picker on this page: as wide as the other fields, up to their cap. */
 const FIELD_WIDTH = "max-w-sm tablet:w-full";
@@ -52,8 +53,17 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Settings kept on the server: theme, how chats start, and what Ephemera keeps. */
-export function SettingsScreen() {
+/**
+ * Settings kept on the server: theme, how chats start, and what Ephemera keeps.
+ * `windowFor` is a model a link asked to set a context window for (Context).
+ */
+export function SettingsScreen({
+  windowFor,
+  onWindowShown,
+}: {
+  windowFor: string | null;
+  onWindowShown: () => void;
+}) {
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const failed = useFailedSettingsSave();
@@ -172,6 +182,7 @@ export function SettingsScreen() {
                 onChange={(model) => updateSettings({ model })}
                 className={FIELD_WIDTH}
               />
+              <WindowNote model={settings.model} />
               <p className={HELP}>
                 The model replies use and a reload comes back to. Session and sampler presets that
                 name a model change it too.
@@ -191,6 +202,7 @@ export function SettingsScreen() {
                 }
                 className={FIELD_WIDTH}
               />
+              <WindowNote model={settings.imagePromptModel} />
               <p className={HELP}>
                 Writes the prompts for portraits and scene pictures; New art and the studio can
                 still pick another.
@@ -220,7 +232,7 @@ export function SettingsScreen() {
           </Row>
 
           <Row label="Context">
-            <ContextSize />
+            <ContextSize windowFor={windowFor} onWindowShown={onWindowShown} />
           </Row>
 
           <Row label="Post-processing">
@@ -325,6 +337,7 @@ function MemorySettings() {
           onChange={(model) => save({ model })}
           className={FIELD_WIDTH}
         />
+        <WindowNote model={memoryModel} />
         <p className={HELP}>The model that writes memories. Unset, it is the one replying.</p>
       </div>
       <div className="grid gap-2">
@@ -408,6 +421,7 @@ function CastSettings() {
           onChange={(model) => save({ model })}
           className={FIELD_WIDTH}
         />
+        <WindowNote model={castModel} />
         <p className={HELP}>
           The model that keeps the cast. Unset, it is the one writing memories.
         </p>

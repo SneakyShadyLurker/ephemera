@@ -296,6 +296,22 @@ describe("synthetic prompt comparison", () => {
     expect(output).not.toMatch(/742913|Rook|Ilse|https:|prompt_cache_key|x-session-affinity/);
   });
 
+  it("runs against an upstream that needs no key, sending no Authorization header", async () => {
+    const authorizations: (string | null)[] = [];
+    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
+      authorizations.push(new Headers(init?.headers).get("authorization"));
+      return reply(answers[0] ?? "");
+    });
+    const keyless = { EPHEMERA_UPSTREAM_BASE_URL: env.EPHEMERA_UPSTREAM_BASE_URL };
+    for (const local of [keyless, { ...keyless, EPHEMERA_UPSTREAM_API_KEY: "" }]) {
+      authorizations.length = 0;
+      expect(await runComparison([...args, "--live"], { env: local, fetch })).toMatchObject({
+        calls: 20,
+      });
+      expect(new Set(authorizations)).toEqual(new Set([null]));
+    }
+  });
+
   it("reports checked candidate fact losses as a regression", async () => {
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as { messages: { content: string }[] };

@@ -569,7 +569,7 @@ function readSampler(
       kept.push("Model");
     } else {
       report.skipped.push(
-        `Model “${model}”: not offered by CLIProxyAPI, so the chat's model is used.`,
+        `Model “${model}”: not offered by the provider, so the chat's model is used.`,
       );
     }
   }

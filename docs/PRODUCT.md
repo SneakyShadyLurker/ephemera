@@ -763,15 +763,21 @@ Version 1.0 holds everything below.
   **Clear** gets a new one; previews send none.
 
 **Models**
-- Model list from the upstream's `/v1/models` (CLIProxyAPI's rich catalog
-  or any standard OpenAI-compatible list), without the models its
-  catalog hides; pick per preset or per session.
-- Each model's limits come from the model catalog: its context
-  window and its reasoning levels; the reasoning control is offered only
-  for models that support it. Until the catalog reports reasoning support, the control is offered
-  for every model and says so. A model that reports no context window is
-  never sent a silently guessed budget: the owner can set its window in
-  Settings, and until then nothing is sent to it.
+- Model list from the upstream's `/v1/models`, any OpenAI-compatible
+  provider's (README § Model providers), without the models its catalog
+  hides; pick per preset or per session. Every model picker finds a model
+  by typing part of its ID, and takes a whole ID the provider does not
+  list. While the list loads or fails, typing an ID still works, and a
+  failed list offers Try again.
+- Each model's limits come from the model catalog, in whichever field
+  names the provider uses: its context window, its reasoning levels and
+  whether it reads images; the reasoning control is offered only for
+  models that support it. Until the catalog reports reasoning support, the
+  control is offered for every model and says so. A model that reports no
+  context window is never sent a silently guessed budget: the owner sets
+  its window in Settings, under Context, and until then nothing is sent to
+  it. Every place that refuses for that reason links to that model's
+  window field, and a model picker in Settings notes it under the choice.
 - Settings also hold a context limit per model, 131,072 tokens unless set
   there. The context in use, which sets the token budget, is the smaller
   of the model's window and its limit.

@@ -594,6 +594,26 @@ test("while the model thinks, the Writing screen says so until the card's text a
   await expect(page.locator("main")).not.toContainText("Weighing the card");
 });
 
+test("a typed model ID the provider does not list is kept and written with", async ({ page }) => {
+  const typed = "vendor/typed-writer";
+  await page.goto("/characters");
+  await page.getByRole("button", { name: "Create with AI" }).first().click();
+  await page.locator('[data-kind="subject"]').click();
+  await page.getByRole("textbox", { name: COPY.subject.field }).fill(ownerDescription(keptBase()));
+  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  await model.click();
+  await page.getByRole("combobox", { name: "Find a model", exact: true }).fill(typed);
+  await page.keyboard.press("Enter");
+  await expect(model).toHaveText(typed);
+  // Kept through a change of kind, not dropped for being unlisted.
+  await page.getByRole("button", { name: "Change from Subject" }).click();
+  await page.locator('[data-kind="subject"]').click();
+  await expect(model).toHaveText(typed);
+  const sent = page.waitForRequest("**/api/creator/card");
+  await page.getByRole("button", { name: COPY.subject.create }).click();
+  expect((await sent).postDataJSON()).toMatchObject({ model: typed });
+});
+
 test("the reasoning effort narrows to the model's levels and goes with the card request", async ({
   page,
 }) => {

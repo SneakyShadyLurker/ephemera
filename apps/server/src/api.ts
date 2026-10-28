@@ -81,7 +81,7 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
   const { log, workflows } = deps;
   const catalog = createCatalog(config, deps.fetch, log);
   const generation = createGeneration(catalog, deps.digest, deps.random);
-  const upstream = createUpstream(config, deps.fetch);
+  const upstream = createUpstream(config, deps.fetch, log);
   const comfyui = createComfyui({
     fetch: deps.fetch,
     workflows,
