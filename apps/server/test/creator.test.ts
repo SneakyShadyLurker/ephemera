@@ -285,6 +285,17 @@ describe("POST /api/creator/card", () => {
     expect(absent).not.toHaveProperty("reasoning_effort");
   });
 
+  it("asks for no more output than the catalog says the model can write", async () => {
+    const { app, upstream } = setup({
+      upstream: {
+        chunks: [SUBJECT_ANSWER],
+        catalog: [{ ...catalogEntry("fake-model"), max_completion_tokens: 32_000 }],
+      },
+    });
+    await cardEvents(await app.request("/api/creator/card", postJson(cardRequest())));
+    expect(upstream.records[0]?.body).toMatchObject({ max_tokens: 32_000 });
+  });
+
   it("narrows the effort to what the catalog says the model offers, whatever the tab sent", async () => {
     const { app, upstream } = setup({
       upstream: { chunks: [SUBJECT_ANSWER], catalog: offering("low", "high") },

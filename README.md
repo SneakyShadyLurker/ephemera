@@ -119,7 +119,10 @@ Each chat sends a prompt cache key (`prompt_cache_key` and an
 `x-session-affinity` header) so providers that cache prompts can reuse them. A
 provider that refuses the field gets the request again without it, and the
 server stops sending it; `EPHEMERA_UPSTREAM_SESSION_CACHE=off` turns it off from
-the start. Inside the container, `localhost` is the container itself: point a
+the start. A provider that refuses the output cap (`max_tokens`) or the
+streamed usage request (`stream_options`) by name gets the request again
+without that field; the usage request then stays off, and token counts show as
+not reported. Inside the container, `localhost` is the container itself: point a
 server on the host at an address the container can reach, such as
 `host.docker.internal`.
 

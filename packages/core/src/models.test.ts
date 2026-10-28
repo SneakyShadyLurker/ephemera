@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { CREATOR_LIMITS } from "./creator/limits.ts";
 import {
   CONTEXT_WINDOW_RANGE,
   type ContextLimits,
   type ContextWindows,
   contextLimitsSchema,
   contextWindowsSchema,
+  creatorOutputTokens,
   DEFAULT_CONTEXT_LIMIT,
   effectiveWindow,
   effortFor,
@@ -45,16 +47,23 @@ describe("model catalog", () => {
   it("reads each model's context window and the reasoning efforts Ephemera can send", () => {
     const models = modelsFromCatalog(catalog);
     expect(models).toEqual([
-      { id: "glm-flash-low", contextWindow: 262_144, reasoning: ["low"], images: null },
+      {
+        id: "glm-flash-low",
+        contextWindow: 262_144,
+        outputLimit: null,
+        reasoning: ["low"],
+        images: null,
+      },
       {
         id: "kimi-k3",
         contextWindow: 1_048_576,
+        outputLimit: null,
         reasoning: ["none", "low", "high", "max"],
         images: null,
       },
-      { id: "no-window", contextWindow: null, reasoning: [], images: null },
-      { id: "odd-window", contextWindow: null, reasoning: null, images: null },
-      { id: "zero-window", contextWindow: null, reasoning: null, images: null },
+      { id: "no-window", contextWindow: null, outputLimit: null, reasoning: [], images: null },
+      { id: "odd-window", contextWindow: null, outputLimit: null, reasoning: null, images: null },
+      { id: "zero-window", contextWindow: null, outputLimit: null, reasoning: null, images: null },
     ]);
   });
 
@@ -81,11 +90,11 @@ describe("model catalog", () => {
       ],
     });
     expect(models).toEqual([
-      { id: "alpha", contextWindow: null, reasoning: null, images: null },
-      { id: "zeta", contextWindow: null, reasoning: null, images: null },
+      { id: "alpha", contextWindow: null, outputLimit: null, reasoning: null, images: null },
+      { id: "zeta", contextWindow: null, outputLimit: null, reasoning: null, images: null },
     ]);
     expect(modelsFromCatalog({ data: [{ id: "kimi-k3" }] })).toEqual([
-      { id: "kimi-k3", contextWindow: null, reasoning: null, images: null },
+      { id: "kimi-k3", contextWindow: null, outputLimit: null, reasoning: null, images: null },
     ]);
   });
 
@@ -103,7 +112,7 @@ describe("model catalog", () => {
       ],
     });
     expect(models).toEqual([
-      { id: "vision", contextWindow: 65_536, reasoning: ["high"], images: true },
+      { id: "vision", contextWindow: 65_536, outputLimit: null, reasoning: ["high"], images: true },
     ]);
   });
 
@@ -159,14 +168,14 @@ describe("model catalogs of other providers", () => {
     return models?.[0];
   };
 
-  it("reads OpenRouter's window, image input and efforts", () => {
+  it("reads OpenRouter's window, output limit, image input and efforts", () => {
     expect(
       only({
         data: [
           {
             id: "vendor/model",
             context_length: 200_000,
-            top_provider: { context_length: 128_000 },
+            top_provider: { context_length: 128_000, max_completion_tokens: 32_000 },
             architecture: { input_modalities: ["text", "image"] },
             reasoning: { supported_efforts: ["low", "high", "ultra"] },
             supported_parameters: ["reasoning", "include_reasoning"],
@@ -176,6 +185,7 @@ describe("model catalogs of other providers", () => {
     ).toEqual({
       id: "vendor/model",
       contextWindow: 200_000,
+      outputLimit: 32_000,
       reasoning: ["low", "high"],
       images: true,
     });
@@ -185,6 +195,7 @@ describe("model catalogs of other providers", () => {
     expect(only({ data: [{ id: "m", top_provider: { context_length: 128_000 } }] })).toEqual({
       id: "m",
       contextWindow: 128_000,
+      outputLimit: null,
       reasoning: null,
       images: null,
     });
@@ -203,13 +214,20 @@ describe("model catalogs of other providers", () => {
           },
         ],
       }),
-    ).toEqual({ id: "m", contextWindow: 131_072, reasoning: ["medium", "xhigh"], images: true });
+    ).toEqual({
+      id: "m",
+      contextWindow: 131_072,
+      outputLimit: null,
+      reasoning: ["medium", "xhigh"],
+      images: true,
+    });
   });
 
   it("invents no efforts from a bare reasoning flag", () => {
     expect(only({ data: [{ id: "m", capabilities: { reasoning: true } }] })).toEqual({
       id: "m",
       contextWindow: null,
+      outputLimit: null,
       reasoning: null,
       images: null,
     });
@@ -219,6 +237,7 @@ describe("model catalogs of other providers", () => {
     expect(only({ data: [{ id: "m", capabilities: { reasoning: false } }] })).toEqual({
       id: "m",
       contextWindow: null,
+      outputLimit: null,
       reasoning: [],
       images: null,
     });
@@ -228,6 +247,7 @@ describe("model catalogs of other providers", () => {
     expect(only([{ id: "m", context_length: 32_768, type: "chat" }])).toEqual({
       id: "m",
       contextWindow: 32_768,
+      outputLimit: null,
       reasoning: null,
       images: null,
     });
@@ -242,7 +262,13 @@ describe("model catalogs of other providers", () => {
   it("reads Mistral's window and a vision flag that says no", () => {
     expect(
       only({ data: [{ id: "m", max_context_length: 32_768, capabilities: { vision: false } }] }),
-    ).toEqual({ id: "m", contextWindow: 32_768, reasoning: null, images: false });
+    ).toEqual({
+      id: "m",
+      contextWindow: 32_768,
+      outputLimit: null,
+      reasoning: null,
+      images: false,
+    });
   });
 
   it("reads DeepSeek's window, modalities and effort levels", () => {
@@ -257,7 +283,41 @@ describe("model catalogs of other providers", () => {
           },
         ],
       }),
-    ).toEqual({ id: "m", contextWindow: 128_000, reasoning: ["high"], images: false });
+    ).toEqual({
+      id: "m",
+      contextWindow: 128_000,
+      outputLimit: null,
+      reasoning: ["high"],
+      images: false,
+    });
+  });
+
+  it("reads an output limit from a top-level max_completion_tokens or max_output_tokens", () => {
+    expect(only({ data: [{ id: "m", max_completion_tokens: 8_192 }] })?.outputLimit).toBe(8_192);
+    expect(only({ data: [{ id: "m", max_output_tokens: 65_536 }] })?.outputLimit).toBe(65_536);
+  });
+
+  it("takes the first well-formed output limit", () => {
+    const limit = (entry: Record<string, unknown>) =>
+      only({ data: [{ id: "m", ...entry }] })?.outputLimit;
+    expect(
+      limit({
+        max_completion_tokens: 4_096,
+        top_provider: { max_completion_tokens: 8_192 },
+        max_output_tokens: 16_384,
+      }),
+    ).toBe(4_096);
+    expect(
+      limit({ top_provider: { max_completion_tokens: 8_192 }, max_output_tokens: 16_384 }),
+    ).toBe(8_192);
+    expect(
+      limit({
+        max_completion_tokens: "4096",
+        top_provider: { max_completion_tokens: null },
+        max_output_tokens: 16_384,
+      }),
+    ).toBe(16_384);
+    expect(limit({ max_completion_tokens: 0, max_output_tokens: 1.5 })).toBeNull();
   });
 
   it("reads vLLM's serving limit", () => {
@@ -268,6 +328,7 @@ describe("model catalogs of other providers", () => {
     expect(only({ data: [{ id: "m", meta: { n_ctx_train: 131_072 } }] })).toEqual({
       id: "m",
       contextWindow: null,
+      outputLimit: null,
       reasoning: null,
       images: null,
     });
@@ -278,7 +339,7 @@ describe("model catalogs of other providers", () => {
       only({
         data: [{ id: "m", metadata: { context_length: 16_384, tags: ["vision", "reasoning"] } }],
       }),
-    ).toEqual({ id: "m", contextWindow: 16_384, reasoning: null, images: true });
+    ).toEqual({ id: "m", contextWindow: 16_384, outputLimit: null, reasoning: null, images: true });
     expect(only({ data: [{ id: "m", metadata: { tags: ["reasoning"] } }] })?.images).toBeNull();
   });
 
@@ -294,7 +355,13 @@ describe("model catalogs of other providers", () => {
         object: "list",
         data: [{ id: "llama3:8b", object: "model", created: 1_700_000_000, owned_by: "library" }],
       }),
-    ).toEqual({ id: "llama3:8b", contextWindow: null, reasoning: null, images: null });
+    ).toEqual({
+      id: "llama3:8b",
+      contextWindow: null,
+      outputLimit: null,
+      reasoning: null,
+      images: null,
+    });
   });
 
   it("takes the first well-formed field and treats malformed ones as not reported", () => {
@@ -314,10 +381,17 @@ describe("model catalogs of other providers", () => {
           },
         ],
       }),
-    ).toEqual({ id: "m", contextWindow: 8_192, reasoning: ["medium"], images: true });
+    ).toEqual({
+      id: "m",
+      contextWindow: 8_192,
+      outputLimit: null,
+      reasoning: ["medium"],
+      images: true,
+    });
     expect(only({ data: [{ id: "m", top_provider: "x", metadata: [] }] })).toEqual({
       id: "m",
       contextWindow: null,
+      outputLimit: null,
       reasoning: null,
       images: null,
     });
@@ -330,10 +404,36 @@ describe("model catalogs of other providers", () => {
   });
 });
 
+describe("creator output tokens", () => {
+  const model = (outputLimit: number | null) => ({
+    id: "m",
+    contextWindow: 262_144,
+    outputLimit,
+    reasoning: null,
+    images: null,
+  });
+
+  it("asks for the creator's full output when the model reports no lower limit", () => {
+    expect(creatorOutputTokens(undefined)).toBe(CREATOR_LIMITS.maxOutputTokens);
+    expect(creatorOutputTokens(model(null))).toBe(CREATOR_LIMITS.maxOutputTokens);
+    expect(creatorOutputTokens(model(1_000_000))).toBe(CREATOR_LIMITS.maxOutputTokens);
+  });
+
+  it("never asks for more than the model can write", () => {
+    expect(creatorOutputTokens(model(32_000))).toBe(32_000);
+  });
+});
+
 describe("offered reasoning efforts", () => {
   it("narrows to the model's reported efforts, after the model default", () => {
     expect(
-      offeredEfforts({ id: "a", contextWindow: 1, reasoning: ["low", "high"], images: null }),
+      offeredEfforts({
+        id: "a",
+        contextWindow: 1,
+        outputLimit: null,
+        reasoning: ["low", "high"],
+        images: null,
+      }),
     ).toEqual(["provider-default", "low", "high"]);
   });
 
@@ -344,21 +444,33 @@ describe("offered reasoning efforts", () => {
   });
 
   it("offers only the model default when the model reports no reasoning", () => {
-    expect(offeredEfforts({ id: "a", contextWindow: 1, reasoning: [], images: null })).toEqual([
-      "provider-default",
-    ]);
+    expect(
+      offeredEfforts({ id: "a", contextWindow: 1, outputLimit: null, reasoning: [], images: null }),
+    ).toEqual(["provider-default"]);
   });
 
   it("offers every effort when support is not reported, or the model is unknown", () => {
     const all = ["provider-default", "none", "minimal", "low", "medium", "high", "xhigh", "max"];
-    expect(offeredEfforts({ id: "a", contextWindow: 1, reasoning: null, images: null })).toEqual(
-      all,
-    );
+    expect(
+      offeredEfforts({
+        id: "a",
+        contextWindow: 1,
+        outputLimit: null,
+        reasoning: null,
+        images: null,
+      }),
+    ).toEqual(all);
     expect(offeredEfforts(undefined)).toEqual(all);
   });
 
   it("sends a chosen effort the model offers, and the model default for one it lacks", () => {
-    const lowOnly = { id: "a", contextWindow: 1, reasoning: ["low" as const], images: null };
+    const lowOnly = {
+      id: "a",
+      contextWindow: 1,
+      outputLimit: null,
+      reasoning: ["low" as const],
+      images: null,
+    };
     expect(effortFor(lowOnly, "low")).toBe("low");
     expect(effortFor(lowOnly, "xhigh")).toBe("provider-default");
     expect(effortFor(undefined, "xhigh")).toBe("xhigh");
@@ -366,8 +478,20 @@ describe("offered reasoning efforts", () => {
 });
 
 describe("effective context window", () => {
-  const reported = { id: "a", contextWindow: 262_144, reasoning: null, images: null };
-  const missing = { id: "b", contextWindow: null, reasoning: null, images: null };
+  const reported = {
+    id: "a",
+    contextWindow: 262_144,
+    outputLimit: null,
+    reasoning: null,
+    images: null,
+  };
+  const missing = {
+    id: "b",
+    contextWindow: null,
+    outputLimit: null,
+    reasoning: null,
+    images: null,
+  };
 
   const settings = (
     contextWindows: ContextWindows = {},
@@ -428,7 +552,13 @@ describe("effective context window", () => {
   });
 
   it("clamps a stored limit above the window to the window", () => {
-    const small = { id: "a", contextWindow: 65_536, reasoning: null, images: null };
+    const small = {
+      id: "a",
+      contextWindow: 65_536,
+      outputLimit: null,
+      reasoning: null,
+      images: null,
+    };
     expect(effectiveWindow("a", [small], settings({}, { a: 200_000 }))).toEqual({
       tokens: 65_536,
       source: "catalog",
@@ -457,12 +587,24 @@ describe("effective context window", () => {
     expect(effectiveWindow("a", [reported], settings({}, { a: 131_072 }))?.limit).toBe("owner");
     // A limit at or above the window reduces nothing.
     expect(effectiveWindow("a", [reported], settings({}, unlimited))?.limit).toBeNull();
-    const exact = { id: "a", contextWindow: DEFAULT_CONTEXT_LIMIT, reasoning: null, images: null };
+    const exact = {
+      id: "a",
+      contextWindow: DEFAULT_CONTEXT_LIMIT,
+      outputLimit: null,
+      reasoning: null,
+      images: null,
+    };
     expect(effectiveWindow("a", [exact], settings())?.limit).toBeNull();
   });
 
   it("reads only the model's own entries, whatever its id", () => {
-    const inherited = { id: "constructor", contextWindow: 262_144, reasoning: null, images: null };
+    const inherited = {
+      id: "constructor",
+      contextWindow: 262_144,
+      outputLimit: null,
+      reasoning: null,
+      images: null,
+    };
     expect(effectiveWindow("constructor", [inherited], settings())).toEqual({
       tokens: DEFAULT_CONTEXT_LIMIT,
       source: "catalog",

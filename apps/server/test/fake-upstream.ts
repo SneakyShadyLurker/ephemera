@@ -9,11 +9,13 @@ import {
   KEEPER_OPENING,
   SHEET_OPENING,
 } from "@ephemera/core";
+import { z } from "zod";
 
 /** One entry of CLIProxyAPI's model catalog (`/v1/models?client_version=`), fields trimmed. */
 export interface CatalogEntry {
   slug: string;
   context_window?: unknown;
+  max_completion_tokens?: unknown;
   supported_reasoning_levels?: unknown;
   input_modalities?: unknown;
   visibility?: unknown;
@@ -40,7 +42,10 @@ export interface FakeUpstreamOptions {
     /** The provider's reasoning share of the output; absent, as some providers send it. */
     completion_tokens_details?: { reasoning_tokens: number };
   };
-  /** A non-streamed completion reports no usage, as some providers answer. */
+  /**
+   * The completion reports no usage, as some providers answer. A streamed one
+   * also reports none when the request did not ask (`stream_options`).
+   */
   withoutUsage?: boolean;
   /** Content deltas to stream; the reply is their concatenation. */
   chunks?: string[];
@@ -58,6 +63,10 @@ export interface FakeUpstreamOptions {
   /** Per completion request in order: its own reply, over the options above. */
   turns?: FakeTurn[];
 }
+
+const streamUsageSchema = z.looseObject({
+  stream_options: z.looseObject({ include_usage: z.literal(true) }),
+});
 
 /** One completion's reply, for a test that makes more than one call. */
 export type FakeTurn = Pick<
@@ -140,11 +149,15 @@ export function completionResponse(
         controller.enqueue(
           sse({
             ...chunk({}, options.finishReason ?? "stop"),
-            usage: {
-              ...(options.usage ?? { prompt_tokens: 3, completion_tokens: 5 }),
-              total_tokens:
-                (options.usage?.prompt_tokens ?? 3) + (options.usage?.completion_tokens ?? 5),
-            },
+            ...(!options.withoutUsage
+              ? {
+                  usage: {
+                    ...(options.usage ?? { prompt_tokens: 3, completion_tokens: 5 }),
+                    total_tokens:
+                      (options.usage?.prompt_tokens ?? 3) + (options.usage?.completion_tokens ?? 5),
+                  },
+                }
+              : {}),
           }),
         );
         controller.enqueue(sse("[DONE]"));
@@ -273,7 +286,13 @@ export function fakeUpstream(options: FakeUpstreamOptions = {}) {
           : { usage: { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 } }),
       });
     }
-    return completionResponse(reply, request.signal, record);
+    // A stream reports usage only when the request asks, as OpenAI's does.
+    const asked = streamUsageSchema.safeParse(record.body).success;
+    return completionResponse(
+      asked ? reply : { ...reply, withoutUsage: true },
+      request.signal,
+      record,
+    );
   };
   return { fetch, records, modelRequests };
 }

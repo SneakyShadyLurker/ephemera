@@ -40,6 +40,7 @@ export {
   CONTEXT_WINDOW_RANGE,
   type ContextLimits,
   type ContextWindows,
+  creatorOutputTokens,
   DEFAULT_CONTEXT_LIMIT,
   type EffectiveWindow,
   effectiveWindow,

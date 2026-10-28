@@ -1,14 +1,15 @@
 import { z } from "zod";
 import { modelIdSchema } from "./chat.ts";
+import { CREATOR_LIMITS } from "./creator/limits.ts";
 import { REASONING_EFFORTS, type ReasoningEffort } from "./preset/sampler.ts";
 import type { Settings } from "./settings.ts";
 
 /*
  * Per-model limits from the upstream's model catalog (`/models`), the only
- * owner of a model's context window. Providers report the same facts under
- * different field names; each is read where a provider documents it. The
- * catalog is untrusted input: unknown fields are ignored and a malformed
- * value reads as "not reported".
+ * owner of a model's context window and output limit. Providers report the
+ * same facts under different field names; each is read where a provider
+ * documents it. The catalog is untrusted input: unknown fields are ignored
+ * and a malformed value reads as "not reported".
  */
 
 /** The efforts the AI SDK can send; "provider-default" sends nothing. */
@@ -21,6 +22,8 @@ export const modelInfoSchema = z.strictObject({
   id: modelIdSchema,
   /** Tokens; null when the provider reports none. */
   contextWindow: z.number().int().positive().nullable(),
+  /** The most tokens one answer may hold; null when the provider reports none. */
+  outputLimit: z.number().int().positive().nullable(),
   /** The efforts the model offers that Ephemera can send; null when not reported. */
   reasoning: z.array(z.enum(SENT_EFFORTS)).nullable(),
   /** Whether the model reads images; null when not reported. */
@@ -49,7 +52,7 @@ const catalogSchema = z.union([
 /** A field read only when well formed; anything else reads as not reported. */
 const reported = <T extends z.ZodType>(schema: T) => schema.optional().catch(undefined);
 const nested = <S extends z.ZodRawShape>(shape: S) => reported(z.looseObject(shape));
-const windowField = reported(z.number().int().positive());
+const tokensField = reported(z.number().int().positive());
 const stringsField = reported(z.array(z.string()));
 
 /**
@@ -59,12 +62,14 @@ const stringsField = reported(z.array(z.string()));
  * and a wrong window fails replies where an unknown one asks the owner.
  */
 const reportedShape = {
-  context_window: windowField,
-  max_model_len: windowField,
-  context_length: windowField,
-  max_context_length: windowField,
-  top_provider: nested({ context_length: windowField }),
-  metadata: nested({ context_length: windowField, tags: stringsField }),
+  context_window: tokensField,
+  max_model_len: tokensField,
+  context_length: tokensField,
+  max_context_length: tokensField,
+  max_completion_tokens: tokensField,
+  max_output_tokens: tokensField,
+  top_provider: nested({ context_length: tokensField, max_completion_tokens: tokensField }),
+  metadata: nested({ context_length: tokensField, tags: stringsField }),
   /** What a model reads, such as `["text", "image"]`. */
   input_modalities: stringsField,
   architecture: nested({ input_modalities: stringsField }),
@@ -102,6 +107,16 @@ function windowOf(entry: Entry): number | null {
     entry.max_context_length ??
     entry.top_provider?.context_length ??
     entry.metadata?.context_length ??
+    null
+  );
+}
+
+/** The first output limit reported. */
+function outputLimitOf(entry: Entry): number | null {
+  return (
+    entry.max_completion_tokens ??
+    entry.top_provider?.max_completion_tokens ??
+    entry.max_output_tokens ??
     null
   );
 }
@@ -147,6 +162,7 @@ export function modelsFromCatalog(body: unknown): ModelInfo[] | undefined {
     byId.set(entry.id, {
       id: entry.id,
       contextWindow: windowOf(entry),
+      outputLimit: outputLimitOf(entry),
       reasoning: reasoningOf(entry),
       images: imagesOf(entry),
     });
@@ -160,6 +176,15 @@ export function modelInfo(
   id: string,
 ): ModelInfo | undefined {
   return models?.find((model) => model.id === id);
+}
+
+/**
+ * The `maxOutputTokens` a creator call sends to `model`:
+ * `CREATOR_LIMITS.maxOutputTokens`, or the model's reported output limit
+ * when that is lower, never more than the model can write.
+ */
+export function creatorOutputTokens(model: ModelInfo | undefined): number {
+  return Math.min(CREATOR_LIMITS.maxOutputTokens, model?.outputLimit ?? Number.POSITIVE_INFINITY);
 }
 
 /**

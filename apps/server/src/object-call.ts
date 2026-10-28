@@ -2,6 +2,7 @@ import {
   answerRoom,
   type CallPurpose,
   type CallSettings,
+  creatorOutputTokens,
   type ReasoningEffort,
   repairObject,
   UPSTREAM_BUSY,
@@ -29,10 +30,12 @@ import { type CallRecorder, reportedUsage } from "./usage.ts";
  * call's memory only; logs carry operational fields only.
  */
 
-/** A model call's target: the model, its window, the calibration and the cache key. */
+/** A model call's target: the model, its window and output, the calibration and the cache key. */
 export interface ObjectCallTarget {
   model: string;
   window: number;
+  /** The most an answer may ask for: the model's output limit, when lower (`creatorOutputTokens`). */
+  maxOutput: number;
   ratio: number;
   /** The chosen effort as the model offers it (`effortSettings`): one it lacks sends its default. */
   settings: CallSettings;
@@ -60,6 +63,7 @@ export async function objectCallTarget(
     call: {
       model,
       window: resolved.window.tokens,
+      maxOutput: creatorOutputTokens(resolved.info),
       ratio: user.calibration.get(model) ?? 1,
       // An effort the model does not offer goes as its default.
       settings: effortSettings(resolved.info, request.reasoning),
@@ -104,9 +108,11 @@ export const promptRoom = (
   extraTokens = 0,
 ): number | null => answerRoom(window, (helperInputTokens(texts) + extraTokens) * ratio);
 
-/** The answer's room in the target's window after `texts` (`promptRoom`). */
-export const roomFor = (call: ObjectCallTarget, texts: readonly string[]): number | null =>
-  promptRoom(call.window, call.ratio, texts);
+/** The answer's room in the target's window after `texts` (`promptRoom`), at most its output. */
+export function roomFor(call: ObjectCallTarget, texts: readonly string[]): number | null {
+  const room = promptRoom(call.window, call.ratio, texts);
+  return room === null ? null : Math.min(room, call.maxOutput);
+}
 
 /**
  * An object call over the configured upstream, logging to `log`.

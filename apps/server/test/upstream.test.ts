@@ -7,7 +7,7 @@ import {
   decodeArtFrames,
   MEMORY_LIMITS,
 } from "@ephemera/core";
-import { APICallError, generateText, RetryError } from "ai";
+import { APICallError, generateText, RetryError, streamText } from "ai";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { UpstreamFetch } from "../src/catalog.ts";
@@ -385,6 +385,247 @@ describe("an upstream that rejects the session cache extensions", () => {
   });
 });
 
+/**
+ * A provider behind the fake upstream: `answer` sees each completion
+ * request's body in order and refuses it with a response, or lets the fake
+ * answer it with undefined. `bodies` is every completion body it saw.
+ */
+function refusing(answer: (body: Record<string, unknown>) => Response | undefined) {
+  const fake = fakeUpstream({ chunks: ["ok"] });
+  const bodies: Record<string, unknown>[] = [];
+  const fetch: UpstreamFetch = async (input, init) => {
+    if (new URL(String(input)).pathname.endsWith("/models")) return fake.fetch(input, init);
+    const body = z.looseObject({}).parse(JSON.parse(String(init?.body)));
+    bodies.push(body);
+    return answer(body) ?? fake.fetch(input, init);
+  };
+  return { fetch, bodies };
+}
+const has = (field: string) => (body: Record<string, unknown>) => Object.hasOwn(body, field);
+/** The upstream's log events named `name`. */
+const loggedEvents = (lines: string[], name: string) =>
+  lines.map((line) => JSON.parse(line)).filter((line) => line.event === name);
+
+describe("an upstream that refuses the output cap", () => {
+  /** OpenAI's answer to a cap above the model's, with a canary that must never reach a log. */
+  const tooLarge = () =>
+    Response.json(
+      {
+        error: {
+          message: `max_tokens is too large: 100000. This model supports at most 32768 completion tokens, whereas you provided 100000. ${SECRET}`,
+          type: "invalid_request_error",
+          param: "max_tokens",
+          code: "invalid_value",
+        },
+      },
+      { status: 400 },
+    );
+  /** A FastAPI validation error naming the newer field, beside the cap the AI SDK sent. */
+  const unprocessable = () =>
+    Response.json(
+      {
+        detail: [
+          {
+            type: "less_than_equal",
+            loc: ["body", "max_completion_tokens"],
+            msg: `Input should be less than or equal to 32768 ${SECRET}`,
+            input: 100_000,
+          },
+        ],
+      },
+      { status: 422 },
+    );
+
+  it.each([
+    ["a 400", tooLarge],
+    ["a 422", unprocessable],
+  ])(
+    "sends a call refused with %s naming the cap once more without it, and the next call with it",
+    async (_label, refusal) => {
+      const upstream = refusing((body) => (has("max_tokens")(body) ? refusal() : undefined));
+      const lines: string[] = [];
+      const client = createUpstream(
+        config,
+        upstream.fetch,
+        createLogger((line) => lines.push(line)),
+      );
+      for (let call = 0; call < 2; call++) {
+        const { text } = await generateText({
+          model: client.model("fake-model", null),
+          prompt: "synthetic",
+          maxOutputTokens: CREATOR_LIMITS.maxOutputTokens,
+          ...client.settings({ temperature: 0.5 }, undefined),
+        });
+        expect(text).toBe("ok");
+      }
+      expect(upstream.bodies.map(has("max_tokens"))).toEqual([true, false, true, false]);
+      for (const body of upstream.bodies) expect(body).toMatchObject({ temperature: 0.5 });
+      expect(lines).toEqual([]);
+    },
+  );
+
+  it("returns a 400 that names another field as it came, after one attempt", async () => {
+    const upstream = refusing(() =>
+      Response.json(
+        { error: { message: `temperature is out of range ${SECRET}` } },
+        { status: 400 },
+      ),
+    );
+    const client = createUpstream(config, upstream.fetch, quiet);
+    const error = await generateText({
+      model: client.model("fake-model", null),
+      prompt: "synthetic",
+      maxOutputTokens: CREATOR_LIMITS.maxOutputTokens,
+      maxRetries: 0,
+    }).catch((caught: unknown) => caught);
+    expect(APICallError.isInstance(error) && error.statusCode).toBe(400);
+    expect(APICallError.isInstance(error) && error.responseBody).toContain("temperature");
+    expect(upstream.bodies).toHaveLength(1);
+  });
+
+  it("returns a refusal naming the cap as it came when the call sent none", async () => {
+    const upstream = refusing(() => tooLarge());
+    const client = createUpstream(config, upstream.fetch, quiet);
+    const error = await generateText({
+      model: client.model("fake-model", null),
+      prompt: "synthetic",
+      maxRetries: 0,
+    }).catch((caught: unknown) => caught);
+    expect(APICallError.isInstance(error) && error.statusCode).toBe(400);
+    expect(upstream.bodies).toHaveLength(1);
+  });
+});
+
+describe("an upstream that refuses the stream usage request", () => {
+  const cacheKey = crypto.randomUUID();
+  const chat = {
+    model: "fake-model",
+    clock: CLOCK,
+    pickSeed: PICK_SEED,
+    messages: [{ role: "user", content: "synthetic" }],
+    cacheKey,
+  };
+  /** OpenAI's answer to an argument it does not know. */
+  const unrecognized = () =>
+    Response.json(
+      {
+        error: {
+          message: `Unrecognized request argument supplied: stream_options ${SECRET}`,
+          type: "invalid_request_error",
+          param: null,
+          code: null,
+        },
+      },
+      { status: 400 },
+    );
+  /** A FastAPI validation error naming only the nested field. */
+  const forbidden = () =>
+    Response.json(
+      { detail: [{ type: "extra_forbidden", loc: ["body", "include_usage"], msg: SECRET }] },
+      { status: 422 },
+    );
+  const streamUsageOff = (lines: string[]) => loggedEvents(lines, "upstream.stream_usage_off");
+  /** The chat stream's call accounting, as the token meter reads it. */
+  const accounting = async (response: Response) =>
+    callAccountingSchema.parse(
+      (await response.text())
+        .split("\n")
+        .filter((line) => line.startsWith("data: {"))
+        .map((line) => JSON.parse(line.slice(6)))
+        .find((part) => part.type === "data-usage")?.data,
+    );
+
+  it.each([
+    ["a 400 naming stream_options", unrecognized],
+    ["a 422 naming include_usage", forbidden],
+  ])(
+    "streams a reply refused with %s without it, then leaves it off with unreported usage",
+    async (_label, refusal) => {
+      const upstream = refusing((body) => (has("stream_options")(body) ? refusal() : undefined));
+      const { app, lines } = testApp({ fetch: upstream.fetch });
+      for (let call = 0; call < 2; call++) {
+        const meter = await accounting(await app.request("/api/chat", postJson(chat)));
+        expect(meter.calls.map(({ status, usage }) => ({ status, usage }))).toEqual([
+          { status: "completed", usage: {} },
+        ]);
+      }
+      expect(upstream.bodies.map(has("stream_options"))).toEqual([true, false, false]);
+      // The rest of the body goes as it was, the cache key included.
+      for (const body of upstream.bodies)
+        expect(body).toMatchObject({ prompt_cache_key: cacheKey });
+      expect(streamUsageOff(lines)).toEqual([
+        { time: expect.any(String), level: expect.any(String), event: "upstream.stream_usage_off" },
+      ]);
+      expect(lines.join("\n")).not.toContain(SECRET);
+      expect(lines.join("\n")).not.toContain("synthetic");
+    },
+  );
+
+  it("returns a failed retry as it came and keeps asking for usage", async () => {
+    const upstream = refusing((body) =>
+      has("stream_options")(body)
+        ? unrecognized()
+        : Response.json({ error: { message: "messages is invalid" } }, { status: 422 }),
+    );
+    const lines: string[] = [];
+    const client = createUpstream(
+      config,
+      upstream.fetch,
+      createLogger((line) => lines.push(line)),
+    );
+    const call = () =>
+      generateText({ model: client.model("fake-model", null), prompt: "synthetic", maxRetries: 0 });
+    // A whole-reply call asks for no usage stream: only streamed calls carry the field.
+    await call().catch(() => {});
+    expect(upstream.bodies.map(has("stream_options"))).toEqual([false]);
+    const stream = () =>
+      streamText({
+        model: client.model("fake-model", null),
+        prompt: "synthetic",
+        maxRetries: 0,
+        onError: () => {},
+      }).consumeStream();
+    await stream();
+    await stream();
+    expect(upstream.bodies.map(has("stream_options"))).toEqual([false, true, false, true, false]);
+    expect(streamUsageOff(lines)).toEqual([]);
+  });
+
+  it("drops each refused field once within one call", async () => {
+    const upstream = refusing((body) =>
+      has("stream_options")(body)
+        ? unrecognized()
+        : has("max_tokens")(body)
+          ? Response.json({ error: { message: "max_tokens is too large" } }, { status: 400 })
+          : undefined,
+    );
+    const lines: string[] = [];
+    const client = createUpstream(
+      config,
+      upstream.fetch,
+      createLogger((line) => lines.push(line)),
+    );
+    for (let call = 0; call < 2; call++) {
+      const result = streamText({
+        model: client.model("fake-model", null),
+        prompt: "synthetic",
+        maxOutputTokens: CREATOR_LIMITS.maxOutputTokens,
+      });
+      expect(await result.text).toBe("ok");
+    }
+    expect(
+      upstream.bodies.map((body) => [has("stream_options")(body), has("max_tokens")(body)]),
+    ).toEqual([
+      [true, true],
+      [false, true],
+      [false, false],
+      [false, true],
+      [false, false],
+    ]);
+    expect(streamUsageOff(lines)).toHaveLength(1);
+  });
+});
+
 describe("an upstream that needs no key", () => {
   it("gets no Authorization header", async () => {
     const fake = fakeUpstream({ chunks: ["ok"] });
@@ -395,7 +636,14 @@ describe("an upstream that needs no key", () => {
 });
 
 describe("helper prompt room", () => {
-  const target = { model: "m", window: 100_000, ratio: 1.2, settings: {}, cacheKey: "fixed" };
+  const target = {
+    model: "m",
+    window: 100_000,
+    maxOutput: CREATOR_LIMITS.maxOutputTokens,
+    ratio: 1.2,
+    settings: {},
+    cacheKey: "fixed",
+  };
   it("counts all actual conversation messages plus priming, including repairs", () => {
     const texts = ["instructions", "input", "unusable JSON", "repair"];
     const messages = texts.map((content, index) => ({
@@ -419,6 +667,7 @@ describe("helper prompt room", () => {
     ).toBe(MEMORY_LIMITS.replyReserve);
     expect(roomFor(target, texts)).toBe(Math.floor(target.window - input * target.ratio));
     expect(roomFor({ ...target, window: 200_000 }, texts)).toBe(CREATOR_LIMITS.maxOutputTokens);
+    expect(roomFor({ ...target, maxOutput: 16_384 }, texts)).toBe(16_384);
   });
 });
 
@@ -449,6 +698,7 @@ describe("helper calibration", () => {
         const call = {
           model: "fake-model",
           window: 200_000,
+          maxOutput: CREATOR_LIMITS.maxOutputTokens,
           ratio: 1.3,
           settings: {},
           cacheKey: "fixed",

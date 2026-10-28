@@ -77,7 +77,7 @@ beforeEach(() => {
   queryClient.clear();
   settle();
   queryClient.setQueryData(modelsQuery.queryKey, [
-    { id: "model-a", contextWindow: 8_192, reasoning: null, images: null },
+    { id: "model-a", contextWindow: 8_192, outputLimit: null, reasoning: null, images: null },
   ]);
 });
 
@@ -90,12 +90,20 @@ describe("the subject's runtime", () => {
   it("refreshes an expired model catalog before filling runtime macros", async () => {
     queryClient.setQueryData(
       modelsQuery.queryKey,
-      [{ id: "model-a", contextWindow: 8_192, reasoning: null, images: null }],
+      [{ id: "model-a", contextWindow: 8_192, outputLimit: null, reasoning: null, images: null }],
       { updatedAt: Date.now() - 10 * 60_000 },
     );
     const fetched = vi.fn(async () =>
       Response.json({
-        models: [{ id: "model-a", contextWindow: 16_384, reasoning: null, images: null }],
+        models: [
+          {
+            id: "model-a",
+            contextWindow: 16_384,
+            outputLimit: null,
+            reasoning: null,
+            images: null,
+          },
+        ],
       }),
     );
     vi.stubGlobal("fetch", fetched);
@@ -145,7 +153,7 @@ describe("the subject's runtime", () => {
     try {
       queryClient.setQueryData(
         modelsQuery.queryKey,
-        [{ id: "model-a", contextWindow: 8_192, reasoning: null, images: null }],
+        [{ id: "model-a", contextWindow: 8_192, outputLimit: null, reasoning: null, images: null }],
         { updatedAt: Date.now() - 10 * 60_000 },
       );
       const fetched = vi.fn(async () => new Response(null, { status: 503 }));
@@ -227,7 +235,7 @@ describe("saved entities replaced while another read waits", () => {
       cacheOld();
       queryClient.setQueryData(
         modelsQuery.queryKey,
-        [{ id: "model-a", contextWindow: 8_192, reasoning: null, images: null }],
+        [{ id: "model-a", contextWindow: 8_192, outputLimit: null, reasoning: null, images: null }],
         { updatedAt: Date.now() - 10 * 60_000 },
       );
       const held = heldFetch();
@@ -237,7 +245,15 @@ describe("saved entities replaced while another read waits", () => {
       saveNew();
       await held.answer(
         Response.json({
-          models: [{ id: "model-a", contextWindow: 8_192, reasoning: null, images: null }],
+          models: [
+            {
+              id: "model-a",
+              contextWindow: 8_192,
+              outputLimit: null,
+              reasoning: null,
+              images: null,
+            },
+          ],
         }),
       );
       expect(await loading).toEqual({ ok: false, reason: "changed" });
@@ -256,7 +272,7 @@ describe("saved entities replaced while another read waits", () => {
     await vi.waitFor(() => expect(held.asked).toHaveBeenCalled());
     await settled();
     queryClient.setQueryData(modelsQuery.queryKey, [
-      { id: "model-a", contextWindow: 16_384, reasoning: null, images: null },
+      { id: "model-a", contextWindow: 16_384, outputLimit: null, reasoning: null, images: null },
     ]);
     await held.answer(Response.json(character("Keeper")));
     expect(await loading).toEqual({ ok: false, reason: "changed" });

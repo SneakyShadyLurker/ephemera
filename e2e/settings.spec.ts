@@ -881,6 +881,7 @@ test("a long model list shows the first 200 matches and asks for more letters", 
   const models = Array.from({ length: 2_000 }, (_, index) => ({
     id: `vendor-${String(index).padStart(4, "0")}/model`,
     contextWindow: 200_000,
+    outputLimit: null,
     reasoning: null,
     images: null,
   }));

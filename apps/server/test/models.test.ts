@@ -23,8 +23,14 @@ describe("GET /api/models", () => {
     const response = await app.request("/api/models", { headers: ownerHeaders() });
     expect(await response.json()).toEqual({
       models: [
-        { id: "alpha", contextWindow: null, reasoning: null, images: null },
-        { id: "zeta", contextWindow: 262_144, reasoning: ["low", "max"], images: null },
+        { id: "alpha", contextWindow: null, outputLimit: null, reasoning: null, images: null },
+        {
+          id: "zeta",
+          contextWindow: 262_144,
+          outputLimit: null,
+          reasoning: ["low", "max"],
+          images: null,
+        },
       ],
     });
     expect(upstream.modelRequests[0]?.url).toBe("/v1/models");
@@ -42,7 +48,15 @@ describe("GET /api/models", () => {
     });
     const response = await app.request("/api/models", { headers: ownerHeaders() });
     expect(await response.json()).toEqual({
-      models: [{ id: "a", contextWindow: FAKE_WINDOW, reasoning: expect.any(Array), images: null }],
+      models: [
+        {
+          id: "a",
+          contextWindow: FAKE_WINDOW,
+          outputLimit: null,
+          reasoning: expect.any(Array),
+          images: null,
+        },
+      ],
     });
     expect(seen[0]).toBe(`${config.upstreamBaseUrl}/models?client_version=&detailed=true`);
   });
@@ -96,8 +110,8 @@ describe("an upstream without the rich catalog", () => {
     const response = await app.request("/api/models", { headers: ownerHeaders() });
     expect(await response.json()).toEqual({
       models: [
-        { id: "a", contextWindow: null, reasoning: null, images: null },
-        { id: "b", contextWindow: null, reasoning: null, images: null },
+        { id: "a", contextWindow: null, outputLimit: null, reasoning: null, images: null },
+        { id: "b", contextWindow: null, outputLimit: null, reasoning: null, images: null },
       ],
     });
     expect(seen).toEqual([rich, plain]);
@@ -114,7 +128,7 @@ describe("an upstream without the rich catalog", () => {
     const { app, lines } = testApp({ fetch });
     const response = await app.request("/api/models", { headers: ownerHeaders() });
     expect(await response.json()).toEqual({
-      models: [{ id: "a", contextWindow: null, reasoning: null, images: null }],
+      models: [{ id: "a", contextWindow: null, outputLimit: null, reasoning: null, images: null }],
     });
     expect(seen).toEqual([rich, plain]);
     expect(modelLogs(lines)).toEqual([
@@ -131,7 +145,9 @@ describe("an upstream without the rich catalog", () => {
       createLogger(() => {}),
     );
     const signal = new AbortController().signal;
-    const expected = [{ id: "a", contextWindow: null, reasoning: null, images: null }];
+    const expected = [
+      { id: "a", contextWindow: null, outputLimit: null, reasoning: null, images: null },
+    ];
     expect(await catalog.current(signal)).toEqual(expected);
     expect(await catalog.current(signal)).toEqual(expected);
     expect(upstream.modelRequests).toHaveLength(2);
@@ -262,7 +278,13 @@ describe("the catalog for generation", () => {
         const signal = new AbortController().signal;
         const served = await catalog.current(signal);
         expect(served).toEqual([
-          { id: "a", contextWindow: FAKE_WINDOW, reasoning: expect.any(Array), images: null },
+          {
+            id: "a",
+            contextWindow: FAKE_WINDOW,
+            outputLimit: null,
+            reasoning: expect.any(Array),
+            images: null,
+          },
         ]);
         down = true;
         seen.length = 0;
