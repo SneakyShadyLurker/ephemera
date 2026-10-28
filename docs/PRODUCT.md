@@ -770,9 +770,10 @@ Version 1.0 holds everything below.
   list. While the list loads or fails, typing an ID still works, and a
   failed list offers Try again.
 - Each model's limits come from the model catalog, in whichever field
-  names the provider uses: its context window, its reasoning levels and
-  whether it reads images; the reasoning control is offered only for
-  models that support it. Until the catalog reports reasoning support, the
+  names the provider uses: its context window, the most it writes in one
+  answer, its reasoning levels and whether it reads images. AI creation,
+  rework and memory never ask a model for more output than it reports; the
+  reasoning control is offered only for models that support it. Until the catalog reports reasoning support, the
   control is offered for every model and says so. A model that reports no
   context window is never sent a silently guessed budget: the owner sets
   its window in Settings, under Context, and until then nothing is sent to
