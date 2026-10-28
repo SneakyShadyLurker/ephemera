@@ -1,0 +1,1 @@
+ALTER TABLE `memory_notebooks` ADD `relationships` text DEFAULT '[]' NOT NULL;

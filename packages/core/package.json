@@ -1,0 +1,14 @@
+{
+  "name": "@ephemera/core",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "dayjs": "1.11.23",
+    "re2js": "2.8.6",
+    "zod": "^4.6.5"
+  }
+}

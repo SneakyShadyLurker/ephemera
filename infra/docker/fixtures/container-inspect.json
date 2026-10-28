@@ -1,0 +1,285 @@
+[
+  {
+    "Id": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+    "Created": "2026-01-01T00:00:00.000Z",
+    "Path": "bun",
+    "Args": ["apps/server/src/index.ts"],
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 100,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-01-01T00:00:00.000Z",
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "Status": "healthy",
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "Start": "2026-01-01T00:00:00.000Z",
+            "End": "2026-01-01T00:00:00.000Z",
+            "ExitCode": 0,
+            "Output": ""
+          }
+        ]
+      }
+    },
+    "Image": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "ResolvConfPath": "/var/lib/docker/containers/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210/resolv.conf",
+    "HostnamePath": "/var/lib/docker/containers/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210/hostname",
+    "HostsPath": "/var/lib/docker/containers/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210/hosts",
+    "LogPath": "",
+    "Name": "/ephemera",
+    "RestartCount": 0,
+    "Driver": "overlayfs",
+    "Platform": "linux",
+    "MountLabel": "",
+    "ProcessLabel": "",
+    "AppArmorProfile": "",
+    "ExecIDs": null,
+    "HostConfig": {
+      "Binds": null,
+      "ContainerIDFile": "",
+      "LogConfig": {
+        "Type": "none",
+        "Config": {}
+      },
+      "NetworkMode": "ephemera_default",
+      "PortBindings": {
+        "8790/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8000"
+          }
+        ]
+      },
+      "RestartPolicy": {
+        "Name": "unless-stopped",
+        "MaximumRetryCount": 0
+      },
+      "AutoRemove": false,
+      "VolumeDriver": "",
+      "VolumesFrom": null,
+      "ConsoleSize": [0, 0],
+      "CapAdd": null,
+      "CapDrop": ["ALL"],
+      "CgroupnsMode": "private",
+      "Dns": null,
+      "DnsOptions": null,
+      "DnsSearch": null,
+      "ExtraHosts": [],
+      "GroupAdd": null,
+      "IpcMode": "private",
+      "Cgroup": "",
+      "Links": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "Privileged": false,
+      "PublishAllPorts": false,
+      "ReadonlyRootfs": true,
+      "SecurityOpt": ["no-new-privileges:true"],
+      "Tmpfs": {
+        "/tmp": "size=64m,mode=1777,noexec,nosuid,nodev"
+      },
+      "UTSMode": "",
+      "UsernsMode": "",
+      "ShmSize": 67108864,
+      "Runtime": "runc",
+      "Isolation": "",
+      "CpuShares": 0,
+      "Memory": 1073741824,
+      "NanoCpus": 2000000000,
+      "CgroupParent": "",
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": null,
+      "BlkioDeviceReadBps": null,
+      "BlkioDeviceWriteBps": null,
+      "BlkioDeviceReadIOps": null,
+      "BlkioDeviceWriteIOps": null,
+      "CpuPeriod": 0,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "Devices": null,
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "MemoryReservation": 0,
+      "MemorySwap": 1073741824,
+      "MemorySwappiness": null,
+      "OomKillDisable": null,
+      "PidsLimit": 256,
+      "Ulimits": null,
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "IOMaximumIOps": 0,
+      "IOMaximumBandwidth": 0,
+      "Mounts": [
+        {
+          "Type": "bind",
+          "Source": "/tmp/ephemera-fixture/data",
+          "Target": "/data",
+          "BindOptions": {}
+        },
+        {
+          "Type": "bind",
+          "Source": "/tmp/ephemera-fixture/ctx/infra/docker/no-workflows",
+          "Target": "/run/workflows",
+          "ReadOnly": true,
+          "BindOptions": {}
+        }
+      ],
+      "MaskedPaths": [
+        "/proc/acpi",
+        "/proc/asound",
+        "/proc/interrupts",
+        "/proc/kcore",
+        "/proc/keys",
+        "/proc/latency_stats",
+        "/proc/sched_debug",
+        "/proc/scsi",
+        "/proc/timer_list",
+        "/proc/timer_stats",
+        "/sys/devices/virtual/powercap",
+        "/sys/firmware"
+      ],
+      "ReadonlyPaths": ["/proc/bus", "/proc/fs", "/proc/irq", "/proc/sys", "/proc/sysrq-trigger"],
+      "Init": true
+    },
+    "Storage": {
+      "RootFS": {
+        "Snapshot": {
+          "Name": "overlayfs"
+        }
+      }
+    },
+    "Mounts": [
+      {
+        "Type": "bind",
+        "Source": "/tmp/ephemera-fixture/data",
+        "Destination": "/data",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/tmp/ephemera-fixture/ctx/infra/docker/no-workflows",
+        "Destination": "/run/workflows",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      }
+    ],
+    "Config": {
+      "Hostname": "fedcba987654",
+      "Domainname": "",
+      "User": "1000:1000",
+      "AttachStdin": false,
+      "AttachStdout": true,
+      "AttachStderr": true,
+      "ExposedPorts": {
+        "8790/tcp": {}
+      },
+      "Tty": false,
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Env": [
+        "EPHEMERA_DATA_VOLUME_UUID=<placeholder>",
+        "EPHEMERA_HOST=<placeholder>",
+        "EPHEMERA_DATA_KEY=<placeholder>",
+        "EPHEMERA_STATIC_DIR=<placeholder>",
+        "EPHEMERA_UPSTREAM_BASE_URL=<placeholder>",
+        "EPHEMERA_UPSTREAM_API_KEY=<placeholder>",
+        "EPHEMERA_PROXY_KEY=<placeholder>",
+        "EPHEMERA_ORIGIN=<placeholder>",
+        "EPHEMERA_DATA_DIR=<placeholder>",
+        "EPHEMERA_WORKFLOWS_DIR=<placeholder>",
+        "PATH=<placeholder>",
+        "BUN_RUNTIME_TRANSPILER_CACHE_PATH=<placeholder>",
+        "BUN_INSTALL_BIN=<placeholder>",
+        "NODE_ENV=<placeholder>"
+      ],
+      "Cmd": null,
+      "Healthcheck": {
+        "Test": ["CMD", "bun", "infra/docker/healthcheck.ts"],
+        "Interval": 30000000000,
+        "Timeout": 5000000000,
+        "StartPeriod": 60000000000,
+        "StartInterval": 2000000000,
+        "Retries": 3
+      },
+      "Image": "ephemera:latest",
+      "Volumes": null,
+      "WorkingDir": "/app",
+      "Entrypoint": ["bun", "apps/server/src/index.ts"],
+      "Labels": {
+        "com.docker.compose.config-hash": "4444444444444444444444444444444444444444444444444444444444444444",
+        "com.docker.compose.container-number": "1",
+        "com.docker.compose.depends_on": "",
+        "com.docker.compose.image": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        "com.docker.compose.oneoff": "False",
+        "com.docker.compose.project": "ephemera",
+        "com.docker.compose.project.config_files": "/tmp/ephemera-fixture/ctx/infra/docker/docker-compose.yml,/tmp/ephemera-fixture/ctx/infra/docker/docker-compose.override.example.yml",
+        "com.docker.compose.project.working_dir": "/tmp/ephemera-fixture/ctx/infra/docker",
+        "com.docker.compose.replace": "ephemera-1",
+        "com.docker.compose.service": "ephemera",
+        "com.docker.compose.version": "5.5.1",
+        "org.opencontainers.image.created": "2026-01-01T00:00:00.000Z",
+        "org.opencontainers.image.description": "Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one",
+        "org.opencontainers.image.licenses": "NOASSERTION",
+        "org.opencontainers.image.revision": "scratch",
+        "org.opencontainers.image.source": "https://github.com/oven-sh/bun",
+        "org.opencontainers.image.title": "bun",
+        "org.opencontainers.image.url": "https://github.com/oven-sh/bun",
+        "org.opencontainers.image.version": "1.4.2-alpine"
+      }
+    },
+    "NetworkSettings": {
+      "SandboxID": "1111111111111111111111111111111111111111111111111111111111111111",
+      "SandboxKey": "/var/run/docker/netns/111111111111",
+      "Ports": {
+        "8790/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8000"
+          }
+        ]
+      },
+      "Networks": {
+        "ephemera_default": {
+          "IPAMConfig": null,
+          "Links": null,
+          "Aliases": ["ephemera"],
+          "DriverOpts": null,
+          "GwPriority": 0,
+          "NetworkID": "2222222222222222222222222222222222222222222222222222222222222222",
+          "EndpointID": "3333333333333333333333333333333333333333333333333333333333333333",
+          "Gateway": "198.51.100.1",
+          "IPAddress": "198.51.100.2",
+          "MacAddress": "02:00:00:00:00:01",
+          "IPPrefixLen": 16,
+          "IPv6Gateway": "",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "DNSNames": ["ephemera", "fedcba987654"]
+        }
+      }
+    },
+    "ImageManifestDescriptor": {
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "size": 3887,
+      "platform": {
+        "architecture": "arm64",
+        "os": "linux"
+      }
+    }
+  }
+]

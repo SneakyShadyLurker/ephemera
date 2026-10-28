@@ -1,0 +1,40 @@
+{
+  "name": "ephemera",
+  "version": "1.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "infra/*"
+  ],
+  "scripts": {
+    "dev": "bun run --parallel --filter @ephemera/server --filter @ephemera/web dev",
+    "build": "bun run --filter @ephemera/web build",
+    "start": "EPHEMERA_STATIC_DIR=apps/web/dist bun apps/server/src/index.ts",
+    "typecheck": "bun run --parallel 'typecheck:*'",
+    "typecheck:core": "tsc --noEmit -p packages/core",
+    "typecheck:server": "tsc --noEmit -p apps/server",
+    "typecheck:web": "tsc --noEmit -p apps/web",
+    "typecheck:root": "tsc --noEmit -p .",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "bun --bun vitest run",
+    "test:e2e": "bun run build && bun run audit:persistence && playwright test",
+    "test:affected": "bun scripts/affected/run.ts",
+    "audit:persistence": "bun scripts/persistence-audit.ts",
+    "check": "bun run typecheck && bun run lint && bun run test && bun run audit:persistence",
+    "e2e:browsers": "playwright install chromium",
+    "db:generate": "bash scripts/db-generate.sh",
+    "cards:check": "bun scripts/cards/check.ts"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@biomejs/biome": "2.5.14",
+    "@playwright/test": "1.63.0",
+    "@types/bun": "1.4.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
