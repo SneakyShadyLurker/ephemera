@@ -72,8 +72,8 @@ const FIELDS: SheetArtCard["fields"] = {
 };
 
 const MODELS: Record<string, ModelInfo> = {
-  vision: { id: "vision", contextWindow: null, reasoning: null, images: true },
-  text: { id: "text", contextWindow: null, reasoning: null, images: false },
+  vision: { id: "vision", contextWindow: null, outputLimit: null, reasoning: null, images: true },
+  text: { id: "text", contextWindow: null, outputLimit: null, reasoning: null, images: false },
 };
 
 function setup({

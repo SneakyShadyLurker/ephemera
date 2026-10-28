@@ -97,7 +97,9 @@ Major versions are architectural choices; exact versions live in
    window from `context_window`, `max_model_len`, `context_length`,
    `max_context_length`, `top_provider.context_length` or
    `metadata.context_length` (never llama.cpp's `meta.n_ctx_train`, the
-   training context rather than the serving limit); image input from
+   training context rather than the serving limit); the output limit from
+   `max_completion_tokens`, `top_provider.max_completion_tokens` or
+   `max_output_tokens`; image input from
    `input_modalities`, `architecture.input_modalities`,
    `capabilities.vision` or a `vision` tag in `metadata.tags`; reasoning
    levels from `supported_reasoning_levels`, `effort.supported_levels`,
@@ -259,8 +261,16 @@ Major versions are architectural choices; exact versions live in
    `prompt_cache_key`, read in memory up to 64 KiB and never logged) gets
    the call once more without the field and the header; once such a retry
    succeeds, the upstream sends neither again until the server restarts,
-   and logs `upstream.cache_extensions_off` once. An error that does not
-   name the field is not retried. `EPHEMERA_UPSTREAM_SESSION_CACHE`
+   and logs `upstream.cache_extensions_off` once. The same fallback covers
+   two more fields. A refusal naming `max_tokens` or
+   `max_completion_tokens` gets the call once more without the cap, which
+   the next call sends again. A refusal naming `stream_options` or
+   `include_usage` gets it once more without `stream_options`; once that
+   succeeds, the provider's `transformRequestBody` leaves the field out
+   until the server restarts, the upstream logs
+   `upstream.stream_usage_off` once, and streamed calls report no usage.
+   One call drops each field at most once. An error that names none of
+   the fields the call sent is not retried. `EPHEMERA_UPSTREAM_SESSION_CACHE`
    (`on` unless set to `off`) switches both off from the start; the key is
    then left out of every call (`Upstream.settings`). A call
    the provider answers with 408, 409, 429 or 5xx before any output is
@@ -516,7 +526,7 @@ replay carries it.
    (`helperInputTokens`), multiplied by the model's calibration ratio.
    `roomFor` refuses through core's `answerRoom` when less than 8,192 tokens remain. Every
    `object-call.ts` caller shares `CREATOR_LIMITS.maxOutputTokens`, 100,000,
-   capped by the remaining window. The current call's raw reported input usage
+   capped by the remaining window and the model's reported output limit. The current call's raw reported input usage
    updates per-model calibration under chat's admission rule (`calibrate` in
    `generation.ts`: `MIN_CALIBRATION_SAMPLE`, `MAX_CALIBRATED_MODELS`),
    independently of accounting's record bound.
@@ -1073,7 +1083,8 @@ content's path: the tab's memory and one request in the server.
 
 - **Core.** `packages/core/src/creator/` owns the three kinds and their bounds
   (`limits.ts`: the description's length, one `maxOutputTokens` of 100,000
-  for every creator call, 5,500 estimated tokens per subject
+  for every creator call, lowered to the model's reported output limit by
+  `creatorOutputTokens`, 5,500 estimated tokens per subject
   block and 10,000 per scenario description, a batch of four 1024 x 1536
   portraits, how many subject blocks each character kind holds), the
   prompts (a card system prompt per kind and an art metaprompt per kind for
@@ -1143,7 +1154,8 @@ content's path: the tab's memory and one request in the server.
   also invalid, the result says so. Both answers live in the request's
   memory only; the log carries the finish reason and which attempt ended.
   The answer has no byte bound, and `maxOutputTokens` is the shared 100,000
-  (sent because a provider's default when it is omitted can be far lower);
+  or the model's lower output limit (sent because a provider's default
+  when it is omitted can be far lower);
   the request has chat's lifetime.
 - **`POST /api/creator/art`**: the browser sends back the art source from
   the card it holds, the image prompt's model and reasoning effort (the

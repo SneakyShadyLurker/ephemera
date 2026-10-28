@@ -5,6 +5,7 @@ import { portraitDefault } from "./portrait-switch.ts";
 const model = (images: boolean | null): ModelInfo => ({
   id: "m",
   contextWindow: 1000,
+  outputLimit: null,
   reasoning: null,
   images,
 });

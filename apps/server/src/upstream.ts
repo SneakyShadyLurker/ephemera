@@ -258,73 +258,129 @@ export async function resolveModel(
   return { info: modelInfo(models, id), window: effectiveWindow(id, models, settings) };
 }
 
-/** The body field and header that carry a cache key (`upstreamSettings`). */
-const CACHE_FIELD = "prompt_cache_key";
-const AFFINITY_HEADER = "x-session-affinity";
-/** Far past any provider's refusal; a longer error body is not read for the field's name. */
+/** Far past any provider's refusal; a longer error body is not read for a field's name. */
 const MAX_REFUSAL_BYTES = 64 * 1024;
-/** A request body that carries a cache key. */
-const cachedBodySchema = z.looseObject({ [CACHE_FIELD]: z.string() });
 
 /**
- * The request without the cache extensions; undefined when it carries none.
- * The body is chat content: parsed in memory for this call only.
+ * Request fields some OpenAI-compatible providers refuse, by the names a
+ * refusal of each carries: the session cache key with its header
+ * (`upstreamSettings`), the output cap the AI SDK sends as `max_tokens`, and
+ * the streamed usage report (`includeUsage`).
  */
-function withoutCacheExtensions(init: RequestInit | undefined): RequestInit | undefined {
+const REFUSABLE = {
+  cache: {
+    names: ["prompt_cache_key"],
+    fields: ["prompt_cache_key"],
+    header: "x-session-affinity",
+  },
+  outputCap: {
+    names: ["max_tokens", "max_completion_tokens"],
+    fields: ["max_tokens", "max_completion_tokens"],
+  },
+  streamUsage: { names: ["stream_options", "include_usage"], fields: ["stream_options"] },
+} as const satisfies Record<
+  string,
+  { names: readonly string[]; fields: readonly string[]; header?: string }
+>;
+type Refusable = keyof typeof REFUSABLE;
+const REFUSABLES = Object.keys(REFUSABLE) as Refusable[];
+const requestBodySchema = z.looseObject({});
+type RequestBody = z.infer<typeof requestBodySchema>;
+
+/**
+ * A completion request's JSON body; undefined for any other request. The
+ * body is chat content: parsed in memory for this call only.
+ */
+function requestBody(init: RequestInit | undefined): RequestBody | undefined {
   if (init?.method !== "POST" || typeof init.body !== "string") return undefined;
-  let json: unknown;
   try {
-    json = JSON.parse(init.body);
+    const body = requestBodySchema.safeParse(JSON.parse(init.body));
+    return body.success ? body.data : undefined;
   } catch {
     return undefined;
   }
-  const body = cachedBodySchema.safeParse(json);
-  if (!body.success) return undefined;
-  const { [CACHE_FIELD]: _key, ...rest } = body.data;
+}
+
+const carries = (body: RequestBody, refusable: Refusable) =>
+  REFUSABLE[refusable].fields.some((field) => Object.hasOwn(body, field));
+
+/** The request without `dropped`'s fields and headers. */
+function without(init: RequestInit, body: RequestBody, dropped: Iterable<Refusable>): RequestInit {
+  const rest = { ...body };
   const headers = new Headers(init.headers);
-  headers.delete(AFFINITY_HEADER);
+  for (const refusable of dropped) {
+    const extension: { fields: readonly string[]; header?: string } = REFUSABLE[refusable];
+    for (const field of extension.fields) delete rest[field];
+    if (extension.header !== undefined) headers.delete(extension.header);
+  }
   return { ...init, body: JSON.stringify(rest), headers };
 }
 
 /**
- * Whether an error answer refuses the cache key by name. A clone is read, at
- * most `MAX_REFUSAL_BYTES`, so the answer stays whole for the AI SDK; the
- * text is the provider's message, compared and dropped, never logged.
+ * An error answer's text, to look for a refused field's name. A clone is
+ * read, at most `MAX_REFUSAL_BYTES`, so the answer stays whole for the AI
+ * SDK; the text is the provider's message, compared and dropped, never
+ * logged. Undefined when it cannot be read.
  */
-async function refusesCacheKey(response: Response, signal: AbortSignal | undefined) {
+async function refusalText(response: Response, signal: AbortSignal | undefined) {
   const body = response.clone().body;
-  if (body === null) return false;
+  if (body === null) return undefined;
   const bytes = await readBounded(body, MAX_REFUSAL_BYTES, signal).catch(() => undefined);
-  return bytes !== undefined && new TextDecoder().decode(bytes).includes(CACHE_FIELD);
+  return bytes === undefined ? undefined : new TextDecoder().decode(bytes);
 }
 
 /**
- * The configured upstream: any OpenAI-compatible provider's chat models. The
- * session cache extensions are a convention some providers refuse: a call
- * refused for its cache key is sent once more without them, and once that
- * answers, this upstream sends them no more.
+ * The configured upstream: any OpenAI-compatible provider's chat models.
+ * Some providers refuse a field Ephemera sends (`REFUSABLE`): a call they
+ * answer with a 400 or 422 naming it is sent once more without it, each
+ * field at most once per call; an error that names none is returned as it
+ * came. Once a call without the cache key or the stream usage request
+ * answers, this upstream sends that one no more; the output cap goes again
+ * with the next call, as its value is that call's.
  */
 export function createUpstream(
   config: Pick<AppConfig, "upstreamBaseUrl" | "upstreamApiKey" | "upstreamSessionCache">,
   fetch: UpstreamFetch,
   log: Logger,
 ) {
-  let cacheRefused = false;
+  const off = { cache: false, streamUsage: false };
   async function send(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-    if (cacheRefused) return fetch(input, withoutCacheExtensions(init) ?? init);
-    const response = await fetch(input, init);
-    if (response.status !== 400 && response.status !== 422) return response;
-    const retry = withoutCacheExtensions(init);
-    if (retry === undefined || !(await refusesCacheKey(response, init?.signal ?? undefined))) {
-      return response;
+    let request = init;
+    if (off.cache) {
+      const body = requestBody(init);
+      if (init !== undefined && body !== undefined && carries(body, "cache")) {
+        request = without(init, body, ["cache"]);
+      }
     }
-    await response.body?.cancel().catch(() => {});
-    const second = await fetch(input, retry);
-    if (second.ok && !cacheRefused) {
-      cacheRefused = true;
-      log.warn({ event: "upstream.cache_extensions_off" });
+    let response = await fetch(input, request);
+    const dropped = new Set<Refusable>();
+    while (response.status === 400 || response.status === 422) {
+      const body = requestBody(request);
+      if (request === undefined || body === undefined) break;
+      const carried = REFUSABLES.filter((name) => !dropped.has(name) && carries(body, name));
+      if (carried.length === 0) break;
+      const text = await refusalText(response, init?.signal ?? undefined);
+      if (text === undefined) break;
+      const refused = carried.filter((name) =>
+        REFUSABLE[name].names.some((field) => text.includes(field)),
+      );
+      if (refused.length === 0) break;
+      for (const name of refused) dropped.add(name);
+      await response.body?.cancel().catch(() => {});
+      request = without(request, body, refused);
+      response = await fetch(input, request);
     }
-    return second;
+    if (response.ok) {
+      if (dropped.has("cache") && !off.cache) {
+        off.cache = true;
+        log.warn({ event: "upstream.cache_extensions_off" });
+      }
+      if (dropped.has("streamUsage") && !off.streamUsage) {
+        off.streamUsage = true;
+        log.warn({ event: "upstream.stream_usage_off" });
+      }
+    }
+    return response;
   }
   const provider = createOpenAICompatible({
     name: UPSTREAM_PROVIDER,
@@ -332,6 +388,12 @@ export function createUpstream(
     // None sends no Authorization header, for a local server that needs no key.
     ...(config.upstreamApiKey === undefined ? {} : { apiKey: config.upstreamApiKey }),
     includeUsage: true,
+    // The provider's own hook leaves the usage request out once the upstream refused it.
+    transformRequestBody: (body) => {
+      if (!off.streamUsage) return body;
+      const { stream_options: _usage, ...rest } = body;
+      return rest;
+    },
     // Bun's fetch type adds `preconnect`; a no-op keeps the wrapper assignable in every runtime.
     fetch: Object.assign(send, { preconnect: () => {} }),
   });

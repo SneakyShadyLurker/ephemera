@@ -31,6 +31,7 @@ import {
   creatorCardRequestSchema,
   creatorImageCardEventSchema,
   creatorKindSchema,
+  creatorOutputTokens,
   encodeArtFrame,
   fitsNativeFile,
   type GeneratedCard,
@@ -438,7 +439,7 @@ export async function paint(
       model: upstream.model(model, undefined, options.recording),
       instructions: source.instructions,
       messages: [userTurn(source.text(portrait !== undefined), portrait)],
-      maxOutputTokens: CREATOR_LIMITS.maxOutputTokens,
+      maxOutputTokens: creatorOutputTokens(resolved.info),
       ...upstream.settings(effortSettings(resolved.info, options.reasoning), requestCacheKey()),
       // Ends the call, retries' waits included, when the owner stops or the deadline passes.
       abortSignal: signal,
@@ -574,6 +575,8 @@ export function createCreatorApi(deps: CreatorDeps) {
     model: string;
     instructions: string;
     messages: ModelMessage[];
+    /** The model's catalog entry, for its output limit (`creatorOutputTokens`). */
+    info: ModelInfo | undefined;
     /** The effort, narrowed to the model's (`effortSettings`); none sends the model default. */
     settings: CallSettings;
     /** The request's cache key, the same for its retry. */
@@ -600,7 +603,7 @@ export function createCreatorApi(deps: CreatorDeps) {
       model: upstream.model(model),
       instructions: options.instructions,
       messages: options.messages,
-      maxOutputTokens: CREATOR_LIMITS.maxOutputTokens,
+      maxOutputTokens: creatorOutputTokens(options.info),
       ...upstream.settings(options.settings, options.cacheKey),
       // Ends upstream work, retries' waits included, when the client disconnects or the
       // lifetime bound passes.
@@ -683,6 +686,7 @@ export function createCreatorApi(deps: CreatorDeps) {
                   model,
                   instructions,
                   messages,
+                  info: resolved.info,
                   // The effort as the model offers it, whatever the tab's catalog said.
                   settings: effortSettings(resolved.info, reasoning),
                   cacheKey,
@@ -827,6 +831,7 @@ export function createCreatorApi(deps: CreatorDeps) {
                     model,
                     instructions: CARD_SYSTEM_PROMPTS[kind],
                     messages,
+                    info: resolved.info,
                     settings: {},
                     cacheKey,
                     signal,
@@ -962,6 +967,7 @@ export function createCreatorApi(deps: CreatorDeps) {
               model,
               instructions: REWORK_SYSTEM_PROMPT,
               messages: [userTurn(text, portrait)],
+              info: resolved.info,
               settings: effortSettings(resolved.info, request.reasoning),
               cacheKey: requestCacheKey(),
               signal,
