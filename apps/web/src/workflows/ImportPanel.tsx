@@ -64,6 +64,7 @@ import {
   type PanelState,
   panelReducer,
   type ReadFile,
+  replaceRevision,
   reportOf,
   type SaveFailure,
   type SaveTarget,
@@ -71,6 +72,7 @@ import {
 } from "./panel-state.ts";
 import {
   createWorkflow,
+  findWorkflow,
   inspectWorkflow,
   replaceWorkflowGraph,
   updateWorkflow,
@@ -142,6 +144,15 @@ export function ImportPanel({
   const address = useSetting((settings) => settings.comfyuiBaseUrl);
   const notReached = useNotReached();
   const dirty = isDirty(state);
+
+  // Whether the panel is still on screen, for answers that arrive after it closed.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Opening moves focus to the heading, without summoning a keyboard.
   useEffect(() => {
@@ -263,15 +274,16 @@ export function ImportPanel({
     let target = open.target;
     // A create that answered unreachable may have landed: then the draft replaces it.
     if (target.mode === "create" && open.unanswered) {
-      const id = target.id;
-      const listed = await queryClient
-        .fetchQuery({ ...workflowsQuery, staleTime: 0 })
-        .then((rows) => rows.find((row) => row.id === id))
-        .catch(() => undefined);
+      const listed = await findWorkflow(target.id);
       if (!ours()) return;
-      if (listed !== undefined) {
-        dispatch({ type: "landed", workflow: listed });
-        target = { mode: "replace", workflow: listed };
+      // Not known either way: sending it again could drop this draft's edits as already done.
+      if (!listed.ok) {
+        dispatch({ type: "saveFailed", request, failure: listed });
+        return;
+      }
+      if (listed.value !== null) {
+        dispatch({ type: "landed", workflow: listed.value });
+        target = { mode: "replace", workflow: listed.value };
       }
     }
     if (target.mode === "create") {
@@ -288,9 +300,9 @@ export function ImportPanel({
     let checked = true;
     let current = open.graphRevision;
     if (current === null) {
-      // The revision this replace started from; only Keep mine moves on to the server's.
+      // The revision this replace started from, or this tab's own last write; Keep mine's after a conflict.
       const replaced = await replaceWorkflowGraph(workflow.id, {
-        revision: revision ?? workflow.revision,
+        revision: replaceRevision(target, revision),
         graph,
         choices,
       });
@@ -320,16 +332,18 @@ export function ImportPanel({
   };
 
   // Reload takes the saved workflow and drops this tab's file, or its rename once the file is in.
+  // Its answer is dropped once the panel moved to another file, closed or went away.
   const reload = async () => {
+    const open = draftOf(state);
+    if (open === null) return;
     const fetched = await queryClient.fetchQuery({ ...workflowsQuery, staleTime: 0 }).then(
       () => true,
       () => false,
     );
-    if (!fetched) return;
-    const open = draftOf(state);
-    if (open?.target.mode === "replace" && open.graphRevision !== null) {
+    if (!fetched || !mounted.current || requests.current !== open.request) return;
+    if (open.target.mode === "replace" && open.graphRevision !== null) {
       dispatch({ type: "saved", request: open.request });
-      if (requests.current === open.request) onSaved(open.target.workflow.id, true);
+      onSaved(open.target.workflow.id, true);
       return;
     }
     dispatch({ type: "close" });

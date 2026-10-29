@@ -382,23 +382,42 @@ test("a create whose answer was lost is retried as a replace of the saved one", 
   await expect(panel.getByRole("status")).toHaveText(READY);
   const sent: string[] = [];
   let lose = true;
+  let failList = false;
   await page.route("**/api/workflows/**", (route) => {
     sent.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
     return route.fallback();
   });
   await page.route("**/api/workflows", async (route) => {
-    if (route.request().method() !== "POST" || !lose) return route.fallback();
+    const method = route.request().method();
+    sent.push(`${method} /api/workflows`);
+    if (method === "GET" && failList) {
+      failList = false;
+      return route.abort();
+    }
+    if (method !== "POST" || !lose) return route.fallback();
     lose = false;
     // The server saves it; the answer never reaches the tab.
     await route.fetch();
     return route.abort();
   });
   const name = uniqueName("Lighthouse");
-  await panel.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  const field = panel.getByRole("textbox", { name: "Name", exact: true });
+  await field.fill(name);
   await panel.getByRole("button", { name: "Save workflow", exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+
+  // Renamed since; the list does not answer the lookup, so nothing is sent again.
+  const renamed = uniqueName("Harbour light");
+  await field.fill(renamed);
+  failList = true;
+  await panel.getByRole("button", { name: "Save workflow", exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+  expect(sent.filter((line) => line === "POST /api/workflows")).toHaveLength(1);
+
   await panel.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(panel).toHaveCount(0);
-  await expect(workflowRow(page, name)).toContainText("Ready");
+  await expect(workflowRow(page, renamed)).toContainText("Ready");
+  expect(sent.filter((line) => line === "POST /api/workflows")).toHaveLength(1);
   expect(sent.filter((line) => line.startsWith("PUT ") && line.endsWith("/graph"))).toHaveLength(1);
 });
 
@@ -436,4 +455,66 @@ test("Replace file answers a change made since it opened with a conflict", async
 
   await panel.getByRole("button", { name: "Replace file", exact: true }).click();
   await expect(panel.getByText("Changed in another tab")).toBeVisible();
+});
+
+test("a Reload that answers after another file was taken leaves that file open", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const name = uniqueName("Lighthouse");
+  await importWorkflow(page, name);
+  const file = apiFile();
+  const graph: Record<string, { inputs: Record<string, unknown> }> = JSON.parse(
+    file.buffer.toString("utf8"),
+  );
+  Object.assign(graph["5"]?.inputs ?? {}, { steps: 30 });
+  await actionsFor(page, name).click();
+  await pickFile(page, () => page.getByRole("menuitem", { name: "Replace file" }).click(), {
+    ...file,
+    buffer: Buffer.from(JSON.stringify(graph)),
+  });
+  const panel = importPanel(page, `Replace the file of ${name}`);
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  await actionsFor(page, name).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const field = page.getByRole("textbox", { name: `Name of ${name}`, exact: true });
+  const renamed = uniqueName("Harbour light");
+  await field.fill(renamed);
+  await field.press("Enter");
+  await expect(workflowRow(page, renamed)).toBeVisible();
+  await panel.getByRole("button", { name: "Replace file", exact: true }).click();
+  await expect(panel.getByText("Changed in another tab")).toBeVisible();
+
+  // Reload's list answers only once another file has taken this one's place.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/workflows", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    await held;
+    return route.fallback();
+  });
+  await panel.getByRole("button", { name: "Reload", exact: true }).click();
+  await pickFile(page, () => importButton(page).click(), cleanUiFile(SDXL_PROMPT, "second.json"));
+  await page
+    .getByRole("alertdialog", { name: "Replace this import with the new file?" })
+    .getByRole("button", { name: "Replace", exact: true })
+    .click();
+  const next = importPanel(page);
+  await expect(next.getByText(/^second\.json, saved workflow, \d+ nodes$/)).toBeVisible();
+
+  const answered = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/workflows" &&
+      response.request().method() === "GET",
+  );
+  release();
+  await answered;
+  // Long enough for a late Reload to close the panel, had it not been dropped.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 200)));
+  await expect(next).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });

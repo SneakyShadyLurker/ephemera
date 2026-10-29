@@ -6,6 +6,7 @@ import { settingsQuery } from "../settings/settings.ts";
 import {
   createWorkflow,
   deleteWorkflow,
+  findWorkflow,
   inspectWorkflow,
   replaceWorkflowGraph,
   updateWorkflow,
@@ -182,6 +183,27 @@ describe("a workflow write", () => {
     expect(await deleteWorkflow(UUID)).toEqual({ ok: false, reason: "not_found" });
     expect(requests.map((request) => request.method)).toContain("GET");
     expect(queryClient.getQueryData(settingsQuery.queryKey)?.comfyuiWorkflow).toBe("moss-studio");
+  });
+});
+
+describe("looking up a create whose answer was lost", () => {
+  it("tells a workflow the list lacks from a list that did not answer", async () => {
+    const row = {
+      id: UUID,
+      name: "Portrait",
+      family: "general",
+      nodes: 1,
+      revision: 0,
+      updatedAt: 2,
+    };
+    serving(() => Response.json({ workflows: [row] }));
+    expect(await findWorkflow(UUID)).toEqual({ ok: true, value: row });
+    queryClient.clear();
+    serving(() => Response.json({ workflows: [] }));
+    expect(await findWorkflow(UUID)).toEqual({ ok: true, value: null });
+    queryClient.clear();
+    serving(() => new Response("bad gateway", { status: 502 }));
+    expect(await findWorkflow(UUID)).toEqual({ ok: false, reason: "unreachable" });
   });
 });
 

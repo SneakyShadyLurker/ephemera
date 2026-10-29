@@ -221,6 +221,22 @@ export function createWorkflow(
   );
 }
 
+/**
+ * The user's workflow `id` as the list shows it now, null when the list
+ * lacks it, or unreachable when the list did not answer: a create whose
+ * answer was lost is looked up this way before it is sent again.
+ */
+export async function findWorkflow(
+  id: string,
+): Promise<WorkflowResult<WorkflowSummary | null, never>> {
+  try {
+    const rows = await queryClient.fetchQuery({ ...workflowsQuery, staleTime: 0, retry: false });
+    return { ok: true, value: rows.find((row) => row.id === id) ?? null };
+  } catch {
+    return { ok: false, reason: "unreachable" };
+  }
+}
+
 /** Renames a workflow or changes its family, against `body.revision`. */
 export function updateWorkflow(
   id: string,

@@ -260,15 +260,19 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
     );
 
   /**
-   * The classes of a normalized graph an import refuses (spec § 11.2): the
-   * allowlist's reason, else a class the live ComfyUI reports as an output
-   * node. Image outputs are the output choice: finalization makes the chosen
-   * one the saver and drops the rest, so they are not assessed.
+   * The classes of a graph an import refuses (spec § 11.2): the allowlist's
+   * reason, else a class the live ComfyUI reports as an output node. In a
+   * normalized graph the image outputs are the output choice, which
+   * finalization settles, so they are not assessed; a finalized template is
+   * assessed whole (`exempt` empty), its one output being the sanctioned saver.
    */
-  function blockedIn(graph: WorkflowGraph, meta: NodeMetaMap | undefined): BlockedNode[] {
-    const outputs = new Set(imageOutputs(graph, meta));
+  function blockedIn(
+    graph: WorkflowGraph,
+    meta: NodeMetaMap | undefined,
+    exempt: ReadonlySet<string> = new Set(imageOutputs(graph, meta)),
+  ): BlockedNode[] {
     const classes = new Set(
-      Object.entries(graph).flatMap(([id, node]) => (outputs.has(id) ? [] : [node.class_type])),
+      Object.entries(graph).flatMap(([id, node]) => (exempt.has(id) ? [] : [node.class_type])),
     );
     return [...classes].flatMap((classType): BlockedNode[] => {
       const reason =
@@ -353,17 +357,15 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
       ? finalizeWorkflow(normalized, detected.detection, choices, meta)
       : detected;
 
-    // The allowlist judges the graph that runs once finalization keeps it, so a node only a
-    // left-out output used is not refused (§ 16.3). A live output node is judged on the whole
-    // graph, as finalization drops it as an output even where the graph depends on it. The
-    // allowlist's refusals first; the live output nodes only once it admits every class.
-    const listed = blockedIn(finalized.ok ? finalized.template : normalized.graph, meta).filter(
-      ({ reason }) => reason !== "output_node",
-    );
-    const shown =
-      listed.length > 0
-        ? listed
-        : blockedIn(normalized.graph, meta).filter(({ reason }) => reason === "output_node");
+    // Both checks judge the graph that runs: the finalized template, whole, so a node only a
+    // left-out output used is not refused (§ 16.3) and an output finalization keeps is. Without
+    // a template, the normalized graph as the inspection judged it. The allowlist's refusals
+    // first; the live output nodes only once it admits every class.
+    const blocked = finalized.ok
+      ? blockedIn(finalized.template, meta, new Set())
+      : blockedIn(normalized.graph, meta);
+    const listed = blocked.filter(({ reason }) => reason !== "output_node");
+    const shown = listed.length > 0 ? listed : blocked;
     if (shown.length > 0) {
       return fail(
         refused(c, 422, {

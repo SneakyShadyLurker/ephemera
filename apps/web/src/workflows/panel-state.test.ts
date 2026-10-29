@@ -10,6 +10,7 @@ import {
   type PanelAction,
   type PanelState,
   panelReducer,
+  replaceRevision,
   reportOf,
   type SaveTarget,
   saveCheck,
@@ -51,6 +52,13 @@ const inspected = (options: { output?: string; target?: SaveTarget } = {}) =>
 const draftIn = (state: PanelState) => {
   if (!("draft" in state)) throw new Error(`no draft in ${state.phase}`);
   return state.draft;
+};
+
+/** The replace target of a state's draft. */
+const replaced = (state: PanelState) => {
+  const { target } = draftIn(state);
+  if (target.mode !== "replace") throw new Error("not a replace");
+  return target;
 };
 
 describe("reading a file", () => {
@@ -365,6 +373,34 @@ describe("the draft", () => {
     expect(
       draftIn(panelReducer(state, { type: "choose", place: "output", node: "8" })).graphRevision,
     ).toBeNull();
+  });
+
+  it("sends the next graph at the revision this tab's own write left", () => {
+    const workflow = summary(OTHER_ID, "Moss Studio");
+    let state = inspected({ output: "7", target: { mode: "replace", workflow } });
+    state = panelReducer(state, { type: "name", name: "Moss Harbour" });
+    expect(replaceRevision(replaced(state))).toBe(3);
+    state = panelReducer(state, { type: "save" });
+    state = panelReducer(state, { type: "graphSaved", request: 1, revision: 4 });
+    state = panelReducer(state, {
+      type: "saveFailed",
+      request: 1,
+      failure: { ok: false, reason: "unreachable" },
+    });
+    state = panelReducer(state, { type: "choose", place: "output", node: "8" });
+    expect(draftIn(state).graphRevision).toBeNull();
+    expect(replaceRevision(replaced(state))).toBe(4);
+    // Keep mine moves on to the server's revision.
+    expect(replaceRevision(replaced(state), 9)).toBe(9);
+  });
+
+  it("does not take the draft's own landed create for another workflow's name", () => {
+    const state = panelReducer(inspected({ output: "7" }), { type: "name", name: "Harbour" });
+    const own = summary(NEW_ID, "Harbour");
+    expect(
+      nameCheck(draftIn(state), { ...NAMES, yours: [...NAMES.yours, own] }).problem,
+    ).toBeNull();
+    expect(saveCheck(state, { ...NAMES, yours: [...NAMES.yours, own] }).enabled).toBe(true);
   });
 
   it("lists every class a save was refused for, even one the kept graph lacks", () => {

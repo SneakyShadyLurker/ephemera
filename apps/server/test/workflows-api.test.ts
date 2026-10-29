@@ -235,6 +235,50 @@ describe("POST /api/workflows", () => {
     expect(workflow.graph["12"]).toBeUndefined();
   });
 
+  it("judges live output nodes on the template too, and refuses an output it keeps", async () => {
+    // A live output node only the left-out output's branch used goes with that branch.
+    const { app } = setup({ comfy: { outputNodes: ["ModelAttentionBackend"] } });
+    const base = sdxl();
+    const leftOut = {
+      ...base,
+      "13": {
+        class_type: "ModelAttentionBackend",
+        inputs: { model: ["4", 0], attention: "comfy kitchen attention" },
+      },
+      "15": { class_type: "KSampler", inputs: { ...base["3"]?.inputs, model: ["13", 0] } },
+      "16": { class_type: "VAEDecode", inputs: { samples: ["15", 0], vae: ["4", 2] } },
+      "14": { class_type: "SaveImage", inputs: { images: ["16", 0], filename_prefix: "x" } },
+    };
+    const { workflow } = await created(app, {
+      family: "general",
+      graph: leftOut,
+      choices: { output: "9" },
+    });
+    expect(workflow.graph["13"]).toBeUndefined();
+
+    // An output another node takes from stays in the template, where it is refused.
+    const kept = {
+      ...base,
+      "14": { class_type: "SaveImage", inputs: { images: ["8", 0], filename_prefix: "x" } },
+      "15": {
+        class_type: "ImageScale",
+        inputs: {
+          image: ["14", 0],
+          upscale_method: "lanczos",
+          width: 64,
+          height: 64,
+          crop: "disabled",
+        },
+      },
+    };
+    const response = await create(
+      app,
+      createBody({ name: "Quay", family: "general", graph: kept, choices: { output: "9" } }),
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: "blocked_nodes" });
+  });
+
   it("refuses a class the live ComfyUI reports as an output node", async () => {
     const { app } = setup({ comfy: { outputNodes: ["ModelAttentionBackend"] } });
     const response = await create(app, createBody());

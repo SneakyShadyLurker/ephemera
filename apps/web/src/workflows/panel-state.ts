@@ -318,10 +318,19 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
         return { phase: "saving", file: state.file, draft: state.draft };
       }
       return state;
-    case "graphSaved":
-      return saving(state, action.request)
-        ? { ...state, draft: { ...state.draft, graphRevision: action.revision } }
-        : state;
+    case "graphSaved": {
+      if (!saving(state, action.request)) return state;
+      // This tab's own write: the next graph goes at its revision, not the one the replace began at.
+      const { target } = state.draft;
+      const moved: SaveTarget =
+        target.mode === "replace"
+          ? { mode: "replace", workflow: { ...target.workflow, revision: action.revision } }
+          : target;
+      return {
+        ...state,
+        draft: { ...state.draft, target: moved, graphRevision: action.revision },
+      };
+    }
     case "saveFailed":
       return saveFailed(state, action.request, action.failure);
     case "importAsNew":
@@ -360,14 +369,21 @@ export interface ListNames {
   server: readonly string[];
 }
 
+/** The revision a replace sends its graph at: Keep mine's, else the target's last known. */
+export const replaceRevision = (
+  target: Extract<SaveTarget, { mode: "replace" }>,
+  keepMine?: number,
+): number => keepMine ?? target.workflow.revision;
+
 /** What the name field says: a refusal in ember, or a note in reed. */
 export function nameCheck(
   draft: Draft,
   names: ListNames,
 ): { problem: string | null; note: string | null } {
   const name = draft.name.trim();
-  const replaced = draft.target.mode === "replace" ? draft.target.workflow.id : null;
-  const others = names.yours.filter((other) => other.id !== replaced).map((other) => other.name);
+  // The replaced workflow, or the draft's own create that landed with its answer lost.
+  const own = draft.target.mode === "replace" ? draft.target.workflow.id : draft.target.id;
+  const others = names.yours.filter((other) => other.id !== own).map((other) => other.name);
   const problem =
     renameProblem(name, others) ??
     (draft.takenName !== null && draft.takenName.toLowerCase() === name.toLowerCase()
