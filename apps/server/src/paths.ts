@@ -11,6 +11,7 @@ export const MOUNTS = {
   personas: "/personas",
   lorebooks: "/lorebooks",
   creator: "/creator",
+  workflows: "/workflows",
 } as const;
 export const IMPORT_PATH = "/import";
 export const PORTRAIT_PATH = "/:id/portrait";

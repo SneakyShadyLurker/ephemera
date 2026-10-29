@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   castModelOf,
   castReasoningOf,
+  comfyuiWorkflowOptionSchema,
   DEFAULT_SETTINGS,
   imagePromptModelOf,
   settingsPatchSchema,
@@ -56,5 +57,28 @@ describe("image prompt model", () => {
     expect(imagePromptModelOf(null, "setting", "card")).toBe("setting");
     expect(imagePromptModelOf("chosen", "setting", "card")).toBe("chosen");
     expect(imagePromptModelOf(null, null, null)).toBeNull();
+  });
+});
+
+describe("comfyuiWorkflowOptionSchema", () => {
+  it("carries the family and whether the server or the user owns the workflow", () => {
+    const option = {
+      id: "krea2-gonzalomo",
+      name: "Krea 2 Gonzalomo",
+      family: "krea2",
+      scope: "server",
+    };
+    expect(comfyuiWorkflowOptionSchema.parse(option)).toEqual(option);
+    const user = { ...option, id: "user-0b6f7c3e-2d4a-4f8e-9a1b-5c6d7e8f9a0b", scope: "user" };
+    expect(comfyuiWorkflowOptionSchema.parse(user)).toEqual(user);
+    expect(comfyuiWorkflowOptionSchema.safeParse({ ...option, scope: "shared" }).success).toBe(
+      false,
+    );
+    expect(comfyuiWorkflowOptionSchema.safeParse({ ...option, family: "flux" }).success).toBe(
+      false,
+    );
+    expect(
+      comfyuiWorkflowOptionSchema.safeParse({ id: option.id, name: option.name }).success,
+    ).toBe(false);
   });
 });

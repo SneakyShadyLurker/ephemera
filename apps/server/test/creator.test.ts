@@ -29,7 +29,7 @@ import {
 } from "@ephemera/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowGraph } from "../src/comfyui/workflow.ts";
-import { ART_TIMEOUT_MS, MAX_REWORK_BODY_BYTES } from "../src/creator.ts";
+import { ART_TIMEOUT_MS, MAX_REWORK_BODY_BYTES, shownNames } from "../src/creator.ts";
 import { usernameSchema } from "../src/identity.ts";
 import { IMAGE_LIMITS, toPortrait } from "../src/images.ts";
 import { KEEPALIVE_INTERVAL_MS } from "../src/keepalive.ts";
@@ -44,7 +44,7 @@ import {
 } from "./fake-upstream.ts";
 import { integrationHeaders, ownerHeaders, postJson, TEST_USER, testApp } from "./helpers.ts";
 import { html, imageMetadata, plainJpeg, plainPng, pngWithNoise } from "./image-fixtures.ts";
-import { TEST_WORKFLOWS } from "./test-workflows.ts";
+import { storeUserWorkflow, TEST_WORKFLOWS, userGraph } from "./test-workflows.ts";
 import { muteConsole, until } from "./vitest-helpers.ts";
 
 const COMFY = "https://comfy.test:8188";
@@ -1182,6 +1182,120 @@ describe("the art's workflow", () => {
   });
 });
 
+describe("a user's workflow", () => {
+  const steps = (comfy: ReturnType<typeof setup>["comfy"]) =>
+    ([...comfy.state.prompts.values()] as WorkflowGraph[]).map((graph) => graph["7"]?.inputs.steps);
+
+  it("paints a portrait batch with the saved one and a New art batch with the named one", async () => {
+    for (const named of [false, true]) {
+      const { app, comfy, stores } = setup({ upstream: { chunks: [IMAGE_PROMPT] } });
+      const { id } = storeUserWorkflow(stores.workflows);
+      if (!named) stores.settings.update({ comfyuiWorkflow: id });
+      // The portrait batch names no workflow and paints with the saved one.
+      const { workflow: _named, ...unnamed } = artRequest;
+      const body = named ? { ...artRequest, workflow: id } : unnamed;
+      const all = await artEvents(await app.request("/api/creator/art", postJson(body)));
+      expect(all.filter((event) => event.type === "image")).toHaveLength(CREATOR_ART.count);
+      expect(all.at(-1)).toEqual({ type: "done" });
+      expect(steps(comfy)).toEqual([5]);
+      await until(() => comfy.clean());
+    }
+  });
+
+  it.each(["remove", "replace"] as const)(
+    "completes with the graph it was admitted with after a %s mid-run",
+    async (change) => {
+      let changeNow = () => {};
+      const { app, comfy, stores } = setup({
+        upstream: { chunks: [IMAGE_PROMPT] },
+        comfy: {
+          images: () => {
+            changeNow();
+            return Array.from({ length: CREATOR_ART.count }, () => fakePng());
+          },
+        },
+      });
+      const { id, uuid } = storeUserWorkflow(stores.workflows);
+      changeNow = () => {
+        if (change === "remove") expect(stores.workflows.remove(uuid)).toBe(true);
+        else stores.workflows.replaceGraph(uuid, userGraph(9), 0);
+      };
+      const all = await artEvents(
+        await app.request("/api/creator/art", postJson({ ...artRequest, workflow: id })),
+      );
+      expect(all.filter((event) => event.type === "image")).toHaveLength(CREATOR_ART.count);
+      expect(all.at(-1)).toEqual({ type: "done" });
+      expect(steps(comfy)).toEqual([5]);
+      expect(stores.workflows.get(uuid)?.graph["7"]?.inputs.steps).toBe(
+        change === "remove" ? undefined : 9,
+      );
+      await until(() => comfy.clean());
+    },
+  );
+
+  it("refuses one whose class the allowlist no longer admits before any stream, calling no one", async () => {
+    const { app, upstream, comfy, stores } = setup({ upstream: { chunks: [IMAGE_PROMPT] } });
+    const { id } = storeUserWorkflow(stores.workflows, {
+      graph: userGraph(5, { "20": { class_type: "OperatorNode", inputs: {} } }),
+    });
+    for (const body of [
+      { ...artRequest, workflow: id },
+      { ...artRequest, reference: { characterId: crypto.randomUUID() }, workflow: id },
+    ]) {
+      const response = await app.request("/api/creator/art", postJson(body));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "invalid_request" });
+    }
+    expect(upstream.records).toEqual([]);
+    expect(comfy.state.requests).toEqual([]);
+  });
+
+  it("answers the status of the stored graph, with a blocked class among the missing nodes", async () => {
+    const { app, stores } = setup();
+    const graph = userGraph();
+    const loader = graph["1"];
+    if (loader === undefined) throw new Error("no loader");
+    loader.inputs.unet_name = "mine.safetensors";
+    const mine = storeUserWorkflow(stores.workflows, { name: "Mine", graph });
+    const blocked = storeUserWorkflow(stores.workflows, {
+      name: "Blocked",
+      graph: userGraph(5, { "20": { class_type: "OperatorNode", inputs: {} } }),
+    });
+    const status = async (workflow: string) => {
+      const response = await app.request(`/api/creator/art/status?workflow=${workflow}`, {
+        headers: ownerHeaders(),
+      });
+      expect(response.status).toBe(200);
+      return creatorArtStatusSchema.parse(await response.json());
+    };
+    expect(await status(mine.id)).toEqual({
+      state: "missing",
+      nodes: [],
+      models: ["mine.safetensors"],
+    });
+    expect(await status(blocked.id)).toEqual({
+      state: "missing",
+      nodes: ["OperatorNode"],
+      models: [],
+    });
+  });
+
+  it("is listed first, with its scope and family, and a blocked one stays listed", async () => {
+    const { app, stores } = setup();
+    const mine = storeUserWorkflow(stores.workflows, { name: "Mine", family: "moss" });
+    const blocked = storeUserWorkflow(stores.workflows, {
+      name: "Blocked",
+      graph: userGraph(5, { "20": { class_type: "OperatorNode", inputs: {} } }),
+    });
+    const response = await app.request("/api/creator/art/workflows", { headers: ownerHeaders() });
+    expect(creatorArtWorkflowsSchema.parse(await response.json()).workflows).toEqual([
+      { id: blocked.id, name: "Blocked", family: "krea2", scope: "user" },
+      { id: mine.id, name: "Mine", family: "moss", scope: "user" },
+      ...TEST_WORKFLOWS.list.workflows,
+    ]);
+  });
+});
+
 describe("GET /api/creator/art/status", () => {
   const status = async (app: ReturnType<typeof setup>["app"], workflow?: string) => {
     const query = workflow === undefined ? "" : `?workflow=${workflow}`;
@@ -1227,6 +1341,18 @@ describe("GET /api/creator/art/status", () => {
       nodes: ["ModelAttentionBackend"],
       models: ["qwen_image_vae.safetensors"],
     });
+  });
+
+  it("keeps a long missing list within the answer's caps", () => {
+    const many = Array.from({ length: 70 }, (_, i) => `model-${i}.safetensors`);
+    const shown = shownNames(["", "x".repeat(300), ...many, "model-0.safetensors"]);
+    expect(shown).toHaveLength(64);
+    expect(shown[0]).toBe("(no file chosen)");
+    expect(shown[1]).toHaveLength(256);
+    expect(new Set(shown).size).toBe(64);
+    expect(
+      creatorArtStatusSchema.safeParse({ state: "missing", nodes: [], models: shown }).success,
+    ).toBe(true);
   });
 
   it("reports a MOSS workflow ready only when its LoRA is installed, without submitting a prompt", async () => {
@@ -1312,8 +1438,18 @@ describe("GET /api/creator/art/workflows", () => {
     expect(response.status).toBe(200);
     const { workflows } = creatorArtWorkflowsSchema.parse(await response.json());
     expect(workflows).toEqual(TEST_WORKFLOWS.list.workflows);
-    expect(workflows).toContainEqual({ id: "krea2-fixture", name: "Krea 2 Fixture" });
-    expect(workflows).toContainEqual({ id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo" });
+    expect(workflows).toContainEqual({
+      id: "krea2-fixture",
+      name: "Krea 2 Fixture",
+      family: "krea2",
+      scope: "server",
+    });
+    expect(workflows).toContainEqual({
+      id: "krea2-gonzalomo",
+      name: "Krea 2 Gonzalomo",
+      family: "krea2",
+      scope: "server",
+    });
     expect(comfy.state.requests).toEqual([]);
   });
 });

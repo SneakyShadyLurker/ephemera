@@ -32,6 +32,10 @@ import type {
   StoredPersona,
   StoredPromptPreset,
   StoredSamplerPreset,
+  StoredWorkflow,
+  WorkflowFields,
+  WorkflowGraph,
+  WorkflowSummary,
 } from "@ephemera/core";
 import { z } from "zod";
 import type { Username } from "../identity.ts";
@@ -290,6 +294,28 @@ export interface CustomPaletteStore {
   delete(slot: CustomSlot, updatedAt: number): "deleted" | "missing" | "changed";
 }
 
+/** A workflow create's outcome: "full" at `WORKFLOW_LIMITS.workflows`, "name_taken" for a name another has in any case. */
+export type WorkflowCreation = "created" | "full" | "name_taken";
+
+/** The user's imported ComfyUI workflows, by uuid (the public id is `user-<uuid>`). */
+export interface WorkflowStore {
+  /** Summaries by name, case-insensitively; never the graph. */
+  list(): WorkflowSummary[];
+  get(id: string): StoredWorkflow | undefined;
+  /** Client-chosen id; a repeat of the same create is a no-op "created". */
+  create(fields: WorkflowFields, id: string): WorkflowCreation;
+  /** Metadata edit: name and family only, never the graph. */
+  update(
+    id: string,
+    patch: Patch<Pick<WorkflowFields, "name" | "family">>,
+    revision: number,
+  ): Updated<StoredWorkflow> | "name_taken";
+  /** Graph replacement: the finalized template and its node count. */
+  replaceGraph(id: string, graph: WorkflowGraph, revision: number): Updated<StoredWorkflow>;
+  /** Removes it; settings naming `user-<id>` return to the server's default workflow in the same transaction. */
+  remove(id: string): boolean;
+}
+
 /** Characters' cast sheets; a sheet goes with its character (cascade). */
 export interface CastSheetStore {
   /** The character's sheet, or null while none was read. */
@@ -312,6 +338,7 @@ export interface Stores {
   castSheets: CastSheetStore;
   settings: SettingsStore;
   palettes: CustomPaletteStore;
+  workflows: WorkflowStore;
 }
 
 /** One user's open instance: their stores over their in-memory database. */

@@ -1,9 +1,10 @@
 import { serveStatic } from "@hono/bun";
 import { createApp } from "./app.ts";
+import { createAllowlist } from "./comfyui/allowlist.ts";
 import {
   loadWorkflowRegistry,
+  type ServerWorkflows,
   WorkflowFileError,
-  type WorkflowRegistry,
 } from "./comfyui/workflow.ts";
 import { ConfigError, loadConfig } from "./config.ts";
 import { internalErrorResponse } from "./http.ts";
@@ -48,13 +49,18 @@ try {
 }
 
 const { staticDir, dataDir, dataKey: key } = config;
+// The curated node classes plus EPHEMERA_COMFYUI_EXTRA_NODES.
+const allowlist = createAllowlist(config.extraNodes);
 // The bundled graphs and those of EPHEMERA_WORKFLOWS_DIR, read once; a bad
-// file or a default without a graph stops the start.
-let workflows: WorkflowRegistry;
+// file, a node class outside the allowlist or a default without a graph
+// stops the start.
+let workflows: ServerWorkflows;
 try {
   workflows = loadWorkflowRegistry({
     workflowsDir: config.workflowsDir,
     defaultWorkflow: config.defaultWorkflow,
+    allowlist,
+    log,
   });
 } catch (error) {
   log.error({
@@ -93,6 +99,7 @@ const app = createApp(config, {
   log,
   instances,
   workflows,
+  allowlist,
   ...(staticDir && {
     staticFiles: [serveStatic({ root: staticDir })],
     appShell: serveStatic({ root: staticDir, path: "index.html" }),

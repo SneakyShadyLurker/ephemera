@@ -8,7 +8,7 @@
 import { CREATOR_ART } from "@ephemera/core";
 import { encode } from "fast-png";
 import type { ComfySocket, ComfySocketFactory } from "../src/comfyui/client.ts";
-import type { WorkflowRegistry } from "../src/comfyui/workflow.ts";
+import type { ServerWorkflows } from "../src/comfyui/workflow.ts";
 import { pngChunk } from "./image-fixtures.ts";
 import { TEST_WORKFLOWS } from "./test-workflows.ts";
 
@@ -82,10 +82,12 @@ export interface FakeComfyuiOptions {
   /** The workflow whose nodes and model files are installed; the default when absent. */
   installedWorkflow?: string;
   /** Where `installedWorkflow` is found; the public graphs and the test fixtures by default. */
-  workflows?: WorkflowRegistry;
+  workflows?: ServerWorkflows;
   /** Node classes and model files `/object_info` leaves out. */
   missingNodes?: string[];
   missingModels?: string[];
+  /** Classes `/object_info` reports as output nodes besides the save classes. */
+  outputNodes?: string[];
   /**
    * What the save node sends, as whole PNGs; by default as many valid
    * portraits as the submitted graph's `batch_size`.
@@ -172,6 +174,23 @@ class FakeSocket implements ComfySocket {
     this.closed = true;
   }
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The required inputs of an `/object_info` entry the fake built, to add to. */
+const requiredOf = (entry: unknown): Record<string, unknown> => {
+  const required: unknown = isRecord(entry) && isRecord(entry.input) ? entry.input.required : {};
+  return isRecord(required) ? required : {};
+};
+
+/** A combo's choices in either format the fake writes. */
+const comboOf = (spec: unknown): string[] => {
+  if (!Array.isArray(spec)) return [];
+  const [kind, config] = spec;
+  const choices: unknown = kind === "COMBO" && isRecord(config) ? config.options : kind;
+  return Array.isArray(choices) ? choices.filter((file) => typeof file === "string") : [];
+};
 
 const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -381,27 +400,118 @@ export function fakeComfyui(options: FakeComfyuiOptions = {}) {
   let startingAnswers = options.startingAnswers ?? 0;
   let cancelNoops = options.nativeCancelNoops ?? 0;
 
+  /**
+   * `/object_info` for the installed graphs' classes plus a checkpoint, a
+   * LoRA stack, a dual CLIP, a model patch and a VAE loader and the save
+   * classes ComfyUI ships: a string input becomes a
+   * combo of the graph's value (a file input also lists another file), a
+   * placeholder its widget type, a link a socket type, as ComfyUI answers.
+   */
   function objectInfo() {
-    const info: Record<string, unknown> = {};
+    const info: Record<string, unknown> = {
+      CheckpointLoaderSimple: {
+        input: { required: { ckpt_name: [["fixture-checkpoint.safetensors"], {}] } },
+        output: ["MODEL", "CLIP", "VAE"],
+      },
+      LoadLoraModel: {
+        input: {
+          required: {
+            model: ["MODEL"],
+            loras: [
+              "COMFY_DYNAMICGROUP_V3",
+              {
+                template: {
+                  required: {
+                    lora_name: [["fixture-lora.safetensors"], {}],
+                    strength: ["FLOAT", { default: 1 }],
+                    enabled: ["BOOLEAN", { default: true }],
+                  },
+                },
+                min: 1,
+                max: 20,
+                group_name: "LoRA",
+              },
+            ],
+          },
+        },
+        output: ["MODEL"],
+      },
+      DualCLIPLoader: {
+        input: {
+          required: {
+            clip_name1: [["installed-clip-l.safetensors"], {}],
+            clip_name2: [["installed-clip-l.safetensors"], {}],
+            type: [["flux", "sdxl"], {}],
+          },
+        },
+        output: ["CLIP"],
+      },
+      ModelPatchLoader: {
+        input: { required: { name: [["installed-patch.safetensors"], {}] } },
+        output: ["MODEL_PATCH"],
+      },
+      VAELoader: {
+        input: { required: { vae_name: [["installed-vae.safetensors", "pixel_space"], {}] } },
+        output: ["VAE"],
+      },
+      SaveImage: {
+        input: { required: { images: ["IMAGE"], filename_prefix: ["STRING", {}] } },
+        output: [],
+        output_node: true,
+      },
+      PreviewImage: { input: { required: { images: ["IMAGE"] } }, output: [], output_node: true },
+    };
     const nodes = [...referenceNodes, ...Object.values(workflow.graph)];
     if (mode === "private") nodes.push({ class_type: "AtelierSaveImages", inputs: {} });
     for (const node of nodes) {
-      if (options.missingNodes?.includes(node.class_type)) continue;
-      const required: Record<string, unknown> = {};
-      for (const model of [...workflow.models, ...(reference?.models ?? [])].filter(
-        (m) => m.classType === node.class_type,
-      )) {
-        const existing = required[model.input] as [string[], unknown] | undefined;
-        const files = [
-          ...(Array.isArray(existing?.[0]) ? existing[0] : []),
-          model.file,
-          "other.safetensors",
-        ].filter((file) => !options.missingModels?.includes(file));
-        // Both formats ComfyUI uses for a combo input.
-        required[model.input] =
-          node.class_type === "CLIPLoader" ? ["COMBO", { options: files }] : [files, {}];
+      const required = requiredOf(info[node.class_type]);
+      for (const [name, value] of Object.entries(node.inputs)) {
+        const placeholder =
+          typeof value === "string" ? /^\{\{(\w+)\}\}$/.exec(value)?.[1] : undefined;
+        if (placeholder === "prompt" || name === "text") {
+          required[name] = ["STRING", { multiline: true }];
+        } else if (placeholder !== undefined) {
+          required[name] =
+            placeholder === "seed" ? ["INT", { control_after_generate: true }] : ["INT", {}];
+        } else if (typeof value === "string") {
+          const listed = comboOf(required[name]);
+          const files = [
+            ...new Set([
+              ...listed,
+              value,
+              // A loader also lists another file; a sampler lists its value only.
+              ...(/_(name|path)$/.test(name) && name !== "sampler_name"
+                ? ["other.safetensors"]
+                : []),
+            ]),
+          ].filter((file) => !options.missingModels?.includes(file));
+          // Both formats ComfyUI uses for a combo input.
+          required[name] =
+            node.class_type === "CLIPLoader" ? ["COMBO", { options: files }] : [files, {}];
+        } else if (typeof value === "number") {
+          required[name] = [Number.isInteger(value) ? "INT" : "FLOAT", {}];
+        } else if (typeof value === "boolean") {
+          required[name] = ["BOOLEAN", {}];
+        } else {
+          required[name] = ["ANY"];
+        }
       }
-      info[node.class_type] = { input: { required }, output: [], name: node.class_type };
+      info[node.class_type] = {
+        input: { required },
+        output: [],
+        output_node:
+          node.class_type === "SaveImageWebsocket" || node.class_type === "AtelierSaveImages",
+      };
+    }
+    for (const [name, entry] of Object.entries(info)) {
+      if (options.missingNodes?.includes(name)) delete info[name];
+      else
+        info[name] = {
+          ...(entry as object),
+          name,
+          display_name: name,
+          ...(options.outputNodes?.includes(name) ? { output_node: true } : {}),
+        };
     }
     return info;
   }

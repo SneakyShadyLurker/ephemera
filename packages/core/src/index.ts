@@ -120,6 +120,10 @@ export {
   samplerPresetsResponseSchema,
   savedCharacterResponseSchema,
   settingsResponseSchema,
+  workflowDeleteResponseSchema,
+  workflowResponseSchema,
+  workflowSavedResponseSchema,
+  workflowsResponseSchema,
 } from "./responses.ts";
 export { conflictSchema } from "./revision.ts";
 export * from "./scene/index.ts";
@@ -128,6 +132,7 @@ export {
   castModelOf,
   castReasoningOf,
   comfyuiWorkflowIdSchema,
+  comfyuiWorkflowOptionSchema,
   DEFAULT_SETTINGS,
   imagePromptModelOf,
   memoryModelOf,
@@ -149,3 +154,11 @@ export {
   callRecordSchema,
   MAX_CALL_RECORDS,
 } from "./usage.ts";
+export { artFamilySchema, fileFamilyOf } from "./workflow/family.ts";
+export * from "./workflow/finalize.ts";
+export * from "./workflow/graph.ts";
+export * from "./workflow/id.ts";
+export * from "./workflow/meta.ts";
+export * from "./workflow/models.ts";
+export * from "./workflow/schema.ts";
+export * from "./workflow/slots.ts";

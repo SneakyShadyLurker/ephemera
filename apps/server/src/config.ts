@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { comfyuiWorkflowIdSchema } from "@ephemera/core";
 import { z } from "zod";
 import { BUILD_REVISION } from "./build.ts";
+import { isRefusedNodeClass } from "./comfyui/allowlist.ts";
 import { readCertificate } from "./persistence/certificate.ts";
 
 const originSchema = z
@@ -21,6 +22,18 @@ const comfyuiOriginsSchema = z
       .filter((origin) => origin !== ""),
   )
   .pipe(z.array(originSchema.refine((origin) => /^https?:/.test(origin), "must be http or https")));
+
+/** ComfyUI node classes the operator adds to the allowlist: comma-separated, at most 200. */
+const extraNodesSchema = z
+  .string()
+  .default("")
+  .transform((value) =>
+    value
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name !== ""),
+  )
+  .pipe(z.array(z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/)).max(200));
 
 /** An optional variable; the empty value `.env.example` ships counts as unset. */
 const optional = <T extends z.ZodType<string>>(schema: T) =>
@@ -72,6 +85,8 @@ const envSchema = z.object({
   EPHEMERA_WORKFLOWS_DIR: optional(z.string().min(1)),
   /** The workflow a new user starts with and a vanished choice falls back to; the core one when unset. */
   EPHEMERA_DEFAULT_WORKFLOW: optional(comfyuiWorkflowIdSchema),
+  /** More node classes graphs may use, each kept in memory on the operator's word; never a save or preview node. */
+  EPHEMERA_COMFYUI_EXTRA_NODES: extraNodesSchema,
 });
 
 export interface AppConfig {
@@ -105,18 +120,26 @@ interface ServerConfig extends AppConfig {
   /** Read by the workflow registry index.ts builds; the app gets the registry, not these. */
   workflowsDir: string | undefined;
   defaultWorkflow: string | undefined;
+  /** The node classes index.ts adds to the allowlist. */
+  extraNodes: readonly string[];
 }
 
 export class ConfigError extends Error {
   override name = "ConfigError";
   readonly variables: string[];
-  constructor(variables: string[]) {
-    super(`Invalid or missing environment variables: ${variables.join(", ")}`);
+  /** `detail` says what is wrong without quoting a secret. */
+  constructor(variables: string[], detail?: string) {
+    super(
+      `Invalid or missing environment variables: ${variables.join(", ")}${detail === undefined ? "" : ` (${detail})`}`,
+    );
     this.variables = variables;
   }
 }
 
-/** Reads the environment. Errors name variables only, never their values. */
+/**
+ * Reads the environment. Errors name variables only, never their values; a
+ * refused node class, which is no secret, is named so the operator can remove it.
+ */
 export function loadConfig(env: Record<string, string | undefined>): ServerConfig {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
@@ -131,6 +154,13 @@ export function loadConfig(env: Record<string, string | undefined>): ServerConfi
   // A shared value would give the integration the SWAG key's reach.
   if (e.EPHEMERA_INTEGRATION_KEY === e.EPHEMERA_PROXY_KEY) {
     throw new ConfigError(["EPHEMERA_INTEGRATION_KEY"]);
+  }
+  const refused = e.EPHEMERA_COMFYUI_EXTRA_NODES.find(isRefusedNodeClass);
+  if (refused !== undefined) {
+    throw new ConfigError(
+      ["EPHEMERA_COMFYUI_EXTRA_NODES"],
+      `${refused} writes files or shows output and is always refused`,
+    );
   }
   return {
     upstreamBaseUrl: e.EPHEMERA_UPSTREAM_BASE_URL,
@@ -151,5 +181,6 @@ export function loadConfig(env: Record<string, string | undefined>): ServerConfi
     dataKey: e.EPHEMERA_DATA_KEY,
     workflowsDir: e.EPHEMERA_WORKFLOWS_DIR,
     defaultWorkflow: e.EPHEMERA_DEFAULT_WORKFLOW,
+    extraNodes: e.EPHEMERA_COMFYUI_EXTRA_NODES,
   };
 }

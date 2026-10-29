@@ -183,6 +183,13 @@
       "when": 1793037246793,
       "tag": "0025_image_prompt_model",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1793255969172,
+      "tag": "0026_workflows",
+      "breakpoints": true
     }
   ]
 }

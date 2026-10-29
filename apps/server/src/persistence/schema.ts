@@ -1,4 +1,5 @@
 import type {
+  ArtFamily,
   AuthorsNote,
   CastSheetEntry,
   CharacterCard,
@@ -19,6 +20,7 @@ import type {
   SamplerValues,
   Settings,
   Theme,
+  WorkflowFields,
 } from "@ephemera/core";
 import { sql } from "drizzle-orm";
 import {
@@ -32,6 +34,7 @@ import {
   sqliteTable,
   text,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 /*
@@ -40,10 +43,11 @@ import {
  * to characters, events (their definitions; which event fired where is
  * chat content and has no column), characters' memories (the notebook
  * and the episodes the memory call wrote; the span they came from, its
- * turns and its chat have no column) and characters' cast sheets (the
+ * turns and its chat have no column), characters' cast sheets (the
  * people the card names, derived from the card alone; a chat's cast
- * register has no column). There is no table, column or code
- * path for chat content. Card data and portrait images are separate rows
+ * register has no column) and imported ComfyUI workflows (configuration:
+ * a graph template whose prompt is a placeholder, never text). There is no
+ * table, column or code path for chat content. Card data and portrait images are separate rows
  * (PRINCIPLES.md 3); a portrait row keeps the thumbnail and names the
  * encrypted file under `users/<username>/portraits/` that holds the PNG.
  * Column names are snake_case through Drizzle's casing.
@@ -124,6 +128,30 @@ export const characterLorebooks = sqliteTable(
     primaryKey({ columns: [table.characterId, table.lorebookId] }),
     index("character_lorebooks_lorebook_id_idx").on(table.lorebookId),
   ],
+);
+
+/**
+ * A ComfyUI workflow the user imported: the finalized API-format template
+ * (its prompt a placeholder, never text) under the uuid the public id
+ * `user-<uuid>` names. Settings name it by that string, without a
+ * reference: deleting it returns them to the server's default
+ * (persistence/workflows.ts). Names are unique regardless of case.
+ */
+export const workflows = sqliteTable(
+  "workflows",
+  {
+    id: text().primaryKey(),
+    name: text().notNull(),
+    family: text().$type<ArtFamily>().notNull(),
+    graph: text({ mode: "json" }).$type<WorkflowFields["graph"]>().notNull(),
+    /** The graph's node count for the list, written with every graph. */
+    nodes: integer().notNull(),
+    /** One more with every edit; a stale edit is refused (optimistic concurrency). */
+    revision: integer().notNull().default(0),
+    createdAt: integer().notNull(),
+    updatedAt: integer().notNull(),
+  },
+  (table) => [uniqueIndex("workflows_name_idx").on(sql`${table.name} COLLATE NOCASE`)],
 );
 
 /**

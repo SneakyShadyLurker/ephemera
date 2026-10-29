@@ -12,6 +12,8 @@ import { importReportSchema } from "./preset/sillytavern.ts";
 import { inspectedPromptSchema } from "./prompt/inspect.ts";
 import { revisionSchema } from "./revision.ts";
 import { settingsSchema } from "./settings.ts";
+import { WORKFLOW_LIMITS } from "./workflow/graph.ts";
+import { storedWorkflowSchema, workflowSummarySchema } from "./workflow/schema.ts";
 
 /*
  * The JSON bodies the server answers and the web app reads, each defined
@@ -105,6 +107,23 @@ export const eventsResponseSchema = z.object({ events: z.array(storedEventSchema
 
 /** The requester's settings, as read and after a change. */
 export const settingsResponseSchema = z.object({ settings: settingsSchema });
+
+/** Every workflow the user imported (`GET /api/workflows`); the picker lists both sets elsewhere. */
+export const workflowsResponseSchema = z.object({
+  workflows: z.array(workflowSummarySchema).max(WORKFLOW_LIMITS.workflows),
+});
+
+/** One workflow after a metadata edit. */
+export const workflowResponseSchema = z.object({ workflow: storedWorkflowSchema });
+
+/** One workflow after a create or graph replacement, and whether the live ComfyUI checked it. */
+export const workflowSavedResponseSchema = z.object({
+  workflow: storedWorkflowSchema,
+  checked: z.boolean(),
+});
+
+/** A workflow deleted: the settings as they stand after the fallback to the default workflow. */
+export const workflowDeleteResponseSchema = settingsResponseSchema;
 
 /** Every custom palette. */
 export const palettesResponseSchema = z.object({ palettes: z.array(customPaletteSchema) });

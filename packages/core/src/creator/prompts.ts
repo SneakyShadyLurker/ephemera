@@ -150,20 +150,19 @@ Write your answer as these sections, each wrapped in a tag of the same name, in 
 - creatorNotes: one or two sentences that tell the player what this scenario offers.`;
 
 /*
- * The image models the workflows run, each named by the first word of a
- * workflow's id: "krea2-gonzalomo" runs Krea 2, "moss-sample" MOSS Image.
+ * The image-model families a workflow belongs to, each with its own art
+ * metaprompt wording: Krea 2, MOSS Image, and General for any other model.
  */
-export const ART_MODELS = ["krea2", "moss"] as const;
-export type ArtModel = (typeof ART_MODELS)[number];
-
-/** The image model a workflow id names, or undefined for a first word no model has. */
-export const artModelOf = (workflow: string): ArtModel | undefined =>
-  ART_MODELS.find((model) => model === workflow.split("-", 1)[0]);
+export const ART_FAMILIES = ["krea2", "moss", "general"] as const;
+export type ArtFamily = (typeof ART_FAMILIES)[number];
 
 /* How an art metaprompt names the image model, the photo it asks for and the anatomy it bares. */
 interface ArtWords {
-  id: ArtModel;
+  id: ArtFamily;
+  /** The model as the subject of a sentence. */
   model: string;
+  /** The model as the metaprompt's opening line names it. */
+  imageModel: string;
   photo: string;
   vulva: string;
   vulvaShapes: string;
@@ -172,7 +171,7 @@ interface ArtWords {
   form: string;
 }
 
-const ART_WORDS: Readonly<Record<ArtModel, ArtWords>> = {
+const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
   /*
    * The words the NSFW Krea 2 checkpoints answer to: "pussy" over "vagina"
    * or "genitals", with the pubic hair and shape named.
@@ -180,6 +179,7 @@ const ART_WORDS: Readonly<Record<ArtModel, ArtWords>> = {
   krea2: {
     id: "krea2",
     model: "Krea 2",
+    imageModel: "the Krea 2 image model",
     photo: "photograph",
     vulva: "pussy",
     vulvaShapes: "puffy outer lips, a closed slit or visible inner lips",
@@ -193,11 +193,23 @@ const ART_WORDS: Readonly<Record<ArtModel, ArtWords>> = {
   moss: {
     id: "moss",
     model: "MOSS",
+    imageModel: "the MOSS image model",
     photo: "candid RAW photo",
     vulva: "vulva",
     vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
     ass: "buttocks",
     form: ` Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the chosen look words it.`,
+  },
+  /* Any other image model: plain anatomical words and no model-specific rule. */
+  general: {
+    id: "general",
+    model: "The image model",
+    imageModel: "the image model",
+    photo: "photograph",
+    vulva: "vulva",
+    vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
+    ass: "buttocks",
+    form: "",
   },
 };
 
@@ -326,7 +338,7 @@ const POSE_WORDS =
 /* A Subject's regular cover shows one person in one frame. */
 const SUBJECT_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for the ${w.model} image model. From the character notes you receive, write one prompt for a vertical 2:3 ${w.photo} that will be the cover of a roleplay character card: one woman in one single frame.
+) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 ${w.photo} that will be the cover of a roleplay character card: one woman in one single frame.
 
 ${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()}
 
@@ -338,7 +350,7 @@ ${CHARACTER_SCENE(w, "", "cover")}`;
 /* A Subject's cover shows the one woman from the front and from behind. */
 const SUBJECT_DIPTYCH_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for the ${w.model} image model. From the character notes you receive, write one prompt for a vertical 2:3 diptych that will be the cover of a roleplay character card: one ${w.photo} split into two tall vertical panels side by side, showing the same woman in one moment, in the same place, light, clothing, pose and position.
+) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 diptych that will be the cover of a roleplay character card: one ${w.photo} split into two tall vertical panels side by side, showing the same woman in one moment, in the same place, light, clothing, pose and position.
 
 ${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()} She holds one pose in both panels, and only the camera moves, to directly behind her.
 
@@ -349,7 +361,7 @@ ${CHARACTER_SCENE(w, ", the same in both panels", "diptych")}`;
 
 const GROUP_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for the ${w.model} image model. From the character notes you receive, write one prompt for a vertical 2:3 group photo that will be the cover of a roleplay character card.
+) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 group photo that will be the cover of a roleplay character card.
 
 ${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()}
 
@@ -365,7 +377,7 @@ ${CHARACTER_SCENE(w, "", "group")}`;
  */
 const SCENARIO_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for the ${w.model} image model. From the scenario notes you receive, write one prompt for a vertical 2:3 movie poster that will be the cover of a roleplay scenario card: a cinematic film still of the place and moment where the story begins, with women only, under the scenario's title in poster lettering.
+) => `You write image prompts for ${w.imageModel}. From the scenario notes you receive, write one prompt for a vertical 2:3 movie poster that will be the cover of a roleplay scenario card: a cinematic film still of the place and moment where the story begins, with women only, under the scenario's title in poster lettering.
 
 Use only what the notes establish about the world and its people, and only what a ${w.photo} can show: no voice, scent or sexual experience, and no invented landmarks, creatures or text beyond the title. ${NAMES_RULE(w, true)} Make the world recognisable through what is visible, its dress and technology included. ${PERSONALITY_POSE("the notes' People give her kind of person, or that fits her place in this world")}
 
@@ -397,20 +409,22 @@ const artMetaprompts = (w: ArtWords): Readonly<Record<CreatorKind, string>> => (
 });
 
 /** The metaprompt that turns the art source into one image prompt, by image model and kind. */
-export const ART_METAPROMPTS: Readonly<Record<ArtModel, Readonly<Record<CreatorKind, string>>>> = {
+export const ART_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<CreatorKind, string>>>> = {
   krea2: artMetaprompts(ART_WORDS.krea2),
   moss: artMetaprompts(ART_WORDS.moss),
+  general: artMetaprompts(ART_WORDS.general),
 };
 
 /** The explicit front/rear option for Subject portraits. */
-export const SUBJECT_DIPTYCH_METAPROMPTS: Readonly<Record<ArtModel, string>> = {
+export const SUBJECT_DIPTYCH_METAPROMPTS: Readonly<Record<ArtFamily, string>> = {
   krea2: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.krea2),
   moss: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.moss),
+  general: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.general),
 };
 
 /** Absent composition means regular; other kinds always keep their own framing. */
 export function artMetaprompt(
-  model: ArtModel,
+  model: ArtFamily,
   kind: CreatorKind,
   composition: CreatorArtComposition = "regular",
 ): string {
@@ -510,7 +524,7 @@ const SCENARIO_SCENE_SOURCE = (w: ArtWords) =>
 
 const SCENE_ART_PROMPT = (w: ArtWords, kind: CreatorKind) => {
   const c = SCENE_CASTS[kind];
-  return `You write image prompts for the ${w.model} image model. From the ${c.notes} and the chat excerpt you receive, write one prompt for a vertical 2:3 ${w.photo} of ${c.who}, as they are at the end of the excerpt: where they are, what they are doing and how they look at that moment.
+  return `You write image prompts for ${w.imageModel}. From the ${c.notes} and the chat excerpt you receive, write one prompt for a vertical 2:3 ${w.photo} of ${c.who}, as they are at the end of the excerpt: where they are, what they are doing and how they look at that moment.
 
 ${c.fromCard ? CHARACTER_SOURCE(w) : SCENARIO_SCENE_SOURCE(w)} The excerpt is the only source for the moment: the place and time, the light, ${c.their} position, pose, action, expression, eyes and clothing as the latest turns leave them. Where the excerpt says nothing about one of these, take it from the notes; where neither says, choose what fits the moment. Only where the excerpt leaves posing details open, pose each person by their dominant personality trait, the one a picture can show most clearly, and their mannerisms, in posture, body language, gesture, gaze and expression; keep distinct personalities visibly distinct. Never replace an explicit current pose or action from the excerpt with a personality-based pose. ${SCENE_LOOKS(c)} ${c.frame} The excerpt names people; describe ${c.them} and never write a name.
 
@@ -528,8 +542,9 @@ const sceneMetaprompts = (w: ArtWords): Readonly<Record<CreatorKind, string>> =>
 });
 
 /** The metaprompt that turns a scene source into one image prompt, by image model and card kind. */
-export const SCENE_METAPROMPTS: Readonly<Record<ArtModel, Readonly<Record<CreatorKind, string>>>> =
+export const SCENE_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<CreatorKind, string>>>> =
   {
     krea2: sceneMetaprompts(ART_WORDS.krea2),
     moss: sceneMetaprompts(ART_WORDS.moss),
+    general: sceneMetaprompts(ART_WORDS.general),
   };

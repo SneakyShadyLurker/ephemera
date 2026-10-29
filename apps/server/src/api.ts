@@ -21,8 +21,10 @@ import type { z } from "zod";
 import { createCastApi } from "./cast.ts";
 import { createCatalog, type UpstreamFetch } from "./catalog.ts";
 import { createCharactersApi } from "./characters.ts";
+import type { NodeAllowlist } from "./comfyui/allowlist.ts";
+import { type CatalogFor, createWorkflowCatalog } from "./comfyui/catalog.ts";
 import { type ComfySocketFactory, createComfyui } from "./comfyui/client.ts";
-import type { WorkflowRegistry } from "./comfyui/workflow.ts";
+import type { ServerWorkflows } from "./comfyui/workflow.ts";
 import type { AppConfig } from "./config.ts";
 import { ART_TIMEOUT_MS, createCreatorApi } from "./creator.ts";
 import { createEventsApi } from "./events.ts";
@@ -43,6 +45,7 @@ import { markStreaming } from "./streams.ts";
 import { createUpstream, streamFailure, streamLogging } from "./upstream.ts";
 import { callRecorder, reportedUsage } from "./usage.ts";
 import type { UserEnv } from "./user.ts";
+import { createWorkflowsApi } from "./workflows.ts";
 
 export type { PortraitSize } from "./persistence/store.ts";
 export type { PortraitKind } from "./routes.ts";
@@ -73,18 +76,22 @@ export interface ApiDeps {
   /** ComfyUI's WebSocket; Bun's native one unless a test passes a fake. */
   comfyuiSocket?: ComfySocketFactory;
   /** The workflows the server runs, built once at startup (index.ts). */
-  workflows: WorkflowRegistry;
+  workflows: ServerWorkflows;
+  /** The server's node policy (index.ts): a user's stored graph outside it is listed, never run. */
+  allowlist: NodeAllowlist;
   shutdown?: Shutdown;
 }
 
 export function createApi(config: AppConfig, deps: ApiDeps) {
-  const { log, workflows } = deps;
+  const { log, workflows, allowlist } = deps;
+  // Built for each request from the requester's own rows; nothing keeps a user's graph past it.
+  const catalogFor: CatalogFor = (c) =>
+    createWorkflowCatalog(workflows, c.var.user.stores.workflows, allowlist);
   const catalog = createCatalog(config, deps.fetch, log);
   const generation = createGeneration(catalog, deps.digest, deps.random);
   const upstream = createUpstream(config, deps.fetch, log);
   const comfyui = createComfyui({
     fetch: deps.fetch,
-    workflows,
     ...(deps.comfyuiSocket ? { socket: deps.comfyuiSocket } : {}),
     apiKey: config.comfyuiApiKey,
     ca: config.comfyuiCa,
@@ -145,7 +152,7 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
       createSettingsApi((c) => c.var.user.stores.settings, {
         log,
         comfyuiAllows: comfyui.allows,
-        workflows,
+        catalogFor,
       }),
     )
     .route(
@@ -153,8 +160,18 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
       createPalettesApi(
         (c) => c.var.user.stores.palettes,
         (c) => c.var.user.stores.settings,
-        workflows,
+        catalogFor,
       ),
+    )
+    .route(
+      MOUNTS.workflows,
+      createWorkflowsApi((c) => c.var.user.stores.workflows, {
+        log,
+        allowlist,
+        comfyui,
+        catalogFor,
+        requestTimeoutMs: config.requestTimeoutMs,
+      }),
     )
     .route(
       MOUNTS.creator,
@@ -163,7 +180,7 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
         catalog,
         upstream,
         comfyui,
-        workflows,
+        catalogFor,
         requestTimeoutMs: config.requestTimeoutMs,
         ...(deps.onStreamingRequest ? { onStreamingRequest: deps.onStreamingRequest } : {}),
         ...(deps.shutdown ? { stopping: deps.shutdown.signal } : {}),
@@ -176,7 +193,7 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
         catalog,
         upstream,
         comfyui,
-        workflows,
+        catalogFor,
         ...(deps.onStreamingRequest ? { onStreamingRequest: deps.onStreamingRequest } : {}),
         ...(deps.shutdown ? { stopping: deps.shutdown.signal } : {}),
       }),

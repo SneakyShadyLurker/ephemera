@@ -1216,8 +1216,31 @@ content's path: the tab's memory and one request in the server.
   saved one; one without a graph is refused with 400). Settings and
   the describe screen ask it for the tab's workflow, one answer per
   workflow, so a choice made while an earlier check runs gets its own.
-- **`GET /api/creator/art/workflows`**: the built-in workflows by id and
-  name, from the server's files; no call to ComfyUI.
+- **`GET /api/creator/art/workflows`**: the request's workflow catalog,
+  the user's own first, then the server's files, each by id and name with
+  its family and `scope` (`user` or `server`); no call to ComfyUI.
+- **`/api/workflows`** (`apps/server/src/workflows.ts`): the user's
+  imported workflows, JSON only. `GET /` lists their summaries, never a
+  graph; `POST /` creates one under a client-chosen id from an API-format
+  graph and the tab's choices of output, latent and prompt encoders;
+  `PATCH /:id` changes the name and family only, at a revision (a `graph`
+  key is 400); `PUT /:id/graph` replaces the graph at a revision; `DELETE
+  /:id` answers the settings, back on the default workflow when they named
+  it. Create and replace bound the body at 2 MiB and its nesting depth,
+  refuse `__proto__`, `constructor` and `prototype` as keys at every level,
+  drop each node's `_meta`, and finalize the template with core's
+  `finalizeWorkflow`, which writes the five placeholders and refuses any
+  other placeholder text (422 `invalid_workflow` with its code). The
+  template then passes the allowlist in its import context (422
+  `blocked_nodes` with the classes), the live ComfyUI's output nodes when
+  the saved address answers `/object_info` (the same 422), the dry fill
+  and the 256 KiB template bound. The answer carries `checked: false` when
+  ComfyUI did not answer or no address is saved. A user keeps at most 24
+  workflows (413 `full`), with names unique regardless of case (409
+  `name_taken`). The log carries `workflows.list`, `workflows.create`,
+  `workflows.update`, `workflows.replace` and `workflows.delete` with the
+  status, duration, node count, `checked` and the refusal class; never a
+  name, node class, model file or text.
 - **`POST /api/scene`** (`apps/server/src/scene.ts`): Picture this scene.
   The tab sends the model (Settings' image prompt model, else the chat's,
   taken at the press; no effort), the workflow, the character's
@@ -1245,27 +1268,39 @@ content's path: the tab's memory and one request in the server.
 - **ComfyUI client** (`apps/server/src/comfyui/`): the standard API
   (`/object_info`, `/prompt`, `/ws`) through the app's one outbound fetch and
   Bun's WebSocket, with the requested built-in workflow filled by JSON-safe
-  substitution. The workflows are API-format graphs, the bundled ones in
-  `comfyui/workflows/` derived from Atelier's graphs: a file's name is its
+  substitution. The workflows are API-format graphs from two sets, merged
+  for each request into one catalog (`comfyui/catalog.ts`): the user's
+  own, stored in their instance and named `user-<uuid>`, then the
+  server's files. Nothing of a user's graph outlives the request, so a
+  replaced or deleted graph is never served stale. The bundled files in
+  `comfyui/workflows/` derive from Atelier's graphs: a file's name is its
   id and gives its name on screen (`krea2-gonzalomo` is "Krea 2
-  Gonzalomo"); the id's first word names the
-  image model whose metaprompt writes the image prompt (core's `artModelOf`).
-  Adding a workflow is adding a file, and for a new image model its metaprompts.
+  Gonzalomo"), and the `user-` prefix is reserved. A file may carry a
+  reserved top-level `ephemera` key, `{ family?, name? }`, which never
+  reaches the graph and sets the family and the name on screen. Otherwise
+  the id's first word names the family whose metaprompts write the image
+  prompt: `krea2` or `moss`, and General for any other word, which the
+  `startup.workflows` log reports with the file name. Adding a workflow is
+  adding a file.
   **Workflows directory.** `EPHEMERA_WORKFLOWS_DIR` names an optional
   directory of more graphs, read with the bundled ones once at startup in
   `persistence/workflow-files.ts`, the only server code that touches the
   file system; `index.ts` builds the one registry (`loadWorkflowRegistry`)
   and passes it to every route that paints. A file that is not readable
   JSON or not a valid template (one save node, every placeholder
-  `fillWorkflow` needs and no other), a name with no known image model, an
+  `fillWorkflow` needs and no other), a name with the reserved prefix, an
   id two files share, or a default without a graph stops the start, and
   the `startup.workflows` log names the file, never its content. A node class
-  outside the one allowlist in `comfyui/workflow.ts`, which covers the
-  classes the bundled graphs use and the node classes operator graphs may
-  use, stops it the same way: no node may write to
-  disk, so a
-  `SaveImage` or `PreviewImage` node, whose PNG would carry the prompt into
-  ComfyUI's output folder, never reaches ComfyUI. An
+  outside the allowlist (`comfyui/allowlist.ts`: the curated in-memory
+  classes plus the operator's `EPHEMERA_COMFYUI_EXTRA_NODES`) stops it the
+  same way. No node may write to disk: save and preview classes (a refused
+  list and the `Save` and `Preview` name pattern, `SaveImageWebsocket`
+  excepted) are refused everywhere, and naming one in the env list stops
+  the start, so a `SaveImage` or `PreviewImage` node, whose PNG would carry
+  the prompt into ComfyUI's output folder, never reaches ComfyUI. An
+  imported graph meets the same allowlist, with `LoadImage` refused since
+  it paints from text only; a stored graph whose class later leaves the
+  list stays listed, reads `missing` and never runs. An
   external `<id>.reference.json` may pair with a bundled `<id>.json`, but
   no file replaces another. The effective default is
   `EPHEMERA_DEFAULT_WORKFLOW` when set, else core's `krea2-gonzalomo`; it
@@ -1274,19 +1309,23 @@ content's path: the tab's memory and one request in the server.
   it. Saving an unknown id is refused with 422.
   A graph keeps its sampler, scheduler, steps and CFG fixed; Ephemera
   supplies only the prompt, the seed, the 1024 x 1536 base dimensions and the count,
-  four for portraits or one for scenes. A MOSS-family graph (an id whose
-  first word is `moss`) gets the MOSS Image metaprompts, a Krea 2 graph
-  the Krea 2 ones. A graph with a hires pass must scale its final decode
+  four for portraits or one for scenes. A MOSS-family graph gets the MOSS
+  Image metaprompts, a Krea 2 graph the Krea 2 ones and any other the
+  General ones. A graph with a hires pass must scale its final decode
   back to the requested size (an `ImageScaleBy` before
   `SaveImageWebsocket`): the PNG decoder requires exactly the requested
-  dimensions. Dependency detection reads model
-  filenames from loader classes
-  ending in `Loader` and from `LoraLoaderModelOnly`, including the reference
-  graphs' ReID LoRA. The status check compares those dependencies of the
-  selected text graph with a fresh `/object_info` read and, in private mode,
-  the worker's submission allowlist; a missing model or LoRA makes it
-  `missing`, so portrait and scene consumers skip generation before sending
-  the image prompt.
+  dimensions. Model dependencies follow one rule in `comfyui/workflow.ts`
+  for server files and user workflows alike: with a live `/object_info`,
+  any string input whose spec is a combo and whose name ends in `_name` or
+  `_path`, with core's `MODEL_INPUT_EXCEPTIONS`; without one (server files
+  at start), the `_name` inputs of loader classes ending in `Loader` and of
+  `LoraLoaderModelOnly`. The reference graphs' ReID LoRA counts too. The
+  status check compares the selected text graph's dependencies with a
+  fresh `/object_info` read and, in private mode, the worker's submission
+  allowlist; a missing node class, model or LoRA, or a class the live
+  ComfyUI reports as an output node other than `SaveImageWebsocket`, makes
+  it `missing`, so portrait and scene consumers skip generation before
+  sending the image prompt.
   A file `<id>.reference.json` is the reference graph of workflow `<id>`
   (the registry's `referenceOf`), derived from Atelier's graphs like the text graph and never a
   workflow of its own; one without its `<id>.json`, or without the
@@ -1583,8 +1622,8 @@ stream is NDJSON whose keepalive frame is a blank line (`keepalive.ts`),
 not an SSE comment; and the art request reaches a second upstream, ComfyUI.
 
 The settings row holds `comfyuiBaseUrl` (empty, or an http or https address
-without credentials, query or fragment) and `comfyuiWorkflow` (a built-in
-workflow's id, chosen in the describe screen beside the model or in the
+without credentials, query or fragment) and `comfyuiWorkflow` (the id of a
+server workflow or one of the user's own, chosen in the describe screen beside the model or in the
 showcase under New art, and kept for the next card). A save naming an id without a graph is refused with
 422 `unknown_reference`, as one naming a deleted preset is, and a saved id
 whose file is gone reads as the default. The server environment holds `COMFYUI_ALLOWED_ORIGINS`, the

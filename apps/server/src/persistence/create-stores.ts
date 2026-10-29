@@ -10,11 +10,13 @@ import type { PortraitFiles } from "./portrait-files.ts";
 import { createPresetStore } from "./presets.ts";
 import { createSettingsStore } from "./settings.ts";
 import type { Stores } from "./store.ts";
+import { createWorkflowStore } from "./workflows.ts";
 
 /**
  * Every store over one database and its portrait files. Presets come first:
  * they seed what the settings point at, as `defaultWorkflow` seeds a new
- * settings row's workflow.
+ * settings row's workflow and is where deleting the chosen user workflow
+ * returns them.
  */
 export function createStores(
   db: Db,
@@ -32,5 +34,6 @@ export function createStores(
     castSheets: createCastSheetStore(db),
     settings: createSettingsStore(db, defaultWorkflow),
     palettes: createCustomPaletteStore(db),
+    workflows: createWorkflowStore(db, defaultWorkflow),
   };
 }

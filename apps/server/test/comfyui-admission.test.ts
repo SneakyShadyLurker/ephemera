@@ -9,12 +9,12 @@ import {
 } from "../src/comfyui/client.ts";
 import { createLogger } from "../src/log.ts";
 import { type FakeComfyuiOptions, fakeComfyui, fakePng } from "./fake-comfyui.ts";
-import { TEST_WORKFLOWS } from "./test-workflows.ts";
+import { serverRun } from "./test-workflows.ts";
 
 const BASE = "https://comfy.test:8188";
 const INPUT: GenerateInput = {
   baseUrl: BASE,
-  workflow: "krea2-gonzalomo",
+  workflow: serverRun("krea2-gonzalomo"),
   prompt: "Synthetic keeper 雨",
   seed: 42,
   count: 1,
@@ -33,7 +33,6 @@ function setup(
   const fake = fakeComfyui(options);
   const logs: string[] = [];
   const client = createComfyui({
-    workflows: TEST_WORKFLOWS,
     fetch: wrap(fake.fetch),
     socket: fake.socket,
     apiKey: undefined,
@@ -1070,7 +1069,6 @@ describe("current private admission and independent inventory reads", () => {
     const fake = fakeComfyui({ hang: true, nativeCancelNoops: 1 });
     const canceledAt: number[] = [];
     const client = createComfyui({
-      workflows: TEST_WORKFLOWS,
       fetch: (input, init) => {
         if (/\/api\/jobs\/[^/]+\/cancel$/.test(String(input))) canceledAt.push(performance.now());
         return fake.fetch(input, init);

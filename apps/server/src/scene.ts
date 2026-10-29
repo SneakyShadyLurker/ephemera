@@ -9,6 +9,7 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
   ART_TIMEOUT_MS,
+  admittedWorkflow,
   artEventStream,
   type CreatorDeps,
   MAX_CREATOR_BODY_BYTES,
@@ -34,7 +35,7 @@ const SCENE_ERROR = "scene.error";
 
 export type SceneDeps = Pick<
   CreatorDeps,
-  "log" | "catalog" | "upstream" | "comfyui" | "workflows" | "onStreamingRequest" | "stopping"
+  "log" | "catalog" | "upstream" | "comfyui" | "catalogFor" | "onStreamingRequest" | "stopping"
 >;
 
 export function createSceneApi(deps: SceneDeps) {
@@ -49,7 +50,7 @@ export function createSceneApi(deps: SceneDeps) {
       // The run reads the requester's own stores after the handler returned.
       const { characters } = c.var.user.stores;
       const saved = c.var.user.stores.settings.get();
-      const workflow = deps.workflows.requested(body.workflow, saved.comfyuiWorkflow);
+      const workflow = admittedWorkflow(deps.catalogFor(c), body.workflow, saved.comfyuiWorkflow);
       if (workflow === undefined) return invalidRequest(c);
       return artEventStream(c, deps.stopping, { log, event: SCENE_ERROR }, (sendEvent, signal) => {
         const recorder = callRecorder();
@@ -88,7 +89,7 @@ export function createSceneApi(deps: SceneDeps) {
                     portrait: async () => (await characters.portrait(characterId, "full"))?.bytes,
                     referenceGraph: true,
                   }),
-              instructions: SCENE_METAPROMPTS[deps.workflows.get(workflow).artModel][kind],
+              instructions: SCENE_METAPROMPTS[workflow.family][kind],
               text: (portrait) => scenePrompt(source, portrait),
             };
           },
