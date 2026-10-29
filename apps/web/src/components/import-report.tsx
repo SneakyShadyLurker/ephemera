@@ -77,11 +77,20 @@ export function ReportGroups({ report }: { report: ImportReport }) {
   );
 }
 
-function ReportGroup({ title, items }: { title: string; items: string[] }) {
+/** One group of report lines under its title, a level below the surrounding heading; nothing when it has none. */
+export function ReportGroup({
+  title,
+  items,
+  heading: Heading = "h3",
+}: {
+  title: string;
+  items: string[];
+  heading?: "h3" | "h4";
+}) {
   if (items.length === 0) return null;
   return (
     <div className="grid gap-1">
-      <h3 className="font-medium text-ink">{title}</h3>
+      <Heading className="font-medium text-ink">{title}</Heading>
       <ul className="grid gap-1 text-pretty text-reed">
         {items.map((item, index) => (
           // Lines can repeat (two prompts with one name); their order is fixed.

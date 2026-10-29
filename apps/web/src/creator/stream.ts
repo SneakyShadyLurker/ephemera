@@ -124,7 +124,7 @@ export async function* artEvents(response: Response): AsyncGenerator<ArtStreamEv
   }
 }
 
-/** The built-in workflows the server found, to choose from in Create with AI. */
+/** The server's workflows and the user's, to choose from in Create with AI. */
 export async function fetchArtWorkflows(signal?: AbortSignal): Promise<ComfyuiWorkflowOption[]> {
   const response = await api.creator.art.workflows.$get(
     undefined,

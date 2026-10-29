@@ -19,7 +19,7 @@ export const artStatusQuery = (workflow: string) =>
     retry: (count, error) => retryable(error) && count < 1,
   });
 
-/** The built-in workflows: files shipped with the server, so asked once per tab. */
+/** The server's workflows and the user's: asked once per tab and again after each workflow write. */
 export const artWorkflowsQuery = queryOptions({
   queryKey: ["creator", "art-workflows"],
   queryFn: ({ signal }) => fetchArtWorkflows(signal),

@@ -73,18 +73,44 @@ function SelectContent({
 }
 
 /**
- * One option. A `description` adds a wrapping second line in reed; the
- * option stays named by its text alone and is described by that line
- * through `aria-describedby`, which reads a referenced element even though
- * it is hidden from the option's name.
+ * One option. A `description` adds a wrapping second line in reed, an
+ * `aside` a short word in reed after the text on the same line; either way
+ * the option stays named by its text alone and is described by the extra
+ * text through `aria-describedby`, which reads a referenced element even
+ * though it is hidden from the option's name.
  */
 function SelectItem({
   className,
   children,
   description,
+  aside,
   ...props
-}: SelectPrimitive.Item.Props & { description?: string }) {
+}: SelectPrimitive.Item.Props & { description?: string; aside?: string }) {
   const descriptionId = useId();
+  if (aside !== undefined) {
+    return (
+      <SelectPrimitive.Item
+        aria-describedby={descriptionId}
+        className={cn(
+          "flex h-9 cursor-default select-none items-center gap-2 rounded-sm pr-2 pl-3 text-ink text-ui outline-none data-highlighted:bg-surface-hover touch:h-11",
+          className,
+        )}
+        {...props}
+      >
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <SelectPrimitive.ItemText className="min-w-0 truncate">
+            {children}
+          </SelectPrimitive.ItemText>
+          <span id={descriptionId} aria-hidden="true" className="shrink-0 text-reed">
+            {aside}
+          </span>
+        </div>
+        <SelectPrimitive.ItemIndicator className="text-ink">
+          <CheckIcon size={16} />
+        </SelectPrimitive.ItemIndicator>
+      </SelectPrimitive.Item>
+    );
+  }
   if (description === undefined) {
     return (
       <SelectPrimitive.Item
@@ -125,4 +151,35 @@ function SelectItem({
   );
 }
 
-export { LEAF_TRIGGER, Select, SelectContent, SelectItem, SelectTrigger, TRIGGER, TRIGGER_ICON };
+/** Options under one label; a group after another keeps a little space from it. */
+function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
+  return <SelectPrimitive.Group className={cn("not-first:mt-1", className)} {...props} />;
+}
+
+/**
+ * A group's name in sentence case, small and in reed, aligned with its
+ * options' text; it names the group, which announces it with its options.
+ */
+function SelectGroupLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) {
+  return (
+    <SelectPrimitive.GroupLabel
+      className={cn(
+        "cursor-default select-none pt-2 pr-2 pb-1 pl-3 text-meta text-reed",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export {
+  LEAF_TRIGGER,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectGroupLabel,
+  SelectItem,
+  SelectTrigger,
+  TRIGGER,
+  TRIGGER_ICON,
+};

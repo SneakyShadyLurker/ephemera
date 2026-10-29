@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { portraitStatusLabel, portraitStatusLine } from "./portraits.ts";
+import {
+  deletedLine,
+  EMPTY_WORKFLOWS,
+  FAMILY_NAMES,
+  listFailedLine,
+  nodeCount,
+  portraitStatusLabel,
+  portraitStatusLine,
+  renameProblem,
+  WORKFLOWS_FULL,
+  workflowStatus,
+} from "./portraits.ts";
 
 describe("the portrait status in Settings", () => {
   it("says plainly when portraits are off or ready", () => {
@@ -60,6 +71,82 @@ describe("the portrait status in Settings", () => {
     );
     expect(portraitStatusLabel({ state: "unavailable", reason: "unreachable" })).toBe(
       "Portraits unavailable",
+    );
+  });
+});
+
+describe("the workflows list in Settings", () => {
+  it.each<[Parameters<typeof workflowStatus>[0], ReturnType<typeof workflowStatus>]>([
+    ["checking", { tone: "unknown", words: "Checking", missing: null, reason: null }],
+    ["failed", { tone: "off", words: "Unchecked", missing: null, reason: null }],
+    [{ state: "off" }, { tone: "off", words: "Unchecked", missing: null, reason: null }],
+    [{ state: "ready" }, { tone: "ready", words: "Ready", missing: null, reason: null }],
+    [
+      { state: "missing", nodes: ["TextEncodeMOSSImageEdit"], models: ["moss_v2.safetensors"] },
+      {
+        tone: "problem",
+        words: "Missing requirements",
+        missing: { nodes: ["TextEncodeMOSSImageEdit"], models: ["moss_v2.safetensors"] },
+        reason: null,
+      },
+    ],
+    [
+      { state: "unavailable", reason: "unreachable" },
+      {
+        tone: "problem",
+        words: "Unavailable",
+        missing: null,
+        reason: "ComfyUI did not answer at this address.",
+      },
+    ],
+  ])("puts words beside every dot: %j", (status, row) => {
+    expect(workflowStatus(status)).toEqual(row);
+  });
+
+  it.each([
+    ["krea2", "Krea 2"],
+    ["moss", "MOSS"],
+    ["general", "General"],
+  ] as const)("names the %s family as text", (family, name) => {
+    expect(FAMILY_NAMES[family]).toBe(name);
+  });
+
+  it.each([
+    [1, "1 node"],
+    [38, "38 nodes"],
+  ])("counts %i nodes", (nodes, text) => {
+    expect(nodeCount(nodes)).toBe(text);
+  });
+
+  it.each([
+    ["", "Give the workflow a name."],
+    ["   ", "Give the workflow a name."],
+    ["moss studio", "You already have a workflow called moss studio."],
+    [" Moss Studio ", "You already have a workflow called Moss Studio."],
+    ["Flux Dev Portrait", null],
+    ["Moss Studio 2", null],
+    ["a".repeat(64), null],
+    ["a".repeat(65), "Keep the name to 64 characters."],
+    ["Moss\u0007Studio", "Leave control characters out of the name."],
+  ])("checks the new name %j against the list", (name, problem) => {
+    expect(renameProblem(name, ["Moss Studio", "Krea 2 Gonzalomo"])).toBe(problem);
+  });
+
+  it("says once which workflow a deleted one in use falls back to", () => {
+    expect(deletedLine("Flux Dev Portrait", "Krea 2 Gonzalomo")).toBe(
+      "Flux Dev Portrait was deleted; back to Krea 2 Gonzalomo.",
+    );
+  });
+
+  it("says why the list is full, empty or not refreshed", () => {
+    expect(WORKFLOWS_FULL).toBe(
+      "24 workflows is the most Ephemera keeps. Delete one to import another.",
+    );
+    expect(EMPTY_WORKFLOWS).toBe(
+      "Nothing of yours yet. Import a workflow from ComfyUI and it appears here, ready to paint.",
+    );
+    expect(listFailedLine("Ephemera could not be reached")).toBe(
+      "The list could not be refreshed: Ephemera could not be reached.",
     );
   });
 });

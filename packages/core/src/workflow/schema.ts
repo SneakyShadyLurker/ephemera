@@ -127,6 +127,7 @@ export const inspectionSchema = z.strictObject({
   graph: apiGraphSchema,
   nodes: z.array(workflowNodeInfoSchema).max(WORKFLOW_LIMITS.nodes),
   detection: detectionSchema,
+  /** What conversion and normalization changed and left out, before any choice; with the graph, finalization's input. */
   report: importReportSchema.pick({ changed: true, skipped: true }),
   /** Node classes of the normalized graph an import refuses; any one makes the file unsavable. */
   blocked: z.array(blockedNodeSchema).max(WORKFLOW_LIMITS.nodes),

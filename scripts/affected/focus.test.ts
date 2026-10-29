@@ -64,8 +64,8 @@ describe("retention gate row coverage", () => {
     expect(documented.toSorted()).toEqual(labels.toSorted());
   });
 
-  it("gives all 60 rows an existing, known producer spec", () => {
-    expect(labels).toHaveLength(60);
+  it("gives all 61 rows an existing, known producer spec", () => {
+    expect(labels).toHaveLength(61);
     for (const { owner } of Object.values(MATRIX_ROWS)) {
       expect(Object.hasOwn(SPEC_AREAS, owner)).toBe(true);
       expect(existsSync(new URL(`../../e2e/${owner}`, import.meta.url))).toBe(true);

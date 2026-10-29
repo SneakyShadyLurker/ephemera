@@ -1247,10 +1247,11 @@ content's path: the tab's memory and one request in the server.
   `convertWorkflow` against the live `/object_info` (widget order, links,
   reroutes, primitive nodes, muted and bypassed nodes, subgraphs and
   growing inputs; 409 `comfyui_required` when ComfyUI does not answer),
-  then the same pipeline with the default choices gives the graph, the
-  node titles, the detection with its candidates, the Changed and Left out
-  report, the blocked classes with their reasons, the live status and a
-  name suggestion. One inspection runs at a time per user (429 `busy`). A user keeps at most 24
+  then the same pipeline gives the normalized graph, the node titles, the
+  detection with its candidates, what conversion and normalization changed
+  and left out (the tab runs core's `finalizeWorkflow` on these with its
+  choices for the full report), the blocked classes with their reasons,
+  the live status of a save with the default choices and a name suggestion. One inspection runs at a time per user (429 `busy`). A user keeps at most 24
   workflows (413 `full`), with names unique regardless of case (409
   `name_taken`). The log carries `workflows.list`, `workflows.create`,
   `workflows.update`, `workflows.replace`, `workflows.delete` and
@@ -2170,6 +2171,7 @@ each, one per test.
 | Scene picture: ComfyUI error | `sceneerr` | P | P | P | P | P | S | S | S | S | S |
 | Scene picture: Stop mid-paint | `scenestop` | P | P | P | P | P | S | S | S | S | S |
 | Scene picture: Clear mid-paint | `sceneclear` | P | P | P | P | P | S | S | S | S | S |
+| Imported workflow: the prompt place's text | `wf` | WF | WF | WF | WF | WF | S | S | S | S | S |
 | Image card: kept | `icok` | n/a | n/a | n/a | n/a | n/a | I | I | I | I | I |
 | Image card: upstream error | `icerr` | n/a | n/a | n/a | n/a | n/a | I | I | I | I | I |
 | Image card: unusable answer | `icinvalid` | n/a | n/a | n/a | n/a | n/a | I | I | I | I | I |
@@ -2352,6 +2354,14 @@ and for every row in a full run.
   finds no `-src` in the stored PNG, finds fragments of the stored PNG and
   the card's base in the data directory only, and finds the JPEG sent
   upstream, the `-keep` notes mark and the direction nowhere.
+- **WF** `e2e/workflows-retention.spec.ts` › "retention matrix: imported
+  workflow: the prompt place's text". The row imports a saved workflow
+  whose prompt text holds `zqcanary7w-wf-<id>`, then replaces its file
+  with an API export holding a second canary. The step "wf: the content
+  exists" proves each in the tab, where the panel shows the file's prompt
+  in its Prompt row, before Save stores the template with `{{prompt}}` in
+  that place and closes the panel. Then the steps `B-store`, `B-url`,
+  `B-bf`, `B-clip` and `B-disk`.
 - **n/a** the path does not reach the hop (a malformed request never comes
   from the page; an image card request comes from Atelier's server, never
   a tab; clipboard across back/forward and cache across reload are covered

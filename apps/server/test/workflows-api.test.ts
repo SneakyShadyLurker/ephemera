@@ -1,5 +1,6 @@
 import {
   creatorArtWorkflowsSchema,
+  finalizeWorkflow,
   type Inspection,
   inspectionSchema,
   settingsResponseSchema,
@@ -200,6 +201,27 @@ describe("POST /api/workflows", () => {
     expect(await response.json()).toEqual({ error: "blocked_nodes", nodes: ["LoadLatent"] });
   });
 
+  it("judges blocked nodes on the template, not in an output the user left out", async () => {
+    const { app } = setup();
+    const graph = {
+      ...sdxl(),
+      "13": { class_type: "LoadImage", inputs: { image: "x.png" } },
+      "14": { class_type: "SaveImage", inputs: { images: ["13", 0], filename_prefix: "x" } },
+    };
+    const { workflow } = await created(app, {
+      family: "general",
+      graph,
+      choices: { output: "9" },
+    });
+    expect(workflow.graph["13"]).toBeUndefined();
+
+    const response = await create(
+      app,
+      createBody({ name: "Pier", family: "general", graph, choices: { output: "14" } }),
+    );
+    expect(response.status).toBe(422);
+  });
+
   it("detects the places of an SDXL export sent with no choices", async () => {
     const { app } = setup();
     const { workflow } = await created(app, { family: "general", graph: sdxl(), choices: {} });
@@ -211,6 +233,50 @@ describe("POST /api/workflows", () => {
     expect(workflow.graph["3"]?.inputs.seed).toBe("{{seed}}");
     expect(workflow.graph["9"]?.class_type).toBe("SaveImageWebsocket");
     expect(workflow.graph["12"]).toBeUndefined();
+  });
+
+  it("judges live output nodes on the template too, and refuses an output it keeps", async () => {
+    // A live output node only the left-out output's branch used goes with that branch.
+    const { app } = setup({ comfy: { outputNodes: ["ModelAttentionBackend"] } });
+    const base = sdxl();
+    const leftOut = {
+      ...base,
+      "13": {
+        class_type: "ModelAttentionBackend",
+        inputs: { model: ["4", 0], attention: "comfy kitchen attention" },
+      },
+      "15": { class_type: "KSampler", inputs: { ...base["3"]?.inputs, model: ["13", 0] } },
+      "16": { class_type: "VAEDecode", inputs: { samples: ["15", 0], vae: ["4", 2] } },
+      "14": { class_type: "SaveImage", inputs: { images: ["16", 0], filename_prefix: "x" } },
+    };
+    const { workflow } = await created(app, {
+      family: "general",
+      graph: leftOut,
+      choices: { output: "9" },
+    });
+    expect(workflow.graph["13"]).toBeUndefined();
+
+    // An output another node takes from stays in the template, where it is refused.
+    const kept = {
+      ...base,
+      "14": { class_type: "SaveImage", inputs: { images: ["8", 0], filename_prefix: "x" } },
+      "15": {
+        class_type: "ImageScale",
+        inputs: {
+          image: ["14", 0],
+          upscale_method: "lanczos",
+          width: 64,
+          height: 64,
+          crop: "disabled",
+        },
+      },
+    };
+    const response = await create(
+      app,
+      createBody({ name: "Quay", family: "general", graph: kept, choices: { output: "9" } }),
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: "blocked_nodes" });
   });
 
   it("refuses a class the live ComfyUI reports as an output node", async () => {
@@ -515,14 +581,26 @@ describe("POST /api/workflows/inspect", () => {
       { id: "6", title: "VAEDecode", classType: "VAEDecode" },
       { id: "7", title: "SaveImage", classType: "SaveImageWebsocket" },
     ]);
-    // The report names nodes by the file's own titles (this export titles them by class).
-    expect(inspection.report.changed).toContainEqual(
+    // The report is the file's own, before any choice, naming nodes by the file's titles
+    // (this export titles them by class); the prompt is not replaced yet.
+    expect(inspection.report.changed).toEqual([
       expect.stringMatching(/^SaveImage \(node 7\) now sends the picture to Ephemera/),
+    ]);
+    expect(inspection.report.skipped).toEqual([expect.stringMatching(/^PreviewImage \(node 8\)/)]);
+    // The tab finalizes it with its choices and shows that report.
+    const titles = new Map(inspection.nodes.map((node) => [node.id, node.title]));
+    const finalized = finalizeWorkflow(
+      { graph: inspection.graph, ...inspection.report },
+      inspection.detection,
+      {},
+      undefined,
+      titles,
     );
-    expect(inspection.report.changed).toContainEqual(
+    if (!finalized.ok) throw new Error(finalized.refusal.error);
+    expect(finalized.changed).toContainEqual(
       expect.stringMatching(/^The written prompt of Positive \(node 2\)/),
     );
-    expect(inspection.report.skipped).toEqual([expect.stringMatching(/^PreviewImage \(node 8\)/)]);
+    expect(finalized.skipped).toEqual(inspection.report.skipped);
     expect(inspection.detection.prompt.candidates.map(({ title }) => title)).toContain("Positive");
   });
 

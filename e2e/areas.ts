@@ -66,6 +66,8 @@ export const SPEC_AREAS: Record<string, readonly Area[]> = {
   "sheet-art.spec.ts": ["characters", "creator"],
   "signin.spec.ts": ["signin"],
   "vast-lorebook.spec.ts": ["lorebook"],
+  "workflows.spec.ts": ["settings", "creator"],
+  "workflows-retention.spec.ts": ["settings", "creator"],
 };
 
 /** Specs every focused run includes: one test each, about the whole page. */

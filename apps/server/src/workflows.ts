@@ -260,15 +260,19 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
     );
 
   /**
-   * The classes of a normalized graph an import refuses (spec § 11.2): the
-   * allowlist's reason, else a class the live ComfyUI reports as an output
-   * node. Image outputs are the output choice: finalization makes the chosen
-   * one the saver and drops the rest, so they are not assessed.
+   * The classes of a graph an import refuses (spec § 11.2): the allowlist's
+   * reason, else a class the live ComfyUI reports as an output node. In a
+   * normalized graph the image outputs are the output choice, which
+   * finalization settles, so they are not assessed; a finalized template is
+   * assessed whole (`exempt` empty), its one output being the sanctioned saver.
    */
-  function blockedIn(graph: WorkflowGraph, meta: NodeMetaMap | undefined): BlockedNode[] {
-    const outputs = new Set(imageOutputs(graph, meta));
+  function blockedIn(
+    graph: WorkflowGraph,
+    meta: NodeMetaMap | undefined,
+    exempt: ReadonlySet<string> = new Set(imageOutputs(graph, meta)),
+  ): BlockedNode[] {
     const classes = new Set(
-      Object.entries(graph).flatMap(([id, node]) => (outputs.has(id) ? [] : [node.class_type])),
+      Object.entries(graph).flatMap(([id, node]) => (exempt.has(id) ? [] : [node.class_type])),
     );
     return [...classes].flatMap((classType): BlockedNode[] => {
       const reason =
@@ -324,9 +328,9 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
   /**
    * The template a save stores, or the answer refusing it (spec § 10):
    * normalization with the saved address's inventory when it answers (else
-   * none, § 10.7), the allowlist and the live output nodes on the normalized
-   * graph, detection, finalization with the tab's choices, the dry fill and
-   * the template's size.
+   * none, § 10.7), detection, finalization with the tab's choices, the
+   * allowlist on the finalized template and the live output nodes on the
+   * normalized graph, the dry fill and the template's size.
    */
   async function template(
     c: Context<WorkflowsEnv>,
@@ -347,8 +351,19 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
     const normalized = normalize(graph, meta);
     c.set("logged", { nodes: Object.keys(normalized.graph).length, checked });
 
-    // The allowlist's refusals first; the live output nodes only once it admits every class.
-    const blocked = blockedIn(normalized.graph, meta);
+    const detected = detectWorkflow(normalized, meta);
+    // A detection that refuses answers as a finalization would.
+    const finalized = detected.ok
+      ? finalizeWorkflow(normalized, detected.detection, choices, meta)
+      : detected;
+
+    // Both checks judge the graph that runs: the finalized template, whole, so a node only a
+    // left-out output used is not refused (§ 16.3) and an output finalization keeps is. Without
+    // a template, the normalized graph as the inspection judged it. The allowlist's refusals
+    // first; the live output nodes only once it admits every class.
+    const blocked = finalized.ok
+      ? blockedIn(finalized.template, meta, new Set())
+      : blockedIn(normalized.graph, meta);
     const listed = blocked.filter(({ reason }) => reason !== "output_node");
     const shown = listed.length > 0 ? listed : blocked;
     if (shown.length > 0) {
@@ -360,9 +375,6 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
       );
     }
 
-    const detected = detectWorkflow(normalized, meta);
-    if (!detected.ok) return invalidWorkflow(detected.refusal);
-    const finalized = finalizeWorkflow(normalized, detected.detection, choices, meta);
     if (!finalized.ok) return invalidWorkflow(finalized.refusal);
     const result = finalized.template;
     c.set("logged", { nodes: Object.keys(result).length, checked });
@@ -443,9 +455,9 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
         if (!detected.ok) return refusedWorkflow(c, detected.refusal);
         const { detection } = detected;
 
-        // The report and the live check as a save with the default choices would see them.
+        // The live check as a save with the default choices would see it. The report is the
+        // file's own, before any choice: the tab finalizes it with its choices to show them.
         const preview = finalizeWorkflow(normalized, detection, {}, meta, titles);
-        const report = preview.ok ? preview : normalized;
         let status: CreatorArtStatus;
         if (inventory === undefined) {
           status = "status" in live ? live.status : { state: "off" };
@@ -478,7 +490,10 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
               return kept === undefined ? [] : [{ ...node, classType: kept.class_type }];
             }),
             detection,
-            report: { changed: report.changed, skipped: [...file.skipped, ...report.skipped] },
+            report: {
+              changed: normalized.changed,
+              skipped: [...file.skipped, ...normalized.skipped],
+            },
             blocked,
             live: status,
             nameSuggestion: nameSuggestion(source, format, fileName),

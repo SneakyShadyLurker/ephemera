@@ -4,6 +4,7 @@ import bundled from "../../../../apps/server/src/comfyui/workflows/krea2-gonzalo
 };
 import { type Candidate, type Detection, finalizeWorkflow, type Normalized } from "./finalize.ts";
 import type { WorkflowGraph } from "./graph.ts";
+import type { NodeMetaMap } from "./meta.ts";
 
 const TEMPLATE: WorkflowGraph = bundled;
 
@@ -261,6 +262,18 @@ describe("finalizeWorkflow choices", () => {
     });
     return { graph, found };
   }
+
+  it("keeps an output node the graph still takes from, so no link is left dangling", () => {
+    // The live ComfyUI marks this pass-through class an output node; the sampler takes its model.
+    const meta: NodeMetaMap = new Map([
+      ["ModelAttentionBackend", { outputNode: true, inputs: {} }],
+    ]);
+    const result = finalizeWorkflow(normalized(literal()), detection(), {}, meta);
+    if (!result.ok) throw new Error(result.refusal.error);
+    expect(result.template["10"]?.class_type).toBe("ModelAttentionBackend");
+    expect(result.template["7"]?.inputs.model).toEqual(["10", 0]);
+    expect(result.skipped).toEqual([]);
+  });
 
   it("drops the outputs not chosen and every node only they consumed", () => {
     const { graph, found } = twoOutputs();
