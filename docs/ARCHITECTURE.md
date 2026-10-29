@@ -19,7 +19,7 @@ Atelier's server, optional, for image-born cards only
   -> Ephemera's published port, with its own integration key
 ```
 
-Atelier is an optional, separately deployed image service that Ephemera
+[Atelier](https://github.com/SneakyShadyLurker/atelier-studio) is an optional, separately deployed image service that Ephemera
 supports: its hardened ComfyUI worker speaks a private worker protocol
 (§ AI card creation and rework), and its server may ask for image-born
 cards. Without it, Ephemera runs on a plain ComfyUI.

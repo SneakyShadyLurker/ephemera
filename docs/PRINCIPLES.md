@@ -27,7 +27,7 @@ direction for its new art, the image prompt written from it and the
 candidate portraits, also when new art is painted for a saved character
 (the stored portrait the prompt model may see is character data); and a rework
 request, the model's proposed changes and the review state before Apply;
-and for a card written from an image of Atelier (an optional image
+and for a card written from an image of [Atelier](https://github.com/SneakyShadyLurker/atelier-studio) (an optional image
 service Ephemera supports), the uploaded image, its notes,
 the owner's direction for it and the model's answer. Keeping a card turns it and the chosen portrait
 into ordinary character data, as Use as portrait does with the one
