@@ -169,6 +169,31 @@ describe("an inspect", () => {
     expect(await result).toEqual({ ok: false, reason: "unreachable" });
   });
 
+  it("asks again a moment later while the server is still busy, then says so", async () => {
+    vi.useFakeTimers();
+    try {
+      let answers = 0;
+      serving(() => {
+        answers += 1;
+        return answers === 2
+          ? Response.json(inspection)
+          : Response.json({ error: "busy" }, { status: 429 });
+      });
+      const settled = inspectWorkflow({ source: graph }, new AbortController().signal);
+      await vi.runAllTimersAsync();
+      expect(await settled).toEqual({ ok: true, value: inspection });
+      expect(answers).toBe(2);
+
+      answers = 10;
+      const busy = inspectWorkflow({ source: graph }, new AbortController().signal);
+      await vi.runAllTimersAsync();
+      expect(await busy).toEqual({ ok: false, reason: "busy" });
+      expect(answers).toBe(13);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("and a create leave no graph in the query or mutation cache", async () => {
     serving((request) =>
       new URL(request.url).pathname.endsWith("/inspect")
@@ -255,7 +280,7 @@ describe("a refused or lost workflow request", () => {
     ];
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     for (const [send, response, result] of cases) {
-      serving(() => response);
+      serving(() => response.clone());
       expect(await send()).toEqual(result);
     }
     vi.stubGlobal("fetch", () => Promise.reject(new TypeError("offline")));

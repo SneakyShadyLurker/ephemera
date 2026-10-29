@@ -219,6 +219,7 @@ export function ImportPanel({
       dispatch({ type: "parsed", request, file: parsed });
       await inspect(request, reading.signal, parsed, target);
     })();
+    return () => reading.abort();
   }, [draft.file]);
 
   const retry = () => {

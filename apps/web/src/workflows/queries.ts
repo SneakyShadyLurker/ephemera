@@ -157,18 +157,45 @@ async function written<Result extends { ok: boolean }>(result: Promise<Result>):
 const saveInit = () => ({ init: { signal: AbortSignal.timeout(SAVE_TIMEOUT_MS) } });
 
 /** Reads a file into what the import panel shows; `signal` cancels it. */
-export function inspectWorkflow(
+export async function inspectWorkflow(
   body: WorkflowInspect,
   signal: AbortSignal,
 ): Promise<
   WorkflowResult<Inspection, "busy" | "comfyui_required" | "invalid_workflow" | "too_large">
 > {
-  return requesting(
-    () => api.workflows.inspect.$post({ json: body }, { init: { signal } }),
-    (answer) => inspectionSchema.parse(answer),
-    ["busy", "comfyui_required", "invalid_workflow", "too_large"],
-  );
+  const ask = () =>
+    requesting(
+      () => api.workflows.inspect.$post({ json: body }, { init: { signal } }),
+      (answer) => inspectionSchema.parse(answer),
+      ["busy", "comfyui_required", "invalid_workflow", "too_large"],
+    );
+  let result = await ask();
+  // Busy right after this tab let go of a read is mostly that read still ending on the
+  // server, so it is asked again, a moment apart, before the panel says so.
+  for (let retry = 0; retry < BUSY_RETRIES && !result.ok && result.reason === "busy"; retry++) {
+    if (!(await pause(BUSY_PAUSE_MS, signal))) break;
+    result = await ask();
+  }
+  return result;
 }
+
+const BUSY_RETRIES = 2;
+const BUSY_PAUSE_MS = 400;
+
+/** Waits `ms`; false when `signal` aborts first. */
+const pause = (ms: number, signal: AbortSignal): Promise<boolean> =>
+  new Promise((resolve) => {
+    if (signal.aborted) return resolve(false);
+    const timer = setTimeout(() => resolve(true), ms);
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve(false);
+      },
+      { once: true },
+    );
+  });
 
 /**
  * Saves an inspected graph as a new workflow. No timeout: the server checks
