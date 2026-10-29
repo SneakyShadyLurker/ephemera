@@ -1,4 +1,10 @@
-import type { CreatorArtStatus, CreatorArtUnavailable } from "@ephemera/core";
+import {
+  type ArtFamily,
+  type CreatorArtStatus,
+  type CreatorArtUnavailable,
+  WORKFLOW_LIMITS,
+} from "@ephemera/core";
+import { countOf } from "@/lib/text";
 
 const UNAVAILABLE: Record<CreatorArtUnavailable, string> = {
   not_allowed:
@@ -50,3 +56,78 @@ export const portraitStatusLabel = (status: CreatorArtStatus): string =>
     : status.state === "off"
       ? "Portraits off"
       : "Portraits unavailable";
+
+/** A family on screen: always text, never a badge. */
+export const FAMILY_NAMES: Record<ArtFamily, string> = {
+  krea2: "Krea 2",
+  moss: "MOSS",
+  general: "General",
+};
+
+/** The dot's tone, shared with every other status dot. */
+export type StatusTone = "ready" | "off" | "problem" | "unknown";
+
+/** One workflow row's status: the dot, the words beside it and what hangs under the row. */
+interface WorkflowStatus {
+  tone: StatusTone;
+  words: "Ready" | "Checking" | "Missing requirements" | "Unavailable" | "Unchecked";
+  missing: { nodes: string[]; models: string[] } | null;
+  /** Why ComfyUI is unavailable, in plain words. */
+  reason: string | null;
+}
+
+/**
+ * A row's status from its `artStatusQuery`: still asking ("checking"), not
+ * answered ("failed"), or the answer. No saved address reads "Unchecked" too.
+ */
+export function workflowStatus(status: CreatorArtStatus | "checking" | "failed"): WorkflowStatus {
+  const none = { missing: null, reason: null };
+  if (status === "checking") return { tone: "unknown", words: "Checking", ...none };
+  if (status === "failed") return { tone: "off", words: "Unchecked", ...none };
+  switch (status.state) {
+    case "off":
+      return { tone: "off", words: "Unchecked", ...none };
+    case "ready":
+      return { tone: "ready", words: "Ready", ...none };
+    case "unavailable":
+      return {
+        tone: "problem",
+        words: "Unavailable",
+        missing: null,
+        reason: UNAVAILABLE[status.reason],
+      };
+    case "missing":
+      return {
+        tone: "problem",
+        words: "Missing requirements",
+        missing: { nodes: status.nodes, models: status.models },
+        reason: null,
+      };
+  }
+}
+
+export const nodeCount = (nodes: number): string => countOf(nodes, "node");
+
+/** Why a rename is refused in the row, checked against the user's other workflow names; null when it may be saved. */
+export function renameProblem(name: string, others: readonly string[]): string | null {
+  const next = name.trim();
+  if (next === "") return "Give the workflow a name.";
+  const lower = next.toLowerCase();
+  return others.some((other) => other.toLowerCase() === lower) ? nameTakenLine(next) : null;
+}
+
+/** A name another of the user's workflows has, in the tab's check or the server's. */
+export const nameTakenLine = (name: string): string =>
+  `You already have a workflow called ${name}.`;
+
+/** Said once after the workflow Create with AI used was deleted. */
+export const deletedLine = (name: string, fallback: string): string =>
+  `${name} was deleted; back to ${fallback}.`;
+
+export const WORKFLOWS_FULL = `${WORKFLOW_LIMITS.workflows} workflows is the most Ephemera keeps. Delete one to import another.`;
+
+export const EMPTY_WORKFLOWS =
+  "Nothing of yours yet. Import a workflow from ComfyUI and it appears here, ready to paint.";
+
+export const listFailedLine = (notReached: string): string =>
+  `The list could not be refreshed: ${notReached}.`;

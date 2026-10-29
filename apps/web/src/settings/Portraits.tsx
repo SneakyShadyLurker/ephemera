@@ -1,12 +1,13 @@
-import { settingsSchema } from "@ephemera/core";
+import { settingsSchema, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useRef, useState } from "react";
+import { type ComponentType, useId, useRef, useState } from "react";
 import { queryClient } from "@/app/query.ts";
+import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import { cn } from "@/lib/cn";
-import { ART_STATUS_KEY, artStatusQuery, artWorkflowsQuery } from "../creator/queries.ts";
+import { ART_STATUS_KEY } from "../creator/queries.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
-import { useNotReached } from "../signin/hooks.ts";
-import { portraitStatusLine } from "./portraits.ts";
+import { workflowsQuery } from "../workflows/queries.ts";
+import { Workflows } from "../workflows/Workflows.tsx";
 import {
   applySettings,
   queueSettingsSave,
@@ -48,16 +49,98 @@ const ADDRESS_PROBLEMS = {
     "This server does not allow that address. Only origins in its COMFYUI_ALLOWED_ORIGINS can be used.",
 } as const;
 
+/** A workflow file on its way in: a new import, or a replacement for one of the user's workflows. */
+export type WorkflowDraft =
+  | { mode: "import"; file: File }
+  | { mode: "replace"; workflow: WorkflowSummary; file?: File };
+
+/** What the import panel gets: the draft, how to close it, and where focus goes on. */
+export interface ImportPanelProps {
+  draft: WorkflowDraft;
+  /** Closes the panel; focus returns to Import a workflow, or to the replaced row's actions button. */
+  onClose: () => void;
+  /** Opens the file picker again, for the same mode. */
+  onChooseFile: () => void;
+  /** Moves focus to a workflow row's name, once the list shows it. */
+  focusWorkflow: (id: string) => void;
+}
+
 /**
- * The owner's ComfyUI for card portraits: its address and whether it can
- * paint now. The workflow is chosen where portraits are made, in Create with AI.
+ * The owner's ComfyUI for card portraits: its address, and the workflows it
+ * paints with and whether each can paint now. The workflow is chosen where
+ * portraits are made, in Create with AI. A workflow file comes in through the
+ * file picker, or dropped anywhere on this section on tablet and desktop;
+ * `ImportPanel` shows it, under the list.
  */
-export function Portraits() {
+export function Portraits({ ImportPanel }: { ImportPanel?: ComponentType<ImportPanelProps> }) {
   const comfyuiBaseUrl = useSetting((settings) => settings.comfyuiBaseUrl);
+  const count = useQuery(workflowsQuery).data?.length ?? 0;
+  const [draft, setDraft] = useState<WorkflowDraft | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const importButton = useRef<HTMLButtonElement>(null);
+  // The workflow Replace file was chosen for, until the picker answers.
+  const replacing = useRef<WorkflowSummary | null>(null);
+  const full = count >= WORKFLOW_LIMITS.workflows;
+  const { dragging, dropTarget } = useFileDrop((files) => {
+    const [file] = files;
+    if (file !== undefined && !full) setDraft({ mode: "import", file });
+  });
+
+  const choose = (workflow: WorkflowSummary | null) => {
+    replacing.current = workflow;
+    picker.current?.click();
+  };
+
+  const rowPart = (id: string, part: "actions" | "name") =>
+    root.current
+      ?.querySelector(`[data-workflow="${CSS.escape(id)}"]`)
+      ?.querySelector<HTMLElement>(`[data-workflow-${part}]`);
+
   return (
-    <div className="grid gap-6">
+    <div ref={root} className="relative grid gap-6" {...dropTarget}>
       <AddressField saved={comfyuiBaseUrl} />
-      <PortraitStatus />
+      <Workflows
+        importRef={importButton}
+        onImport={() => choose(null)}
+        onReplace={(workflow) => choose(workflow)}
+      />
+      <input
+        ref={picker}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          // Cleared, so choosing the same file again still answers.
+          event.currentTarget.value = "";
+          const workflow = replacing.current;
+          replacing.current = null;
+          if (file === undefined) return;
+          setDraft(
+            workflow === null ? { mode: "import", file } : { mode: "replace", workflow, file },
+          );
+        }}
+      />
+      {draft !== null && ImportPanel !== undefined && (
+        <ImportPanel
+          draft={draft}
+          onClose={() => {
+            const replaced = draft.mode === "replace" ? draft.workflow.id : null;
+            setDraft(null);
+            (replaced === null ? importButton.current : rowPart(replaced, "actions"))?.focus();
+          }}
+          onChooseFile={() => choose(draft.mode === "replace" ? draft.workflow : null)}
+          focusWorkflow={(id) => rowPart(id, "name")?.focus()}
+        />
+      )}
+      {dragging && (
+        <DropOverlay
+          title="Import this workflow"
+          hint="ComfyUI workflow, saved or exported as API"
+        />
+      )}
     </div>
   );
 }
@@ -150,72 +233,5 @@ function AddressField({ saved }: { saved: string }) {
           : "Saved when you leave the field; empty turns portraits off. Only the image prompt for a new card goes there; its token stays in the server's environment."}
       </p>
     </div>
-  );
-}
-
-/** The live status line: asked when Settings opens and after each change here. */
-function PortraitStatus() {
-  const comfyuiWorkflow = useSetting((settings) => settings.comfyuiWorkflow);
-  const status = useQuery(artStatusQuery(comfyuiWorkflow));
-  const workflow = useQuery(artWorkflowsQuery).data?.find(
-    (option) => option.id === comfyuiWorkflow,
-  );
-  const notReached = useNotReached();
-  if (status.isPending) {
-    return (
-      <p role="status" className="text-note text-reed">
-        Checking ComfyUI…
-      </p>
-    );
-  }
-  if (status.isError) {
-    return (
-      <p role="status" className="text-note text-reed">
-        The status could not be checked: {notReached}.
-      </p>
-    );
-  }
-  const line = portraitStatusLine(status.data);
-  return (
-    <div role="status" className="grid gap-2">
-      <p className="flex items-baseline gap-2 text-note">
-        <StatusDot tone={line.tone} />
-        <span className={line.tone === "problem" ? "text-ember" : "text-ink"}>{line.text}</span>
-      </p>
-      {line.missing && (
-        <dl className="grid gap-1.5 border-rush border-l pl-4 text-note">
-          {line.missing.nodes.length > 0 && (
-            <div className="grid gap-0.5">
-              <dt className="text-reed">Nodes</dt>
-              <dd className="break-words text-ink">{line.missing.nodes.join(", ")}</dd>
-            </div>
-          )}
-          {line.missing.models.length > 0 && (
-            <div className="grid gap-0.5">
-              <dt className="text-reed">Model files</dt>
-              <dd className="break-words text-ink">{line.missing.models.join(", ")}</dd>
-            </div>
-          )}
-        </dl>
-      )}
-      {status.data.state !== "off" && workflow !== undefined && (
-        <p className={HELP}>Checked for {workflow.name}, the workflow chosen in Create with AI.</p>
-      )}
-    </div>
-  );
-}
-
-/** A small state dot beside the status words: lit dusk when ready, ember on a problem. */
-export function StatusDot({ tone }: { tone: "ready" | "off" | "problem" | "unknown" }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "inline-block size-1.5 shrink-0 translate-y-[-0.1em] rounded-full",
-        tone === "ready" && "bg-dusk",
-        tone === "problem" && "bg-ember",
-        (tone === "off" || tone === "unknown") && "bg-control-edge",
-      )}
-    />
   );
 }

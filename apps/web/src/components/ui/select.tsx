@@ -125,4 +125,35 @@ function SelectItem({
   );
 }
 
-export { LEAF_TRIGGER, Select, SelectContent, SelectItem, SelectTrigger, TRIGGER, TRIGGER_ICON };
+/** Options under one label; a group after another keeps a little space from it. */
+function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
+  return <SelectPrimitive.Group className={cn("not-first:mt-1", className)} {...props} />;
+}
+
+/**
+ * A group's name in sentence case, small and in reed, aligned with its
+ * options' text; it names the group, which announces it with its options.
+ */
+function SelectGroupLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) {
+  return (
+    <SelectPrimitive.GroupLabel
+      className={cn(
+        "cursor-default select-none pt-2 pr-2 pb-1 pl-3 text-meta text-reed",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export {
+  LEAF_TRIGGER,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectGroupLabel,
+  SelectItem,
+  SelectTrigger,
+  TRIGGER,
+  TRIGGER_ICON,
+};
