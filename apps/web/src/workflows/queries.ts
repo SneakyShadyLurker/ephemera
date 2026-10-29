@@ -229,14 +229,13 @@ export function createWorkflow(
  * lacks it, or unreachable when the list did not answer: a create whose
  * answer was lost is looked up this way before it is sent again. Its own
  * request, so a list request that left before the create landed never
- * answers it; the list query takes the rows it found.
+ * answers it; it leaves the list query to the writes that refresh it.
  */
 export async function findWorkflow(
   id: string,
 ): Promise<WorkflowResult<WorkflowSummary | null, never>> {
   try {
     const rows = await listWorkflows(AbortSignal.timeout(SAVE_TIMEOUT_MS));
-    queryClient.setQueryData(workflowsQuery.queryKey, rows);
     return { ok: true, value: rows.find((row) => row.id === id) ?? null };
   } catch {
     return { ok: false, reason: "unreachable" };
