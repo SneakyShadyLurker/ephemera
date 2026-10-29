@@ -110,8 +110,8 @@ and only as long as it is needed.
   hold content. The server aborts the upstream call when the client
   disconnects and bounds every request's lifetime.
 - The persistence layer accepts only character, persona, preset, lorebook,
-  event, memory, cast sheet and settings schemas, so chat objects have no
-  path to the writable data mount. An event is its definition; which event
+  event, memory, cast sheet, workflow and settings schemas, so chat objects
+  have no path to the writable data mount. An event is its definition; which event
   fired where never reaches it. A memory is the model's validated answer;
   the span it was written from never reaches it. A cast sheet is character
   data read from the card alone: the people it names and their fixed
@@ -153,9 +153,11 @@ and only as long as it is needed.
   sink holds the ordered PNGs under the request's lease so its authenticated,
   lease-scoped status and output endpoints can recover a broken socket.
   Releasing the lease removes these outputs with the inputs. No image node
-  writes to disk: a graph using a node class outside Ephemera's allowlist of
-  in-memory classes stops the start. Private mode requires job status, memory image outputs,
-  preview control, lease renewal and admission, plus the worker's build,
+  writes to disk: a server graph using a node class outside Ephemera's
+  allowlist of in-memory classes stops the start, a user's workflow using one
+  is refused when saved and never runs, and every save or preview node is
+  refused whatever the operator adds to the allowlist. Private mode requires
+  job status, memory image outputs, preview control, lease renewal and admission, plus the worker's build,
   allowlist and limits metadata. Missing capabilities fail closed;
   only a missing private handshake selects native mode. Ephemera opts out of
   private-worker previews. A busy admission wait, at most 300 seconds, and
@@ -175,6 +177,10 @@ and only as long as it is needed.
   minutes; continued activity postpones that. Active cancellation requires
   release intent to reach the worker; a failed or lost response cannot
   prove it did.
+- ComfyUI's samplers may back their runtime model cache with an anonymous
+  file, depending on the model, the device and the cache settings. On Linux
+  that file lives in memory (memfd); on Windows it is a temporary file deleted
+  on close. Run ComfyUI on Linux to keep that cache off disk.
 - A plain ComfyUI does not meet it, so after every run Ephemera removes its
   prompt from the queue and deletes its history entry, then asks the
   instance through `/free` to drop its executor cache, which still holds the

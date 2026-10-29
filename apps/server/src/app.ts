@@ -6,7 +6,8 @@ import { routePath } from "hono/route";
 import { type ApiDeps, createApi } from "./api.ts";
 import { boundary, proxyKeyCheck } from "./boundary.ts";
 import { buildHeader } from "./build.ts";
-import type { WorkflowRegistry } from "./comfyui/workflow.ts";
+import { createAllowlist } from "./comfyui/allowlist.ts";
+import type { ServerWorkflows } from "./comfyui/workflow.ts";
 import type { AppConfig } from "./config.ts";
 import { noStore, requestLog, securityHeaders } from "./http.ts";
 import { createLogger, errorClass } from "./log.ts";
@@ -18,8 +19,9 @@ import { warningLogger } from "./upstream.ts";
 import { type UserEnv, withUser } from "./user.ts";
 
 export interface AppDeps extends Partial<Omit<ApiDeps, "workflows">> {
+  /* `allowlist`: the curated node classes alone unless given (index.ts gives the configured one). */
   /** The workflows the server runs; their default seeds a new user's settings. */
-  workflows: WorkflowRegistry;
+  workflows: ServerWorkflows;
   /** Every user's instance; tests without one get a registry kept in memory. */
   instances?: InstanceRegistry;
   /** Serves files of the built SPA; the Bun entry supplies it, tests may stub it. */
@@ -81,6 +83,7 @@ export function createApp(config: AppConfig, deps: AppDeps) {
       ...(deps.random ? { random: deps.random } : {}),
       digest: deps.digest ?? entryDigest,
       workflows: deps.workflows,
+      allowlist: deps.allowlist ?? createAllowlist([]),
       ...(deps.comfyuiSocket ? { comfyuiSocket: deps.comfyuiSocket } : {}),
       ...(deps.shutdown ? { shutdown: deps.shutdown } : {}),
     }),

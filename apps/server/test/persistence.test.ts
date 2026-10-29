@@ -123,6 +123,7 @@ describe("database", () => {
       { name: "prompt_presets" },
       { name: "sampler_presets" },
       { name: "settings" },
+      { name: "workflows" },
     ]);
     second.close();
   });

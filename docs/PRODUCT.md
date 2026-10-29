@@ -147,8 +147,8 @@ Version 1.0 holds everything below.
   stopped and a description too long for the model's context window each
   say so, with what to try instead.
 - With a ComfyUI address in Settings, the model writes an image prompt from
-  the card (the image prompt model from Settings, when one is set), worded for the image model of the Krea 2 or MOSS Image workflow
-  chosen beside the model, and ComfyUI paints a batch of four portraits
+  the card (the image prompt model from Settings, when one is set), worded for the image model family of the workflow
+  chosen beside the model (Krea 2, MOSS Image, or General for any other), and ComfyUI paints a batch of four portraits
   (2:3, 1024 x 1536) with it; every workflow the server has (the built-in
   ones and any its workflows directory adds) is offered, and the
   choice is kept for the next card. The showcase offers it again under New

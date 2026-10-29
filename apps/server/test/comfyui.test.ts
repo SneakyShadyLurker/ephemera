@@ -1,21 +1,34 @@
 import { deflateSync } from "node:zlib";
 import { CREATOR_ART } from "@ephemera/core";
 import { encode } from "fast-png";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { createAllowlist } from "../src/comfyui/allowlist.ts";
+import { createWorkflowCatalog, runWorkflow } from "../src/comfyui/catalog.ts";
 import {
   type CleanupTiming,
   type ComfyuiError,
   type ComfyuiEvent,
+  type ComfyuiInspection,
   createComfyui,
   type GenerateInput,
   type RecoveryTiming,
 } from "../src/comfyui/client.ts";
-import { discoverWorkflows, fillWorkflow, type WorkflowGraph } from "../src/comfyui/workflow.ts";
+import {
+  describeWorkflow,
+  discoverWorkflows,
+  fillWorkflow,
+  type WorkflowGraph,
+} from "../src/comfyui/workflow.ts";
 import { createLogger } from "../src/log.ts";
+import {
+  createMemoryPortraitFiles,
+  createStores,
+  openUserDatabase,
+} from "../src/persistence/index.ts";
 import { pngChunks } from "../src/png.ts";
 import { type FakeComfyuiOptions, fakeComfyui, fakePng, UPSTREAM_SECRET } from "./fake-comfyui.ts";
 import { pngChunk } from "./image-fixtures.ts";
-import { TEST_WORKFLOWS } from "./test-workflows.ts";
+import { serverRun, storeUserWorkflow, TEST_WORKFLOWS, userGraph } from "./test-workflows.ts";
 
 /** A portrait whose IHDR byte at `offset` (8 bit depth, 9 colour type, 12 interlace) is `value`. */
 function withHeaderByte(offset: number, value: number): Uint8Array {
@@ -108,7 +121,6 @@ describe("phase-aware completion and private recovery", () => {
     const fake = fakeComfyui({ mode: "private", ...options });
     let sockets = 0;
     const client = createComfyui({
-      workflows: TEST_WORKFLOWS,
       fetch: async (input, init) =>
         intercept(new URL(String(input)), await fake.fetch(input, init), init?.signal),
       socket: (url, options) => {
@@ -1007,7 +1019,6 @@ function setup(
   const fake = fakeComfyui(options);
   const lines: string[] = [];
   const client = createComfyui({
-    workflows: TEST_WORKFLOWS,
     fetch: fake.fetch,
     socket: fake.socket,
     apiKey: transport.apiKey || undefined,
@@ -1030,7 +1041,7 @@ async function collect(
   try {
     for await (const event of client.generate({
       baseUrl: BASE,
-      workflow: "krea2-gonzalomo",
+      workflow: serverRun("krea2-gonzalomo"),
       prompt: PROMPT,
       seed: 42,
       count: CREATOR_ART.count,
@@ -1111,9 +1122,9 @@ describe("workflow substitution", () => {
 
   it("finds every workflow file, names it, and fills each one", () => {
     expect(workflows.list.workflows).toEqual([
-      { id: "krea2-fixture", name: "Krea 2 Fixture" },
-      { id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo" },
-      { id: "moss-fixture", name: "MOSS Fixture" },
+      { id: "krea2-fixture", name: "Krea 2 Fixture", family: "krea2", scope: "server" },
+      { id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo", family: "krea2", scope: "server" },
+      { id: "moss-fixture", name: "MOSS Fixture", family: "moss", scope: "server" },
     ]);
     for (const { id } of workflows.list.workflows) {
       const filled = fillWorkflow(workflows.get(id).graph, values);
@@ -1138,7 +1149,7 @@ describe("workflow substitution", () => {
     for (const id of krea) {
       const reference = workflows.referenceOf(id);
       if (reference === undefined) throw new Error("no reference graph");
-      expect(reference.artModel).toBe("krea2");
+      expect(reference.family).toBe("krea2");
       const filled = fillWorkflow(reference.graph, { ...values, referenceImage: "lease:asset" });
       const load = Object.values(filled).filter((node) => node.class_type === "LoadImage");
       expect(load.map((node) => node.inputs.image)).toEqual(["lease:asset"]);
@@ -1183,7 +1194,7 @@ describe("workflow substitution", () => {
 
   it("reads a MOSS graph's save node, sampler and model-only LoRA, in loader order", () => {
     const moss = workflows.get("moss-fixture");
-    expect(moss.artModel).toBe("moss");
+    expect(moss.family).toBe("moss");
     expect(moss.output).toBe("9");
     expect(moss.models.map((model) => model.file)).toEqual([
       "moss-fixture-base.safetensors",
@@ -1229,7 +1240,7 @@ describe("ComfyUI status", () => {
   const status = (client: ReturnType<typeof setup>["client"], baseUrl = BASE) =>
     client.status({
       baseUrl,
-      workflow: "krea2-gonzalomo",
+      workflow: serverRun("krea2-gonzalomo"),
       signal: new AbortController().signal,
     });
 
@@ -1260,6 +1271,17 @@ describe("ComfyUI status", () => {
       missingNodes: ["ModelAttentionBackend"],
       missingModels: ["qwen3vl_4b_bf16.safetensors", "qwen_image_vae.safetensors"],
     });
+  });
+
+  it("lists a class the allowlist no longer admits among the missing nodes, though installed", async () => {
+    const { client } = setup();
+    expect(
+      await client.status({
+        baseUrl: BASE,
+        workflow: { ...serverRun(), blocked: ["ModelAttentionBackend"] },
+        signal: new AbortController().signal,
+      }),
+    ).toEqual({ reachable: true, missingNodes: ["ModelAttentionBackend"], missingModels: [] });
   });
 
   it("reports an unreachable, unauthorized or redirecting instance as not reachable", async () => {
@@ -1311,6 +1333,182 @@ describe("ComfyUI status", () => {
 
     expect(await status(setup().client, plain)).toMatchObject({ reachable: true });
   });
+
+  it("reads every `_name` combo of any class as a model file, never a sampler choice", async () => {
+    const { client } = setup({ missingModels: ["euler"] });
+    const graph = {
+      ...serverRun().graph,
+      "20": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "absent.safetensors" } },
+      "21": {
+        class_type: "LoadLoraModel",
+        inputs: { model: ["20", 0], "loras.0.lora_name": "absent-lora.safetensors" },
+      },
+    };
+    expect(
+      await client.status({
+        baseUrl: BASE,
+        workflow: { ...serverRun(), graph },
+        signal: new AbortController().signal,
+      }),
+    ).toEqual({
+      reachable: true,
+      missingNodes: [],
+      missingModels: ["absent.safetensors", "absent-lora.safetensors"],
+    });
+  });
+
+  it("reads the file inputs named off the convention, and never VAELoader's pixel_space", async () => {
+    const { client } = setup();
+    const graph = {
+      ...serverRun().graph,
+      "20": {
+        class_type: "DualCLIPLoader",
+        inputs: {
+          clip_name1: "absent-clip-l.safetensors",
+          clip_name2: "absent-t5.safetensors",
+          type: "flux",
+        },
+      },
+      "21": { class_type: "ModelPatchLoader", inputs: { name: "absent-patch.safetensors" } },
+      "22": { class_type: "VAELoader", inputs: { vae_name: "pixel_space" } },
+      "23": {
+        class_type: "LoadLoraModel",
+        inputs: {
+          model: ["20", 0],
+          "loras.0.lora_name": "fixture-lora.safetensors",
+          "loras.0.strength": 1,
+          "loras.0.enabled": true,
+          "loras.1.lora_name": "absent-lora.safetensors",
+          "loras.1.strength": 1,
+          "loras.1.enabled": true,
+        },
+      },
+    };
+    expect(
+      await client.status({
+        baseUrl: BASE,
+        workflow: { ...serverRun(), graph },
+        signal: new AbortController().signal,
+      }),
+    ).toEqual({
+      reachable: true,
+      missingNodes: [],
+      missingModels: [
+        "absent-clip-l.safetensors",
+        "absent-t5.safetensors",
+        "absent-patch.safetensors",
+        "absent-lora.safetensors",
+      ],
+    });
+  });
+
+  it("reads a stored graph's class the live ComfyUI reports as an output node as missing", async () => {
+    const stores = createStores(openUserDatabase(undefined).db, createMemoryPortraitFiles(), {
+      defaultWorkflow: TEST_WORKFLOWS.defaultWorkflow,
+    });
+    const { id } = storeUserWorkflow(stores.workflows, { graph: userGraph(5) });
+    const workflow = runWorkflow(
+      createWorkflowCatalog(TEST_WORKFLOWS, stores.workflows, createAllowlist([])),
+      id,
+    );
+    const { client } = setup({ outputNodes: ["ModelAttentionBackend"] });
+    expect(
+      await client.status({ baseUrl: BASE, workflow, signal: new AbortController().signal }),
+    ).toEqual({ reachable: true, missingNodes: ["ModelAttentionBackend"], missingModels: [] });
+    // The private worker's own save class is its graph's output, never missing.
+    expect(await status(setup({ mode: "private" }).client)).toEqual({
+      reachable: true,
+      missingNodes: [],
+      missingModels: [],
+    });
+  });
+});
+
+describe("ComfyUI inspection", () => {
+  const inspect = (client: ReturnType<typeof setup>["client"]) =>
+    client.inspect({ baseUrl: BASE, signal: new AbortController().signal });
+
+  it("answers each class's meta and never the raw /object_info", async () => {
+    expectTypeOf<keyof Extract<ComfyuiInspection, { reachable: true }>>().toEqualTypeOf<
+      "reachable" | "meta" | "missing"
+    >();
+    const answer = await inspect(setup().client);
+    expect(answer.reachable).toBe(true);
+    if (!answer.reachable) return;
+    expect(answer.meta.get("SaveImageWebsocket")?.outputNode).toBe(true);
+    expect(answer.meta.get("SaveImage")?.outputNode).toBe(true);
+    expect(answer.meta.get("KSampler")).toMatchObject({
+      outputNode: false,
+      displayName: "KSampler",
+      inputs: {
+        model: { kind: "LINK" },
+        seed: { kind: "INT", controlAfterGenerate: true },
+        steps: { kind: "INT" },
+        sampler_name: { kind: "COMBO", choices: ["euler"] },
+      },
+    });
+    expect(answer.meta.get("CLIPLoader")?.inputs.clip_name).toEqual({
+      kind: "COMBO",
+      choices: ["qwen3vl_4b_bf16.safetensors", "other.safetensors"],
+    });
+    expect(Object.keys(answer)).toEqual(["reachable", "meta", "missing"]);
+  });
+
+  it("lists a graph's missing nodes and model files against the same inventory", async () => {
+    const { client, fake } = setup({ missingNodes: ["ModelAttentionBackend"] });
+    const answer = await inspect(client);
+    if (!answer.reachable) throw new Error("not reachable");
+    const graph = {
+      ...serverRun().graph,
+      "7": {
+        class_type: "KSampler",
+        inputs: { ...serverRun().graph["7"]?.inputs, sampler_name: "lms" },
+      },
+      "20": {
+        class_type: "CheckpointLoaderSimple",
+        inputs: { ckpt_name: "fixture-checkpoint.safetensors" },
+      },
+      "21": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "absent.safetensors" } },
+      "22": {
+        class_type: "LoadLoraModel",
+        inputs: { model: ["20", 0], "loras.0.lora_name": "absent-lora.safetensors" },
+      },
+    };
+    const before = fake.state.requests.length;
+    expect(answer.missing(describeWorkflow(graph, "general"))).toEqual({
+      missingNodes: ["ModelAttentionBackend"],
+      missingModels: ["absent.safetensors", "absent-lora.safetensors"],
+    });
+    // The answer is read once; `missing` asks nothing more.
+    expect(fake.state.requests.length).toBe(before);
+  });
+
+  it("answers not reachable within the status deadline", async () => {
+    const timeout = AbortSignal.timeout;
+    const deadlines = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation((ms) => timeout(ms === 8_000 ? 20 : ms));
+    try {
+      expect(await inspect(setup({ down: true }).client)).toEqual({
+        reachable: false,
+        reason: "unreachable",
+      });
+      const client = createComfyui({
+        fetch: (_input, init) =>
+          new Promise<Response>((_, reject) =>
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+          ),
+        apiKey: undefined,
+        ca: undefined,
+        allowedOrigins: [BASE],
+        executionTimeoutMs: 600_000,
+      });
+      // As the status check says it: the deadline ended the read.
+      expect(await inspect(client)).toEqual({ reachable: false, reason: "aborted" });
+    } finally {
+      deadlines.mockRestore();
+    }
+  });
 });
 
 describe("allowed origins", () => {
@@ -1322,7 +1520,7 @@ describe("allowed origins", () => {
     expect(
       await client.status({
         baseUrl: elsewhere,
-        workflow: "krea2-gonzalomo",
+        workflow: serverRun("krea2-gonzalomo"),
         signal: new AbortController().signal,
       }),
     ).toEqual({ reachable: false, reason: "not_allowed" });
@@ -1339,7 +1537,7 @@ describe("allowed origins", () => {
     expect(
       await client.status({
         baseUrl: BASE,
-        workflow: "krea2-gonzalomo",
+        workflow: serverRun("krea2-gonzalomo"),
         signal: new AbortController().signal,
       }),
     ).toEqual({ reachable: false, reason: "unreachable" });
@@ -1354,6 +1552,15 @@ describe("allowed origins", () => {
 });
 
 describe("ComfyUI generation", () => {
+  it("refuses a workflow with blocked classes before any request", async () => {
+    const { fake, client } = setup();
+    expect(
+      await failure(collect(client, { workflow: { ...serverRun(), blocked: ["OperatorNode"] } })),
+    ).toMatchObject({ reason: "blocked" });
+    expect(fake.state.requests).toEqual([]);
+    expect(fake.state.sockets).toEqual([]);
+  });
+
   it("streams progress, then exactly four portraits, and leaves nothing in a plain instance", async () => {
     const { fake, client } = setup();
     const events = await collect(client);
@@ -1521,7 +1728,7 @@ describe("ComfyUI generation", () => {
     const run = (async () => {
       for await (const event of client.generate({
         baseUrl: BASE,
-        workflow: "krea2-gonzalomo",
+        workflow: serverRun("krea2-gonzalomo"),
         prompt: PROMPT,
         seed: 1,
         count: CREATOR_ART.count,
@@ -1543,7 +1750,7 @@ describe("ComfyUI generation", () => {
     const run = (async () => {
       for await (const event of client.generate({
         baseUrl: BASE,
-        workflow: "krea2-gonzalomo",
+        workflow: serverRun("krea2-gonzalomo"),
         prompt: PROMPT,
         seed: 1,
         count: CREATOR_ART.count,
@@ -1566,7 +1773,6 @@ describe("ComfyUI generation", () => {
     const fake = fakeComfyui(options);
     const controller = new AbortController();
     const client = createComfyui({
-      workflows: TEST_WORKFLOWS,
       fetch: (input, init) => {
         const answer = fake.fetch(input, init);
         if (String(input).endsWith("/prompt")) controller.abort();
@@ -1661,7 +1867,7 @@ describe("ComfyUI generation", () => {
     const run = (async () => {
       for await (const _event of client.generate({
         baseUrl: BASE,
-        workflow: "krea2-gonzalomo",
+        workflow: serverRun("krea2-gonzalomo"),
         prompt: PROMPT,
         seed: 1,
         count: CREATOR_ART.count,

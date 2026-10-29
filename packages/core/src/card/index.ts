@@ -8,6 +8,7 @@ export {
   upgradeLegacyCharacterCard,
   upgradeLegacyLorebook,
 } from "./import.ts";
+export { isRecord } from "./json.ts";
 export { CARD_LIMITS, clipText, MAX_JSON_BYTES, MAX_REQUEST_BYTES } from "./limits.ts";
 export { applySheetPatch } from "./patch.ts";
 export {

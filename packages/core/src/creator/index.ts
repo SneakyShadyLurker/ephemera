@@ -16,11 +16,10 @@ export {
   validateCardAnswer,
 } from "./parse.ts";
 export {
+  ART_FAMILIES,
   ART_METAPROMPTS,
-  ART_MODELS,
-  type ArtModel,
+  type ArtFamily,
   artMetaprompt,
-  artModelOf,
   CARD_SYSTEM_PROMPTS,
   SCENE_METAPROMPTS,
   SUBJECT_DIPTYCH_METAPROMPTS,

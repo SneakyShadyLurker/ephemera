@@ -177,9 +177,9 @@ export const creatorArtStatusSchema = z.discriminatedUnion("state", [
 ]);
 export type CreatorArtStatus = z.infer<typeof creatorArtStatusSchema>;
 
-/** `GET /api/creator/art/workflows`: the built-in workflows the server found. */
+/** `GET /api/creator/art/workflows`: the user's workflows, then the server's (24 plus 64). */
 export const creatorArtWorkflowsSchema = z.strictObject({
-  workflows: z.array(comfyuiWorkflowOptionSchema).min(1).max(64),
+  workflows: z.array(comfyuiWorkflowOptionSchema).min(1).max(88),
 });
 
 /** Why a card request stopped; content-free, the web app explains each one. */

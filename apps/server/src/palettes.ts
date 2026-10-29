@@ -10,7 +10,7 @@ import {
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { WorkflowRegistry } from "./comfyui/workflow.ts";
+import type { WorkflowCatalog } from "./comfyui/catalog.ts";
 import { PALETTES_CSS_PATH } from "./paths.ts";
 import type { CustomPaletteStore, SettingsStore } from "./persistence/store.ts";
 import { invalid, jsonLimit, notFound } from "./routes.ts";
@@ -41,7 +41,7 @@ const slotParam = zValidator(
 export function createPalettesApi(
   store: FromUser<CustomPaletteStore>,
   settings: FromUser<SettingsStore>,
-  workflows: Pick<WorkflowRegistry, "known">,
+  catalogFor: FromUser<Pick<WorkflowCatalog, "known">>,
 ) {
   return new Hono<UserEnv>()
     .get("/palettes", (c) =>
@@ -85,7 +85,7 @@ export function createPalettesApi(
         if (outcome === "missing") return notFound(c);
         if (outcome === "changed") return c.json({ error: "changed" as const }, 409);
         return c.json(
-          { settings: shown(settings(c).get(), workflows) } satisfies z.input<
+          { settings: shown(settings(c).get(), catalogFor(c)) } satisfies z.input<
             typeof settingsResponseSchema
           >,
           200,

@@ -1,4 +1,4 @@
-import type { ArtModel } from "./prompts.ts";
+import type { ArtFamily } from "./prompts.ts";
 
 /*
  * The capture looks a character cover or a scene picture can take, owned
@@ -18,9 +18,9 @@ export interface ArtLook {
   /** When Auto picks it, as the clause after "Pick it when": on a cover, and in a scene picture. */
   when: { cover: string; scene: string };
   /** The capture in each model's words; opens the prompt's look. */
-  wording: Readonly<Record<ArtModel, string>>;
+  wording: Readonly<Record<ArtFamily, string>>;
   /** An era look chosen outright for notes with no matching decade: the capture without one. */
-  undated?: Readonly<Record<ArtModel, string>>;
+  undated?: Readonly<Record<ArtFamily, string>>;
   /** Replaces step 1's camera position and gaze; absent keeps step 1. */
   framing?: { cover: string; diptych: string; group: string; scene: string };
 }
@@ -44,6 +44,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     wording: {
       krea2: "an amateur snapshot, raw and true to life",
       moss: "an amateur snapshot, raw and true to life",
+      general: "an amateur snapshot, raw and true to life",
     },
   },
   {
@@ -56,6 +57,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     wording: {
       krea2: "a smartphone selfie, raw and true to life",
       moss: "a candid smartphone selfie, raw and true to life",
+      general: "a smartphone selfie, raw and true to life",
     },
     framing: {
       cover:
@@ -79,10 +81,13 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
       moss: "a candid amateur 35mm colour film snapshot from the <decade>, the colours of that era's film in its dress and surroundings",
+      general:
+        "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
     },
     undated: {
       krea2: "an amateur 35mm colour film snapshot, true to life",
       moss: "a candid amateur 35mm colour film snapshot",
+      general: "an amateur 35mm colour film snapshot, true to life",
     },
   },
   {
@@ -95,11 +100,15 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
       moss: "a candid amateur snapshot from an early 2000s compact digital camera, crisp, in the bright colour of early digital and that decade's dress and surroundings",
+      general:
+        "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
     },
     undated: {
       krea2:
         "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
       moss: "a candid amateur snapshot from an early 2000s compact digital camera, crisp, in the bright colour of early digital",
+      general:
+        "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
     },
   },
   {
@@ -109,10 +118,13 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur black and white film snapshot from <the era>, named as in the 1920s or the eighteenth century, true to life, in that era's dress and surroundings",
       moss: "a candid amateur black and white film snapshot from <the era>, named as in the 1920s or the eighteenth century, in that era's dress and surroundings",
+      general:
+        "an amateur black and white film snapshot from <the era>, named as in the 1920s or the eighteenth century, true to life, in that era's dress and surroundings",
     },
     undated: {
       krea2: "an amateur black and white film snapshot, true to life",
       moss: "a candid amateur black and white film snapshot",
+      general: "an amateur black and white film snapshot, true to life",
     },
   },
 ];

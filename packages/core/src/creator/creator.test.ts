@@ -10,13 +10,12 @@ import { normalizeCard } from "../card/import.ts";
 import { textLength } from "../card/limits.ts";
 import { sheetFieldsSchema } from "../card/schema.ts";
 import {
+  ART_FAMILIES,
   ART_LOOK_IDS,
   ART_LOOKS,
   ART_METAPROMPTS,
-  ART_MODELS,
   artControlEventSchema,
   artMetaprompt,
-  artModelOf,
   artPrompt,
   artSource,
   CARD_SYSTEM_PROMPTS,
@@ -198,13 +197,29 @@ describe("creator requests and events", () => {
     }
   });
 
-  it("names a workflow's image model by the first word of its id", () => {
-    expect(artModelOf("krea2-second")).toBe("krea2");
-    expect(artModelOf("moss-sample")).toBe("moss");
-    expect(artModelOf("moss")).toBe("moss");
-    for (const id of ["flux-dev", "krea2x-realism", "mossy-image", ""]) {
-      expect(artModelOf(id)).toBeUndefined();
+  it("words the General family for any image model, in plain natural language", () => {
+    const prompts = [
+      ...KINDS.map((kind) => ART_METAPROMPTS.general[kind]),
+      SUBJECT_DIPTYCH_METAPROMPTS.general,
+      ...KINDS.map((kind) => SCENE_METAPROMPTS.general[kind]),
+    ];
+    for (const prompt of prompts) {
+      expect(prompt).toContain("You write image prompts for the image model.");
+      expect(prompt).toMatch(/The image model does not know names/);
+      expect(prompt).not.toMatch(/Krea|MOSS|pussy|bare word|\u2014/);
+      expect(prompt).not.toContain("the image model image model");
     }
+    expect(ART_METAPROMPTS.general.subject).toContain("vertical 2:3 photograph");
+    expect(ART_METAPROMPTS.general.subject).toContain("her breasts and vulva are bare");
+    expect(SUBJECT_DIPTYCH_METAPROMPTS.general).toContain("hides her buttocks");
+    expect(SCENE_METAPROMPTS.general.subject).toContain("the vulva with its pubic hair");
+  });
+
+  it("renders the subject portrait metaprompt for each family, for the owner to read side by side", async () => {
+    const rendered = ART_FAMILIES.map(
+      (family) => `===== ${family} =====\n\n${ART_METAPROMPTS[family].subject}\n`,
+    ).join("\n");
+    await expect(rendered).toMatchFileSnapshot("./__snapshots__/subject-portrait-metaprompts.txt");
   });
 
   it("asks MOSS for a named capture and plain anatomical words, never a bare photograph", () => {
@@ -231,7 +246,7 @@ describe("creator requests and events", () => {
 
   it("lists every look in the model's words on every cover metaprompt, an explicit tag winning over Auto", () => {
     const [, selfie] = ART_LOOKS;
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       const covers = {
         cover: ART_METAPROMPTS[model].subject,
         diptych: SUBJECT_DIPTYCH_METAPROMPTS[model],
@@ -254,7 +269,7 @@ describe("creator requests and events", () => {
 
   it("scene metaprompts choose a look from the notes and the excerpt, with no tag", () => {
     const [, selfie] = ART_LOOKS;
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       for (const kind of KINDS) {
         const prompt = SCENE_METAPROMPTS[model][kind];
         for (const look of ART_LOOKS) {
@@ -271,7 +286,7 @@ describe("creator requests and events", () => {
   });
 
   it("shows three women on a Scenario poster unless the owner's direction asks for another number", () => {
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       const prompt = ART_METAPROMPTS[model].scenario;
       expect(prompt).toContain("The poster shows three women.");
       expect(prompt).toContain(
@@ -283,7 +298,7 @@ describe("creator requests and events", () => {
   });
 
   it("adapts a Scenario poster's era without a catalogue", () => {
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       const prompt = ART_METAPROMPTS[model].scenario;
       expect(prompt).toContain("film of that decade, named as in 1970s");
       expect(prompt).toContain("black and white film still");
@@ -296,7 +311,7 @@ describe("creator requests and events", () => {
 
   it("excepts only a look's decade and 35mm from the figure rule", () => {
     const clause = "the decade and 35mm a look's own wording carries";
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       for (const prompt of [
         ART_METAPROMPTS[model].subject,
         ART_METAPROMPTS[model].group,
@@ -365,7 +380,7 @@ describe("creator requests and events", () => {
   it("defaults to one Subject in one frame and offers an explicit front/rear diptych for both models", () => {
     expect(CARD_SYSTEM_PROMPTS.subject).toContain("create exactly one subject");
     expect(CARD_SYSTEM_PROMPTS.group).toContain("at least two, at most three");
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       expect(artMetaprompt(model, "subject")).toBe(ART_METAPROMPTS[model].subject);
       expect(artMetaprompt(model, "subject", "regular")).toContain("one woman in one single frame");
       expect(artMetaprompt(model, "subject")).not.toContain("diptych");
@@ -382,7 +397,7 @@ describe("creator requests and events", () => {
       expect(diptych).toContain("her pose and position unchanged");
       expect(diptych).toContain("where she is in the place");
       expect(diptych).toContain("besides where step 2 puts each woman");
-      expect(diptych).toContain(`hides her ${model === "moss" ? "buttocks" : "ass"}`);
+      expect(diptych).toContain(`hides her ${model === "krea2" ? "ass" : "buttocks"}`);
       expect(diptych).not.toContain("she stands fully in the frame");
       for (const kind of ["group", "scenario"] as const) {
         expect(artMetaprompt(model, kind, "diptych")).toBe(ART_METAPROMPTS[model][kind]);
@@ -426,7 +441,7 @@ describe("creator requests and events", () => {
     expect(ART_METAPROMPTS.krea2.subject).toContain("Her pose keeps her pussy in view");
     expect(ART_METAPROMPTS.krea2.group).toContain("her breasts and pussy are bare");
     expect(ART_METAPROMPTS.krea2.scenario).toContain("her breasts and pussy are bare");
-    for (const prompt of ART_MODELS.flatMap((model) =>
+    for (const prompt of ART_FAMILIES.flatMap((model) =>
       KINDS.map((kind) => ART_METAPROMPTS[model][kind]),
     )) {
       expect(prompt).toContain("any underwear she wears included");
@@ -436,7 +451,7 @@ describe("creator requests and events", () => {
   });
 
   it("poses every woman on every cover by her dominant visible trait, named in words with her place", () => {
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       for (const prompt of [
         ...KINDS.map((kind) => ART_METAPROMPTS[model][kind]),
         SUBJECT_DIPTYCH_METAPROMPTS[model],
@@ -476,7 +491,7 @@ describe("creator requests and events", () => {
         expect(CARD_SYSTEM_PROMPTS[kind]).toContain('age as given, in digits as in "25 years old"');
       }
       expect(CARD_SYSTEM_PROMPTS[kind]).not.toContain("18 or older");
-      for (const model of ART_MODELS) {
+      for (const model of ART_FAMILIES) {
         expect(ART_METAPROMPTS[model][kind]).toContain(
           'age as given in the notes as "NN years old"',
         );
@@ -1103,8 +1118,8 @@ describe("art looks", () => {
       const texts = [
         look.when.cover,
         look.when.scene,
-        ...ART_MODELS.map((model) => look.wording[model]),
-        ...(look.undated ? ART_MODELS.map((model) => look.undated?.[model] ?? "") : []),
+        ...ART_FAMILIES.map((model) => look.wording[model]),
+        ...(look.undated ? ART_FAMILIES.map((model) => look.undated?.[model] ?? "") : []),
         ...Object.values(look.framing ?? {}),
       ];
       for (const text of texts) {
@@ -1117,7 +1132,7 @@ describe("art looks", () => {
     }
     const byId = Object.fromEntries(ART_LOOKS.map((look) => [look.id, look]));
     expect(byId.snapshot?.framing).toBeUndefined();
-    for (const model of ART_MODELS) {
+    for (const model of ART_FAMILIES) {
       expect(byId.snapshot?.wording[model]).toBe("an amateur snapshot, raw and true to life");
       for (const id of ["film", "digital", "monochrome"]) {
         const undated = byId[id]?.undated?.[model];

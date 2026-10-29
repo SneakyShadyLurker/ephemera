@@ -1,7 +1,7 @@
 import { CHAT_DATA_PARTS, type InspectedPrompt, inspectedPromptSchema } from "@ephemera/core";
 import sharp from "sharp";
 import { type AppDeps, createApp } from "../src/app.ts";
-import { loadWorkflowRegistry, type WorkflowRegistry } from "../src/comfyui/workflow.ts";
+import { loadWorkflowRegistry, type ServerWorkflows } from "../src/comfyui/workflow.ts";
 import type { AppConfig } from "../src/config.ts";
 import { BOUND_USER_HEADER, usernameSchema } from "../src/identity.ts";
 import { createLogger } from "../src/log.ts";
@@ -70,7 +70,7 @@ export function integrationHeaders(extra: Record<string, string> = {}): Record<s
 }
 
 /** The bundled workflows with no variable set, as a server without either starts. */
-export const BUNDLED_WORKFLOWS: WorkflowRegistry = loadWorkflowRegistry({});
+export const BUNDLED_WORKFLOWS: ServerWorkflows = loadWorkflowRegistry({});
 
 /**
  * The app over an in-memory registry unless `deps` brings one, and the

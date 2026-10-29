@@ -22,7 +22,7 @@ import {
 } from "./fake-upstream.ts";
 import { postJson, TEST_USER, testApp } from "./helpers.ts";
 import { imageMetadata } from "./image-fixtures.ts";
-import { TEST_WORKFLOWS } from "./test-workflows.ts";
+import { storeUserWorkflow, TEST_WORKFLOWS, userGraph } from "./test-workflows.ts";
 import { until } from "./vitest-helpers.ts";
 
 const COMFY = "https://comfy.test:8188";
@@ -301,6 +301,34 @@ describe("POST /api/scene", () => {
       const response = await app.request("/api/scene", postJson(body));
       expect(response.status).toBe(400);
     }
+    expect(upstream.records).toEqual([]);
+    expect(comfy.state.requests).toEqual([]);
+  });
+
+  it("paints a scene with a user's workflow, its stored graph as the run's", async () => {
+    const { app, comfy, stores, characterId } = await setup();
+    const { id } = storeUserWorkflow(stores.workflows);
+    const all = await sceneEvents(
+      await app.request("/api/scene", postJson(request(characterId, { workflow: id }))),
+    );
+    expect(all.filter((event) => event.type === "image")).toHaveLength(1);
+    expect(all.at(-1)).toEqual({ type: "done" });
+    const graphs = [...comfy.state.prompts.values()] as WorkflowGraph[];
+    expect(graphs.map((graph) => graph["7"]?.inputs.steps)).toEqual([5]);
+    await until(() => comfy.clean());
+  });
+
+  it("refuses a user's workflow whose class the allowlist no longer admits before any stream", async () => {
+    const { app, upstream, comfy, stores, characterId } = await setup();
+    const { id } = storeUserWorkflow(stores.workflows, {
+      graph: userGraph(5, { "20": { class_type: "OperatorNode", inputs: {} } }),
+    });
+    const response = await app.request(
+      "/api/scene",
+      postJson(request(characterId, { workflow: id })),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
     expect(upstream.records).toEqual([]);
     expect(comfy.state.requests).toEqual([]);
   });

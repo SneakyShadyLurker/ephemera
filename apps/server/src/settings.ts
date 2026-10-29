@@ -2,7 +2,7 @@ import { type Settings, settingsPatchSchema, type settingsResponseSchema } from 
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import type { z } from "zod";
-import type { WorkflowRegistry } from "./comfyui/workflow.ts";
+import type { WorkflowCatalog } from "./comfyui/catalog.ts";
 import type { Logger } from "./log.ts";
 import type { SettingsStore } from "./persistence/store.ts";
 import { invalid, jsonLimit } from "./routes.ts";
@@ -15,10 +15,7 @@ import type { FromUser, UserEnv } from "./user.ts";
  * without a graph is an unknown reference, as a deleted preset is; a saved
  * one whose graph is gone reads as the default.
  */
-export const shown = (
-  settings: Settings,
-  workflows: Pick<WorkflowRegistry, "known">,
-): Settings => ({
+export const shown = (settings: Settings, workflows: Pick<WorkflowCatalog, "known">): Settings => ({
   ...settings,
   comfyuiWorkflow: workflows.known(settings.comfyuiWorkflow),
 });
@@ -28,17 +25,18 @@ export function createSettingsApi(
   {
     log,
     comfyuiAllows,
-    workflows,
+    catalogFor,
   }: {
     log: Logger;
     comfyuiAllows: (baseUrl: string) => boolean;
-    workflows: Pick<WorkflowRegistry, "has" | "known">;
+    /** The requester's workflows and the server's, built for each request (api.ts). */
+    catalogFor: FromUser<Pick<WorkflowCatalog, "has" | "known">>;
   },
 ) {
   return new Hono<UserEnv>()
     .get("/", (c) =>
       c.json(
-        { settings: shown(store(c).get(), workflows) } satisfies z.input<
+        { settings: shown(store(c).get(), catalogFor(c)) } satisfies z.input<
           typeof settingsResponseSchema
         >,
         200,
@@ -55,6 +53,7 @@ export function createSettingsApi(
         });
         return c.json({ error: "comfyui_origin_not_allowed" as const }, 422);
       }
+      const workflows = catalogFor(c);
       const known = patch.comfyuiWorkflow === undefined || workflows.has(patch.comfyuiWorkflow);
       const settings = known ? store(c).update(patch) : undefined;
       if (settings === undefined) {

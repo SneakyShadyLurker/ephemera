@@ -1,3 +1,4 @@
+import type { ArtFamily } from "@ephemera/core";
 import type { FinishReason } from "ai";
 
 /**
@@ -24,6 +25,12 @@ export interface LogFields {
   count?: number;
   /** A configuration file's base name, such as the workflow file that stopped the start; never its content. */
   file?: string;
+  /** The image-model family a workflow file runs, such as the General family a file's name fell back to. */
+  family?: ArtFamily;
+  /** How many nodes a workflow graph has; never which. */
+  nodes?: number;
+  /** Whether a live ComfyUI checked a saved workflow. */
+  checked?: boolean;
 }
 
 const ALLOWED_KEYS = [
@@ -40,6 +47,9 @@ const ALLOWED_KEYS = [
   "referenceGraph",
   "count",
   "file",
+  "family",
+  "nodes",
+  "checked",
 ] as const satisfies readonly (keyof LogFields)[];
 
 type Level = "info" | "warn" | "error";

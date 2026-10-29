@@ -1,17 +1,19 @@
 import { inflate } from "node:zlib";
-import { type ArtStreamEvent, CREATOR_ART, type CreatorErrorCode } from "@ephemera/core";
+import {
+  type ArtStreamEvent,
+  CREATOR_ART,
+  type CreatorErrorCode,
+  type NodeMetaMap,
+  nodeMetaFrom,
+  objectInfoSchema,
+} from "@ephemera/core";
 import { z } from "zod";
 import type { UpstreamFetch } from "../catalog.ts";
 import { readBoundedJson, timedOut } from "../lifetime.ts";
 import type { Logger } from "../log.ts";
 import { pngChunks } from "../png.ts";
-import {
-  fillWorkflow,
-  type Workflow,
-  type WorkflowGraph,
-  type WorkflowId,
-  type WorkflowRegistry,
-} from "./workflow.ts";
+import type { RunWorkflow } from "./catalog.ts";
+import { fillWorkflow, requiredModels, type Workflow, type WorkflowGraph } from "./workflow.ts";
 
 /*
  * The ComfyUI client for card portraits (PRINCIPLES.md 1 and 2). It sends one
@@ -123,6 +125,8 @@ const COMFYUI_FAILURES = [
   "invalid_output",
   /** The caller's signal ended the run. */
   "aborted",
+  /** The workflow has classes the allowlist no longer admits: nothing is sent. */
+  "blocked",
 ] as const;
 type ComfyuiFailure = (typeof COMFYUI_FAILURES)[number];
 
@@ -173,8 +177,6 @@ const bunSocket: ComfySocketFactory = (url, options) => {
 interface ComfyuiDeps {
   /** The app's one outbound fetch (app.ts); tests pass a fake. */
   fetch: UpstreamFetch;
-  /** The graphs a run or a status check names by id (index.ts). */
-  workflows: Pick<WorkflowRegistry, "get" | "referenceOf">;
   /** Bun's native WebSocket unless a test passes a fake. */
   socket?: ComfySocketFactory;
   /** `COMFYUI_API_KEY`: sent as a bearer token on every request and the WebSocket. */
@@ -203,6 +205,18 @@ export type ComfyuiStatus =
       missingModels: string[];
     };
 
+/**
+ * What a live ComfyUI offers, read once: each class's meta and, against that
+ * same answer, what a graph lacks. The raw `/object_info` never leaves the client.
+ */
+export type ComfyuiInspection =
+  | { reachable: false; reason: ComfyuiFailure }
+  | {
+      reachable: true;
+      meta: NodeMetaMap;
+      missing(workflow: Workflow): { missingNodes: string[]; missingModels: string[] };
+    };
+
 export type ComfyuiEvent =
   | Extract<ArtStreamEvent, { type: "progress" }>
   /**
@@ -213,7 +227,8 @@ export type ComfyuiEvent =
 
 export interface GenerateInput {
   baseUrl: string;
-  workflow: WorkflowId;
+  /** The workflow as the route resolved it when it admitted the request (catalog.ts). */
+  workflow: RunWorkflow;
   /** The image prompt; a creation draft (PRINCIPLES.md 1). */
   prompt: string;
   seed: number;
@@ -281,18 +296,6 @@ const queueSchema = z.object({
   queue_running: z.array(z.array(z.unknown())),
   queue_pending: z.array(z.array(z.unknown())),
 });
-const objectInfoSchema = z.record(
-  z.string(),
-  z.object({
-    input: z
-      .object({
-        required: z.record(z.string(), z.unknown()).optional(),
-        optional: z.record(z.string(), z.unknown()).optional(),
-      })
-      .optional(),
-  }),
-);
-type ObjectInfo = z.infer<typeof objectInfoSchema>;
 const messageSchema = z.object({
   type: z.string(),
   data: z.object({
@@ -371,31 +374,46 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener("abort", abort, { once: true });
   });
 
-/** The choices of a combo input in either `/object_info` format. */
-function choices(spec: unknown): unknown[] | undefined {
-  if (!Array.isArray(spec)) return undefined;
-  const [kind, config] = spec;
-  if (Array.isArray(kind)) return kind;
-  if (kind !== "COMBO" || typeof config !== "object" || config === null) return undefined;
-  const options: unknown = Reflect.get(config, "options");
-  return Array.isArray(options) ? options : undefined;
-}
-
-function missing(workflow: Workflow, info: ObjectInfo, allowedNodes?: readonly string[]) {
+/**
+ * What the instance lacks for a workflow: classes it does not have, that the
+ * submission allowlist or the server's allowlist (`blocked`) refuses, or that
+ * it reports as output nodes other than the graph's own save node; and the
+ * model files its combos do not list.
+ */
+function missing(
+  workflow: Workflow,
+  meta: NodeMetaMap,
+  allowedNodes?: readonly string[],
+  blocked: readonly string[] = [],
+) {
   const classes = new Set(Object.values(workflow.graph).map((node) => node.class_type));
-  const missingNodes = [...classes].filter(
-    (name) =>
-      info[name] === undefined || (allowedNodes !== undefined && !allowedNodes.includes(name)),
-  );
-  const missingModels = workflow.models
-    .filter(({ classType, input, file }) => {
-      const node = info[classType];
-      if (node === undefined) return false;
-      const listed = choices(node.input?.required?.[input] ?? node.input?.optional?.[input]);
-      return !listed?.includes(file);
-    })
+  const output = Object.hasOwn(workflow.graph, workflow.output)
+    ? workflow.graph[workflow.output]?.class_type
+    : undefined;
+  const missingNodes = [...classes].filter((name) => {
+    const node = meta.get(name);
+    return (
+      blocked.includes(name) ||
+      node === undefined ||
+      (node.outputNode && name !== output) ||
+      (allowedNodes !== undefined && !allowedNodes.includes(name))
+    );
+  });
+  // A blocked reason that names no class of the graph (an unreadable graph) is missing too.
+  missingNodes.push(...blocked.filter((name) => !classes.has(name)));
+  const missingModels = requiredModels(workflow.graph, meta)
+    .filter(
+      ({ classType, input, file }) => !meta.get(classType)?.inputs[input]?.choices?.includes(file),
+    )
     .map((model) => model.file);
   return { missingNodes, missingModels: [...new Set(missingModels)] };
+}
+
+/** The workflow as the instance runs it: on the private worker, its private graph. */
+function asRun<T extends Workflow>(workflow: T, privacy: Handshake): T {
+  return privacy.mode === "private"
+    ? { ...workflow, graph: privateGraph(workflow.graph, "readiness") }
+    : workflow;
 }
 
 /** The graph as the private worker runs it: its LoadImage reads the job's in-memory inputs. */
@@ -613,7 +631,7 @@ export function createComfyui(deps: ComfyuiDeps) {
   // Only simultaneous inventory reads share work, within this credential owner.
   const inventories = new Map<
     string,
-    { controller: AbortController; promise: Promise<ObjectInfo>; subscribers: number }
+    { controller: AbortController; promise: Promise<NodeMetaMap>; subscribers: number }
   >();
 
   /** Whether an address may be called at all: its origin is one the server's environment allows. */
@@ -759,7 +777,7 @@ export function createComfyui(deps: ComfyuiDeps) {
     }
   }
 
-  async function inventory(baseUrl: string, signal: AbortSignal): Promise<ObjectInfo> {
+  async function inventory(baseUrl: string, signal: AbortSignal): Promise<NodeMetaMap> {
     signal.throwIfAborted();
     const key = checked(baseUrl).href.replace(/\/+$/, "");
     let entry = inventories.get(key);
@@ -779,7 +797,7 @@ export function createComfyui(deps: ComfyuiDeps) {
             await readJson(response, MAX_OBJECT_INFO_BYTES, readSignal),
           );
           if (!info.success) throw new ComfyuiError("invalid_response");
-          return info.data;
+          return nodeMetaFrom(info.data);
         })().finally(() => {
           if (inventories.get(key) === owned) inventories.delete(key);
         }),
@@ -790,7 +808,7 @@ export function createComfyui(deps: ComfyuiDeps) {
     const shared = entry;
     shared.subscribers++;
     let abort = () => {};
-    return new Promise<ObjectInfo>((resolve, reject) => {
+    return new Promise<NodeMetaMap>((resolve, reject) => {
       abort = () => reject(signal.reason);
       signal.addEventListener("abort", abort, { once: true });
       if (signal.aborted) abort();
@@ -805,25 +823,48 @@ export function createComfyui(deps: ComfyuiDeps) {
     });
   }
 
+  /** The workflow's readiness; classes the allowlist no longer admits count as missing nodes. */
   async function status(input: {
     baseUrl: string;
-    workflow: WorkflowId;
+    workflow: RunWorkflow;
     signal: AbortSignal;
   }): Promise<ComfyuiStatus> {
     const signal = AbortSignal.any([input.signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)]);
     try {
       // Atelier's private worker must answer ready; a plain instance has no handshake.
       const privacy = await handshake(input.baseUrl, signal);
-      const workflow = deps.workflows.get(input.workflow);
+      const { workflow } = input;
       return {
         reachable: true,
         ...missing(
-          privacy.mode === "private"
-            ? { ...workflow, graph: privateGraph(workflow.graph, "readiness") }
-            : workflow,
+          asRun(workflow, privacy),
           await inventory(input.baseUrl, signal),
           privacy.allowed_nodes,
+          workflow.blocked,
         ),
+      };
+    } catch (error) {
+      return { reachable: false, reason: failure(error, signal).reason };
+    }
+  }
+
+  /**
+   * The instance's node meta and a `missing` that answers any graph against
+   * that one `/object_info` answer, within the status deadline. The server's
+   * allowlist is the caller's to apply.
+   */
+  async function inspect(input: {
+    baseUrl: string;
+    signal: AbortSignal;
+  }): Promise<ComfyuiInspection> {
+    const signal = AbortSignal.any([input.signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)]);
+    try {
+      const privacy = await handshake(input.baseUrl, signal);
+      const meta = await inventory(input.baseUrl, signal);
+      return {
+        reachable: true,
+        meta,
+        missing: (workflow) => missing(asRun(workflow, privacy), meta, privacy.allowed_nodes),
       };
     } catch (error) {
       return { reachable: false, reason: failure(error, signal).reason };
@@ -837,11 +878,11 @@ export function createComfyui(deps: ComfyuiDeps) {
    */
   async function usableReference(
     baseUrl: string,
-    id: WorkflowId,
+    workflow: RunWorkflow,
     signal: AbortSignal,
     allowedNodes: string[] | undefined,
   ): Promise<Workflow | undefined> {
-    const reference = deps.workflows.referenceOf(id);
+    const { reference } = workflow;
     if (reference === undefined) return undefined;
     const { missingNodes, missingModels } = missing(
       { ...reference, graph: privateGraph(reference.graph, "readiness") },
@@ -1289,7 +1330,9 @@ export function createComfyui(deps: ComfyuiDeps) {
   async function* generate(input: GenerateInput): AsyncGenerator<ComfyuiEvent, void, undefined> {
     const { baseUrl } = input;
     const signal = AbortSignal.any([input.signal, stopping]);
-    const workflow = deps.workflows.get(input.workflow);
+    const { workflow } = input;
+    // The routes refuse a blocked workflow already; the run boundary holds the rule too.
+    if (workflow.blocked.length > 0) throw new ComfyuiError("blocked");
     /** The save node of the graph that runs, and whether it is the reference graph. */
     let output = workflow.output;
     let referenceGraph = false;
@@ -1730,7 +1773,7 @@ export function createComfyui(deps: ComfyuiDeps) {
     }
   }
 
-  return { allows, status, generate, settled };
+  return { allows, status, inspect, generate, settled };
 }
 
 export type Comfyui = ReturnType<typeof createComfyui>;

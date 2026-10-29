@@ -57,8 +57,14 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import type { Catalog } from "./catalog.ts";
+import {
+  type CatalogFor,
+  type RunWorkflow,
+  runWorkflow,
+  type WorkflowCatalog,
+} from "./comfyui/catalog.ts";
 import { type Comfyui, ComfyuiError, type ComfyuiStatus } from "./comfyui/client.ts";
-import type { WorkflowId, WorkflowRegistry } from "./comfyui/workflow.ts";
+import type { WorkflowId } from "./comfyui/workflow.ts";
 import { toPortrait, toSceneReference, toVisionImage } from "./images.ts";
 import { boundedBody, requestLifetime, timedOut } from "./lifetime.ts";
 import { errorClass, type Logger } from "./log.ts";
@@ -144,8 +150,8 @@ export interface CreatorDeps {
   /** The configured upstream's chat models (api.ts). */
   upstream: Upstream;
   comfyui: Comfyui;
-  /** The workflows the server runs (index.ts). */
-  workflows: WorkflowRegistry;
+  /** The requester's workflows and the server's, built for each request (api.ts). */
+  catalogFor: CatalogFor;
   /** The card request's lifetime: chat's. */
   requestTimeoutMs: number;
   onStreamingRequest?: (request: Request) => void;
@@ -345,6 +351,22 @@ export const userTurn = (text: string, image?: Uint8Array): ModelMessage => ({
         ],
 });
 
+/**
+ * The workflow an art or scene run takes, resolved before any stream opens:
+ * the one the request names or else the saved one. Undefined, for an unknown
+ * id or one with classes the allowlist no longer admits, refuses the request.
+ */
+export function admittedWorkflow(
+  catalog: WorkflowCatalog,
+  named: WorkflowId | undefined,
+  saved: WorkflowId,
+): RunWorkflow | undefined {
+  const id = catalog.requested(named, saved);
+  if (id === undefined) return undefined;
+  const workflow = runWorkflow(catalog, id);
+  return workflow.blocked.length > 0 ? undefined : workflow;
+}
+
 /** What an art run paints from: the route's own source for the image prompt. */
 export interface ArtSource {
   /** The stored portrait (PNG) that goes to a model reading images, read where its failure answers `reference`. */
@@ -364,13 +386,14 @@ export interface ArtSource {
  * class only; an owner who stopped or left ends the run with an abort log.
  */
 export async function paint(
-  deps: Pick<CreatorDeps, "log" | "catalog" | "upstream" | "comfyui" | "workflows">,
+  deps: Pick<CreatorDeps, "log" | "catalog" | "upstream" | "comfyui">,
   options: {
     event: "creator.art" | "scene";
     model: string;
     reasoning: ReasoningEffort | undefined;
     settings: Settings;
-    workflow: WorkflowId;
+    /** Resolved when the request was admitted, so a delete or replace since changes nothing. */
+    workflow: RunWorkflow;
     count: number;
     /** The route's source once the model is known; `not_found` when its character is gone. */
     source: (info: ModelInfo | undefined) => ArtSource | "not_found";
@@ -421,7 +444,7 @@ export async function paint(
       const stored = await source.portrait();
       if (stored !== undefined) {
         if (resolved.info?.images !== false) portrait = await toVisionImage(stored);
-        if (source.referenceGraph === true && deps.workflows.referenceOf(workflow) !== undefined) {
+        if (source.referenceGraph === true && workflow.reference !== undefined) {
           reference = await toSceneReference(stored);
         }
         if (ended()) return;
@@ -1001,7 +1024,7 @@ export function createCreatorApi(deps: CreatorDeps) {
         // The run reads the requester's own stores after the handler returned.
         const { characters } = c.var.user.stores;
         const saved = c.var.user.stores.settings.get();
-        const workflow = deps.workflows.requested(body.workflow, saved.comfyuiWorkflow);
+        const workflow = admittedWorkflow(deps.catalogFor(c), body.workflow, saved.comfyuiWorkflow);
         if (workflow === undefined) return invalidRequest(c);
         return artEventStream(c, deps.stopping, { log, event: ART_ERROR }, (send, signal) =>
           paint(deps, {
@@ -1027,11 +1050,7 @@ export function createCreatorApi(deps: CreatorDeps) {
                       portrait: async () =>
                         (await characters.portrait(reference.characterId, "full"))?.bytes,
                     }),
-                instructions: artMetaprompt(
-                  deps.workflows.get(workflow).artModel,
-                  kind,
-                  composition,
-                ),
+                instructions: artMetaprompt(workflow.family, kind, composition),
                 text: (portrait) => artPrompt(source, direction ?? null, portrait, chosenLook),
               };
             },
@@ -1044,11 +1063,11 @@ export function createCreatorApi(deps: CreatorDeps) {
     .get("/art/status", zValidator("query", creatorArtStatusQuerySchema, invalid), async (c) => {
       const saved = c.var.user.stores.settings.get();
       const baseUrl = saved.comfyuiBaseUrl;
-      const workflow = deps.workflows.requested(
-        c.req.valid("query").workflow,
-        saved.comfyuiWorkflow,
-      );
-      if (workflow === undefined) return invalidRequest(c);
+      const catalog = deps.catalogFor(c);
+      const id = catalog.requested(c.req.valid("query").workflow, saved.comfyuiWorkflow);
+      if (id === undefined) return invalidRequest(c);
+      // A blocked workflow answers `missing` with its blocked classes, never refused.
+      const workflow = runWorkflow(catalog, id);
       if (baseUrl === "") return c.json(creatorArtStatusSchema.parse({ state: "off" }), 200);
       const status: CreatorArtStatus = comfyui.allows(baseUrl)
         ? artStatus(await comfyui.status({ baseUrl, workflow, signal: c.req.raw.signal }))
@@ -1058,5 +1077,5 @@ export function createCreatorApi(deps: CreatorDeps) {
       }
       return c.json(creatorArtStatusSchema.parse(status), 200);
     })
-    .get("/art/workflows", (c) => c.json(deps.workflows.list, 200));
+    .get("/art/workflows", (c) => c.json(deps.catalogFor(c).list, 200));
 }

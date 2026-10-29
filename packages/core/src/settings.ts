@@ -5,6 +5,7 @@ import { contextLimitsSchema, contextWindowsSchema, perModel } from "./models.ts
 import { DEFAULT_PALETTE, PALETTE_CHOICES } from "./palettes.ts";
 import { REASONING_EFFORTS } from "./preset/sampler.ts";
 import { PROMPT_PROCESSING } from "./prompt/postprocess.ts";
+import { artFamilySchema } from "./workflow/family.ts";
 
 /*
  * UI settings: what the app comes back to after a reload. Not chat content
@@ -15,18 +16,21 @@ export const THEMES = ["system", "light", "dark"] as const;
 export type Theme = (typeof THEMES)[number];
 
 /**
- * A built-in ComfyUI workflow for card portraits, by its file name: the
- * server finds the graphs and says which exist (`ComfyuiWorkflowOption`).
+ * A ComfyUI workflow for card portraits: a server file by its file name, or
+ * a user's import as `user-<uuid>`. The server says which exist
+ * (`ComfyuiWorkflowOption`).
  */
 export const comfyuiWorkflowIdSchema = z
   .string()
   .max(64)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
-/** One workflow the owner can choose, with its name on screen. */
+/** One workflow the owner can choose: its name on screen, its family and whose it is. */
 export const comfyuiWorkflowOptionSchema = z.strictObject({
   id: comfyuiWorkflowIdSchema,
   name: z.string().min(1).max(128),
+  family: artFamilySchema,
+  scope: z.enum(["server", "user"]),
 });
 export type ComfyuiWorkflowOption = z.infer<typeof comfyuiWorkflowOptionSchema>;
 

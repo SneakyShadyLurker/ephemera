@@ -20,7 +20,7 @@ import {
   FAKE_WINDOW,
 } from "../../apps/server/test/fake-upstream.ts";
 import {
-  ART_MODELS,
+  ART_FAMILIES,
   artMetaprompt,
   CARD_SYSTEM_PROMPTS,
   SCENE_METAPROMPTS,
@@ -185,7 +185,7 @@ function creatorCall(messages: { role: string; content: string }[]) {
   for (const kind of creatorKindSchema.options) {
     if (system === CARD_SYSTEM_PROMPTS[kind]) return { call: "card" as const, kind };
     if (
-      ART_MODELS.some((model) =>
+      ART_FAMILIES.some((model) =>
         creatorArtCompositionSchema.options.some(
           (composition) => system === artMetaprompt(model, kind, composition),
         ),
@@ -193,7 +193,7 @@ function creatorCall(messages: { role: string; content: string }[]) {
     ) {
       return { call: "art" as const, kind };
     }
-    if (ART_MODELS.some((model) => system === SCENE_METAPROMPTS[model][kind])) {
+    if (ART_FAMILIES.some((model) => system === SCENE_METAPROMPTS[model][kind])) {
       return { call: "scene" as const, kind };
     }
   }

@@ -3,15 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_SETTINGS } from "@ephemera/core";
 import { afterEach, describe, expect, it } from "vitest";
+import { createAllowlist } from "../src/comfyui/allowlist.ts";
 import {
   BUNDLED_WORKFLOWS_DIR,
   createWorkflowRegistry,
   discoverWorkflows,
   loadWorkflowRegistry,
+  type ServerWorkflows,
   WorkflowFileError,
-  type WorkflowRegistry,
 } from "../src/comfyui/workflow.ts";
-import { loadConfig } from "../src/config.ts";
+import { ConfigError, loadConfig } from "../src/config.ts";
+import { createLogger } from "../src/log.ts";
 import {
   createMemoryPortraitFiles,
   createStores,
@@ -19,7 +21,7 @@ import {
 } from "../src/persistence/index.ts";
 import { readWorkflowFiles } from "../src/persistence/workflow-files.ts";
 import { ownerHeaders, requestJson, sharedStores, TEST_USER, testApp } from "./helpers.ts";
-import { FIXTURE_WORKFLOWS_DIR, testWorkflows } from "./test-workflows.ts";
+import { FIXTURE_WORKFLOWS_DIR, fluxGeneralSource, testWorkflows } from "./test-workflows.ts";
 
 /** The e2e suite's synthetic second workflow. */
 const E2E_WORKFLOWS_DIR = new URL("../../../e2e/support/workflows", import.meta.url).pathname;
@@ -48,7 +50,7 @@ function directory(from: string, files: string[], extra: Record<string, string> 
   return dir;
 }
 
-const ids = (registry: WorkflowRegistry) => registry.list.workflows.map(({ id }) => id);
+const ids = (registry: ServerWorkflows) => registry.list.workflows.map(({ id }) => id);
 
 describe("the workflow registry", () => {
   it("without either variable holds the bundled set, with krea2-gonzalomo as the default", () => {
@@ -71,11 +73,11 @@ describe("the workflow registry", () => {
       workflowsDir: FIXTURE_WORKFLOWS_DIR,
     });
     expect(registry.list.workflows).toEqual([
-      { id: "krea2-fixture", name: "Krea 2 Fixture" },
-      { id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo" },
-      { id: "moss-fixture", name: "MOSS Fixture" },
+      { id: "krea2-fixture", name: "Krea 2 Fixture", family: "krea2", scope: "server" },
+      { id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo", family: "krea2", scope: "server" },
+      { id: "moss-fixture", name: "MOSS Fixture", family: "moss", scope: "server" },
     ]);
-    expect(registry.get("moss-fixture").artModel).toBe("moss");
+    expect(registry.get("moss-fixture").family).toBe("moss");
     expect(registry.referenceOf("krea2-fixture")).toBeDefined();
     expect(registry.referenceOf("moss-fixture")).toBeUndefined();
     expect(registry.defaultWorkflow).toBe("krea2-gonzalomo");
@@ -90,8 +92,103 @@ describe("the workflow registry", () => {
       defaultWorkflow: "krea2-fixture",
     });
     expect(ids(registry)).toEqual(["krea2-fixture"]);
-    expect(registry.referenceOf("krea2-fixture")?.artModel).toBe("krea2");
+    expect(registry.referenceOf("krea2-fixture")?.family).toBe("krea2");
   });
+
+  it("admits a file whose first word names no family as a General workflow and logs it once", () => {
+    const external = directory(FIXTURE_WORKFLOWS_DIR, [], {
+      "flux-thing.json": fluxGeneralSource(),
+    });
+    const lines: string[] = [];
+    const registry = loadWorkflowRegistry({
+      workflowsDir: external,
+      log: createLogger((line) => lines.push(line)),
+    });
+    expect(registry.get("flux-thing").family).toBe("general");
+    expect(registry.list.workflows).toContainEqual({
+      id: "flux-thing",
+      name: "Flux Thing",
+      family: "general",
+      scope: "server",
+    });
+    expect(lines.map((line) => JSON.parse(line))).toEqual([
+      {
+        time: expect.any(String),
+        level: "info",
+        event: "startup.workflows",
+        family: "general",
+        file: "flux-thing.json",
+      },
+    ]);
+  });
+
+  it("reads a file's family and name from its reserved ephemera key, which leaves the graph", () => {
+    const external = directory(FIXTURE_WORKFLOWS_DIR, [], {
+      "flux-general.json": fluxGeneralSource({ family: "moss", name: "Flux Portrait" }),
+    });
+    const lines: string[] = [];
+    const registry = loadWorkflowRegistry({
+      workflowsDir: external,
+      log: createLogger((line) => lines.push(line)),
+    });
+    const workflow = registry.get("flux-general");
+    expect(workflow.family).toBe("moss");
+    expect(Object.hasOwn(workflow.graph, "ephemera")).toBe(false);
+    expect(registry.list.workflows).toContainEqual({
+      id: "flux-general",
+      name: "Flux Portrait",
+      family: "moss",
+      scope: "server",
+    });
+    expect(lines).toEqual([]);
+  });
+
+  it("logs nothing for a file that declares the General family", () => {
+    const external = directory(FIXTURE_WORKFLOWS_DIR, [], {
+      "flux-general.json": fluxGeneralSource({ family: "general" }),
+    });
+    const lines: string[] = [];
+    const registry = loadWorkflowRegistry({
+      workflowsDir: external,
+      log: createLogger((line) => lines.push(line)),
+    });
+    expect(registry.get("flux-general").family).toBe("general");
+    expect(registry.list.workflows).toContainEqual({
+      id: "flux-general",
+      name: "Flux General",
+      family: "general",
+      scope: "server",
+    });
+    expect(lines).toEqual([]);
+  });
+
+  it.each([
+    ["an unknown family", { family: "flux" }],
+    ["an extra key", { family: "general", note: "x" }],
+    ["an empty name", { name: "  " }],
+  ])("refuses an ephemera key with %s, naming the file", (_, ephemera) => {
+    const file = "flux-general.json";
+    const external = directory(FIXTURE_WORKFLOWS_DIR, [], { [file]: fluxGeneralSource(ephemera) });
+    const thrown = thrownBy(() => loadWorkflowRegistry({ workflowsDir: external }));
+    expect(thrown).toBeInstanceOf(WorkflowFileError);
+    expect((thrown as WorkflowFileError).message).toBe(
+      `workflow file is not a valid workflow: ${file}`,
+    );
+    expect((thrown as WorkflowFileError).file).toBe(file);
+  });
+
+  it.each(["user-anything.json", "user-anything.reference.json"])(
+    "refuses %s, whose name uses the reserved prefix",
+    (file) => {
+      const external = directory(FIXTURE_WORKFLOWS_DIR, [], { [file]: fluxGeneralSource() });
+      const thrown = thrownBy(() => loadWorkflowRegistry({ workflowsDir: external }));
+      expect(thrown).toBeInstanceOf(WorkflowFileError);
+      expect((thrown as WorkflowFileError).message).toBe(
+        `workflow file name uses the reserved prefix: ${file}`,
+      );
+      expect((thrown as WorkflowFileError).file).toBe(file);
+    },
+  );
 
   it.each(["krea2-gonzalomo.json", "krea2-gonzalomo.reference.json"])(
     "refuses a second %s, naming the file",
@@ -106,7 +203,6 @@ describe("the workflow registry", () => {
 
   it.each([
     ["krea2-broken.json", "{ not json", "workflow file is not readable JSON: krea2-broken.json"],
-    ["flux-other.json", "{}", "workflow file name names no image model: flux-other.json"],
     ["krea2-shape.json", '{"1": {}}', "workflow file is not a valid workflow: krea2-shape.json"],
   ])("refuses %s, naming the file only", (file, text, message) => {
     const external = directory(FIXTURE_WORKFLOWS_DIR, [], { [file]: text });
@@ -140,6 +236,29 @@ describe("the workflow registry", () => {
       expect((thrown as WorkflowFileError).file).toBe(file);
     },
   );
+
+  it("admits a graph with an extra class only when the allowlist lists it", () => {
+    const file = "moss-extra.json";
+    const external = directory(FIXTURE_WORKFLOWS_DIR, [], { [file]: withNode("MyNode") });
+    const thrown = thrownBy(() => loadWorkflowRegistry({ workflowsDir: external }));
+    expect(thrown).toBeInstanceOf(WorkflowFileError);
+    expect((thrown as WorkflowFileError).file).toBe(file);
+    const registry = loadWorkflowRegistry({
+      workflowsDir: external,
+      allowlist: createAllowlist(["MyNode"]),
+    });
+    expect(ids(registry)).toContain("moss-extra");
+  });
+
+  it("refuses a graph with a SaveImage node even when the allowlist lists it", () => {
+    const file = "moss-extra.json";
+    const external = directory(FIXTURE_WORKFLOWS_DIR, [], { [file]: withNode("SaveImage") });
+    const thrown = thrownBy(() =>
+      loadWorkflowRegistry({ workflowsDir: external, allowlist: createAllowlist(["SaveImage"]) }),
+    );
+    expect(thrown).toBeInstanceOf(WorkflowFileError);
+    expect((thrown as WorkflowFileError).file).toBe(file);
+  });
 
   it("admits the e2e suite's synthetic graph", () => {
     const registry = loadWorkflowRegistry({ workflowsDir: E2E_WORKFLOWS_DIR });
@@ -199,6 +318,46 @@ describe("workflow configuration", () => {
         EPHEMERA_DEFAULT_WORKFLOW: "krea2-fixture",
       }),
     ).toMatchObject({ workflowsDir: "/run/workflows", defaultWorkflow: "krea2-fixture" });
+  });
+
+  it("reads EPHEMERA_COMFYUI_EXTRA_NODES as a trimmed comma list, empty entries ignored", () => {
+    expect(loadConfig(env).extraNodes).toEqual([]);
+    expect(loadConfig({ ...env, EPHEMERA_COMFYUI_EXTRA_NODES: "" }).extraNodes).toEqual([]);
+    const { extraNodes } = loadConfig({
+      ...env,
+      EPHEMERA_COMFYUI_EXTRA_NODES: " MyNode, ,Pack.Node:v2 ,",
+    });
+    expect(extraNodes).toEqual(["MyNode", "Pack.Node:v2"]);
+    expect(createAllowlist(extraNodes).allows("MyNode", "import")).toBe(true);
+  });
+
+  it.each([
+    ["a name with a space", "My Node"],
+    ["a name over 128 characters", "N".repeat(129)],
+    ["more than 200 names", Array.from({ length: 201 }, (_, i) => `Node${i}`).join(",")],
+  ])("refuses EPHEMERA_COMFYUI_EXTRA_NODES with %s, naming the variable", (_, value) => {
+    expect(() => loadConfig({ ...env, EPHEMERA_COMFYUI_EXTRA_NODES: value })).toThrow(
+      "Invalid or missing environment variables: EPHEMERA_COMFYUI_EXTRA_NODES",
+    );
+  });
+
+  it.each(["SaveImage", "LoadLatent", "MyCustomSave", "PreviewThing"])(
+    "refuses EPHEMERA_COMFYUI_EXTRA_NODES naming %s, a node that writes, naming the variable and the class",
+    (classType) => {
+      const thrown = thrownBy(() =>
+        loadConfig({ ...env, EPHEMERA_COMFYUI_EXTRA_NODES: `MyNode,${classType}` }),
+      );
+      expect(thrown).toBeInstanceOf(ConfigError);
+      expect((thrown as ConfigError).variables).toEqual(["EPHEMERA_COMFYUI_EXTRA_NODES"]);
+      expect((thrown as ConfigError).message).toContain("EPHEMERA_COMFYUI_EXTRA_NODES");
+      expect((thrown as ConfigError).message).toContain(classType);
+    },
+  );
+
+  it("accepts SaveImageWebsocket in EPHEMERA_COMFYUI_EXTRA_NODES, already curated", () => {
+    expect(
+      loadConfig({ ...env, EPHEMERA_COMFYUI_EXTRA_NODES: "SaveImageWebsocket" }).extraNodes,
+    ).toEqual(["SaveImageWebsocket"]);
   });
 
   it("refuses a default that is not a workflow id, naming the variable only", () => {
