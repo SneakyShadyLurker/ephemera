@@ -1,5 +1,6 @@
 import {
   creatorArtWorkflowsSchema,
+  finalizeWorkflow,
   type Inspection,
   inspectionSchema,
   settingsResponseSchema,
@@ -515,14 +516,26 @@ describe("POST /api/workflows/inspect", () => {
       { id: "6", title: "VAEDecode", classType: "VAEDecode" },
       { id: "7", title: "SaveImage", classType: "SaveImageWebsocket" },
     ]);
-    // The report names nodes by the file's own titles (this export titles them by class).
-    expect(inspection.report.changed).toContainEqual(
+    // The report is the file's own, before any choice, naming nodes by the file's titles
+    // (this export titles them by class); the prompt is not replaced yet.
+    expect(inspection.report.changed).toEqual([
       expect.stringMatching(/^SaveImage \(node 7\) now sends the picture to Ephemera/),
+    ]);
+    expect(inspection.report.skipped).toEqual([expect.stringMatching(/^PreviewImage \(node 8\)/)]);
+    // The tab finalizes it with its choices and shows that report.
+    const titles = new Map(inspection.nodes.map((node) => [node.id, node.title]));
+    const finalized = finalizeWorkflow(
+      { graph: inspection.graph, ...inspection.report },
+      inspection.detection,
+      {},
+      undefined,
+      titles,
     );
-    expect(inspection.report.changed).toContainEqual(
+    if (!finalized.ok) throw new Error(finalized.refusal.error);
+    expect(finalized.changed).toContainEqual(
       expect.stringMatching(/^The written prompt of Positive \(node 2\)/),
     );
-    expect(inspection.report.skipped).toEqual([expect.stringMatching(/^PreviewImage \(node 8\)/)]);
+    expect(finalized.skipped).toEqual(inspection.report.skipped);
     expect(inspection.detection.prompt.candidates.map(({ title }) => title)).toContain("Positive");
   });
 

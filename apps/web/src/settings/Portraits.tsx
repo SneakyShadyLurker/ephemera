@@ -1,11 +1,14 @@
 import { settingsSchema, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { type ComponentType, useId, useRef, useState } from "react";
+import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { queryClient } from "@/app/query.ts";
+import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import { cn } from "@/lib/cn";
 import { ART_STATUS_KEY } from "../creator/queries.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
+import { SAVED_UNCHECKED } from "../workflows/copy.ts";
+import { ImportPanel, type WorkflowDraft } from "../workflows/ImportPanel.tsx";
 import { workflowsQuery } from "../workflows/queries.ts";
 import { Workflows } from "../workflows/Workflows.tsx";
 import {
@@ -49,42 +52,37 @@ const ADDRESS_PROBLEMS = {
     "This server does not allow that address. Only origins in its COMFYUI_ALLOWED_ORIGINS can be used.",
 } as const;
 
-/** A workflow file on its way in: a new import, or a replacement for one of the user's workflows. */
-export type WorkflowDraft =
-  | { mode: "import"; file: File }
-  | { mode: "replace"; workflow: WorkflowSummary; file?: File };
-
-/** What the import panel gets: the draft, how to close it, and where focus goes on. */
-export interface ImportPanelProps {
-  draft: WorkflowDraft;
-  /** Closes the panel; focus returns to Import a workflow, or to the replaced row's actions button. */
-  onClose: () => void;
-  /** Opens the file picker again, for the same mode. */
-  onChooseFile: () => void;
-  /** Moves focus to a workflow row's name, once the list shows it. */
-  focusWorkflow: (id: string) => void;
-}
-
 /**
  * The owner's ComfyUI for card portraits: its address, and the workflows it
  * paints with and whether each can paint now. The workflow is chosen where
  * portraits are made, in Create with AI. A workflow file comes in through the
  * file picker, or dropped anywhere on this section on tablet and desktop;
- * `ImportPanel` shows it, under the list.
+ * `ImportPanel` shows it, under the list. A file arriving while one is open
+ * waits as `incoming` until the panel takes it or keeps its own.
  */
-export function Portraits({ ImportPanel }: { ImportPanel?: ComponentType<ImportPanelProps> }) {
+export function Portraits() {
   const comfyuiBaseUrl = useSetting((settings) => settings.comfyuiBaseUrl);
   const count = useQuery(workflowsQuery).data?.length ?? 0;
   const [draft, setDraft] = useState<WorkflowDraft | null>(null);
+  const [incoming, setIncoming] = useState<WorkflowDraft | null>(null);
+  // The workflow just saved, whose name takes focus once the list shows it.
+  const [saved, setSaved] = useState<string | null>(null);
+  const [unchecked, setUnchecked] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const address = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const importButton = useRef<HTMLButtonElement>(null);
   // The workflow Replace file was chosen for, until the picker answers.
   const replacing = useRef<WorkflowSummary | null>(null);
   const full = count >= WORKFLOW_LIMITS.workflows;
+  const offer = (next: WorkflowDraft) => {
+    setUnchecked(false);
+    if (draft === null) setDraft(next);
+    else setIncoming(next);
+  };
   const { dragging, dropTarget } = useFileDrop((files) => {
     const [file] = files;
-    if (file !== undefined && !full) setDraft({ mode: "import", file });
+    if (file !== undefined && !full) offer({ mode: "import", file });
   });
 
   const choose = (workflow: WorkflowSummary | null) => {
@@ -92,16 +90,19 @@ export function Portraits({ ImportPanel }: { ImportPanel?: ComponentType<ImportP
     picker.current?.click();
   };
 
-  const rowPart = (id: string, part: "actions" | "name") =>
-    root.current
-      ?.querySelector(`[data-workflow="${CSS.escape(id)}"]`)
-      ?.querySelector<HTMLElement>(`[data-workflow-${part}]`);
+  // After the commit that shows the saved row, its name takes focus.
+  useEffect(() => {
+    if (saved === null) return;
+    rowPart(root.current, saved, "name")?.focus();
+    setSaved(null);
+  }, [saved]);
 
   return (
     <div ref={root} className="relative grid gap-6" {...dropTarget}>
-      <AddressField saved={comfyuiBaseUrl} />
+      <AddressField saved={comfyuiBaseUrl} inputRef={address} />
       <Workflows
         importRef={importButton}
+        notice={unchecked ? SAVED_UNCHECKED : null}
         onImport={() => choose(null)}
         onReplace={(workflow) => choose(workflow)}
       />
@@ -118,21 +119,37 @@ export function Portraits({ ImportPanel }: { ImportPanel?: ComponentType<ImportP
           const workflow = replacing.current;
           replacing.current = null;
           if (file === undefined) return;
-          setDraft(
-            workflow === null ? { mode: "import", file } : { mode: "replace", workflow, file },
-          );
+          offer(workflow === null ? { mode: "import", file } : { mode: "replace", workflow, file });
         }}
       />
-      {draft !== null && ImportPanel !== undefined && (
+      {draft !== null && (
         <ImportPanel
           draft={draft}
+          incoming={incoming}
+          onIncoming={(take) => {
+            if (take && incoming !== null) setDraft(incoming);
+            setIncoming(null);
+          }}
           onClose={() => {
             const replaced = draft.mode === "replace" ? draft.workflow.id : null;
             setDraft(null);
-            (replaced === null ? importButton.current : rowPart(replaced, "actions"))?.focus();
+            setIncoming(null);
+            (replaced === null
+              ? importButton.current
+              : rowPart(root.current, replaced, "actions")
+            )?.focus();
           }}
           onChooseFile={() => choose(draft.mode === "replace" ? draft.workflow : null)}
-          focusWorkflow={(id) => rowPart(id, "name")?.focus()}
+          onSaved={(id, checked) => {
+            setDraft(null);
+            setIncoming(null);
+            setUnchecked(!checked);
+            setSaved(id);
+          }}
+          onEditAddress={() => {
+            address.current?.focus({ preventScroll: true });
+            address.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
+          }}
         />
       )}
       {dragging && (
@@ -145,7 +162,20 @@ export function Portraits({ ImportPanel }: { ImportPanel?: ComponentType<ImportP
   );
 }
 
-function AddressField({ saved }: { saved: string }) {
+/** A workflow row's actions button or name, inside the section. */
+const rowPart = (root: HTMLElement | null, id: string, part: "actions" | "name") =>
+  root
+    ?.querySelector(`[data-workflow="${CSS.escape(id)}"]`)
+    ?.querySelector<HTMLElement>(`[data-workflow-${part}]`);
+
+function AddressField({
+  saved,
+  inputRef,
+}: {
+  saved: string;
+  /** Where Edit the address in the import panel moves focus. */
+  inputRef: RefObject<HTMLInputElement | null>;
+}) {
   const id = useId();
   const [address, setAddress] = useState(saved);
   const [problem, setProblem] = useState<keyof typeof ADDRESS_PROBLEMS | null>(null);
@@ -202,6 +232,7 @@ function AddressField({ saved }: { saved: string }) {
         )}
       >
         <input
+          ref={inputRef}
           id={id}
           type="url"
           inputMode="url"

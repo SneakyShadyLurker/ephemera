@@ -30,6 +30,26 @@ import { useNotReached } from "../signin/hooks.ts";
 import { deleteWorkflow, refreshWorkflows, updateWorkflow, workflowsQuery } from "./queries.ts";
 
 /** A small state dot beside the status words: lit dusk when ready, ember on a problem. */
+/** The node classes and model files a workflow lacks on the user's ComfyUI. */
+export function MissingList({ nodes, models }: { nodes: string[]; models: string[] }) {
+  return (
+    <dl className="grid gap-1.5 border-rush border-l pl-4 text-note">
+      {nodes.length > 0 && (
+        <div className="grid gap-0.5">
+          <dt className="text-reed">Nodes</dt>
+          <dd className="break-words text-ink">{nodes.join(", ")}</dd>
+        </div>
+      )}
+      {models.length > 0 && (
+        <div className="grid gap-0.5">
+          <dt className="text-reed">Model files</dt>
+          <dd className="break-words text-ink">{models.join(", ")}</dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
 export function StatusDot({ tone }: { tone: StatusTone }) {
   return (
     <span
@@ -338,20 +358,7 @@ export function WorkflowRow({
             <p className="text-pretty text-note text-reed">{shown.reason}</p>
           )}
           {shown.missing !== null && (
-            <dl className="grid gap-1.5 border-rush border-l pl-4 text-note">
-              {shown.missing.nodes.length > 0 && (
-                <div className="grid gap-0.5">
-                  <dt className="text-reed">Nodes</dt>
-                  <dd className="break-words text-ink">{shown.missing.nodes.join(", ")}</dd>
-                </div>
-              )}
-              {shown.missing.models.length > 0 && (
-                <div className="grid gap-0.5">
-                  <dt className="text-reed">Model files</dt>
-                  <dd className="break-words text-ink">{shown.missing.models.join(", ")}</dd>
-                </div>
-              )}
-            </dl>
+            <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
           )}
         </div>
       )}

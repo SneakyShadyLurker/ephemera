@@ -28,11 +28,14 @@ const GROUP = "font-medium text-note text-reed";
  */
 export function Workflows({
   importRef,
+  notice = null,
   onImport,
   onReplace,
 }: {
   /** "Import a workflow", where focus returns after an import or a delete. */
   importRef: RefObject<HTMLButtonElement | null>;
+  /** Said once under the heading, such as after a save ComfyUI did not check. */
+  notice?: string | null;
   onImport: () => void;
   onReplace: (workflow: WorkflowSummary) => void;
 }) {
@@ -104,6 +107,11 @@ export function Workflows({
             Try again
           </Button>
         </div>
+      )}
+      {notice !== null && (
+        <p role="status" className={HELP}>
+          {notice}
+        </p>
       )}
       {deleted !== null && fallback !== undefined && (
         <p role="status" className={HELP}>

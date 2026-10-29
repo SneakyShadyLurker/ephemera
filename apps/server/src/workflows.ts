@@ -443,9 +443,9 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
         if (!detected.ok) return refusedWorkflow(c, detected.refusal);
         const { detection } = detected;
 
-        // The report and the live check as a save with the default choices would see them.
+        // The live check as a save with the default choices would see it. The report is the
+        // file's own, before any choice: the tab finalizes it with its choices to show them.
         const preview = finalizeWorkflow(normalized, detection, {}, meta, titles);
-        const report = preview.ok ? preview : normalized;
         let status: CreatorArtStatus;
         if (inventory === undefined) {
           status = "status" in live ? live.status : { state: "off" };
@@ -478,7 +478,10 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
               return kept === undefined ? [] : [{ ...node, classType: kept.class_type }];
             }),
             detection,
-            report: { changed: report.changed, skipped: [...file.skipped, ...report.skipped] },
+            report: {
+              changed: normalized.changed,
+              skipped: [...file.skipped, ...normalized.skipped],
+            },
             blocked,
             live: status,
             nameSuggestion: nameSuggestion(source, format, fileName),

@@ -1247,10 +1247,11 @@ content's path: the tab's memory and one request in the server.
   `convertWorkflow` against the live `/object_info` (widget order, links,
   reroutes, primitive nodes, muted and bypassed nodes, subgraphs and
   growing inputs; 409 `comfyui_required` when ComfyUI does not answer),
-  then the same pipeline with the default choices gives the graph, the
-  node titles, the detection with its candidates, the Changed and Left out
-  report, the blocked classes with their reasons, the live status and a
-  name suggestion. One inspection runs at a time per user (429 `busy`). A user keeps at most 24
+  then the same pipeline gives the normalized graph, the node titles, the
+  detection with its candidates, what conversion and normalization changed
+  and left out (the tab runs core's `finalizeWorkflow` on these with its
+  choices for the full report), the blocked classes with their reasons,
+  the live status of a save with the default choices and a name suggestion. One inspection runs at a time per user (429 `busy`). A user keeps at most 24
   workflows (413 `full`), with names unique regardless of case (409
   `name_taken`). The log carries `workflows.list`, `workflows.create`,
   `workflows.update`, `workflows.replace`, `workflows.delete` and
