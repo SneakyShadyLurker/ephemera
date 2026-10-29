@@ -189,10 +189,13 @@ function reaches(nodes: ReadonlyMap<string, WorkflowNode>, from: string, target:
   return false;
 }
 
-/** The next numeric node id after every numeric one the graph has. */
+/**
+ * The first decimal id the graph does not use. It counts up from 1 rather
+ * than past the largest id, so a huge id never breaks the arithmetic, and it
+ * ends within the node count plus one steps.
+ */
 function freeId(nodes: ReadonlyMap<string, WorkflowNode>): string {
-  const numeric = [...nodes.keys()].filter((id) => /^\d+$/.test(id)).map(Number);
-  let next = Math.max(0, ...numeric) + 1;
+  let next = 1;
   while (nodes.has(String(next))) next++;
   return String(next);
 }

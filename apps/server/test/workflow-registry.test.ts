@@ -295,6 +295,21 @@ describe("the workflow registry", () => {
     );
     expect(() => createWorkflowRegistry({ files: [] })).toThrow("the default workflow has no file");
   });
+
+  it("refuses more server workflows than the list allows", () => {
+    const [bundled] = readWorkflowFiles(BUNDLED_WORKFLOWS_DIR).filter(
+      ({ file }) => file === "krea2-gonzalomo.json",
+    );
+    if (bundled === undefined) throw new Error("the bundled workflow is missing");
+    const copies = (count: number) => [
+      bundled,
+      ...Array.from({ length: count - 1 }, (_, i) => ({ ...bundled, file: `krea2-copy${i}.json` })),
+    ];
+    expect(createWorkflowRegistry({ files: copies(64) }).list.workflows).toHaveLength(64);
+    expect(() => createWorkflowRegistry({ files: copies(65) })).toThrow(
+      "more than 64 server workflows",
+    );
+  });
 });
 
 describe("workflow configuration", () => {

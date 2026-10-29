@@ -48,6 +48,25 @@ function detection(overrides: Partial<Detection> = {}): Detection {
 const normalized = (graph: WorkflowGraph): Normalized => ({ graph, changed: [], skipped: [] });
 
 describe("finalizeWorkflow on the bundled graph", () => {
+  it("finds a free id for the ImageScale when a node id is past the safe integers", () => {
+    const graph = literal();
+    const huge = "10000000000000000";
+    const save = graph["9"];
+    if (save === undefined) throw new Error("the bundled graph has no node 9");
+    delete graph["9"];
+    graph[huge] = save;
+    const result = finalizeWorkflow(
+      normalized(graph),
+      detection({
+        output: { chosen: huge, candidates: [candidate(huge, "SaveImageWebsocket", ["images"])] },
+      }),
+      {},
+    );
+    if (!result.ok) throw new Error(result.refusal.error);
+    expect(result.template[huge]?.inputs.images).toEqual(["9", 0]);
+    expect(result.template["9"]?.class_type).toBe("ImageScale");
+  });
+
   it("reproduces the bundled template, with the exact-size ImageScale inserted before the save", () => {
     const result = finalizeWorkflow(normalized(literal()), detection(), {});
     if (!result.ok) throw new Error(result.refusal.error);
@@ -275,9 +294,10 @@ describe("finalizeWorkflow choices", () => {
     );
     if (!result.ok) throw new Error(result.refusal.error);
     expect(result.template["13"]?.class_type).toBe("SaveImageWebsocket");
-    expect(result.template["13"]?.inputs.images).toEqual(["14", 0]);
-    expect(result.template["14"]?.inputs.image).toEqual(["12", 0]);
-    expect(result.template["9"]).toBeUndefined();
+    // The dropped saver's id is the first free one, so the ImageScale takes it.
+    expect(result.template["13"]?.inputs.images).toEqual(["9", 0]);
+    expect(result.template["9"]?.inputs.image).toEqual(["12", 0]);
+    expect(result.template["9"]?.class_type).toBe("ImageScale");
     expect(result.slots.output).toBe("13");
     expect(result.changed).toContain(
       "Save Upscaled (node 13) now sends the picture to Ephemera instead of a file.",

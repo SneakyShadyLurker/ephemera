@@ -50,6 +50,7 @@ import {
   type Settings,
   toSheetFields,
   validateCardAnswer,
+  WORKFLOW_LIMITS,
 } from "@ephemera/core";
 import { zValidator } from "@hono/zod-validator";
 import { type FinishReason, generateText, type ModelMessage, streamText } from "ai";
@@ -257,6 +258,22 @@ function blockTokens(kind: CreatorKind, card: GeneratedCard, blocks: AnswerBlock
 }
 
 /** The client's status as the route reports it; node and model names are configuration. */
+/** How a missing list names a loader input left without a file. */
+const NO_FILE = "(no file chosen)";
+
+/**
+ * A missing list as the status answer carries it: distinct names, each cut to
+ * the length cap, at most the count cap, an empty one shown as no file
+ * chosen. An imported graph can name more, or longer, files than the answer
+ * holds.
+ */
+export function shownNames(names: readonly string[]): string[] {
+  const shown = names.map((name) =>
+    name.length === 0 ? NO_FILE : name.slice(0, WORKFLOW_LIMITS.missingNameLength),
+  );
+  return [...new Set(shown)].slice(0, WORKFLOW_LIMITS.missingNames);
+}
+
 function artStatus(status: ComfyuiStatus): CreatorArtStatus {
   if (!status.reachable) {
     const { reason } = status;
@@ -272,7 +289,8 @@ function artStatus(status: ComfyuiStatus): CreatorArtStatus {
     }
     return { state: "unavailable", reason: "unreachable" };
   }
-  const { missingNodes: nodes, missingModels: models } = status;
+  const nodes = shownNames(status.missingNodes);
+  const models = shownNames(status.missingModels);
   return nodes.length === 0 && models.length === 0
     ? { state: "ready" }
     : { state: "missing", nodes, models };

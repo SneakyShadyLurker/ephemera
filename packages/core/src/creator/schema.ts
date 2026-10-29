@@ -4,6 +4,7 @@ import { modelIdSchema, retryAfterSchema, UPSTREAM_BUSY } from "../chat.ts";
 import { REASONING_EFFORTS } from "../preset/sampler.ts";
 import { comfyuiWorkflowIdSchema, comfyuiWorkflowOptionSchema } from "../settings.ts";
 import { callAccountingSchema } from "../usage.ts";
+import { WORKFLOW_LIMITS as W } from "../workflow/graph.ts";
 import { CREATOR_LIMITS as C } from "./limits.ts";
 import { ART_LOOK_IDS } from "./looks.ts";
 
@@ -158,8 +159,8 @@ const creatorArtUnavailableSchema = z.enum([
 export type CreatorArtUnavailable = z.infer<typeof creatorArtUnavailableSchema>;
 
 /** A node class or model file name: workflow configuration, never content. */
-const configName = z.string().min(1).max(256);
-const configNames = z.array(configName).max(64);
+const configName = z.string().min(1).max(W.missingNameLength);
+const configNames = z.array(configName).max(W.missingNames);
 
 /** `GET /api/creator/art/status?workflow=`: the workflow to check; absent, the saved one. */
 export const creatorArtStatusQuerySchema = z.strictObject({
@@ -177,9 +178,12 @@ export const creatorArtStatusSchema = z.discriminatedUnion("state", [
 ]);
 export type CreatorArtStatus = z.infer<typeof creatorArtStatusSchema>;
 
-/** `GET /api/creator/art/workflows`: the user's workflows, then the server's (24 plus 64). */
+/** `GET /api/creator/art/workflows`: the user's workflows, then the server's. */
 export const creatorArtWorkflowsSchema = z.strictObject({
-  workflows: z.array(comfyuiWorkflowOptionSchema).min(1).max(88),
+  workflows: z
+    .array(comfyuiWorkflowOptionSchema)
+    .min(1)
+    .max(W.workflows + W.serverWorkflows),
 });
 
 /** Why a card request stopped; content-free, the web app explains each one. */

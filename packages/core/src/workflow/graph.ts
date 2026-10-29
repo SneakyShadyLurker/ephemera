@@ -12,6 +12,12 @@ import { artFamilySchema } from "./family.ts";
 export const WORKFLOW_LIMITS = {
   /** Per user. */
   workflows: 24,
+  /** Bundled files and `EPHEMERA_WORKFLOWS_DIR` together. */
+  serverWorkflows: 64,
+  /** The most node classes or model files a missing status names. */
+  missingNames: 64,
+  /** The longest node class or model file name a missing status names. */
+  missingNameLength: 256,
   nameLength: 64,
   /** The inspect request's display name, never stored or logged. */
   fileNameLength: 255,

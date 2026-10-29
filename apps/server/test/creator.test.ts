@@ -29,7 +29,7 @@ import {
 } from "@ephemera/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowGraph } from "../src/comfyui/workflow.ts";
-import { ART_TIMEOUT_MS, MAX_REWORK_BODY_BYTES } from "../src/creator.ts";
+import { ART_TIMEOUT_MS, MAX_REWORK_BODY_BYTES, shownNames } from "../src/creator.ts";
 import { usernameSchema } from "../src/identity.ts";
 import { IMAGE_LIMITS, toPortrait } from "../src/images.ts";
 import { KEEPALIVE_INTERVAL_MS } from "../src/keepalive.ts";
@@ -1341,6 +1341,18 @@ describe("GET /api/creator/art/status", () => {
       nodes: ["ModelAttentionBackend"],
       models: ["qwen_image_vae.safetensors"],
     });
+  });
+
+  it("keeps a long missing list within the answer's caps", () => {
+    const many = Array.from({ length: 70 }, (_, i) => `model-${i}.safetensors`);
+    const shown = shownNames(["", "x".repeat(300), ...many, "model-0.safetensors"]);
+    expect(shown).toHaveLength(64);
+    expect(shown[0]).toBe("(no file chosen)");
+    expect(shown[1]).toHaveLength(256);
+    expect(new Set(shown).size).toBe(64);
+    expect(
+      creatorArtStatusSchema.safeParse({ state: "missing", nodes: [], models: shown }).success,
+    ).toBe(true);
   });
 
   it("reports a MOSS workflow ready only when its LoRA is installed, without submitting a prompt", async () => {

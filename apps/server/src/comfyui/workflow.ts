@@ -10,6 +10,7 @@ import {
   type NodeMetaMap,
   stripEphemeraKey,
   USER_WORKFLOW_PREFIX,
+  WORKFLOW_LIMITS,
   type WorkflowGraph,
 } from "@ephemera/core";
 import { z } from "zod";
@@ -344,6 +345,9 @@ export function createWorkflowRegistry({
   const sorted = [...files].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
   const { workflows, references, names, general } = discoverWorkflows(sorted, allowlist);
   if (!workflows.has(defaultWorkflow)) throw new Error("the default workflow has no file");
+  if (workflows.size > WORKFLOW_LIMITS.serverWorkflows) {
+    throw new Error(`more than ${WORKFLOW_LIMITS.serverWorkflows} server workflows`);
+  }
   const list = creatorArtWorkflowsSchema.parse({
     workflows: [...workflows].map(([id, { family }]) => ({
       id,
