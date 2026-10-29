@@ -294,10 +294,10 @@ describe("finalizeWorkflow choices", () => {
     );
     if (!result.ok) throw new Error(result.refusal.error);
     expect(result.template["13"]?.class_type).toBe("SaveImageWebsocket");
-    // The dropped saver's id is the first free one, so the ImageScale takes it.
-    expect(result.template["13"]?.inputs.images).toEqual(["9", 0]);
-    expect(result.template["9"]?.inputs.image).toEqual(["12", 0]);
-    expect(result.template["9"]?.class_type).toBe("ImageScale");
+    // A dropped node's id stays unused: the ImageScale takes the next free one.
+    expect(result.template["13"]?.inputs.images).toEqual(["11", 0]);
+    expect(result.template["11"]?.inputs.image).toEqual(["12", 0]);
+    expect(result.template["9"]).toBeUndefined();
     expect(result.slots.output).toBe("13");
     expect(result.changed).toContain(
       "Save Upscaled (node 13) now sends the picture to Ephemera instead of a file.",

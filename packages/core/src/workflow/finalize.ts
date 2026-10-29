@@ -190,13 +190,14 @@ function reaches(nodes: ReadonlyMap<string, WorkflowNode>, from: string, target:
 }
 
 /**
- * The first decimal id the graph does not use. It counts up from 1 rather
- * than past the largest id, so a huge id never breaks the arithmetic, and it
- * ends within the node count plus one steps.
+ * The first decimal id neither the graph nor the source it came from uses, so
+ * a dropped node's id never comes back as another node. It counts up from 1
+ * rather than past the largest id, so a huge id never breaks the arithmetic,
+ * and it ends within the source's node count plus one steps.
  */
-function freeId(nodes: ReadonlyMap<string, WorkflowNode>): string {
+function freeId(nodes: ReadonlyMap<string, WorkflowNode>, source: WorkflowGraph): string {
   let next = 1;
-  while (nodes.has(String(next))) next++;
+  while (nodes.has(String(next)) || Object.hasOwn(source, String(next))) next++;
   return String(next);
 }
 
@@ -303,7 +304,7 @@ export function finalizeWorkflow(
     width.push({ node: feederId, input: "width" });
     height.push({ node: feederId, input: "height" });
   } else {
-    const scaleId = freeId(nodes);
+    const scaleId = freeId(nodes, source);
     nodes.set(scaleId, {
       class_type: "ImageScale",
       inputs: {

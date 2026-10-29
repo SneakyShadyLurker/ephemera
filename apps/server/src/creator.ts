@@ -257,7 +257,6 @@ function blockTokens(kind: CreatorKind, card: GeneratedCard, blocks: AnswerBlock
   }));
 }
 
-/** The client's status as the route reports it; node and model names are configuration. */
 /** How a missing list names a loader input left without a file. */
 const NO_FILE = "(no file chosen)";
 
@@ -274,6 +273,7 @@ export function shownNames(names: readonly string[]): string[] {
   return [...new Set(shown)].slice(0, WORKFLOW_LIMITS.missingNames);
 }
 
+/** The client's status as the route reports it; node and model names are configuration. */
 function artStatus(status: ComfyuiStatus): CreatorArtStatus {
   if (!status.reachable) {
     const { reason } = status;
