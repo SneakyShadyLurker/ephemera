@@ -85,6 +85,12 @@ const MUTED = 2;
 const BYPASSED = 4;
 const TITLE_LENGTH = 256;
 const LISTED = 256;
+/**
+ * Type comparisons and link steps one conversion may spend; a real file
+ * spends a few thousand. Types are comma lists compared member by member,
+ * so a file of long lists past this is refused as too large.
+ */
+const RESOLVE_WORK = 1_000_000;
 
 class Refused extends Error {
   readonly code: ConvertRefusalCode;
@@ -324,12 +330,16 @@ function flatten(
   return flat;
 }
 
+/** Charges `cost` units of work, refusing the file once the budget is spent. */
+type Charge = (cost: number) => void;
+
 /** Whether an output of type `a` may feed an input of type `b`, as LiteGraph allows. */
-function connects(a: string | undefined, b: string | undefined): boolean {
+function connects(a: string | undefined, b: string | undefined, charge: Charge): boolean {
   const any = (type: string | undefined) => type === undefined || type === "" || type === "*";
   if (any(a) || any(b) || a === b) return true;
   const left = (a ?? "").toLowerCase().split(",");
   const right = (b ?? "").toLowerCase().split(",");
+  charge(left.length * right.length);
   return left.some((x) => right.some((y) => x === y || x === "*" || y === "*"));
 }
 
@@ -338,11 +348,18 @@ function connects(a: string | undefined, b: string | undefined): boolean {
  * asks, as the frontend picks it: the input at the same index if it fits
  * both, else the first of exactly that type, else the first that fits both.
  */
-function bypassInput(node: UiNode, slot: number, type: string | undefined): UiInput | undefined {
+function bypassInput(
+  node: UiNode,
+  slot: number,
+  type: string | undefined,
+  charge: Charge,
+): UiInput | undefined {
   const inputs = inputsOf(node);
   if (type === undefined || type === "" || type === "*") return inputs[slot] ?? inputs[0];
   const output = node.outputs?.[slot]?.type;
-  const fits = (input: UiInput) => connects(input.type, output) && connects(input.type, type);
+  charge(inputs.length);
+  const fits = (input: UiInput) =>
+    connects(input.type, output, charge) && connects(input.type, type, charge);
   const same = inputs[slot];
   if (same !== undefined && fits(same)) return same;
   return inputs.find((input) => input.type === type) ?? inputs.find(fits);
@@ -355,10 +372,15 @@ function bypassInput(node: UiNode, slot: number, type: string | undefined): UiIn
  * The type the consuming input asks for picks a bypassed node's input;
  * past it, that input's own type asks. Each (level, link, type) resolves
  * once: the path from it is fixed, so a loop through it gives nothing from
- * every entry, and the work stays within the links the file holds.
+ * every entry. Each step and type comparison is charged to `RESOLVE_WORK`.
  */
 function resolver(byId: Map<string, FlatNode>) {
   const known = new Map<string, Source>();
+  let work = 0;
+  const charge: Charge = (cost) => {
+    work += cost;
+    if (work > RESOLVE_WORK) throw new Refused("too_large");
+  };
   const resolve = (
     scope: Scope,
     linkId: number,
@@ -370,6 +392,7 @@ function resolver(byId: Map<string, FlatNode>) {
     if (done !== undefined) return done;
     if (seen.has(key)) return NONE;
     seen.add(key);
+    charge(1);
     const source = step(scope, linkId, type, seen);
     known.set(key, source);
     return source;
@@ -412,7 +435,7 @@ function resolver(byId: Map<string, FlatNode>) {
 
     if (modeOf(node) === MUTED) return { kind: "missing", why: "muted" };
     if (modeOf(node) === BYPASSED) {
-      const input = bypassInput(node, link.originSlot, type);
+      const input = bypassInput(node, link.originSlot, type, charge);
       const through = follow(scope, input, input?.type);
       return through.kind === "missing" && through.why === "none"
         ? { kind: "missing", why: "bypassed" }
@@ -466,9 +489,10 @@ function widgetValues(
   for (const [name, input] of widgets) {
     if (next >= positional.length) return { values, missing: true, surplus: 0 };
     values.set(name, positional[next++]);
-    // The control the frontend saves after the value; a combo's filter list after it.
+    // The control the frontend saves after the value; a single-select combo's filter list after it.
     if (input.controlAfterGenerate === true) {
-      next = Math.min(positional.length, next + (input.kind === "COMBO" ? 2 : 1));
+      const filter = input.kind === "COMBO" && input.multiSelect !== true;
+      next = Math.min(positional.length, next + (filter ? 2 : 1));
     }
   }
   return {

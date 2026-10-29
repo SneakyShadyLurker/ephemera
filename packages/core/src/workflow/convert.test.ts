@@ -282,6 +282,30 @@ describe("widget values", () => {
     expect(result.skipped).toEqual([]);
   });
 
+  it("skips only the control after a multi-select combo, which has no filter list", () => {
+    const meta = nodeMetaFrom(
+      objectInfoSchema.parse({
+        CustomPicker: {
+          input: {
+            required: {
+              mode: [["a", "b"], { multi_select: true, control_after_generate: true }],
+              cfg: ["FLOAT", {}],
+            },
+          },
+        },
+      }),
+    );
+    const file = {
+      version: 0.4,
+      nodes: [{ id: 1, type: "CustomPicker", widgets_values: [["a"], "fixed", 7] }],
+      links: [],
+    };
+    expect(converted(convertWorkflow(file, meta)).graph["1"]?.inputs).toEqual({
+      mode: ["a"],
+      cfg: 7,
+    });
+  });
+
   it("takes a link over a widget value for the same input", () => {
     const file = uiOf("reroute-primitive");
     expect(nodeIn(file, 5).widgets_values_named?.steps).toBe(24);
@@ -454,6 +478,48 @@ describe("limits", () => {
     expect(performance.now() - started).toBeLessThan(1000);
     expect(Object.keys(graph)).toHaveLength(200);
     expect(graph["2197"]?.inputs.vae).toEqual(["1000", 2]);
+  });
+
+  it("refuses as too_large a bypassed node whose long type lists would stall resolving", () => {
+    // 255 characters, the longest type kept; no input fits the output, so each lookup scans all.
+    const list = (member: string) => Array.from({ length: 128 }, () => member).join(",");
+    const consumers = Array.from({ length: 198 }, (_, index) => index + 2000);
+    const file = {
+      version: 0.4,
+      nodes: [
+        { id: 1000, type: "CheckpointLoaderSimple", widgets_values: ["sdxl-base.safetensors"] },
+        { id: 1001, type: "EmptyLatentImage", widgets_values: [1024, 1024, 1] },
+        {
+          id: 5000,
+          type: "AnyCustomNode",
+          mode: 4,
+          inputs: Array.from({ length: 256 }, (_, index) => ({
+            name: `in_${index}`,
+            type: list("a"),
+            link: index === 0 ? 1 : null,
+          })),
+          outputs: [{ type: list("b") }],
+        },
+        ...consumers.map((id) => ({
+          id,
+          type: "VAEDecode",
+          inputs: [
+            { name: "samples", type: "LATENT", link: id * 10 },
+            { name: "vae", type: "VAE,c", link: id * 10 + 1 },
+          ],
+        })),
+      ],
+      links: [
+        [1, 1000, 2, 5000, 0, "VAE"],
+        ...consumers.flatMap((id) => [
+          [id * 10, 1001, 0, id, 0, "LATENT"],
+          [id * 10 + 1, 5000, 0, id, 1, "VAE"],
+        ]),
+      ],
+    };
+    const started = performance.now();
+    expect(refusedWith(convertWorkflow(file, meta))).toBe("too_large");
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it("charges the node budget as instances expand, refusing before it is exceeded", () => {

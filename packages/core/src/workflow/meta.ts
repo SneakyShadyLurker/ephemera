@@ -16,9 +16,12 @@ export interface InputMeta {
   /**
    * A widget the frontend follows with a `fixed` or `randomize` control, as
    * a seed's: an INT that asks for one, or is named `seed` or `noise_seed`
-   * and does not refuse one; a combo that asks for one (and a filter list).
+   * and does not refuse one; a combo that asks for one (and a filter list,
+   * unless it is a multi-select).
    */
   controlAfterGenerate?: true;
+  /** A combo the frontend shows as a multi-select. */
+  multiSelect?: true;
   /** A combo's choices, in ComfyUI's order. */
   choices?: string[];
 }
@@ -110,11 +113,12 @@ function inputMeta(spec: unknown, name = ""): InputMeta | undefined {
   if (opts.forceInput === true) return { kind: "LINK" };
   const control = opts.control_after_generate;
   const controlled = (on: unknown) => (on ? ({ controlAfterGenerate: true } as const) : {});
+  const multi = opts.multi_select ? ({ multiSelect: true } as const) : {};
   if (Array.isArray(type)) {
-    return { kind: "COMBO", choices: choicesOf(type), ...controlled(control) };
+    return { kind: "COMBO", choices: choicesOf(type), ...controlled(control), ...multi };
   }
   if (type === "COMBO") {
-    return { kind: "COMBO", choices: choicesOf(opts.options), ...controlled(control) };
+    return { kind: "COMBO", choices: choicesOf(opts.options), ...controlled(control), ...multi };
   }
   if (type === "INT") return { kind: "INT", ...controlled(control ?? SEED_NAMES.has(name)) };
   if (type === "FLOAT" || type === "STRING" || type === "BOOLEAN") return { kind: type };
