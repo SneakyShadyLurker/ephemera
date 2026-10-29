@@ -300,8 +300,9 @@ describe("widget values", () => {
       nodes: [{ id: 1, type: "CustomPicker", widgets_values: [["a"], "fixed", 7] }],
       links: [],
     };
+    // A list value goes wrapped, as the frontend queues it: a bare list is a link.
     expect(converted(convertWorkflow(file, meta)).graph["1"]?.inputs).toEqual({
-      mode: ["a"],
+      mode: { __value__: ["a"] },
       cfg: 7,
     });
   });

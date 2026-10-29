@@ -502,6 +502,9 @@ function widgetValues(
   };
 }
 
+/** A widget value as the API takes it: a list wrapped, since a bare list is a link. */
+const literal = (value: unknown): unknown => (Array.isArray(value) ? { __value__: value } : value);
+
 const MISSING_CODE = {
   muted: "muted_dependency",
   bypassed: "bypass_dependency",
@@ -585,9 +588,9 @@ export function convertCounting(
         if (Object.hasOwn(nodeMeta.growing ?? {}, name)) continue;
         const from = sourceOf(scope, byName.get(name));
         if (from?.kind === "link") inputs[name] = [from.node, from.slot];
-        else if (from?.kind === "value") inputs[name] = from.value;
+        else if (from?.kind === "value") inputs[name] = literal(from.value);
         else if (input.kind !== "LINK" && widgets.values.has(name)) {
-          inputs[name] = widgets.values.get(name);
+          inputs[name] = literal(widgets.values.get(name));
         } else if (input.kind !== "LINK") {
           if (required.has(name) && !widgets.missing) short.push(id);
         } else if (required.has(name)) {
