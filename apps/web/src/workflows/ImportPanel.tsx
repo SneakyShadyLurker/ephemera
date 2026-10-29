@@ -433,6 +433,8 @@ export function PanelView({
       onKeyDown={(event) => {
         if (event.key === "Escape" && !event.defaultPrevented) {
           event.preventDefault();
+          // The discard prompt this may open must not take the same Escape as its own dismissal.
+          event.stopPropagation();
           onCancel();
         }
       }}

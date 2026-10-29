@@ -2171,6 +2171,7 @@ each, one per test.
 | Scene picture: ComfyUI error | `sceneerr` | P | P | P | P | P | S | S | S | S | S |
 | Scene picture: Stop mid-paint | `scenestop` | P | P | P | P | P | S | S | S | S | S |
 | Scene picture: Clear mid-paint | `sceneclear` | P | P | P | P | P | S | S | S | S | S |
+| Imported workflow: the prompt place's text | `wf` | WF | WF | WF | WF | WF | S | S | S | S | S |
 | Image card: kept | `icok` | n/a | n/a | n/a | n/a | n/a | I | I | I | I | I |
 | Image card: upstream error | `icerr` | n/a | n/a | n/a | n/a | n/a | I | I | I | I | I |
 | Image card: unusable answer | `icinvalid` | n/a | n/a | n/a | n/a | n/a | I | I | I | I | I |
@@ -2353,6 +2354,14 @@ and for every row in a full run.
   finds no `-src` in the stored PNG, finds fragments of the stored PNG and
   the card's base in the data directory only, and finds the JPEG sent
   upstream, the `-keep` notes mark and the direction nowhere.
+- **WF** `e2e/workflows-retention.spec.ts` › "retention matrix: imported
+  workflow: the prompt place's text". The row imports a saved workflow
+  whose prompt text holds `zqcanary7w-wf-<id>`, then replaces its file
+  with an API export holding a second canary. The step "wf: the content
+  exists" proves each in the tab, where the panel shows the file's prompt
+  in its Prompt row, before Save stores the template with `{{prompt}}` in
+  that place and closes the panel. Then the steps `B-store`, `B-url`,
+  `B-bf`, `B-clip` and `B-disk`.
 - **n/a** the path does not reach the hop (a malformed request never comes
   from the page; an image card request comes from Atelier's server, never
   a tab; clipboard across back/forward and cache across reload are covered

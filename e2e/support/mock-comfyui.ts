@@ -28,6 +28,12 @@ export interface ScopeOptions {
   large?: boolean;
   dropSocket?: boolean;
   silent?: boolean;
+  /**
+   * A stock ComfyUI's `/object_info`, such as a workflow fixture's
+   * `object_info.json`: its classes, `output_node` flags and model files are
+   * what the scope serves, so a workflow imported from that fixture reads Ready.
+   */
+  objectInfo?: Record<string, unknown>;
 }
 
 /** What a scope's fake recorded, as counts: nothing of a prompt's text leaves the mock. */
@@ -140,6 +146,7 @@ Bun.serve({
             executionError: options.fail === true,
             hang: options.stall === true,
             images: (graph) => portraits(graph, options.distinct === true, options.large === true),
+            ...(options.objectInfo === undefined ? {} : { objectInfo: options.objectInfo }),
           }),
         );
         return new Response(null, { status: 204 });

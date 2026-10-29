@@ -1,4 +1,4 @@
-import { WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera/core";
+import { userWorkflowId, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useId, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
@@ -144,7 +144,7 @@ export function Workflows({
                     onReplace,
                     onDeleted,
                   }}
-                  inUse={workflow.id === comfyuiWorkflow}
+                  inUse={userWorkflowId(workflow.id) === comfyuiWorkflow}
                 />
               ))}
             </ul>

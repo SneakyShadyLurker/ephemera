@@ -2,6 +2,7 @@ import {
   ART_FAMILIES,
   type ArtFamily,
   type ComfyuiWorkflowOption,
+  userWorkflowId,
   type WorkflowSummary,
 } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
@@ -99,7 +100,10 @@ export function WorkflowRow({
   const { workflow } = row;
   const glide = useGlide();
   const notReached = useNotReached();
-  const status = useQuery(artStatusQuery(workflow.id));
+  // A user row's summary carries its uuid; the status route takes the catalog's `user-` id.
+  const status = useQuery(
+    artStatusQuery(row.scope === "user" ? userWorkflowId(workflow.id) : workflow.id),
+  );
   const shown = workflowStatus(
     status.isPending ? "checking" : status.isError ? "failed" : status.data,
   );

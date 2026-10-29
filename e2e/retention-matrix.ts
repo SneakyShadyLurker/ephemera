@@ -79,6 +79,7 @@ export const MATRIX_ROWS = {
   sceneerr: { row: "scene picture: ComfyUI error", owner: "scene-retention.spec.ts" },
   scenestop: { row: "scene picture: Stop mid-paint", owner: "scene-retention.spec.ts" },
   sceneclear: { row: "scene picture: Clear mid-paint", owner: "scene-retention.spec.ts" },
+  wf: { row: "imported workflow: the prompt place's text", owner: "workflows-retention.spec.ts" },
 } as const satisfies Record<
   string,
   { row: string; owner: string; serverHops?: readonly ServerHop[] }

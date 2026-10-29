@@ -3,6 +3,7 @@ import {
   type CreatorArtStatus,
   DEFAULT_SETTINGS,
   type Settings,
+  userWorkflowId,
   WORKFLOW_LIMITS,
   type WorkflowSummary,
 } from "@ephemera/core";
@@ -23,6 +24,9 @@ vi.mock("@/app/form-factor.ts", async (original) => ({
 const FLUX = "0b6f7c3e-2d4a-4f8e-9a1b-5c6d7e8f9a0b";
 const MOSS = "1c7f8d4e-3e5b-4f9e-8a2b-6d7e8f9a0b1c";
 const SERVER = "krea2-gonzalomo";
+// The catalog, the settings and the status queries name a user workflow by its `user-` id.
+const FLUX_ID = userWorkflowId(FLUX);
+const MOSS_ID = userWorkflowId(MOSS);
 
 const summary = (id: string, name: string, family: WorkflowSummary["family"], nodes: number) => ({
   id,
@@ -38,12 +42,16 @@ const YOURS: WorkflowSummary[] = [
 ];
 const OPTIONS: ComfyuiWorkflowOption[] = [
   { id: SERVER, name: "Krea 2 Gonzalomo", family: "krea2", scope: "server" },
-  { id: FLUX, name: "Flux Dev Portrait", family: "general", scope: "user" },
-  { id: MOSS, name: "Moss Studio", family: "moss", scope: "user" },
+  { id: FLUX_ID, name: "Flux Dev Portrait", family: "general", scope: "user" },
+  { id: MOSS_ID, name: "Moss Studio", family: "moss", scope: "user" },
 ];
 const STATUSES: Record<string, CreatorArtStatus> = {
-  [FLUX]: { state: "ready" },
-  [MOSS]: { state: "missing", nodes: ["TextEncodeMOSSImageEdit"], models: ["moss_v2.safetensors"] },
+  [FLUX_ID]: { state: "ready" },
+  [MOSS_ID]: {
+    state: "missing",
+    nodes: ["TextEncodeMOSSImageEdit"],
+    models: ["moss_v2.safetensors"],
+  },
   [SERVER]: { state: "ready" },
 };
 
@@ -63,7 +71,7 @@ function render({
   client.setQueryData(settingsQuery.queryKey, {
     ...DEFAULT_SETTINGS,
     comfyuiBaseUrl: "http://comfyui.local:8188",
-    comfyuiWorkflow: FLUX,
+    comfyuiWorkflow: FLUX_ID,
     ...settings,
   });
   client.setQueryData(workflowsQuery.queryKey, yours);
@@ -119,7 +127,11 @@ describe("the workflows list in Settings > Portraits", () => {
   it("reads Unchecked without an address and Checking while asking", () => {
     const off = render({
       settings: { comfyuiBaseUrl: "" },
-      statuses: { [FLUX]: { state: "off" }, [MOSS]: { state: "off" }, [SERVER]: { state: "off" } },
+      statuses: {
+        [FLUX_ID]: { state: "off" },
+        [MOSS_ID]: { state: "off" },
+        [SERVER]: { state: "off" },
+      },
     });
     for (const row of rows(off)) expect(row).toContain("Unchecked");
     const asking = render({ statuses: {} });
