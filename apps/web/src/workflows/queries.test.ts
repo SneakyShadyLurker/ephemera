@@ -205,6 +205,37 @@ describe("looking up a create whose answer was lost", () => {
     serving(() => new Response("bad gateway", { status: 502 }));
     expect(await findWorkflow(UUID)).toEqual({ ok: false, reason: "unreachable" });
   });
+
+  it("asks the list afresh, never through a list request already on its way", async () => {
+    const row = {
+      id: UUID,
+      name: "Portrait",
+      family: "general",
+      nodes: 1,
+      revision: 0,
+      updatedAt: 2,
+    };
+    // A refresh that left before the create landed answers without the row, late.
+    let release: () => void = () => {};
+    const earlier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let answered = 0;
+    serving(async () => {
+      answered += 1;
+      if (answered === 1) {
+        await earlier;
+        return Response.json({ workflows: [] });
+      }
+      return Response.json({ workflows: [row] });
+    });
+    const refreshing = queryClient.fetchQuery(workflowsQuery);
+    await vi.waitFor(() => expect(answered).toBe(1));
+    const found = findWorkflow(UUID);
+    release();
+    expect(await found).toEqual({ ok: true, value: row });
+    await refreshing;
+  });
 });
 
 describe("an inspect", () => {

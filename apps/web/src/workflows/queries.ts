@@ -31,13 +31,16 @@ import { SAVE_TIMEOUT_MS, unsafeOptions } from "../sheet/saving.ts";
  * query cache nor the mutation cache ever holds a graph.
  */
 
+/** The user's workflows as the server lists them now. */
+async function listWorkflows(signal: AbortSignal): Promise<WorkflowSummary[]> {
+  const response = await api.workflows.$get(undefined, { init: { signal } });
+  if (!response.ok) throw new Error("unavailable");
+  return workflowsResponseSchema.parse(await response.json()).workflows;
+}
+
 export const workflowsQuery = queryOptions({
   queryKey: ["workflows"],
-  queryFn: async ({ signal }): Promise<WorkflowSummary[]> => {
-    const response = await api.workflows.$get(undefined, { init: { signal } });
-    if (!response.ok) throw new Error("unavailable");
-    return workflowsResponseSchema.parse(await response.json()).workflows;
-  },
+  queryFn: ({ signal }) => listWorkflows(signal),
 });
 
 type PlainReason = "busy" | "comfyui_required" | "full" | "name_taken" | "not_found" | "too_large";
@@ -224,13 +227,16 @@ export function createWorkflow(
 /**
  * The user's workflow `id` as the list shows it now, null when the list
  * lacks it, or unreachable when the list did not answer: a create whose
- * answer was lost is looked up this way before it is sent again.
+ * answer was lost is looked up this way before it is sent again. Its own
+ * request, so a list request that left before the create landed never
+ * answers it; the list query takes the rows it found.
  */
 export async function findWorkflow(
   id: string,
 ): Promise<WorkflowResult<WorkflowSummary | null, never>> {
   try {
-    const rows = await queryClient.fetchQuery({ ...workflowsQuery, staleTime: 0, retry: false });
+    const rows = await listWorkflows(AbortSignal.timeout(SAVE_TIMEOUT_MS));
+    queryClient.setQueryData(workflowsQuery.queryKey, rows);
     return { ok: true, value: rows.find((row) => row.id === id) ?? null };
   } catch {
     return { ok: false, reason: "unreachable" };
