@@ -1,4 +1,4 @@
-import type { ArtFamily } from "@ephemera/core";
+import type { ArtFamily, WorkflowFormat } from "@ephemera/core";
 import type { FinishReason } from "ai";
 
 /**
@@ -31,6 +31,8 @@ export interface LogFields {
   nodes?: number;
   /** Whether a live ComfyUI checked a saved workflow. */
   checked?: boolean;
+  /** The format of an imported workflow file, `ui` or `api`. */
+  format?: WorkflowFormat;
 }
 
 const ALLOWED_KEYS = [
@@ -50,6 +52,7 @@ const ALLOWED_KEYS = [
   "family",
   "nodes",
   "checked",
+  "format",
 ] as const satisfies readonly (keyof LogFields)[];
 
 type Level = "info" | "warn" | "error";

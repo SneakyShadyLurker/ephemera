@@ -89,6 +89,13 @@ export interface FakeComfyuiOptions {
   /** Classes `/object_info` reports as output nodes besides the save classes. */
   outputNodes?: string[];
   /**
+   * A stock ComfyUI's `/object_info` entries, such as a workflow fixture's
+   * `object_info.json`, served in place of the built answer with the
+   * `SaveImageWebsocket` and `ImageScale` entries every stock ComfyUI has,
+   * the classes finalization puts into a template.
+   */
+  objectInfo?: Record<string, unknown>;
+  /**
    * What the save node sends, as whole PNGs; by default as many valid
    * portraits as the submitted graph's `batch_size`.
    * A function receives the submitted graph, so each run can send its own.
@@ -408,6 +415,33 @@ export function fakeComfyui(options: FakeComfyuiOptions = {}) {
    * placeholder its widget type, a link a socket type, as ComfyUI answers.
    */
   function objectInfo() {
+    if (options.objectInfo !== undefined) {
+      return {
+        ...options.objectInfo,
+        SaveImageWebsocket: {
+          input: { required: { images: ["IMAGE"] } },
+          output: [],
+          output_node: true,
+          name: "SaveImageWebsocket",
+          display_name: "SaveImageWebsocket",
+        },
+        ImageScale: {
+          input: {
+            required: {
+              image: ["IMAGE"],
+              upscale_method: [["nearest-exact", "bilinear", "area", "bicubic", "lanczos"], {}],
+              width: ["INT", { default: 512, min: 0, max: 16384, step: 1 }],
+              height: ["INT", { default: 512, min: 0, max: 16384, step: 1 }],
+              crop: [["disabled", "center"], {}],
+            },
+          },
+          output: ["IMAGE"],
+          output_node: false,
+          name: "ImageScale",
+          display_name: "Upscale Image",
+        },
+      };
+    }
     const info: Record<string, unknown> = {
       CheckpointLoaderSimple: {
         input: { required: { ckpt_name: [["fixture-checkpoint.safetensors"], {}] } },

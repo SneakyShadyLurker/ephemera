@@ -3,12 +3,15 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  inspectionSchema,
   type WorkflowGraph,
   workflowSavedResponseSchema,
   workflowsResponseSchema,
 } from "@ephemera/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { dataDirContaining, filesContaining, holds } from "../../../e2e/support/scan.ts";
+import { loadWorkflowFixture } from "../../../packages/core/test-fixtures/workflows.ts";
 import bundled from "../src/comfyui/workflows/krea2-gonzalomo.json" with { type: "json" };
 import { createLogger } from "../src/log.ts";
 import { createInstanceRegistry, type InstanceRegistry } from "../src/persistence/index.ts";
@@ -18,9 +21,11 @@ import { TEST_WORKFLOWS } from "./test-workflows.ts";
 
 /*
  * The retention matrix row for imported workflows (docs/specs/workflow-import.md
- * § 13): the prompt place's literal text is replaced by `{{prompt}}` before
- * anything is stored, so a sentinel written there by the user reaches no
- * database file, no log line, no temp path and no response.
+ * § 13): the prompt place's literal text is replaced by `{{prompt}}`, and a
+ * text node that supplies it is dropped, before anything is stored, so a
+ * sentinel written there by the user reaches no database file, no log
+ * line, no temp path and no response. An inspection
+ * answers the file to the tab, so its response alone carries the sentinel.
  */
 
 const COMFY = "http://comfy.test:8188";
@@ -44,7 +49,36 @@ function smaller(text: string): Record<string, Node> {
   return graph;
 }
 
+/** The same export with its prompt supplied by a text node holding `text`. */
+function linked(text: string): Record<string, Node> {
+  const graph = exported("");
+  graph["20"] = { class_type: "PrimitiveStringMultiline", inputs: { value: text } };
+  Object.assign(graph["4"]?.inputs ?? {}, { text: ["20", 0] });
+  return graph;
+}
+
 const promptOf = (graph: WorkflowGraph) => graph["4"]?.inputs.text;
+
+/** The SDXL fixture's UI export, its positive prompt (node 2) holding `text`, edited in a copy in memory. */
+function uiFile(text: string): unknown {
+  const file = z
+    .looseObject({
+      nodes: z.array(
+        z.looseObject({
+          id: z.number(),
+          widgets_values: z.unknown().optional(),
+          widgets_values_named: z.unknown().optional(),
+        }),
+      ),
+    })
+    .parse(structuredClone(loadWorkflowFixture("sdxl-basic").ui));
+  const positive = file.nodes.find((node) => node.id === 2);
+  if (positive === undefined) throw new Error("the fixture has no positive prompt node");
+  // Both forms a frontend writes the widget values in.
+  positive.widgets_values = [text];
+  positive.widgets_values_named = { text };
+  return file;
+}
 
 let root: string;
 let previousTmp: string | undefined;
@@ -71,7 +105,9 @@ describe("workflow retention", () => {
   it("keeps the prompt place's text out of the data dir, logs, temp paths and responses", async () => {
     const first = `workflow-sentinel-${crypto.randomUUID()}`;
     const second = `workflow-sentinel-${crypto.randomUUID()}`;
-    const sentinels = [first, second];
+    const inspected = `workflow-sentinel-${crypto.randomUUID()}`;
+    const fromNode = `workflow-sentinel-${crypto.randomUUID()}`;
+    const sentinels = [first, second, inspected, fromNode];
 
     const dataDir = join(root, "data");
     const tmp = join(root, "tmp");
@@ -96,6 +132,56 @@ describe("workflow retention", () => {
     instances.instance(TEST_USER).stores.settings.update({ comfyuiBaseUrl: COMFY });
 
     const bodies: string[] = [];
+
+    // An inspection, against a ComfyUI that knows the fixture's classes, over the same instance.
+    const fixtureComfy = fakeComfyui({
+      objectInfo: z
+        .record(z.string(), z.unknown())
+        .parse(loadWorkflowFixture("sdxl-basic").objectInfo),
+    });
+    const { app: inspectApp } = testApp({
+      fetch: fixtureComfy.fetch,
+      workflows: TEST_WORKFLOWS,
+      instances: registry,
+      log,
+    });
+    const inspectResponse = await inspectApp.request(
+      "/api/workflows/inspect",
+      requestJson("POST", { source: uiFile(inspected), fileName: "sdxl-basic.json" }),
+    );
+    const inspectText = await inspectResponse.text();
+    expect(inspectResponse.status).toBe(200);
+    // The tab gets the file back to finalize after each choice: the one place the text may go.
+    expect(holds(Buffer.from(inspectText), inspected)).toBe(true);
+    const inspection = inspectionSchema.parse(JSON.parse(inspectText));
+
+    // After the inspection alone: nothing of it in the data dir, the temp paths or the logs.
+    expect(lines.some((line) => line.includes("workflows.inspect"))).toBe(true);
+    expect(holds(Buffer.from(lines.join("\n")), inspected)).toBe(false);
+    const inspectedData = await dataDirContaining(dataDir, inspected, key);
+    expect(inspectedData.unreadable).toEqual([]);
+    expect(inspectedData.hits).toEqual([]);
+    const inspectedTemp = await filesContaining(tmp, inspected);
+    expect(inspectedTemp.unreadable).toEqual([]);
+    expect(inspectedTemp.hits).toEqual([]);
+
+    // The save the panel makes from it, with the default choices.
+    const fromInspection = await inspectApp.request(
+      "/api/workflows",
+      requestJson("POST", {
+        id: crypto.randomUUID(),
+        name: inspection.nameSuggestion,
+        family: inspection.detection.familyGuess,
+        graph: inspection.graph,
+        choices: {},
+      }),
+    );
+    const fromInspectionText = await fromInspection.text();
+    bodies.push(fromInspectionText);
+    expect(fromInspection.status).toBe(201);
+    const imported = workflowSavedResponseSchema.parse(JSON.parse(fromInspectionText)).workflow;
+    expect(imported.graph["2"]?.inputs.text).toBe("{{prompt}}");
+
     const id = crypto.randomUUID();
     const createResponse = await app.request(
       "/api/workflows",
@@ -139,6 +225,23 @@ describe("workflow retention", () => {
     const after = await listed();
     expect(after.revision).toBe(replaced.revision);
     expect(after.nodes).not.toBe(before.nodes);
+
+    const linkedResponse = await app.request(
+      "/api/workflows",
+      requestJson("POST", {
+        id: crypto.randomUUID(),
+        name: "Linked",
+        family: "krea2",
+        graph: linked(fromNode),
+        choices: CHOICES,
+      }),
+    );
+    const linkedText = await linkedResponse.text();
+    bodies.push(linkedText);
+    expect(linkedResponse.status).toBe(201);
+    const fromLink = workflowSavedResponseSchema.parse(JSON.parse(linkedText)).workflow;
+    expect(promptOf(fromLink.graph)).toBe("{{prompt}}");
+    expect(fromLink.graph["20"]).toBeUndefined();
 
     // The stored template, read from the store the next request would use.
     const stored = instances.instance(TEST_USER).stores.workflows.get(id);

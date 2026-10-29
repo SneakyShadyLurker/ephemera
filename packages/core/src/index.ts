@@ -154,11 +154,24 @@ export {
   callRecordSchema,
   MAX_CALL_RECORDS,
 } from "./usage.ts";
+export {
+  CONVERT_REFUSALS,
+  type Converted,
+  type ConvertRefusalCode,
+  type ConvertResult,
+  convertWorkflow,
+  type DisplayNode,
+  detectFormat,
+  type WorkflowFormat,
+} from "./workflow/convert.ts";
+export * from "./workflow/detect.ts";
 export { artFamilySchema, fileFamilyOf } from "./workflow/family.ts";
 export * from "./workflow/finalize.ts";
 export * from "./workflow/graph.ts";
 export * from "./workflow/id.ts";
 export * from "./workflow/meta.ts";
 export * from "./workflow/models.ts";
+export * from "./workflow/normalize.ts";
+export { type NodeTitles, titleOf } from "./workflow/report.ts";
 export * from "./workflow/schema.ts";
 export * from "./workflow/slots.ts";

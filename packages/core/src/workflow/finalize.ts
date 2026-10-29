@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CREATOR_ART } from "../creator/limits.ts";
 import type { ImportReport } from "../preset/sillytavern.ts";
+import { latentIn, positiveEncoders } from "./detect.ts";
 import { artFamilySchema } from "./family.ts";
 import {
   classTypeSchema,
@@ -10,7 +11,9 @@ import {
   type WorkflowGraph,
   type WorkflowNode,
 } from "./graph.ts";
+import { isLink, linksOf, OUTPUT_CLASSES, reaches, SAVER, upstreamOf } from "./links.ts";
 import type { NodeMetaMap } from "./meta.ts";
+import { type NodeTitles, nodeLabel, nodeTitle } from "./report.ts";
 import {
   applySlots,
   type SlotTarget,
@@ -48,6 +51,7 @@ export const WORKFLOW_REFUSALS = [
   "no_size_slot",
   "no_seed_slot",
   "too_many_targets",
+  "linked_prompt",
   "not_a_candidate",
   "embedded_placeholder",
 ] as const;
@@ -134,36 +138,7 @@ export type FinalizeResult =
     }
   | { ok: false; refusal: WorkflowRefusal };
 
-/** The safe fixes of spec § 10.1, run before blocked nodes are assessed. */
-export function normalizeWorkflow(
-  _graph: WorkflowGraph,
-  _meta: NodeMetaMap | undefined,
-  _allowlist: ReadonlySet<string>,
-): Normalized {
-  throw new Error("normalizeWorkflow is not implemented");
-}
-
-/** The places of spec § 10.2 to 10.5 and the family guess. */
-export function detectSlots(_normalized: Normalized, _meta: NodeMetaMap | undefined): DetectResult {
-  throw new Error("detectSlots is not implemented");
-}
-
-/** The classes that save or preview an image without `/object_info` saying so. */
-const OUTPUT_CLASSES: ReadonlySet<string> = new Set([
-  "SaveImage",
-  "PreviewImage",
-  "SaveImageWebsocket",
-]);
-const SAVER = "SaveImageWebsocket";
 const SIZE_INPUTS = ["width", "height", "batch_size"] as const;
-
-type Link = [string, number];
-const isLink = (value: unknown): value is Link =>
-  Array.isArray(value) &&
-  value.length === 2 &&
-  typeof value[0] === "string" &&
-  Number.isInteger(value[1]);
-const linksOf = (node: WorkflowNode): Link[] => Object.values(node.inputs).filter(isLink);
 
 const refuse = (error: WorkflowRefusalCode, nodes?: string[]): FinalizeResult => ({
   ok: false,
@@ -172,22 +147,6 @@ const refuse = (error: WorkflowRefusalCode, nodes?: string[]): FinalizeResult =>
 
 const candidateIn = <T>(place: Place<T>, node: string): Candidate | undefined =>
   place.candidates.find((candidate) => candidate.node === node);
-
-/** Whether `target`'s output reaches `from` by following links upstream. */
-function reaches(nodes: ReadonlyMap<string, WorkflowNode>, from: string, target: string): boolean {
-  const seen = new Set<string>([from]);
-  const pending = [from];
-  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
-    if (id === target) return true;
-    for (const [origin] of linksOf(nodes.get(id) ?? { class_type: "", inputs: {} })) {
-      if (!seen.has(origin) && nodes.has(origin)) {
-        seen.add(origin);
-        pending.push(origin);
-      }
-    }
-  }
-  return false;
-}
 
 /**
  * The first decimal id neither the graph nor the source it came from uses, so
@@ -218,6 +177,7 @@ export function finalizeWorkflow(
   detection: Detection,
   choices: WorkflowChoices,
   meta?: NodeMetaMap,
+  titles?: NodeTitles,
 ): FinalizeResult {
   const source = normalized.graph;
   const nodes = new Map(Object.entries(structuredClone(source)));
@@ -228,14 +188,10 @@ export function finalizeWorkflow(
     ...detection.latent.candidates,
     ...detection.output.candidates,
   ];
-  const named = (id: string): string => {
-    const classType = source[id]?.class_type ?? id;
-    const title =
-      candidates.find((candidate) => candidate.node === id)?.title ??
-      meta?.get(classType)?.displayName ??
-      classType;
-    return `${title} (node ${id})`;
-  };
+  const named = (id: string): string =>
+    titles?.has(id) === true
+      ? nodeLabel(source, id, meta, titles)
+      : `${candidates.find((candidate) => candidate.node === id)?.title ?? nodeTitle(source, id, meta)} (node ${id})`;
 
   // 1. The output, and every other output with what only it consumed.
   if (choices.output !== undefined && candidateIn(detection.output, choices.output) === undefined) {
@@ -275,11 +231,20 @@ export function finalizeWorkflow(
     changed.push(`${named(outputId)} now sends the picture to Ephemera instead of a file.`);
   }
 
+  // The chosen output's branch: detection's defaults for the prompt and latent covered
+  // every output's, and an encoder another branch reads as positive may be negative here.
+  const branch = upstreamOf(nodes, [outputId]);
+
   // 2. The latent, reached from the output, and the exact final size.
   if (choices.latent !== undefined && candidateIn(detection.latent, choices.latent) === undefined) {
     return refuse("not_a_candidate", [choices.latent]);
   }
-  const latentId = choices.latent ?? detection.latent.chosen;
+  const latentId =
+    choices.latent ??
+    latentIn(
+      detection.latent.candidates.map(({ node }) => node),
+      branch,
+    );
   const latent = latentId === null ? undefined : nodes.get(latentId);
   if (
     latentId === null ||
@@ -328,7 +293,10 @@ export function finalizeWorkflow(
     Object.hasOwn(nodes.get(node)?.inputs ?? {}, input);
   let prompt: SlotTarget[];
   if (choices.prompt === undefined) {
-    prompt = (detection.prompt.chosen ?? []).filter(present);
+    const reached = positiveEncoders(nodes, branch);
+    prompt = (detection.prompt.chosen ?? []).filter(
+      (target) => reached.has(target.node) && present(target),
+    );
   } else {
     const encoders = [...new Set(choices.prompt)];
     const refused = encoders.filter(
@@ -343,7 +311,38 @@ export function finalizeWorkflow(
   }
   if (prompt.length === 0) return refuse("no_prompt_slot");
   if (prompt.length > WORKFLOW_LIMITS.targetsPerPlace) return refuse("too_many_targets");
+  // A prompt another node supplies: that node goes with the link, so its text is never
+  // stored. Only a node that takes no links and feeds nothing else can go.
+  const isTarget = (node: string, input: string) =>
+    prompt.some((target) => target.node === node && target.input === input);
+  const sourceOf = ({ node, input }: SlotTarget): string | undefined => {
+    const value = nodes.get(node)?.inputs[input];
+    return isLink(value) ? value[0] : undefined;
+  };
+  const sources = new Set(prompt.flatMap((target) => sourceOf(target) ?? []));
+  const kept = [...sources].filter((source) => {
+    const feeds = [...nodes].some(([id, node]) =>
+      Object.entries(node.inputs).some(
+        ([input, value]) => isLink(value) && value[0] === source && !isTarget(id, input),
+      ),
+    );
+    const takes = linksOf(nodes.get(source) ?? { class_type: "", inputs: {} }).length > 0;
+    const placed =
+      source === outputId || source === latentId || prompt.some(({ node }) => node === source);
+    return feeds || takes || placed;
+  });
+  if (kept.length > 0) return refuse("linked_prompt", kept);
   for (const node of new Set(prompt.map((target) => target.node))) {
+    const from = prompt
+      .filter((target) => target.node === node)
+      .map(sourceOf)
+      .find((source) => source !== undefined);
+    if (from !== undefined) {
+      changed.push(
+        `The prompt ${named(node)} took from ${named(from)} is replaced by the card's image prompt.`,
+      );
+      continue;
+    }
     const length = prompt
       .filter((target) => target.node === node)
       .reduce((sum, { input }) => {
@@ -355,6 +354,11 @@ export function finalizeWorkflow(
         ? `The empty prompt of ${named(node)} now takes the card's image prompt.`
         : `The written prompt of ${named(node)}, ${length} ${length === 1 ? "character" : "characters"}, is replaced by the card's image prompt.`,
     );
+  }
+
+  for (const source of sources) {
+    nodes.delete(source);
+    skipped.push(`${named(source)}, its text is replaced by the card's image prompt.`);
   }
 
   // 4. Every seed the graph still has.

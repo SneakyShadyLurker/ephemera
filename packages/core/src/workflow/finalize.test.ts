@@ -2,14 +2,7 @@ import { describe, expect, it } from "vitest";
 import bundled from "../../../../apps/server/src/comfyui/workflows/krea2-gonzalomo.json" with {
   type: "json",
 };
-import {
-  type Candidate,
-  type Detection,
-  detectSlots,
-  finalizeWorkflow,
-  type Normalized,
-  normalizeWorkflow,
-} from "./finalize.ts";
+import { type Candidate, type Detection, finalizeWorkflow, type Normalized } from "./finalize.ts";
 import type { WorkflowGraph } from "./graph.ts";
 
 const TEMPLATE: WorkflowGraph = bundled;
@@ -198,11 +191,11 @@ describe("finalizeWorkflow refusals", () => {
     for (const id of nine) graph[id] = { class_type: "CLIPTextEncode", inputs: { text: "x" } };
     const prompts = detection({
       prompt: {
-        chosen: nine.map((node) => ({ node, input: "text" })),
+        chosen: null,
         candidates: nine.map((node) => candidate(node, "CLIPTextEncode", ["text"])),
       },
     });
-    expect(finalizeWorkflow(normalized(graph), prompts, {})).toMatchObject({
+    expect(finalizeWorkflow(normalized(graph), prompts, { prompt: nine })).toMatchObject({
       refusal: { error: "too_many_targets" },
     });
     const flux = Array.from({ length: 5 }, (_, i) => String(30 + i));
@@ -305,6 +298,83 @@ describe("finalizeWorkflow choices", () => {
     expect(result.skipped).toEqual(["SaveImageWebsocket (node 9), not the chosen output."]);
   });
 
+  it("drops the text node a linked prompt comes from, so its text is never stored", () => {
+    const graph = literal();
+    graph["20"] = { class_type: "PrimitiveStringMultiline", inputs: { value: "SECRET TEXT" } };
+    Object.assign(graph["4"]?.inputs ?? {}, { text: ["20", 0] });
+    const result = finalizeWorkflow(normalized(graph), detection(), {});
+    if (!result.ok) throw new Error(result.refusal.error);
+    expect(result.template["20"]).toBeUndefined();
+    expect(result.template["4"]?.inputs.text).toBe("{{prompt}}");
+    expect(JSON.stringify(result.template)).not.toContain("SECRET");
+    expect(result.changed).toContain(
+      "The prompt CLIPTextEncode (node 4) took from PrimitiveStringMultiline (node 20) is replaced by the card's image prompt.",
+    );
+    expect(result.skipped).toContain(
+      "PrimitiveStringMultiline (node 20), its text is replaced by the card's image prompt.",
+    );
+  });
+
+  it("refuses linked_prompt when the prompt's node feeds another or takes links itself", () => {
+    const shared = literal();
+    shared["20"] = { class_type: "PrimitiveStringMultiline", inputs: { value: "SECRET TEXT" } };
+    Object.assign(shared["4"]?.inputs ?? {}, { text: ["20", 0] });
+    shared["21"] = { class_type: "CLIPTextEncode", inputs: { text: ["20", 0], clip: ["2", 0] } };
+    expect(finalizeWorkflow(normalized(shared), detection(), {})).toEqual({
+      ok: false,
+      refusal: { error: "linked_prompt", nodes: ["20"] },
+    });
+    const joined = literal();
+    joined["20"] = { class_type: "StringConcatenate", inputs: { string_a: ["22", 0] } };
+    joined["22"] = { class_type: "PrimitiveStringMultiline", inputs: { value: "SECRET TEXT" } };
+    Object.assign(joined["4"]?.inputs ?? {}, { text: ["20", 0] });
+    expect(finalizeWorkflow(normalized(joined), detection(), {})).toEqual({
+      ok: false,
+      refusal: { error: "linked_prompt", nodes: ["20"] },
+    });
+  });
+
+  it("takes the prompt and latent from the chosen output's branch, not every output's", () => {
+    const graph = literal();
+    graph["20"] = { class_type: "CLIPTextEncode", inputs: { clip: ["2", 0], text: "grainy" } };
+    Object.assign(graph["7"]?.inputs ?? {}, { negative: ["20", 0] });
+    graph["21"] = {
+      class_type: "KSampler",
+      inputs: { ...graph["7"]?.inputs, positive: ["20", 0], negative: ["4", 0] },
+    };
+    graph["22"] = { class_type: "VAEDecode", inputs: { samples: ["21", 0], vae: ["3", 0] } };
+    graph["23"] = { class_type: "SaveImageWebsocket", inputs: { images: ["22", 0] } };
+    const found = detection({
+      prompt: {
+        chosen: [
+          { node: "4", input: "text" },
+          { node: "20", input: "text" },
+        ],
+        candidates: [
+          candidate("4", "CLIPTextEncode", ["text"]),
+          candidate("20", "CLIPTextEncode", ["text"]),
+        ],
+      },
+      seed: [
+        { node: "7", input: "seed" },
+        { node: "21", input: "seed" },
+      ],
+      output: {
+        chosen: null,
+        candidates: [
+          candidate("9", "SaveImageWebsocket", ["images"]),
+          candidate("23", "SaveImageWebsocket", ["images"]),
+        ],
+      },
+    });
+    const result = finalizeWorkflow(normalized(graph), found, { output: "9" });
+    if (!result.ok) throw new Error(result.refusal.error);
+    expect(result.slots.prompt).toEqual([{ node: "4", input: "text" }]);
+    expect(result.template["20"]?.inputs.text).toBe("grainy");
+    expect(result.template["21"]).toBeUndefined();
+    expect(result.slots.count).toEqual([{ node: "6", input: "batch_size" }]);
+  });
+
   it("writes the prompt into every text input of the chosen encoders", () => {
     const graph = literal();
     graph["20"] = { class_type: "CLIPTextEncodeFlux", inputs: { clip_l: "", t5xxl: "a cat" } };
@@ -328,12 +398,5 @@ describe("finalizeWorkflow choices", () => {
     expect(finalizeWorkflow(normalized(graph), found, {})).toMatchObject({
       refusal: { error: "no_prompt_slot" },
     });
-  });
-});
-
-describe("normalization and detection", () => {
-  it("are typed stubs until they are implemented", () => {
-    expect(() => normalizeWorkflow(literal(), undefined, new Set())).toThrow(/not implemented/);
-    expect(() => detectSlots(normalized(literal()), undefined)).toThrow(/not implemented/);
   });
 });

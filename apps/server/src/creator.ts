@@ -274,7 +274,7 @@ export function shownNames(names: readonly string[]): string[] {
 }
 
 /** The client's status as the route reports it; node and model names are configuration. */
-function artStatus(status: ComfyuiStatus): CreatorArtStatus {
+export function artStatus(status: ComfyuiStatus): CreatorArtStatus {
   if (!status.reachable) {
     const { reason } = status;
     if (

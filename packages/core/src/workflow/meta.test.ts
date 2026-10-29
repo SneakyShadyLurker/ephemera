@@ -66,6 +66,31 @@ describe("nodeMetaFrom", () => {
     expect(sampler?.inputs.steps).toEqual({ kind: "INT" });
   });
 
+  it("gives seed controls as the frontend does: asked for, or by name unless refused", () => {
+    const custom = nodeMetaFrom(
+      objectInfoSchema.parse({
+        CustomSampler: {
+          input: {
+            required: {
+              seed: ["INT", {}],
+              noise_seed: ["INT", { control_after_generate: false }],
+              steps: ["INT", { control_after_generate: "fixed" }],
+              mode: [["a", "b"], { control_after_generate: true }],
+              style: [["c", "d"]],
+            },
+          },
+        },
+      }),
+    ).get("CustomSampler");
+    expect(custom?.inputs).toEqual({
+      seed: { kind: "INT", controlAfterGenerate: true },
+      noise_seed: { kind: "INT" },
+      steps: { kind: "INT", controlAfterGenerate: true },
+      mode: { kind: "COMBO", choices: ["a", "b"], controlAfterGenerate: true },
+      style: { kind: "COMBO", choices: ["c", "d"] },
+    });
+  });
+
   it("reads combo choices in both forms, booleans and forced inputs", () => {
     expect(meta.get("KSampler")?.inputs.sampler_name).toEqual({
       kind: "COMBO",
@@ -133,5 +158,56 @@ describe("nodeMetaFrom", () => {
       "loras.1.strength": { kind: "FLOAT" },
       "loras.1.enabled": { kind: "BOOLEAN" },
     });
+  });
+
+  it("orders inputs by input_order and names the required ones", () => {
+    const read = nodeMetaFrom(
+      objectInfoSchema.parse({
+        EmptyLatentImage: {
+          input: {
+            required: { batch_size: ["INT"], width: ["INT"], height: ["INT"] },
+            optional: { note: ["STRING"] },
+          },
+          input_order: { required: ["width", "height", "batch_size"], optional: ["note"] },
+        },
+      }),
+    );
+    const latent = read.get("EmptyLatentImage");
+    expect(Object.keys(latent?.inputs ?? {})).toEqual(["width", "height", "batch_size", "note"]);
+    expect(latent?.required).toEqual(["width", "height", "batch_size"]);
+  });
+
+  it("reads growing inputs and the widgets only the UI saves", () => {
+    const read = nodeMetaFrom(
+      objectInfoSchema.parse({
+        Encode: {
+          input: {
+            required: {
+              images: [
+                "COMFY_AUTOGROW_V3",
+                {
+                  template: {
+                    input: { required: { image: ["IMAGE", {}] } },
+                    names: ["image_1", "image_2"],
+                    min: 1,
+                  },
+                },
+              ],
+              masks: [
+                "COMFY_AUTOGROW_V3",
+                { template: { input: { required: { strength: ["FLOAT", {}] } }, prefix: "m" } },
+              ],
+            },
+          },
+        },
+        LoadImage: { input: { required: { image: [["a.png"], { image_upload: true }] } } },
+      }),
+    );
+    expect(read.get("Encode")?.growing).toEqual({
+      images: { kind: "sockets", min: 1, names: ["image_1", "image_2"] },
+      masks: { kind: "unreadable" },
+    });
+    expect(read.get("LoadImage")?.uiOnlyWidgets).toBe(1);
+    expect(read.get("Encode")?.uiOnlyWidgets).toBeUndefined();
   });
 });

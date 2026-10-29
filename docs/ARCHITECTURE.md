@@ -37,6 +37,7 @@ Bun workspace, strict TypeScript, ESM.
 | `e2e` | Playwright flows and the retention matrix, against a synthetic mock upstream and a mock ComfyUI |
 | `scripts` | Workspace checks, dependency persistence audit and in-memory native card checks |
 | `packages/core/test-fixtures/imports` | Synthetic foreign card import corpus |
+| `packages/core/test-fixtures/workflows` | ComfyUI workflow exports in both formats from a stock frontend, with their node definitions and expected outcomes |
 | `docs` | Product, principles and architecture |
 | `data/` | Local development data directory (`EPHEMERA_DATA_DIR`), Git-ignored |
 
@@ -1227,20 +1228,35 @@ content's path: the tab's memory and one request in the server.
   key is 400); `PUT /:id/graph` replaces the graph at a revision; `DELETE
   /:id` answers the settings, back on the default workflow when they named
   it. Create and replace bound the body at 2 MiB and its nesting depth,
-  refuse `__proto__`, `constructor` and `prototype` as keys at every level,
-  drop each node's `_meta`, and finalize the template with core's
-  `finalizeWorkflow`, which writes the five placeholders and refuses any
-  other placeholder text (422 `invalid_workflow` with its code). The
-  template then passes the allowlist in its import context (422
-  `blocked_nodes` with the classes), the live ComfyUI's output nodes when
-  the saved address answers `/object_info` (the same 422), the dry fill
-  and the 256 KiB template bound. The answer carries `checked: false` when
-  ComfyUI did not answer or no address is saved. A user keeps at most 24
+  refuse `__proto__`, `constructor` and `prototype` as keys at every level
+  and drop each node's `_meta`. They then run core's pipeline:
+  `normalizeWorkflow` (one image saver becomes `SaveImageWebsocket`, output
+  nodes nothing consumes are dropped), the allowlist in its import context
+  and the live ComfyUI's output nodes on the normalized graph (422
+  `blocked_nodes` with the classes), `detectWorkflow` (the prompt encoders
+  traced to the sampler's positive input, the empty latent, every seed, the
+  family guess) and `finalizeWorkflow` with the tab's choices, which writes
+  the five placeholders, drops a text node that supplied the prompt (code
+  `linked_prompt` when that node takes links or feeds anything else),
+  makes the final image exactly the requested size and refuses any other
+  placeholder text (422 `invalid_workflow` with its code), then the dry fill and the 256 KiB template bound. The answer
+  carries `checked: false` when ComfyUI did not answer or no address is
+  saved. `POST /inspect` takes a file in either ComfyUI format and a file
+  name and answers what the import screen shows, storing nothing: a saved
+  (UI-format) workflow is converted to API format by core's
+  `convertWorkflow` against the live `/object_info` (widget order, links,
+  reroutes, primitive nodes, muted and bypassed nodes, subgraphs and
+  growing inputs; 409 `comfyui_required` when ComfyUI does not answer),
+  then the same pipeline with the default choices gives the graph, the
+  node titles, the detection with its candidates, the Changed and Left out
+  report, the blocked classes with their reasons, the live status and a
+  name suggestion. One inspection runs at a time per user (429 `busy`). A user keeps at most 24
   workflows (413 `full`), with names unique regardless of case (409
   `name_taken`). The log carries `workflows.list`, `workflows.create`,
-  `workflows.update`, `workflows.replace` and `workflows.delete` with the
-  status, duration, node count, `checked` and the refusal class; never a
-  name, node class, model file or text.
+  `workflows.update`, `workflows.replace`, `workflows.delete` and
+  `workflows.inspect` (with the file's format) with the status, duration,
+  node count, `checked` and the refusal class; never a name, file name,
+  node title or class, model file or text.
 - **`POST /api/scene`** (`apps/server/src/scene.ts`): Picture this scene.
   The tab sends the model (Settings' image prompt model, else the chat's,
   taken at the press; no effort), the workflow, the character's

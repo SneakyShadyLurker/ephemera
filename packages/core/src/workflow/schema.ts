@@ -98,6 +98,26 @@ export const workflowNodeInfoSchema = z.strictObject({
 
 export const WORKFLOW_FORMATS = ["api", "ui"] as const;
 
+/**
+ * Why an import refuses a node class: it writes or reads ComfyUI's files,
+ * it is not on the allowlist, it loads a reference image, or the live
+ * ComfyUI reports it as an output node.
+ */
+export const BLOCKED_REASONS = [
+  "refused_writes",
+  "not_allowed",
+  "reference_only",
+  "output_node",
+] as const;
+export type BlockedReason = (typeof BLOCKED_REASONS)[number];
+
+/** A node class an import refuses, with why. */
+export const blockedNodeSchema = z.strictObject({
+  classType: classTypeSchema,
+  reason: z.enum(BLOCKED_REASONS),
+});
+export type BlockedNode = z.infer<typeof blockedNodeSchema>;
+
 /** `POST /api/workflows/inspect` (200): what the panel shows and the tab finalizes after each choice. */
 export const inspectionSchema = z.strictObject({
   format: z.enum(WORKFLOW_FORMATS),
@@ -108,8 +128,8 @@ export const inspectionSchema = z.strictObject({
   nodes: z.array(workflowNodeInfoSchema).max(WORKFLOW_LIMITS.nodes),
   detection: detectionSchema,
   report: importReportSchema.pick({ changed: true, skipped: true }),
-  /** Node classes the allowlist refuses. */
-  blocked: z.array(classTypeSchema).max(WORKFLOW_LIMITS.nodes),
+  /** Node classes of the normalized graph an import refuses; any one makes the file unsavable. */
+  blocked: z.array(blockedNodeSchema).max(WORKFLOW_LIMITS.nodes),
   live: creatorArtStatusSchema,
   nameSuggestion: z.string().max(WORKFLOW_LIMITS.nameLength),
 });
