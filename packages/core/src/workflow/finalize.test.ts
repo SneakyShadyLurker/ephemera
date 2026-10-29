@@ -2,14 +2,7 @@ import { describe, expect, it } from "vitest";
 import bundled from "../../../../apps/server/src/comfyui/workflows/krea2-gonzalomo.json" with {
   type: "json",
 };
-import {
-  type Candidate,
-  type Detection,
-  detectSlots,
-  finalizeWorkflow,
-  type Normalized,
-  normalizeWorkflow,
-} from "./finalize.ts";
+import { type Candidate, type Detection, finalizeWorkflow, type Normalized } from "./finalize.ts";
 import type { WorkflowGraph } from "./graph.ts";
 
 const TEMPLATE: WorkflowGraph = bundled;
@@ -328,12 +321,5 @@ describe("finalizeWorkflow choices", () => {
     expect(finalizeWorkflow(normalized(graph), found, {})).toMatchObject({
       refusal: { error: "no_prompt_slot" },
     });
-  });
-});
-
-describe("normalization and detection", () => {
-  it("are typed stubs until they are implemented", () => {
-    expect(() => normalizeWorkflow(literal(), undefined, new Set())).toThrow(/not implemented/);
-    expect(() => detectSlots(normalized(literal()), undefined)).toThrow(/not implemented/);
   });
 });

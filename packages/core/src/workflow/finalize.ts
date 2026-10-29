@@ -10,7 +10,9 @@ import {
   type WorkflowGraph,
   type WorkflowNode,
 } from "./graph.ts";
+import { isLink, linksOf, OUTPUT_CLASSES, reaches, SAVER } from "./links.ts";
 import type { NodeMetaMap } from "./meta.ts";
+import { type NodeTitles, nodeLabel, nodeTitle } from "./report.ts";
 import {
   applySlots,
   type SlotTarget,
@@ -134,36 +136,7 @@ export type FinalizeResult =
     }
   | { ok: false; refusal: WorkflowRefusal };
 
-/** The safe fixes of spec § 10.1, run before blocked nodes are assessed. */
-export function normalizeWorkflow(
-  _graph: WorkflowGraph,
-  _meta: NodeMetaMap | undefined,
-  _allowlist: ReadonlySet<string>,
-): Normalized {
-  throw new Error("normalizeWorkflow is not implemented");
-}
-
-/** The places of spec § 10.2 to 10.5 and the family guess. */
-export function detectSlots(_normalized: Normalized, _meta: NodeMetaMap | undefined): DetectResult {
-  throw new Error("detectSlots is not implemented");
-}
-
-/** The classes that save or preview an image without `/object_info` saying so. */
-const OUTPUT_CLASSES: ReadonlySet<string> = new Set([
-  "SaveImage",
-  "PreviewImage",
-  "SaveImageWebsocket",
-]);
-const SAVER = "SaveImageWebsocket";
 const SIZE_INPUTS = ["width", "height", "batch_size"] as const;
-
-type Link = [string, number];
-const isLink = (value: unknown): value is Link =>
-  Array.isArray(value) &&
-  value.length === 2 &&
-  typeof value[0] === "string" &&
-  Number.isInteger(value[1]);
-const linksOf = (node: WorkflowNode): Link[] => Object.values(node.inputs).filter(isLink);
 
 const refuse = (error: WorkflowRefusalCode, nodes?: string[]): FinalizeResult => ({
   ok: false,
@@ -172,22 +145,6 @@ const refuse = (error: WorkflowRefusalCode, nodes?: string[]): FinalizeResult =>
 
 const candidateIn = <T>(place: Place<T>, node: string): Candidate | undefined =>
   place.candidates.find((candidate) => candidate.node === node);
-
-/** Whether `target`'s output reaches `from` by following links upstream. */
-function reaches(nodes: ReadonlyMap<string, WorkflowNode>, from: string, target: string): boolean {
-  const seen = new Set<string>([from]);
-  const pending = [from];
-  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
-    if (id === target) return true;
-    for (const [origin] of linksOf(nodes.get(id) ?? { class_type: "", inputs: {} })) {
-      if (!seen.has(origin) && nodes.has(origin)) {
-        seen.add(origin);
-        pending.push(origin);
-      }
-    }
-  }
-  return false;
-}
 
 /**
  * The first decimal id neither the graph nor the source it came from uses, so
@@ -218,6 +175,7 @@ export function finalizeWorkflow(
   detection: Detection,
   choices: WorkflowChoices,
   meta?: NodeMetaMap,
+  titles?: NodeTitles,
 ): FinalizeResult {
   const source = normalized.graph;
   const nodes = new Map(Object.entries(structuredClone(source)));
@@ -228,14 +186,10 @@ export function finalizeWorkflow(
     ...detection.latent.candidates,
     ...detection.output.candidates,
   ];
-  const named = (id: string): string => {
-    const classType = source[id]?.class_type ?? id;
-    const title =
-      candidates.find((candidate) => candidate.node === id)?.title ??
-      meta?.get(classType)?.displayName ??
-      classType;
-    return `${title} (node ${id})`;
-  };
+  const named = (id: string): string =>
+    titles?.has(id) === true
+      ? nodeLabel(source, id, meta, titles)
+      : `${candidates.find((candidate) => candidate.node === id)?.title ?? nodeTitle(source, id, meta)} (node ${id})`;
 
   // 1. The output, and every other output with what only it consumed.
   if (choices.output !== undefined && candidateIn(detection.output, choices.output) === undefined) {
