@@ -25,7 +25,7 @@ export { WorkflowFileError };
  * The ComfyUI workflows (API format), one file each in the bundled
  * `workflows/` or in `EPHEMERA_WORKFLOWS_DIR`, found when the server starts:
  * the file name is the id. The bundled graphs derive from Atelier's ComfyUI
- * graphs (MIT). A template
+ * graphs (AGPL-3.0, https://github.com/SneakyShadyLurker/atelier-studio). A template
  * marks each value the client supplies with a whole-string placeholder such
  * as "{{seed}}".
  */

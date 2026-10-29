@@ -202,7 +202,7 @@ Version 1.0 holds everything below.
   the image prompt and the four portraits live in the open tab, and in the server for one request.
   The description survives Discard and a visit to Settings; a reload,
   closing the tab or Keep clears it.
-- From Atelier, an optional image generation service Ephemera supports, a
+- From [Atelier](https://github.com/SneakyShadyLurker/atelier-studio), an optional image generation service Ephemera supports, a
   generated image can be turned into a Subject, Multiple
   Subjects or Scenario card in one click (Subject unless Atelier asks for
   another), tagged with its kind: the image is the description, its prompt
