@@ -33,6 +33,25 @@ describe("a select's groups", () => {
     expect(group).toContain(">Two nodes<");
   });
 
+  it("shows an aside after the option's text, describing it without renaming it", () => {
+    const html = renderToStaticMarkup(
+      <Select defaultValue="mine">
+        <SelectItem value="mine" aside="General">
+          Mine
+        </SelectItem>
+      </Select>,
+    );
+    const described = html.match(/role="option"[^>]*aria-describedby="([^"]+)"/)?.[1];
+    expect(described).toBeDefined();
+    expect(html).toMatch(
+      new RegExp(
+        `<span id="${described}" aria-hidden="true" class="[^"]*\\btext-reed\\b[^"]*">General</span>`,
+      ),
+    );
+    // The option's own text is the item text alone, so the family never joins its name.
+    expect(html).toMatch(/>Mine<\/div><span id=/);
+  });
+
   it("leaves a select without groups as it was", () => {
     const html = renderToStaticMarkup(
       <Select defaultValue="a">

@@ -1,6 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectGroupLabel,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { cn } from "@/lib/cn";
+import { FAMILY_NAMES } from "../settings/portraits.ts";
 import { applySettings, queueSettingsSave, useSetting } from "../settings/settings.ts";
 import { artWorkflowsQuery } from "./queries.ts";
 
@@ -14,8 +22,10 @@ function saveWorkflow(comfyuiWorkflow: string): void {
 }
 
 /**
- * The built-in workflow portraits are painted with, kept for the next card:
- * beside the model before a card, and under New art for the next batch.
+ * The workflow portraits are painted with, kept for the next card: beside
+ * the model before a card, and under New art for the next batch. The
+ * user's own come first under "Yours" when there are any, each with its
+ * family after the name.
  */
 export function WorkflowSelect({
   labelId,
@@ -31,6 +41,14 @@ export function WorkflowSelect({
   const workflows = useQuery(artWorkflowsQuery);
   const options = workflows.data ?? [];
   const name = options.find((option) => option.id === comfyuiWorkflow)?.name;
+  const yours = options.filter((option) => option.scope === "user");
+  const server = options.filter((option) => option.scope === "server");
+  const items = (group: typeof options) =>
+    group.map((option) => (
+      <SelectItem key={option.id} value={option.id} aside={FAMILY_NAMES[option.family]}>
+        {option.name}
+      </SelectItem>
+    ));
   return (
     <Select
       value={comfyuiWorkflow}
@@ -56,11 +74,20 @@ export function WorkflowSelect({
         </span>
       </SelectTrigger>
       <SelectContent label="Workflows" className="min-w-64">
-        {options.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            {option.name}
-          </SelectItem>
-        ))}
+        {yours.length === 0 ? (
+          items(server)
+        ) : (
+          <>
+            <SelectGroup>
+              <SelectGroupLabel>Yours</SelectGroupLabel>
+              {items(yours)}
+            </SelectGroup>
+            <SelectGroup>
+              <SelectGroupLabel>On this server</SelectGroupLabel>
+              {items(server)}
+            </SelectGroup>
+          </>
+        )}
       </SelectContent>
     </Select>
   );

@@ -18,7 +18,7 @@ import type { WorkflowFailure } from "./queries.ts";
  * The import panel's state, as a pure reducer. The file, its parsed JSON,
  * the inspected graph and the draft live here, in the panel's component
  * state only: disposed when it closes, never in a URL, browser storage or
- * the query and mutation caches. A result for a request the panel has
+ * the query or mutation cache. A result for a request the panel has
  * moved on from is ignored by its id.
  */
 
