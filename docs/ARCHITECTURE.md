@@ -1236,9 +1236,10 @@ content's path: the tab's memory and one request in the server.
   `blocked_nodes` with the classes), `detectWorkflow` (the prompt encoders
   traced to the sampler's positive input, the empty latent, every seed, the
   family guess) and `finalizeWorkflow` with the tab's choices, which writes
-  the five placeholders, makes the final image exactly the requested size
-  and refuses any other placeholder text (422 `invalid_workflow` with its
-  code), then the dry fill and the 256 KiB template bound. The answer
+  the five placeholders, drops a text node that supplied the prompt (code
+  `linked_prompt` when that node takes links or feeds anything else),
+  makes the final image exactly the requested size and refuses any other
+  placeholder text (422 `invalid_workflow` with its code), then the dry fill and the 256 KiB template bound. The answer
   carries `checked: false` when ComfyUI did not answer or no address is
   saved. `POST /inspect` takes a file in either ComfyUI format and a file
   name and answers what the import screen shows, storing nothing: a saved

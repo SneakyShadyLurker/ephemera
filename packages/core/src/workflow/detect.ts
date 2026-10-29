@@ -1,6 +1,6 @@
 import type { ArtFamily } from "../creator/prompts.ts";
 import type { Candidate, DetectResult, Normalized, WorkflowRefusalCode } from "./finalize.ts";
-import { WORKFLOW_LIMITS, type WorkflowGraph } from "./graph.ts";
+import { WORKFLOW_LIMITS, type WorkflowGraph, type WorkflowNode } from "./graph.ts";
 import { isLink, upstreamOf } from "./links.ts";
 import type { NodeMetaMap } from "./meta.ts";
 import { imageOutputs } from "./normalize.ts";
@@ -107,7 +107,50 @@ function familyOf(graph: WorkflowGraph): ArtFamily {
   return "general";
 }
 
-/** The places of spec § 10.2 to 10.5 and the family guess, or the refusal naming the missing one. */
+/** The encoders whose conditioning reaches a sampler positive among `chain`. */
+export function positiveEncoders(
+  nodes: ReadonlyMap<string, WorkflowNode>,
+  chain: Iterable<string>,
+): Set<string> {
+  const reached = new Set<string>();
+  const seen = new Set<string>();
+  const pending: string[] = [];
+  for (const id of chain) {
+    const node = nodes.get(id);
+    const positive = node === undefined ? undefined : SAMPLER_POSITIVE.get(node.class_type);
+    const link = positive === undefined ? undefined : node?.inputs[positive];
+    if (isLink(link)) pending.push(link[0]);
+  }
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = nodes.get(id);
+    if (node === undefined) continue;
+    if (TEXT_INPUTS.has(node.class_type)) {
+      reached.add(id);
+      continue;
+    }
+    for (const input of PASS_THROUGH.get(node.class_type) ?? []) {
+      const link = node.inputs[input];
+      if (isLink(link)) pending.push(link[0]);
+    }
+  }
+  return reached;
+}
+
+/** The empty latent to fill: the one there is, else the one `chain` reaches, else none. */
+export function latentIn(latents: readonly string[], chain: ReadonlySet<string>): string | null {
+  if (latents.length === 1) return latents[0] ?? null;
+  const reachable = latents.filter((id) => chain.has(id));
+  return reachable.length === 1 ? (reachable[0] ?? null) : null;
+}
+
+/**
+ * The places of spec § 10.2 to 10.5 and the family guess, or the refusal
+ * naming the missing one. With several outputs, the prompt and latent are
+ * found across every output's branch; finalization finds them again from
+ * the chosen output's.
+ */
 export function detectWorkflow(
   normalized: Normalized,
   meta: NodeMetaMap | undefined,
@@ -133,40 +176,26 @@ export function detectWorkflow(
   const chain = upstreamOf(nodes, output === null ? outputs : [output]);
 
   // Prompt: the encoders whose conditioning reaches a sampler positive in the chain.
+  // A linked text input shows the text of the node that supplies it.
+  const textOf = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value;
+    if (!isLink(value)) return undefined;
+    return Object.values(nodes.get(value[0])?.inputs ?? {}).find(
+      (text): text is string => typeof text === "string" && text !== "",
+    );
+  };
   const encoders = [...nodes].flatMap(([id, node]) => {
     const inputs = (TEXT_INPUTS.get(node.class_type) ?? []).filter((input) =>
       Object.hasOwn(node.inputs, input),
     );
     if (inputs.length === 0) return [];
-    const texts = inputs.map((input) => node.inputs[input]).filter((v) => typeof v === "string");
+    const texts = inputs.flatMap((input) => textOf(node.inputs[input]) ?? []);
     const text = texts.find((value) => value !== "") ?? "";
     const length = texts.reduce((sum, value) => sum + Array.from(value).length, 0);
     return [{ candidate: candidate(id, inputs, previewOf(text)), length }];
   });
   if (encoders.length === 0) return refuse("no_prompt_slot");
-  const reached = new Set<string>();
-  const seen = new Set<string>();
-  const pending: string[] = [];
-  for (const id of chain) {
-    const node = nodes.get(id);
-    const positive = node === undefined ? undefined : SAMPLER_POSITIVE.get(node.class_type);
-    const link = positive === undefined ? undefined : node?.inputs[positive];
-    if (isLink(link)) pending.push(link[0]);
-  }
-  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const node = nodes.get(id);
-    if (node === undefined) continue;
-    if (TEXT_INPUTS.has(node.class_type)) {
-      reached.add(id);
-      continue;
-    }
-    for (const input of PASS_THROUGH.get(node.class_type) ?? []) {
-      const link = node.inputs[input];
-      if (isLink(link)) pending.push(link[0]);
-    }
-  }
+  const reached = positiveEncoders(nodes, chain);
   const ranked = encoders
     .slice()
     .sort((a, b) => b.length - a.length)
@@ -188,13 +217,7 @@ export function detectWorkflow(
       : [],
   );
   if (latents.length === 0) return refuse("no_size_slot");
-  const reachable = latents.filter((id) => chain.has(id));
-  const latent =
-    latents.length === 1
-      ? (latents[0] ?? null)
-      : reachable.length === 1
-        ? (reachable[0] ?? null)
-        : null;
+  const latent = latentIn(latents, chain);
 
   // Seed: every named seed of a sampler, and with meta every INT with a seed control.
   const seed: SlotTarget[] = [...nodes].flatMap(([id, node]) => {

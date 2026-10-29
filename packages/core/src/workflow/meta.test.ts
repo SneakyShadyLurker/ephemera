@@ -66,6 +66,31 @@ describe("nodeMetaFrom", () => {
     expect(sampler?.inputs.steps).toEqual({ kind: "INT" });
   });
 
+  it("gives seed controls as the frontend does: asked for, or by name unless refused", () => {
+    const custom = nodeMetaFrom(
+      objectInfoSchema.parse({
+        CustomSampler: {
+          input: {
+            required: {
+              seed: ["INT", {}],
+              noise_seed: ["INT", { control_after_generate: false }],
+              steps: ["INT", { control_after_generate: "fixed" }],
+              mode: [["a", "b"], { control_after_generate: true }],
+              style: [["c", "d"]],
+            },
+          },
+        },
+      }),
+    ).get("CustomSampler");
+    expect(custom?.inputs).toEqual({
+      seed: { kind: "INT", controlAfterGenerate: true },
+      noise_seed: { kind: "INT" },
+      steps: { kind: "INT", controlAfterGenerate: true },
+      mode: { kind: "COMBO", choices: ["a", "b"], controlAfterGenerate: true },
+      style: { kind: "COMBO", choices: ["c", "d"] },
+    });
+  });
+
   it("reads combo choices in both forms, booleans and forced inputs", () => {
     expect(meta.get("KSampler")?.inputs.sampler_name).toEqual({
       kind: "COMBO",

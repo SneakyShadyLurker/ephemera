@@ -120,15 +120,34 @@ interface Host {
   promoted: Map<number, unknown>;
 }
 
-/** One graph level: the root, or a subgraph instance's copy of its definition. */
+/** A graph level's links, indexed once and shared by every instance of a definition. */
+interface LinkIndex {
+  byId: Map<number, UiLink>;
+  /** The link into each slot of a definition's output boundary. */
+  outputs: Map<number, UiLink>;
+}
+
+/** One graph level: the root, or a subgraph instance of its definition. */
 interface Scope {
   /** `""` at the root, `<instance>:` (nested: `<outer>:<inner>:`) inside. */
   prefix: string;
   nodes: Map<string, UiNode>;
-  links: Map<number, UiLink>;
+  links: LinkIndex;
   /** Expanded instances by local id. */
   children: Map<string, Scope>;
   host?: Host;
+}
+
+/** A later link of the same id replaces an earlier one, as the frontend loads them. */
+function indexLinks(links: UiLink[]): LinkIndex {
+  const byId = new Map(links.map((link) => [link.id, link]));
+  const outputs = new Map<number, UiLink>();
+  for (const link of byId.values()) {
+    if (link.targetId === SUBGRAPH_OUTPUT && !outputs.has(link.targetSlot)) {
+      outputs.set(link.targetSlot, link);
+    }
+  }
+  return { byId, outputs };
 }
 
 interface FlatNode {
@@ -190,29 +209,33 @@ const namedValues = (node: UiNode): Record<string, unknown> | undefined =>
 const positionalValues = (node: UiNode): unknown[] | undefined =>
   Array.isArray(node.widgets_values) ? node.widgets_values : undefined;
 
+/** The definition inputs that feed an inner widget, in definition order. */
+function widgetInputs(definition: UiDefinition): number[] {
+  const inner = new Map(definition.nodes.map((node) => [String(node.id), node]));
+  const bound = new Set<number>();
+  for (const link of definition.links ?? []) {
+    if (
+      link.originId === SUBGRAPH_INPUT &&
+      inputsOf(inner.get(link.targetId) ?? { id: "", type: "-" })[link.targetSlot]?.widget !==
+        undefined
+    ) {
+      bound.add(link.originSlot);
+    }
+  }
+  return (definition.inputs ?? []).flatMap((_, index) => (bound.has(index) ? [index] : []));
+}
+
 /**
- * The definition inputs that feed an inner widget, in definition order, and
- * the instance's value for each: by name, else by position among them, else
- * none (the inner node keeps its own). A positional list of another length
- * cannot be lined up.
+ * The instance's value for each definition input that feeds an inner
+ * widget: by name, else by position among them, else none (the inner node
+ * keeps its own). A positional list of another length cannot be lined up.
  */
 function promotedValues(
   definition: UiDefinition,
+  bound: number[],
   host: UiNode,
   hostId: string,
 ): Map<number, unknown> {
-  const inner = new Map(definition.nodes.map((node) => [String(node.id), node]));
-  const bound = (definition.inputs ?? []).flatMap((_, index) =>
-    (definition.links ?? []).some(
-      (link) =>
-        link.originId === SUBGRAPH_INPUT &&
-        link.originSlot === index &&
-        inputsOf(inner.get(link.targetId) ?? { id: "", type: "-" })[link.targetSlot]?.widget !==
-          undefined,
-    )
-      ? [index]
-      : [],
-  );
   const values = new Map<number, unknown>();
   const named = namedValues(host);
   if (named !== undefined) {
@@ -237,8 +260,9 @@ export type MaterializeProbe = (id: string) => void;
 /**
  * Every node of the file at its execution id, instances expanded. Each node
  * visited counts against `uiNodes` and each materialized class node against
- * `nodes`, both before the node is added, so instancing cannot multiply the
- * work past the bounds.
+ * `nodes`, both before the node is added, and a definition's links and
+ * widget inputs are read once for all its instances, so instancing cannot
+ * multiply the work past the bounds.
  */
 function flatten(
   root: UiNode[],
@@ -249,11 +273,20 @@ function flatten(
   const flat: FlatNode[] = [];
   let visited = 0;
   let materialized = 0;
-  const expand = (nodes: UiNode[], scopeLinks: UiLink[], prefix: string, host?: Host): Scope => {
+  const indexed = new Map<string, { links: LinkIndex; bound: number[] }>();
+  const shared = (definition: UiDefinition) => {
+    let known = indexed.get(definition.id);
+    if (known === undefined) {
+      known = { links: indexLinks(definition.links ?? []), bound: widgetInputs(definition) };
+      indexed.set(definition.id, known);
+    }
+    return known;
+  };
+  const expand = (nodes: UiNode[], scopeLinks: LinkIndex, prefix: string, host?: Host): Scope => {
     const scope: Scope = {
       prefix,
       nodes: new Map(),
-      links: new Map(scopeLinks.map((link) => [link.id, link])),
+      links: scopeLinks,
       children: new Map(),
       ...(host === undefined ? {} : { host }),
     };
@@ -265,10 +298,11 @@ function flatten(
       if (++visited > WORKFLOW_LIMITS.uiNodes) throw new Refused("too_many_nodes");
       const definition = definitions.get(node.type);
       if (definition !== undefined && !inactive(node)) {
-        const promoted = promotedValues(definition, node, `${prefix}${id}`);
+        const { links: definitionLinks, bound } = shared(definition);
+        const promoted = promotedValues(definition, bound, node, `${prefix}${id}`);
         scope.children.set(
           id,
-          expand(definition.nodes, definition.links ?? [], `${prefix}${id}:`, {
+          expand(definition.nodes, definitionLinks, `${prefix}${id}:`, {
             scope,
             node,
             definition,
@@ -286,22 +320,72 @@ function flatten(
     }
     return scope;
   };
-  expand(root, links, "");
+  expand(root, indexLinks(links), "");
   return flat;
+}
+
+/** Whether an output of type `a` may feed an input of type `b`, as LiteGraph allows. */
+function connects(a: string | undefined, b: string | undefined): boolean {
+  const any = (type: string | undefined) => type === undefined || type === "" || type === "*";
+  if (any(a) || any(b) || a === b) return true;
+  const left = (a ?? "").toLowerCase().split(",");
+  const right = (b ?? "").toLowerCase().split(",");
+  return left.some((x) => right.some((y) => x === y || x === "*" || y === "*"));
+}
+
+/**
+ * The input a bypassed node passes to its output `slot` when a `type` input
+ * asks, as the frontend picks it: the input at the same index if it fits
+ * both, else the first of exactly that type, else the first that fits both.
+ */
+function bypassInput(node: UiNode, slot: number, type: string | undefined): UiInput | undefined {
+  const inputs = inputsOf(node);
+  if (type === undefined || type === "" || type === "*") return inputs[slot] ?? inputs[0];
+  const output = node.outputs?.[slot]?.type;
+  const fits = (input: UiInput) => connects(input.type, output) && connects(input.type, type);
+  const same = inputs[slot];
+  if (same !== undefined && fits(same)) return same;
+  return inputs.find((input) => input.type === type) ?? inputs.find(fits);
 }
 
 /**
  * Follows a link to the output that feeds it: across subgraph boundaries,
  * through Reroutes and bypassed nodes, to a PrimitiveNode's value, or to
  * nothing (a muted origin, a dangling link). A loop resolves to nothing.
+ * The type the consuming input asks for picks a bypassed node's input;
+ * past it, that input's own type asks. Each (level, link, type) resolves
+ * once: the path from it is fixed, so a loop through it gives nothing from
+ * every entry, and the work stays within the links the file holds.
  */
 function resolver(byId: Map<string, FlatNode>) {
-  const resolve = (scope: Scope, linkId: number, seen: Set<string>): Source => {
-    const key = `${scope.prefix}|${linkId}`;
+  const known = new Map<string, Source>();
+  const resolve = (
+    scope: Scope,
+    linkId: number,
+    type: string | undefined,
+    seen: Set<string>,
+  ): Source => {
+    const key = `${scope.prefix}|${linkId}|${type ?? ""}`;
+    const done = known.get(key);
+    if (done !== undefined) return done;
     if (seen.has(key)) return NONE;
     seen.add(key);
-    const link = scope.links.get(linkId);
+    const source = step(scope, linkId, type, seen);
+    known.set(key, source);
+    return source;
+  };
+  const step = (
+    scope: Scope,
+    linkId: number,
+    type: string | undefined,
+    seen: Set<string>,
+  ): Source => {
+    const link = scope.links.byId.get(linkId);
     if (link === undefined) return NONE;
+    const follow = (from: Scope, input: UiInput | undefined, asked: string | undefined): Source =>
+      input?.link === undefined || input.link === null
+        ? NONE
+        : resolve(from, input.link, asked, seen);
 
     if (link.originId === SUBGRAPH_INPUT) {
       const host = scope.host;
@@ -309,7 +393,7 @@ function resolver(byId: Map<string, FlatNode>) {
       const name = host.definition.inputs?.[link.originSlot]?.name;
       const outer = inputsOf(host.node).find((input) => input.name === name);
       if (outer?.link !== undefined && outer.link !== null) {
-        return resolve(host.scope, outer.link, seen);
+        return follow(host.scope, outer, outer.type);
       }
       return host.promoted.has(link.originSlot)
         ? { kind: "value", value: host.promoted.get(link.originSlot) }
@@ -318,28 +402,23 @@ function resolver(byId: Map<string, FlatNode>) {
 
     const child = scope.children.get(link.originId);
     if (child !== undefined) {
-      const inner = [...child.links.values()].find(
-        (candidate) =>
-          candidate.targetId === SUBGRAPH_OUTPUT && candidate.targetSlot === link.originSlot,
-      );
-      return inner === undefined ? NONE : resolve(child, inner.id, seen);
+      const inner = child.links.outputs.get(link.originSlot);
+      return inner === undefined ? NONE : resolve(child, inner.id, type, seen);
     }
 
     const origin = byId.get(`${scope.prefix}${link.originId}`);
     if (origin === undefined) return NONE;
     const { node } = origin;
-    const follow = (input: UiInput | undefined): Source =>
-      input?.link === undefined || input.link === null ? NONE : resolve(scope, input.link, seen);
 
     if (modeOf(node) === MUTED) return { kind: "missing", why: "muted" };
     if (modeOf(node) === BYPASSED) {
-      const type = node.outputs?.[link.originSlot]?.type;
-      const through = follow(inputsOf(node).find((input) => input.type === type));
+      const input = bypassInput(node, link.originSlot, type);
+      const through = follow(scope, input, input?.type);
       return through.kind === "missing" && through.why === "none"
         ? { kind: "missing", why: "bypassed" }
         : through;
     }
-    if (node.type === REROUTE) return follow(inputsOf(node)[0]);
+    if (node.type === REROUTE) return follow(scope, inputsOf(node)[0], type);
     if (node.type === PRIMITIVE) {
       const values = positionalValues(node);
       return values !== undefined && values.length > 0 ? { kind: "value", value: values[0] } : NONE;
@@ -349,7 +428,7 @@ function resolver(byId: Map<string, FlatNode>) {
   return (scope: Scope, input: UiInput | undefined): Source | undefined =>
     input?.link === undefined || input.link === null
       ? undefined
-      : resolve(scope, input.link, new Set());
+      : resolve(scope, input.link, input.type, new Set());
 }
 
 /** Whether a socket name is one of a growing input's slots, `<input>.<slot>`. */
@@ -387,7 +466,10 @@ function widgetValues(
   for (const [name, input] of widgets) {
     if (next >= positional.length) return { values, missing: true, surplus: 0 };
     values.set(name, positional[next++]);
-    if (input.controlAfterGenerate === true && next < positional.length) next++;
+    // The control the frontend saves after the value; a combo's filter list after it.
+    if (input.controlAfterGenerate === true) {
+      next = Math.min(positional.length, next + (input.kind === "COMBO" ? 2 : 1));
+    }
   }
   return {
     values,

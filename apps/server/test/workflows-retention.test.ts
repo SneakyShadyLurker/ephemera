@@ -21,9 +21,10 @@ import { TEST_WORKFLOWS } from "./test-workflows.ts";
 
 /*
  * The retention matrix row for imported workflows (docs/specs/workflow-import.md
- * § 13): the prompt place's literal text is replaced by `{{prompt}}` before
- * anything is stored, so a sentinel written there by the user reaches no
- * database file, no log line, no temp path and no response. An inspection
+ * § 13): the prompt place's literal text is replaced by `{{prompt}}`, and a
+ * text node that supplies it is dropped, before anything is stored, so a
+ * sentinel written there by the user reaches no database file, no log
+ * line, no temp path and no response. An inspection
  * answers the file to the tab, so its response alone carries the sentinel.
  */
 
@@ -45,6 +46,14 @@ function exported(text: string): Record<string, Node> {
 function smaller(text: string): Record<string, Node> {
   const { "10": _attention, ...graph } = exported(text);
   Object.assign(graph["7"]?.inputs ?? {}, { model: ["1", 0] });
+  return graph;
+}
+
+/** The same export with its prompt supplied by a text node holding `text`. */
+function linked(text: string): Record<string, Node> {
+  const graph = exported("");
+  graph["20"] = { class_type: "PrimitiveStringMultiline", inputs: { value: text } };
+  Object.assign(graph["4"]?.inputs ?? {}, { text: ["20", 0] });
   return graph;
 }
 
@@ -97,7 +106,8 @@ describe("workflow retention", () => {
     const first = `workflow-sentinel-${crypto.randomUUID()}`;
     const second = `workflow-sentinel-${crypto.randomUUID()}`;
     const inspected = `workflow-sentinel-${crypto.randomUUID()}`;
-    const sentinels = [first, second, inspected];
+    const fromNode = `workflow-sentinel-${crypto.randomUUID()}`;
+    const sentinels = [first, second, inspected, fromNode];
 
     const dataDir = join(root, "data");
     const tmp = join(root, "tmp");
@@ -215,6 +225,23 @@ describe("workflow retention", () => {
     const after = await listed();
     expect(after.revision).toBe(replaced.revision);
     expect(after.nodes).not.toBe(before.nodes);
+
+    const linkedResponse = await app.request(
+      "/api/workflows",
+      requestJson("POST", {
+        id: crypto.randomUUID(),
+        name: "Linked",
+        family: "krea2",
+        graph: linked(fromNode),
+        choices: CHOICES,
+      }),
+    );
+    const linkedText = await linkedResponse.text();
+    bodies.push(linkedText);
+    expect(linkedResponse.status).toBe(201);
+    const fromLink = workflowSavedResponseSchema.parse(JSON.parse(linkedText)).workflow;
+    expect(promptOf(fromLink.graph)).toBe("{{prompt}}");
+    expect(fromLink.graph["20"]).toBeUndefined();
 
     // The stored template, read from the store the next request would use.
     const stored = instances.instance(TEST_USER).stores.workflows.get(id);

@@ -13,7 +13,11 @@ export type InputKind = "INT" | "FLOAT" | "STRING" | "BOOLEAN" | "COMBO" | "LINK
 
 export interface InputMeta {
   kind: InputKind;
-  /** An INT whose widget carries a `fixed` or `randomize` control, as a seed does. */
+  /**
+   * A widget the frontend follows with a `fixed` or `randomize` control, as
+   * a seed's: an INT that asks for one, or is named `seed` or `noise_seed`
+   * and does not refuse one; a combo that asks for one (and a filter list).
+   */
   controlAfterGenerate?: true;
   /** A combo's choices, in ComfyUI's order. */
   choices?: string[];
@@ -90,24 +94,29 @@ const choicesOf = (values: unknown): string[] =>
       )
     : [];
 
+/** The INT inputs the frontend gives a control unless the spec says otherwise. */
+const SEED_NAMES: ReadonlySet<string> = new Set(["seed", "noise_seed"]);
+
 /**
  * One input's kind from its spec. A combo is either its choices array or
  * `["COMBO", { options }]`; an input with `forceInput` is a socket; any type
- * that is not a widget type is a link.
+ * that is not a widget type is a link. A control follows the frontend: a
+ * truthy option, and for an INT an unset (or null) one defers to the name.
  */
-function inputMeta(spec: unknown): InputMeta | undefined {
+function inputMeta(spec: unknown, name = ""): InputMeta | undefined {
   if (!Array.isArray(spec)) return undefined;
   const [type, options] = spec;
   const opts = isRecord(options) ? options : {};
   if (opts.forceInput === true) return { kind: "LINK" };
-  if (Array.isArray(type)) return { kind: "COMBO", choices: choicesOf(type) };
-  if (type === "COMBO") return { kind: "COMBO", choices: choicesOf(opts.options) };
-  if (type === "INT") {
-    const control = opts.control_after_generate;
-    return control !== undefined && control !== false
-      ? { kind: "INT", controlAfterGenerate: true }
-      : { kind: "INT" };
+  const control = opts.control_after_generate;
+  const controlled = (on: unknown) => (on ? ({ controlAfterGenerate: true } as const) : {});
+  if (Array.isArray(type)) {
+    return { kind: "COMBO", choices: choicesOf(type), ...controlled(control) };
   }
+  if (type === "COMBO") {
+    return { kind: "COMBO", choices: choicesOf(opts.options), ...controlled(control) };
+  }
+  if (type === "INT") return { kind: "INT", ...controlled(control ?? SEED_NAMES.has(name)) };
   if (type === "FLOAT" || type === "STRING" || type === "BOOLEAN") return { kind: type };
   return typeof type === "string" ? { kind: "LINK" } : undefined;
 }
@@ -201,7 +210,7 @@ export function nodeMetaFrom(objectInfo: ObjectInfo): NodeMetaMap {
       const expanded = dynamicGroupSpecs(name, spec);
       if (expanded === undefined && isRequired && !required.includes(name)) required.push(name);
       for (const [inputName, inputSpec] of expanded ?? [[name, spec]]) {
-        const input = inputMeta(inputSpec);
+        const input = inputMeta(inputSpec, inputName);
         if (input !== undefined && !Object.hasOwn(inputs, inputName)) inputs[inputName] = input;
       }
     }

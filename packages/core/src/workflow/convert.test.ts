@@ -157,6 +157,41 @@ describe("convertWorkflow on the exported fixtures", () => {
     expect(graph["2"]?.inputs.clip).toEqual(["1", 1]);
   });
 
+  it("passes each output of a bypassed node the input at its own slot when the types fit", () => {
+    const file = uiOf("sdxl-basic");
+    const links = file.links as [number, number, number, number, number, string][];
+    for (const link of links) {
+      if (link[0] === 4) [link[3], link[4]] = [9, 0];
+      if (link[0] === 5) [link[3], link[4]] = [9, 1];
+    }
+    links.push([11, 9, 0, 5, 1, "CONDITIONING"], [12, 9, 1, 5, 2, "CONDITIONING"]);
+    file.nodes.push({
+      id: 9,
+      type: "ControlNetApplyAdvanced",
+      mode: 4,
+      inputs: [
+        { name: "positive", type: "CONDITIONING", link: 4 },
+        { name: "negative", type: "CONDITIONING", link: 5 },
+        { name: "control_net", type: "CONTROL_NET", link: null },
+        { name: "image", type: "IMAGE", link: null },
+      ],
+      outputs: [
+        { name: "positive", type: "CONDITIONING", links: [11] },
+        { name: "negative", type: "CONDITIONING", links: [12] },
+      ],
+      widgets_values: [1, 0, 1],
+    });
+    const sampler = nodeIn(file, 5);
+    for (const input of sampler.inputs ?? []) {
+      if (input.name === "positive") input.link = 11;
+      if (input.name === "negative") input.link = 12;
+    }
+    const { graph } = converted(convertWorkflow(file, metaNamed("sdxl-basic")));
+    expect(graph["9"]).toBeUndefined();
+    expect(graph["5"]?.inputs.positive).toEqual(["2", 0]);
+    expect(graph["5"]?.inputs.negative).toEqual(["3", 0]);
+  });
+
   it("follows a Reroute and copies a PrimitiveNode's value; native reroutes are decoration", () => {
     const fixture = loadWorkflowFixture("reroute-primitive");
     const { graph } = converted(convertWorkflow(fixture.ui, metaOf(fixture)));
@@ -212,6 +247,39 @@ describe("widget values", () => {
     const result = converted(convertWorkflow(file, metaNamed("sdxl-basic")));
     expect(result.graph["4"]?.inputs).toEqual({ width: 1024, height: 1024, batch_size: 1 });
     expect(result.skipped).toEqual(["EmptyLatentImage (node 4), 2 values the node does not use."]);
+  });
+
+  it("skips the controls the frontend adds without asking, and a combo's two", () => {
+    const meta = nodeMetaFrom(
+      objectInfoSchema.parse({
+        CustomSampler: {
+          input: {
+            required: {
+              seed: ["INT", {}],
+              steps: ["INT", {}],
+              mode: [["a", "b"], { control_after_generate: true }],
+              cfg: ["FLOAT", {}],
+            },
+          },
+        },
+      }),
+    );
+    const file = {
+      version: 0.4,
+      nodes: [
+        {
+          id: 1,
+          type: "CustomSampler",
+          inputs: [],
+          outputs: [],
+          widgets_values: [42, "randomize", 24, "b", "fixed", "", 7],
+        },
+      ],
+      links: [],
+    };
+    const result = converted(convertWorkflow(file, meta));
+    expect(result.graph["1"]?.inputs).toEqual({ seed: 42, steps: 24, mode: "b", cfg: 7 });
+    expect(result.skipped).toEqual([]);
   });
 
   it("takes a link over a widget value for the same input", () => {
@@ -315,8 +383,78 @@ function nested(depth: number): UiFile {
   };
 }
 
+/**
+ * A pass-through definition holding `filler` dangling links, instanced in a
+ * chain `count` long that carries the loader's VAE to `decoders` VAEDecodes.
+ */
+function chained(count: number, filler: number, decoders: number): UiFile {
+  const definition = {
+    id: "0f0f0f0f-0000-4000-8000-000000000002",
+    version: 1,
+    inputs: [{ name: "in", type: "VAE" }],
+    outputs: [{ name: "out", type: "VAE" }],
+    nodes: [],
+    links: [
+      [1, -10, 0, -20, 0, "VAE"],
+      ...Array.from({ length: filler }, (_, index) => [index + 2, 5, 0, 6, 0, "VAE"]),
+    ],
+  };
+  const instances = Array.from({ length: count }, (_, index) => ({
+    id: index + 1,
+    type: definition.id,
+    mode: 0,
+    inputs: [{ name: "in", type: "VAE", link: 100_000 + index + 1 }],
+    outputs: [{ name: "out", type: "VAE" }],
+  }));
+  const decodes = Array.from({ length: decoders }, (_, index) => ({
+    id: 2000 + index,
+    type: "VAEDecode",
+    mode: 0,
+    inputs: [
+      { name: "samples", type: "LATENT", link: 300_000 + index },
+      { name: "vae", type: "VAE", link: 400_000 + index },
+    ],
+    outputs: [{ type: "IMAGE" }],
+  }));
+  return {
+    version: 0.4,
+    nodes: [
+      {
+        id: 1000,
+        type: "CheckpointLoaderSimple",
+        mode: 0,
+        widgets_values: ["sdxl-base.safetensors"],
+      },
+      { id: 1001, type: "EmptyLatentImage", mode: 0, widgets_values: [1024, 1024, 1] },
+      ...instances,
+      ...decodes,
+    ],
+    links: [
+      ...instances.map((_, index) =>
+        index === 0
+          ? [100_001, 1000, 2, 1, 0, "VAE"]
+          : [100_000 + index + 1, index, 0, index + 1, 0, "VAE"],
+      ),
+      ...decodes.flatMap((_, index) => [
+        [300_000 + index, 1001, 0, 2000 + index, 0, "LATENT"],
+        [400_000 + index, count, 0, 2000 + index, 1, "VAE"],
+      ]),
+    ],
+    definitions: { subgraphs: [definition] },
+  };
+}
+
 describe("limits", () => {
   const meta = metaNamed("sdxl-basic");
+
+  it("reads a definition's links once for all its instances and resolves each link once", () => {
+    const file = chained(199, 25_000, 198);
+    const started = performance.now();
+    const { graph } = converted(convertWorkflow(file, meta));
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(Object.keys(graph)).toHaveLength(200);
+    expect(graph["2197"]?.inputs.vae).toEqual(["1000", 2]);
+  });
 
   it("charges the node budget as instances expand, refusing before it is exceeded", () => {
     let materialized = 0;
