@@ -17,6 +17,7 @@ import {
   pickFile,
   SDXL_CHECKPOINT,
   SDXL_OBJECT_INFO,
+  SDXL_PROMPT,
   SECOND_SAVER,
   twoSaverUiFile,
   workflowRow,
@@ -288,4 +289,151 @@ test("a file read and not saved asks before it is left", async ({ comfy, page })
   await presets.click();
   await guard.getByRole("button", { name: "Discard", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Presets" })).toBeVisible();
+});
+
+test("an IME composition keeps Enter and Escape from the rename and the panel", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const name = uniqueName("Lighthouse");
+  await importWorkflow(page, name);
+  const composing = (key: string) => ({ key, isComposing: true });
+
+  await actionsFor(page, name).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const field = page.getByRole("textbox", { name: `Name of ${name}`, exact: true });
+  await expect(field).toHaveAttribute("maxlength", "64");
+  await field.fill(`${name} harbour`);
+  await field.dispatchEvent("keydown", composing("Enter"));
+  await field.dispatchEvent("keydown", composing("Escape"));
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue(`${name} harbour`);
+  await field.press("Escape");
+  await expect(field).toHaveCount(0);
+
+  const panel = await openImport(page, cleanUiFile());
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  const panelName = panel.getByRole("textbox", { name: "Name", exact: true });
+  await panelName.focus();
+  await panelName.dispatchEvent("keydown", composing("Escape"));
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog", { name: "Discard this import?" })).toBeVisible();
+});
+
+test("a save the list cannot show yet gives focus to Import", async ({ comfy, page }) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const panel = await openImport(page, cleanUiFile());
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  await page.route("**/api/workflows", (route) =>
+    route.request().method() === "GET" ? route.abort() : route.fallback(),
+  );
+  await panel.getByRole("textbox", { name: "Name", exact: true }).fill(uniqueName("Lighthouse"));
+  await panel.getByRole("button", { name: "Save workflow", exact: true }).click();
+  // The refresh is retried before the list gives up.
+  await expect(panel).toHaveCount(0, { timeout: 15_000 });
+  await expect(importButton(page)).toBeFocused();
+});
+
+test("a save in flight holds Cancel, Escape and a new file until it settles", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const panel = await openImport(page, cleanUiFile());
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/workflows", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    await held;
+    return route.fallback();
+  });
+  const name = uniqueName("Lighthouse");
+  await panel.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  await panel.getByRole("button", { name: "Save workflow", exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Saving" })).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+  await panel.getByRole("heading", { name: "Import a workflow", exact: true }).focus();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await pickFile(page, () => importButton(page).click(), cleanUiFile(SDXL_PROMPT, "second.json"));
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+
+  release();
+  await expect(workflowRow(page, name)).toBeVisible();
+  // The file held back opens once the save is in.
+  await expect(panel.getByText(/^second\.json, saved workflow, \d+ nodes$/)).toBeVisible();
+});
+
+test("a create whose answer was lost is retried as a replace of the saved one", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const panel = await openImport(page, cleanUiFile());
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  const sent: string[] = [];
+  let lose = true;
+  await page.route("**/api/workflows/**", (route) => {
+    sent.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
+    return route.fallback();
+  });
+  await page.route("**/api/workflows", async (route) => {
+    if (route.request().method() !== "POST" || !lose) return route.fallback();
+    lose = false;
+    // The server saves it; the answer never reaches the tab.
+    await route.fetch();
+    return route.abort();
+  });
+  const name = uniqueName("Lighthouse");
+  await panel.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  await panel.getByRole("button", { name: "Save workflow", exact: true }).click();
+  await panel.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(workflowRow(page, name)).toContainText("Ready");
+  expect(sent.filter((line) => line.startsWith("PUT ") && line.endsWith("/graph"))).toHaveLength(1);
+});
+
+test("Replace file answers a change made since it opened with a conflict", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const name = uniqueName("Lighthouse");
+  await importWorkflow(page, name);
+  // Another graph than the saved one, so the replace is a write of its own.
+  const file = apiFile();
+  const graph: Record<string, { inputs: Record<string, unknown> }> = JSON.parse(
+    file.buffer.toString("utf8"),
+  );
+  Object.assign(graph["5"]?.inputs ?? {}, { steps: 30 });
+
+  await actionsFor(page, name).click();
+  await pickFile(page, () => page.getByRole("menuitem", { name: "Replace file" }).click(), {
+    ...file,
+    buffer: Buffer.from(JSON.stringify(graph)),
+  });
+  const panel = importPanel(page, `Replace the file of ${name}`);
+  await expect(panel.getByRole("status")).toHaveText(READY);
+
+  // Renamed in the row while the replacement is open.
+  const renamed = uniqueName("Harbour light");
+  await actionsFor(page, name).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const field = page.getByRole("textbox", { name: `Name of ${name}`, exact: true });
+  await field.fill(renamed);
+  await field.press("Enter");
+  await expect(workflowRow(page, renamed)).toBeVisible();
+
+  await panel.getByRole("button", { name: "Replace file", exact: true }).click();
+  await expect(panel.getByText("Changed in another tab")).toBeVisible();
 });

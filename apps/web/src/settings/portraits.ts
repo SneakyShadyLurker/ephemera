@@ -3,6 +3,7 @@ import {
   type CreatorArtStatus,
   type CreatorArtUnavailable,
   WORKFLOW_LIMITS,
+  workflowNameSchema,
 } from "@ephemera/core";
 import { countOf } from "@/lib/text";
 
@@ -108,10 +109,18 @@ export function workflowStatus(status: CreatorArtStatus | "checking" | "failed")
 
 export const nodeCount = (nodes: number): string => countOf(nodes, "node");
 
-/** Why a rename is refused in the row, checked against the user's other workflow names; null when it may be saved. */
+/**
+ * Why a name is refused, by core's name rule and against the user's other
+ * workflow names, in the row's rename and the import panel; null when it may be saved.
+ */
 export function renameProblem(name: string, others: readonly string[]): string | null {
   const next = name.trim();
   if (next === "") return "Give the workflow a name.";
+  if (!workflowNameSchema.safeParse(next).success) {
+    return next.length > WORKFLOW_LIMITS.nameLength
+      ? `Keep the name to ${WORKFLOW_LIMITS.nameLength} characters.`
+      : "Leave control characters out of the name.";
+  }
   const lower = next.toLowerCase();
   return others.some((other) => other.toLowerCase() === lower) ? nameTakenLine(next) : null;
 }

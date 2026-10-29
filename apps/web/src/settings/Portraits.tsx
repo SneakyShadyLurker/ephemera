@@ -75,6 +75,11 @@ export function Portraits() {
   // The workflow Replace file was chosen for, until the picker answers.
   const replacing = useRef<WorkflowSummary | null>(null);
   const full = count >= WORKFLOW_LIMITS.workflows;
+  // A file that arrived while a save was in flight opens once that save closed the panel.
+  if (draft === null && incoming !== null) {
+    setDraft(incoming);
+    setIncoming(null);
+  }
   const offer = (next: WorkflowDraft) => {
     setUnchecked(false);
     if (draft === null) setDraft(next);
@@ -90,10 +95,11 @@ export function Portraits() {
     picker.current?.click();
   };
 
-  // After the commit that shows the saved row, its name takes focus.
+  // After the commit that shows the saved row, its name takes focus; Import, when the list
+  // could not be refreshed to show it.
   useEffect(() => {
     if (saved === null) return;
-    rowPart(root.current, saved, "name")?.focus();
+    (rowPart(root.current, saved, "name") ?? importButton.current)?.focus();
     setSaved(null);
   }, [saved]);
 
@@ -142,7 +148,6 @@ export function Portraits() {
           onChooseFile={() => choose(draft.mode === "replace" ? draft.workflow : null)}
           onSaved={(id, checked) => {
             setDraft(null);
-            setIncoming(null);
             setUnchecked(!checked);
             setSaved(id);
           }}

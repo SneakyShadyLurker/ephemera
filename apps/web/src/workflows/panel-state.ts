@@ -7,6 +7,7 @@ import {
   type Inspection,
   type NodeTitles,
   type WorkflowChoices,
+  type WorkflowGraph,
   type WorkflowRefusalCode,
   type WorkflowSummary,
 } from "@ephemera/core";
@@ -38,6 +39,8 @@ export type ChoicePlace = "prompt" | "latent" | "output";
 
 /** An inspected file on its way to a save, and what the user made of it. */
 export interface Draft {
+  /** The read that inspected this file; a save result for another is stale. */
+  request: number;
   inspection: Inspection;
   titles: NodeTitles;
   choices: WorkflowChoices;
@@ -50,8 +53,15 @@ export interface Draft {
   takenName: string | null;
   /** The inspection's blocked nodes, and any a save was refused for. */
   blocked: BlockedNode[];
-  /** Replace file: the graph is saved at this revision; only the name or family still waits. */
+  /** The classes the last save was refused for, listed even where the kept graph lacks them. */
+  refusedClasses: string[];
+  /**
+   * Replace file: the graph is saved at this revision; only the name or family
+   * still waits. A changed choice clears it, so the graph is sent again.
+   */
   graphRevision: number | null;
+  /** A create came back unreachable: the next Save looks for it in the list first. */
+  unanswered: boolean;
 }
 
 /** Why a file cannot be imported at all. */
@@ -105,10 +115,13 @@ export type PanelAction =
   | { type: "name"; name: string }
   | { type: "family"; family: ArtFamily }
   | { type: "save" }
-  | { type: "graphSaved"; revision: number }
-  | { type: "saveFailed"; failure: WorkflowFailure }
+  /** Save results carry the draft's `request`; one for a draft the panel left is ignored. */
+  | { type: "graphSaved"; request: number; revision: number }
+  | { type: "saveFailed"; request: number; failure: WorkflowFailure }
   | { type: "importAsNew"; id: string }
-  | { type: "saved" }
+  /** A create that answered unreachable is in the list after all: the draft replaces it. */
+  | { type: "landed"; workflow: WorkflowSummary }
+  | { type: "saved"; request: number }
   | { type: "close" };
 
 export const INITIAL_PANEL: PanelState = { phase: "idle" };
@@ -134,6 +147,13 @@ const finalize = (inspection: Inspection, choices: WorkflowChoices, titles: Node
 const current = (state: PanelState, request: number | null): boolean =>
   state.phase === "reading" && state.request === request;
 
+/** Whether a save result is for the save in flight. */
+const saving = (
+  state: PanelState,
+  request: number,
+): state is Extract<PanelState, { phase: "saving" }> =>
+  state.phase === "saving" && state.draft.request === request;
+
 /** The draft the panel shows and saves from, if it has one. */
 export const draftOf = (state: PanelState): Draft | null => ("draft" in state ? state.draft : null);
 
@@ -149,8 +169,8 @@ function withDraft(state: PanelState, change: (draft: Draft) => Draft): PanelSta
   return state;
 }
 
-function saveFailed(state: PanelState, failure: WorkflowFailure): PanelState {
-  if (state.phase !== "saving") return state;
+function saveFailed(state: PanelState, request: number, failure: WorkflowFailure): PanelState {
+  if (!saving(state, request)) return state;
   const { file, draft } = state;
   const failed = (next: SaveFailure, kept = draft): PanelState => ({
     phase: "failed",
@@ -170,12 +190,16 @@ function saveFailed(state: PanelState, failure: WorkflowFailure): PanelState {
       return {
         phase: "inspected",
         file,
-        draft: { ...draft, blocked: [...draft.blocked, ...more] },
+        draft: { ...draft, blocked: [...draft.blocked, ...more], refusedClasses: failure.nodes },
       };
     }
+    case "unreachable":
+      return failed(
+        { kind: "unreachable" },
+        draft.target.mode === "create" ? { ...draft, unanswered: true } : draft,
+      );
     case "full":
     case "not_found":
-    case "unreachable":
       return failed({ kind: failure.reason });
     case "conflict":
       return failed({ kind: "conflict", revision: failure.revision });
@@ -227,6 +251,7 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
         phase: "inspected",
         file: state.file,
         draft: {
+          request: action.request,
           inspection,
           titles,
           choices: {},
@@ -237,7 +262,9 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
           target,
           takenName: null,
           blocked: inspection.blocked,
+          refusedClasses: [],
           graphRevision: null,
+          unanswered: false,
         },
       };
     }
@@ -273,7 +300,14 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
           action.place === "prompt"
             ? { ...draft.choices, prompt: [action.node] }
             : { ...draft.choices, [action.place]: action.node };
-        return { ...draft, choices, final: finalize(draft.inspection, choices, draft.titles) };
+        // Another graph runs now: it is sent again and judged afresh.
+        return {
+          ...draft,
+          choices,
+          final: finalize(draft.inspection, choices, draft.titles),
+          refusedClasses: [],
+          graphRevision: null,
+        };
       });
     case "name":
       return withDraft(state, (draft) => ({ ...draft, name: action.name }));
@@ -285,18 +319,30 @@ export function panelReducer(state: PanelState, action: PanelAction): PanelState
       }
       return state;
     case "graphSaved":
-      return state.phase === "saving"
+      return saving(state, action.request)
         ? { ...state, draft: { ...state.draft, graphRevision: action.revision } }
         : state;
     case "saveFailed":
-      return saveFailed(state, action.failure);
+      return saveFailed(state, action.request, action.failure);
     case "importAsNew":
       return withDraft(state, (draft) => ({
         ...draft,
         target: { mode: "create", id: action.id },
         graphRevision: null,
       }));
+    case "landed": {
+      // Kept in its phase: it lands while the retried save is in flight.
+      if (!("draft" in state)) return state;
+      const { target } = state.draft;
+      if (target.mode !== "create" || target.id !== action.workflow.id) return state;
+      const replace: SaveTarget = { mode: "replace", workflow: action.workflow };
+      return {
+        ...state,
+        draft: { ...state.draft, target: replace, graphRevision: null, unanswered: false },
+      };
+    }
     case "saved":
+      return draftOf(state)?.request === action.request ? INITIAL_PANEL : state;
     case "close":
       return INITIAL_PANEL;
   }
@@ -332,23 +378,32 @@ export function nameCheck(
   return { problem, note: problem === null && shared ? SERVER_NAME_NOTE : null };
 }
 
-/** The places still waiting for the user's choice, in the list's order. */
+/** Whether finalization refuses for want of a node in `place`. */
+const refusedAt = (draft: Draft, place: ChoicePlace): boolean =>
+  !draft.final.ok && draft.final.refusal.error === PLACE_CODES[place];
+
+/**
+ * The places still waiting for the user's choice, in the list's order: none
+ * once finalization fills them all, else the one it refuses for, unless chosen.
+ */
 export function unchosen(draft: Draft): ChoicePlace[] {
-  const { detection } = draft.inspection;
-  const code = draft.final.ok ? null : draft.final.refusal.error;
-  const waiting = (place: ChoicePlace, detected: unknown): boolean =>
-    draft.choices[place] === undefined && (detected === null || code === PLACE_CODES[place]);
-  return (["prompt", "latent", "output"] as const).filter((place) =>
-    waiting(place, detection[place].chosen),
+  return (["prompt", "latent", "output"] as const).filter(
+    (place) => draft.choices[place] === undefined && refusedAt(draft, place),
   );
 }
 
-/** Whether a place's row offers a choice: detection could not settle it, or the user chose. */
+/** Whether a place's row offers a choice: finalization could not fill it, or the user chose. */
 export function choosable(draft: Draft, place: ChoicePlace): boolean {
-  return (
-    draft.choices[place] !== undefined ||
-    draft.inspection.detection[place].chosen === null ||
-    unchosen(draft).includes(place)
+  return draft.choices[place] !== undefined || refusedAt(draft, place);
+}
+
+/** Why the user's own choice for `place` leaves it unfilled, in words; null otherwise. */
+export function placeProblem(draft: Draft, place: ChoicePlace): string | null {
+  if (draft.choices[place] === undefined || draft.final.ok || !refusedAt(draft, place)) return null;
+  const { error, nodes = [] } = draft.final.refusal;
+  return refusalText(
+    error,
+    nodes.map((id) => nodeName(draft.titles, id)),
   );
 }
 
@@ -373,16 +428,25 @@ export const reportOf = (draft: Draft): { changed: string[]; skipped: string[] }
 const keptGraph = (draft: Draft) =>
   draft.final.ok ? draft.final.template : draft.inspection.graph;
 
-/** The blocked nodes still in the graph, by reason, each named "title (node id)". */
+/**
+ * The blocked nodes still in the graph, by reason, each named "title (node
+ * id)". A class a save was refused for is listed even when the kept graph
+ * lacks it: by its nodes in the file, else by its class alone (id null).
+ */
 export function blockedGroups(
   draft: Draft,
-): { reason: BlockedReason; nodes: { id: string; title: string }[] }[] {
-  const graph = keptGraph(draft);
-  const groups = new Map<BlockedReason, { id: string; title: string }[]>();
-  for (const { classType, reason } of draft.blocked) {
-    const names = Object.keys(graph)
+): { reason: BlockedReason; nodes: { id: string | null; title: string }[] }[] {
+  const groups = new Map<BlockedReason, { id: string | null; title: string }[]>();
+  const nodesIn = (graph: WorkflowGraph, classType: string) =>
+    Object.keys(graph)
       .filter((id) => graph[id]?.class_type === classType)
       .map((id) => ({ id, title: draft.titles.get(id) ?? classType }));
+  for (const { classType, reason } of draft.blocked) {
+    let names: { id: string | null; title: string }[] = nodesIn(keptGraph(draft), classType);
+    if (names.length === 0 && draft.refusedClasses.includes(classType)) {
+      const inFile = nodesIn(draft.inspection.graph, classType);
+      names = inFile.length > 0 ? inFile : [{ id: null, title: classType }];
+    }
     if (names.length === 0) continue;
     groups.set(reason, [...(groups.get(reason) ?? []), ...names]);
   }

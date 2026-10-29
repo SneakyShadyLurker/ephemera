@@ -24,6 +24,7 @@ import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
+import { isComposing } from "@/lib/keys.ts";
 import { countOf } from "@/lib/text";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import { FAMILY_NAMES } from "../settings/portraits.ts";
@@ -231,11 +232,11 @@ export function ImportPanel({
     void inspect(request, again.signal, state.file, target);
   };
 
-  // Another file: taken at once unless this one was read and not saved.
+  // Another file: taken at once unless this one was read and not saved; held while it saves.
   useEffect(() => {
     if (incoming !== null && !dirty) onIncoming(true);
   }, [incoming, dirty, onIncoming]);
-  const askIncoming = incoming !== null && dirty;
+  const askIncoming = incoming !== null && dirty && state.phase !== "saving";
 
   // The blocker registers again whenever these change, so it reads this render's state.
   const blocker = useBlocker({
@@ -252,37 +253,54 @@ export function ImportPanel({
   const save = async (revision?: number) => {
     const open = draftOf(state);
     if (open === null) return;
+    const { request } = open;
+    // Whether this save still belongs to the file the panel shows.
+    const ours = () => requests.current === request;
     dispatch({ type: "save" });
     const name = open.name.trim();
     const { family, choices } = open;
     const graph = open.inspection.graph;
-    if (open.target.mode === "create") {
-      const created = await createWorkflow({ id: open.target.id, name, family, graph, choices });
+    let target = open.target;
+    // A create that answered unreachable may have landed: then the draft replaces it.
+    if (target.mode === "create" && open.unanswered) {
+      const id = target.id;
+      const listed = await queryClient
+        .fetchQuery({ ...workflowsQuery, staleTime: 0 })
+        .then((rows) => rows.find((row) => row.id === id))
+        .catch(() => undefined);
+      if (!ours()) return;
+      if (listed !== undefined) {
+        dispatch({ type: "landed", workflow: listed });
+        target = { mode: "replace", workflow: listed };
+      }
+    }
+    if (target.mode === "create") {
+      const created = await createWorkflow({ id: target.id, name, family, graph, choices });
       if (!created.ok) {
-        dispatch({ type: "saveFailed", failure: created });
+        dispatch({ type: "saveFailed", request, failure: created });
         return;
       }
-      dispatch({ type: "saved" });
-      onSaved(created.value.workflow.id, created.value.checked);
+      dispatch({ type: "saved", request });
+      if (ours()) onSaved(created.value.workflow.id, created.value.checked);
       return;
     }
-    const { workflow } = open.target;
+    const { workflow } = target;
     let checked = true;
     let current = open.graphRevision;
     if (current === null) {
-      const latest = yours.find((row) => row.id === workflow.id) ?? workflow;
+      // The revision this replace started from; only Keep mine moves on to the server's.
       const replaced = await replaceWorkflowGraph(workflow.id, {
-        revision: revision ?? latest.revision,
+        revision: revision ?? workflow.revision,
         graph,
         choices,
       });
       if (!replaced.ok) {
-        dispatch({ type: "saveFailed", failure: replaced });
+        dispatch({ type: "saveFailed", request, failure: replaced });
         return;
       }
       checked = replaced.value.checked;
       current = replaced.value.workflow.revision;
-      dispatch({ type: "graphSaved", revision: current });
+      dispatch({ type: "graphSaved", request, revision: current });
     } else if (revision !== undefined) {
       current = revision;
     }
@@ -293,12 +311,12 @@ export function ImportPanel({
     if (Object.keys(details).length > 0) {
       const updated = await updateWorkflow(workflow.id, { revision: current, ...details });
       if (!updated.ok) {
-        dispatch({ type: "saveFailed", failure: updated });
+        dispatch({ type: "saveFailed", request, failure: updated });
         return;
       }
     }
-    dispatch({ type: "saved" });
-    onSaved(workflow.id, checked);
+    dispatch({ type: "saved", request });
+    if (ours()) onSaved(workflow.id, checked);
   };
 
   // Reload takes the saved workflow and drops this tab's file, or its rename once the file is in.
@@ -310,8 +328,8 @@ export function ImportPanel({
     if (!fetched) return;
     const open = draftOf(state);
     if (open?.target.mode === "replace" && open.graphRevision !== null) {
-      dispatch({ type: "saved" });
-      onSaved(open.target.workflow.id, true);
+      dispatch({ type: "saved", request: open.request });
+      if (requests.current === open.request) onSaved(open.target.workflow.id, true);
       return;
     }
     dispatch({ type: "close" });
@@ -343,7 +361,11 @@ export function ImportPanel({
           blocker.reset?.();
         }}
         title="Discard this import?"
-        description="The file is not saved. Its choices, name and family go with it."
+        description={
+          draftOf(state)?.graphRevision != null
+            ? "The new file is saved; the name or family change is not."
+            : "The file is not saved. Its choices, name and family go with it."
+        }
         confirm="Discard"
         cancel="Keep importing"
         onCancel={() => blocker.reset?.()}
@@ -432,6 +454,8 @@ export function PanelView({
       aria-labelledby={headingId}
       aria-busy={state.phase === "reading"}
       onKeyDown={(event) => {
+        // A save in flight stays tied to this import until it settles.
+        if (saving || isComposing(event)) return;
         if (event.key === "Escape" && !event.defaultPrevented) {
           event.preventDefault();
           // The discard prompt this may open must not take the same Escape as its own dismissal.
@@ -548,7 +572,7 @@ export function PanelView({
             Choose another file
           </Button>
         )}
-        <Button variant="quiet" onClick={onCancel}>
+        <Button variant="quiet" disabled={saving} onClick={onCancel}>
           Cancel
         </Button>
         {!refused && (
@@ -618,8 +642,12 @@ function DraftBody({
                 <p className="text-pretty text-ink">{BLOCKED_COPY[group.reason]}</p>
                 <ul className="grid gap-0.5 text-ember">
                   {group.nodes.map((node) => (
-                    <li key={node.id} className="break-words">
-                      <NodeLabel title={node.title} node={node.id} />
+                    <li key={node.id ?? node.title} className="break-words">
+                      {node.id === null ? (
+                        node.title
+                      ) : (
+                        <NodeLabel title={node.title} node={node.id} />
+                      )}
                     </li>
                   ))}
                 </ul>

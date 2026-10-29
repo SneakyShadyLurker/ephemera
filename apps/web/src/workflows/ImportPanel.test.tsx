@@ -236,25 +236,26 @@ describe("the import panel", () => {
         inspected({ output: "7" }, target, { type: "save" }, failure),
         target === undefined ? null : MOSS.name,
       );
-    expect(text(failed({ type: "saveFailed", failure: { ok: false, reason: "full" } }))).toContain(
-      SAVE_FULL,
-    );
+    expect(
+      text(failed({ type: "saveFailed", request: 1, failure: { ok: false, reason: "full" } })),
+    ).toContain(SAVE_FULL);
     const unreachable = failed({
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "unreachable" },
     });
     expect(text(unreachable)).toContain(`Not saved: ${NOT_REACHED}.`);
     expect(save(unreachable, "Try again").shown).toBe(true);
     const replace: SaveTarget = { mode: "replace", workflow: MOSS };
     const conflict = failed(
-      { type: "saveFailed", failure: { ok: false, reason: "conflict", revision: 5 } },
+      { type: "saveFailed", request: 1, failure: { ok: false, reason: "conflict", revision: 5 } },
       replace,
     );
     expect(text(conflict)).toContain("Changed in another tab");
     expect(save(conflict, "Reload").shown).toBe(true);
     expect(save(conflict, "Keep mine").shown).toBe(true);
     const gone = failed(
-      { type: "saveFailed", failure: { ok: false, reason: "not_found" } },
+      { type: "saveFailed", request: 1, failure: { ok: false, reason: "not_found" } },
       replace,
     );
     expect(text(gone)).toContain(DELETED_ELSEWHERE);
@@ -265,6 +266,8 @@ describe("the import panel", () => {
     const html = render(inspected({ output: "7" }, undefined, { type: "save" }));
     expect(save(html, "Saving")).toEqual({ shown: true, disabled: true });
     expect(html).toMatch(/<input[^>]* disabled=""/);
+    // The save is tied to this import until it settles.
+    expect(save(html, "Cancel")).toEqual({ shown: true, disabled: true });
   });
 
   it("replaces a workflow's file under its name and family", () => {

@@ -2,10 +2,9 @@ import { userWorkflowId, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera
 import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useId, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { queryClient } from "@/app/query.ts";
 import { ImportIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { ART_STATUS_KEY, artWorkflowsQuery } from "../creator/queries.ts";
+import { artWorkflowsQuery } from "../creator/queries.ts";
 import {
   deletedLine,
   EMPTY_WORKFLOWS,
@@ -15,7 +14,7 @@ import {
 import { useSetting } from "../settings/settings.ts";
 import { Glides } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
-import { workflowsQuery } from "./queries.ts";
+import { refreshWorkflows, workflowsQuery } from "./queries.ts";
 import { WorkflowRow } from "./WorkflowRow.tsx";
 
 const HELP = "text-pretty text-note text-reed";
@@ -65,12 +64,6 @@ export function Workflows({
     }
   };
 
-  const retry = () => {
-    void queryClient.invalidateQueries({ queryKey: workflowsQuery.queryKey });
-    void queryClient.invalidateQueries({ queryKey: artWorkflowsQuery.queryKey });
-    void queryClient.invalidateQueries({ queryKey: ART_STATUS_KEY });
-  };
-
   return (
     <section aria-labelledby={headingId} className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -102,7 +95,7 @@ export function Workflows({
           <Button
             variant="outline"
             className="h-8 px-2.5 text-ink text-note touch:h-11"
-            onClick={retry}
+            onClick={() => void refreshWorkflows()}
           >
             Try again
           </Button>

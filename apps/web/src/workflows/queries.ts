@@ -1,7 +1,9 @@
 import {
   conflictSchema,
+  DEFAULT_SETTINGS,
   type Inspection,
   inspectionSchema,
+  userWorkflowId,
   type WorkflowCreate,
   type WorkflowGraphReplace,
   type WorkflowInspect,
@@ -19,7 +21,7 @@ import { z } from "zod";
 import { api } from "../api.ts";
 import { queryClient } from "../app/query.ts";
 import { ART_STATUS_KEY, artWorkflowsQuery } from "../creator/queries.ts";
-import { applySettings } from "../settings/settings.ts";
+import { applySettings, currentSettings, fetchSavedSettings } from "../settings/settings.ts";
 import { SAVE_TIMEOUT_MS, unsafeOptions } from "../sheet/saving.ts";
 
 /*
@@ -258,8 +260,10 @@ export function replaceWorkflowGraph(
 }
 
 /**
- * Deletes a workflow. The settings the server answers with replace this
- * tab's, so a choice of the deleted workflow falls back to the default at once.
+ * Deletes a workflow. When this tab chose it, the tab takes the workflow the
+ * server's settings fall back to, and nothing else of them (each tab owns its
+ * settings): from the delete's answer, or, when another tab deleted it first,
+ * from the saved settings.
  */
 export async function deleteWorkflow(
   id: string,
@@ -269,9 +273,17 @@ export async function deleteWorkflow(
     (answer) => workflowDeleteResponseSchema.parse(answer),
     ["not_found"],
   );
+  const chosen = () => currentSettings().comfyuiWorkflow === userWorkflowId(id);
   if (result.ok) {
-    applySettings(result.value.settings);
+    if (chosen()) applySettings({ comfyuiWorkflow: result.value.settings.comfyuiWorkflow });
     await refreshWorkflows();
+  } else if (result.reason === "not_found" && chosen()) {
+    const saved = await fetchSavedSettings().catch(() => undefined);
+    if (chosen()) {
+      applySettings({
+        comfyuiWorkflow: saved?.comfyuiWorkflow ?? DEFAULT_SETTINGS.comfyuiWorkflow,
+      });
+    }
   }
   return result;
 }

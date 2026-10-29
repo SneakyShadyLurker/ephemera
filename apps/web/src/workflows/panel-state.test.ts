@@ -1,5 +1,6 @@
 import type { WorkflowSummary } from "@ephemera/core";
 import { describe, expect, it } from "vitest";
+import { mappingRows } from "./mapping.ts";
 import {
   blockedGroups,
   choiceProblem,
@@ -12,8 +13,9 @@ import {
   reportOf,
   type SaveTarget,
   saveCheck,
+  unchosen,
 } from "./panel-state.ts";
-import { testInspection } from "./test-inspection.ts";
+import { testInspection, twoBranchInspection } from "./test-inspection.ts";
 
 const NEW_ID = "0b6f7c3e-2d4a-4f8e-9a1b-5c6d7e8f9a0b";
 const OTHER_ID = "1c7f8d4e-3e5b-4f9e-8a2b-6d7e8f9a0b1c";
@@ -166,7 +168,7 @@ describe("reading a file", () => {
         }),
       ),
     ).toBe(false);
-    expect(isDirty(panelReducer(inspected(), { type: "saved" }))).toBe(false);
+    expect(isDirty(panelReducer(inspected(), { type: "saved", request: 1 }))).toBe(false);
   });
 });
 
@@ -263,6 +265,7 @@ describe("the draft", () => {
 
     const unreachable = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "unreachable" },
     });
     expect(unreachable).toMatchObject({
@@ -275,12 +278,14 @@ describe("the draft", () => {
 
     const full = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "full" },
     });
     expect(full).toMatchObject({ phase: "failed", failure: { kind: "full" }, draft: kept });
 
     const taken = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "name_taken" },
     });
     expect(taken).toMatchObject({ phase: "inspected", draft: kept });
@@ -293,6 +298,7 @@ describe("the draft", () => {
 
     const blocked = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "blocked_nodes", nodes: ["VAEDecode"] },
     });
     expect(blockedGroups(draftIn(blocked))).toEqual([
@@ -302,6 +308,7 @@ describe("the draft", () => {
 
     const conflict = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "conflict", revision: 7 },
     });
     expect(conflict).toMatchObject({ failure: { kind: "conflict", revision: 7 }, draft: kept });
@@ -315,6 +322,7 @@ describe("the draft", () => {
     state = panelReducer(state, { type: "save" });
     state = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "not_found" },
     });
     expect(state).toMatchObject({ phase: "failed", failure: { kind: "not_found" } });
@@ -330,12 +338,122 @@ describe("the draft", () => {
     let state = inspected({ output: "7", target: { mode: "replace", workflow } });
     state = panelReducer(state, { type: "name", name: "Moss Harbour" });
     state = panelReducer(state, { type: "save" });
-    state = panelReducer(state, { type: "graphSaved", revision: 4 });
+    state = panelReducer(state, { type: "graphSaved", request: 1, revision: 4 });
     expect(state).toMatchObject({ phase: "saving", draft: { graphRevision: 4 } });
     state = panelReducer(state, {
       type: "saveFailed",
+      request: 1,
       failure: { ok: false, reason: "unreachable" },
     });
     expect(draftIn(state).graphRevision).toBe(4);
+  });
+
+  it("sends the graph again once a choice changes after it was saved", () => {
+    const workflow = summary(OTHER_ID, "Moss Studio");
+    let state = inspected({ target: { mode: "replace", workflow } });
+    state = panelReducer(state, { type: "choose", place: "output", node: "7" });
+    state = panelReducer(state, { type: "save" });
+    state = panelReducer(state, { type: "graphSaved", request: 1, revision: 4 });
+    state = panelReducer(state, {
+      type: "saveFailed",
+      request: 1,
+      failure: { ok: false, reason: "unreachable" },
+    });
+    expect(panelReducer(state, { type: "name", name: "Harbour" })).toMatchObject({
+      draft: { graphRevision: 4 },
+    });
+    expect(
+      draftIn(panelReducer(state, { type: "choose", place: "output", node: "8" })).graphRevision,
+    ).toBeNull();
+  });
+
+  it("lists every class a save was refused for, even one the kept graph lacks", () => {
+    let state = panelReducer(inspected(), { type: "choose", place: "output", node: "7" });
+    state = panelReducer(state, { type: "save" });
+    state = panelReducer(state, {
+      type: "saveFailed",
+      request: 1,
+      failure: { ok: false, reason: "blocked_nodes", nodes: ["PreviewImage", "MysteryNode"] },
+    });
+    expect(blockedGroups(draftIn(state))).toEqual([
+      {
+        reason: "not_allowed",
+        nodes: [
+          { id: "8", title: "Preview Image" },
+          { id: null, title: "MysteryNode" },
+        ],
+      },
+    ]);
+    expect(saveCheck(state, NAMES).enabled).toBe(false);
+  });
+
+  it("replaces the workflow a lost create made, once the list shows it", () => {
+    let state = panelReducer(inspected({ output: "7" }), { type: "name", name: "Harbour" });
+    state = panelReducer(state, { type: "save" });
+    state = panelReducer(state, {
+      type: "saveFailed",
+      request: 1,
+      failure: { ok: false, reason: "unreachable" },
+    });
+    // An edit after the lost answer still looks for it on the next Save.
+    state = panelReducer(state, { type: "name", name: "Harbour" });
+    expect(draftIn(state).unanswered).toBe(true);
+    const landed = { ...summary(NEW_ID, "Harbour"), revision: 0 };
+    // Another id is not this draft's.
+    expect(panelReducer(state, { type: "landed", workflow: summary(OTHER_ID, "Harbour") })).toBe(
+      state,
+    );
+    state = panelReducer(state, { type: "landed", workflow: landed });
+    expect(draftIn(state)).toMatchObject({
+      target: { mode: "replace", workflow: landed },
+      name: "Harbour",
+      graphRevision: null,
+    });
+    expect(nameCheck(draftIn(state), { ...NAMES, yours: [...NAMES.yours, landed] }).problem).toBe(
+      null,
+    );
+  });
+
+  it("ignores a save result for a file the panel has moved on from", () => {
+    let state = panelReducer(inspected({ output: "7" }), { type: "save" });
+    const stale = (action: PanelAction) => expect(panelReducer(state, action)).toBe(state);
+    stale({ type: "saved", request: 2 });
+    stale({ type: "graphSaved", request: 2, revision: 4 });
+    stale({ type: "saveFailed", request: 2, failure: { ok: false, reason: "unreachable" } });
+    state = panelReducer(state, { type: "saved", request: 1 });
+    expect(state.phase).toBe("idle");
+  });
+});
+
+describe("places settled by finalization", () => {
+  it("resolves the size from the chosen output's own branch", () => {
+    const state = run(...reading(), {
+      type: "inspected",
+      request: 1,
+      inspection: twoBranchInspection(),
+      target: CREATE,
+    });
+    expect(unchosen(draftIn(state))).toEqual(["output"]);
+    const chosen = panelReducer(state, { type: "choose", place: "output", node: "12" });
+    expect(unchosen(draftIn(chosen))).toEqual([]);
+    expect(saveCheck(chosen, NAMES)).toEqual({ enabled: true, unchosen: 0 });
+    const size = mappingRows(draftIn(chosen))[1];
+    expect(size).toMatchObject({ choice: null, targets: [{ node: "9" }] });
+  });
+
+  it("says why an explicit choice leaves a place unfilled", () => {
+    let state = run(...reading(), {
+      type: "inspected",
+      request: 1,
+      inspection: twoBranchInspection(),
+      target: CREATE,
+    });
+    state = panelReducer(state, { type: "choose", place: "output", node: "12" });
+    state = panelReducer(state, { type: "choose", place: "latent", node: "4" });
+    expect(saveCheck(state, NAMES).enabled).toBe(false);
+    expect(mappingRows(draftIn(state))[1]?.choice).toMatchObject({
+      value: "4",
+      problem: expect.stringContaining("No empty latent image sets the picture's size."),
+    });
   });
 });

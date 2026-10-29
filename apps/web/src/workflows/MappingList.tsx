@@ -131,6 +131,11 @@ export function MappingList({
                     </p>
                   ))
                 )}
+                {choice?.problem != null && (
+                  <p role="alert" className="text-pretty text-ember text-note">
+                    {choice.problem}
+                  </p>
+                )}
                 {!waiting && (
                   <>
                     {row.inFile !== null && (

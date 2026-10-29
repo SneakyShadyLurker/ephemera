@@ -201,6 +201,27 @@ describe("POST /api/workflows", () => {
     expect(await response.json()).toEqual({ error: "blocked_nodes", nodes: ["LoadLatent"] });
   });
 
+  it("judges blocked nodes on the template, not in an output the user left out", async () => {
+    const { app } = setup();
+    const graph = {
+      ...sdxl(),
+      "13": { class_type: "LoadImage", inputs: { image: "x.png" } },
+      "14": { class_type: "SaveImage", inputs: { images: ["13", 0], filename_prefix: "x" } },
+    };
+    const { workflow } = await created(app, {
+      family: "general",
+      graph,
+      choices: { output: "9" },
+    });
+    expect(workflow.graph["13"]).toBeUndefined();
+
+    const response = await create(
+      app,
+      createBody({ name: "Pier", family: "general", graph, choices: { output: "14" } }),
+    );
+    expect(response.status).toBe(422);
+  });
+
   it("detects the places of an SDXL export sent with no choices", async () => {
     const { app } = setup();
     const { workflow } = await created(app, { family: "general", graph: sdxl(), choices: {} });

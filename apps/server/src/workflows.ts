@@ -324,9 +324,9 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
   /**
    * The template a save stores, or the answer refusing it (spec § 10):
    * normalization with the saved address's inventory when it answers (else
-   * none, § 10.7), the allowlist and the live output nodes on the normalized
-   * graph, detection, finalization with the tab's choices, the dry fill and
-   * the template's size.
+   * none, § 10.7), detection, finalization with the tab's choices, the
+   * allowlist on the finalized template and the live output nodes on the
+   * normalized graph, the dry fill and the template's size.
    */
   async function template(
     c: Context<WorkflowsEnv>,
@@ -347,10 +347,23 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
     const normalized = normalize(graph, meta);
     c.set("logged", { nodes: Object.keys(normalized.graph).length, checked });
 
-    // The allowlist's refusals first; the live output nodes only once it admits every class.
-    const blocked = blockedIn(normalized.graph, meta);
-    const listed = blocked.filter(({ reason }) => reason !== "output_node");
-    const shown = listed.length > 0 ? listed : blocked;
+    const detected = detectWorkflow(normalized, meta);
+    // A detection that refuses answers as a finalization would.
+    const finalized = detected.ok
+      ? finalizeWorkflow(normalized, detected.detection, choices, meta)
+      : detected;
+
+    // The allowlist judges the graph that runs once finalization keeps it, so a node only a
+    // left-out output used is not refused (§ 16.3). A live output node is judged on the whole
+    // graph, as finalization drops it as an output even where the graph depends on it. The
+    // allowlist's refusals first; the live output nodes only once it admits every class.
+    const listed = blockedIn(finalized.ok ? finalized.template : normalized.graph, meta).filter(
+      ({ reason }) => reason !== "output_node",
+    );
+    const shown =
+      listed.length > 0
+        ? listed
+        : blockedIn(normalized.graph, meta).filter(({ reason }) => reason === "output_node");
     if (shown.length > 0) {
       return fail(
         refused(c, 422, {
@@ -360,9 +373,6 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
       );
     }
 
-    const detected = detectWorkflow(normalized, meta);
-    if (!detected.ok) return invalidWorkflow(detected.refusal);
-    const finalized = finalizeWorkflow(normalized, detected.detection, choices, meta);
     if (!finalized.ok) return invalidWorkflow(finalized.refusal);
     const result = finalized.template;
     c.set("logged", { nodes: Object.keys(result).length, checked });

@@ -66,6 +66,7 @@ describe("the mapping rows", () => {
         { value: "7", title: "Save Image", description: "node 7, images" },
         { value: "8", title: "Preview Image", description: "node 8, images" },
       ],
+      problem: null,
     });
     const chosen = mappingRows(
       draftAfter(undefined, { type: "choose", place: "output", node: "8" }),
@@ -85,6 +86,8 @@ describe("the mapping rows", () => {
           prompt: { ...draft.inspection.detection.prompt, chosen: null },
         },
       },
+      // Finalization with no prompt chosen refuses for the place, as core does.
+      final: { ok: false, refusal: { error: "no_prompt_slot" } },
     };
     const prompt = mappingRows(unsettled)[0];
     expect(prompt?.choice?.label).toBe("Prompt node");

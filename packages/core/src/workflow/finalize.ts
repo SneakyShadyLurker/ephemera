@@ -202,19 +202,21 @@ export function finalizeWorkflow(
   if (outputId === null || chosenOutput === undefined || !isLink(chosenOutput.inputs.images)) {
     return refuse("no_output");
   }
+  const consumed = new Set(
+    Object.values(source).flatMap((node) => linksOf(node).map(([id]) => id)),
+  );
+  // An output node another node takes from stays: dropping it would leave that link
+  // dangling, and the live output gate judges it instead.
   for (const [id, node] of nodes) {
     const output =
       candidateIn(detection.output, id) !== undefined ||
       OUTPUT_CLASSES.has(node.class_type) ||
       meta?.get(node.class_type)?.outputNode === true;
-    if (id !== outputId && output) {
+    if (id !== outputId && output && !consumed.has(id)) {
       nodes.delete(id);
       skipped.push(`${named(id)}, not the chosen output.`);
     }
   }
-  const consumed = new Set(
-    Object.values(source).flatMap((node) => linksOf(node).map(([id]) => id)),
-  );
   for (let dropped = true; dropped; ) {
     dropped = false;
     const used = new Set([...nodes.values()].flatMap((node) => linksOf(node).map(([id]) => id)));

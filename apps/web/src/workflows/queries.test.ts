@@ -151,6 +151,38 @@ describe("a workflow write", () => {
       DEFAULT_SETTINGS.comfyuiWorkflow,
     );
   });
+
+  it("takes only the workflow from a delete's settings, and only when this tab chose it", async () => {
+    const mine = { ...DEFAULT_SETTINGS, theme: "dark" as const, comfyuiWorkflow: "moss-studio" };
+    queryClient.setQueryData(settingsQuery.queryKey, mine);
+    serving(() =>
+      Response.json({ settings: { ...DEFAULT_SETTINGS, theme: "light", comfyuiWorkflow: "x" } }),
+    );
+    expect((await deleteWorkflow(UUID)).ok).toBe(true);
+    expect(queryClient.getQueryData(settingsQuery.queryKey)).toEqual(mine);
+
+    queryClient.setQueryData(settingsQuery.queryKey, { ...mine, comfyuiWorkflow: `user-${UUID}` });
+    expect((await deleteWorkflow(UUID)).ok).toBe(true);
+    expect(queryClient.getQueryData(settingsQuery.queryKey)).toEqual({
+      ...mine,
+      comfyuiWorkflow: "x",
+    });
+  });
+
+  it("falls back from a workflow another tab deleted first, as the saved settings say", async () => {
+    queryClient.setQueryData(settingsQuery.queryKey, {
+      ...DEFAULT_SETTINGS,
+      comfyuiWorkflow: `user-${UUID}`,
+    });
+    const requests = serving((request) =>
+      request.method === "DELETE"
+        ? Response.json({ error: "not_found" }, { status: 404 })
+        : Response.json({ settings: { ...DEFAULT_SETTINGS, comfyuiWorkflow: "moss-studio" } }),
+    );
+    expect(await deleteWorkflow(UUID)).toEqual({ ok: false, reason: "not_found" });
+    expect(requests.map((request) => request.method)).toContain("GET");
+    expect(queryClient.getQueryData(settingsQuery.queryKey)?.comfyuiWorkflow).toBe("moss-studio");
+  });
 });
 
 describe("an inspect", () => {

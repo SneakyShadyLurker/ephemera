@@ -53,10 +53,11 @@ const TITLES: Record<string, string> = {
 /** The inspection of the test graph; `output` stands in for a detected output. */
 export function testInspection(
   overrides: Partial<Omit<Inspection, "detection">> & { output?: string } = {},
+  source: WorkflowGraph = GRAPH,
 ): Inspection {
   const { output, ...rest } = overrides;
   const titles = new Map(Object.entries(TITLES));
-  const detected = detectWorkflow({ graph: GRAPH, changed: [], skipped: [] }, undefined, titles);
+  const detected = detectWorkflow({ graph: source, changed: [], skipped: [] }, undefined, titles);
   if (!detected.ok) throw new Error("the test graph is detected");
   const detection = {
     ...detected.detection,
@@ -65,8 +66,8 @@ export function testInspection(
   return inspectionSchema.parse({
     format: "ui",
     checked: true,
-    graph: GRAPH,
-    nodes: Object.entries(GRAPH).map(([id, node]) => ({
+    graph: source,
+    nodes: Object.entries(source).map(([id, node]) => ({
       id,
       title: TITLES[id] ?? node.class_type,
       classType: node.class_type,
@@ -79,3 +80,25 @@ export function testInspection(
     ...rest,
   });
 }
+
+/**
+ * The test graph with a second branch of its own latent, sampler, decoder
+ * and saver: neither the size nor the output is settled until an output is chosen.
+ */
+export const twoBranchInspection = (): Inspection =>
+  testInspection(
+    {},
+    {
+      ...GRAPH,
+      "9": { class_type: "EmptyLatentImage", inputs: { width: 512, height: 512, batch_size: 1 } },
+      "10": {
+        class_type: "KSampler",
+        inputs: {
+          ...GRAPH["5"]?.inputs,
+          latent_image: ["9", 0],
+        },
+      },
+      "11": { class_type: "VAEDecode", inputs: { samples: ["10", 0], vae: ["1", 2] } },
+      "12": { class_type: "SaveImage", inputs: { filename_prefix: "small", images: ["11", 0] } },
+    },
+  );

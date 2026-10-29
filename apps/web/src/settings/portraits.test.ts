@@ -125,6 +125,9 @@ describe("the workflows list in Settings", () => {
     [" Moss Studio ", "You already have a workflow called Moss Studio."],
     ["Flux Dev Portrait", null],
     ["Moss Studio 2", null],
+    ["a".repeat(64), null],
+    ["a".repeat(65), "Keep the name to 64 characters."],
+    ["Moss\u0007Studio", "Leave control characters out of the name."],
   ])("checks the new name %j against the list", (name, problem) => {
     expect(renameProblem(name, ["Moss Studio", "Krea 2 Gonzalomo"])).toBe(problem);
   });

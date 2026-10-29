@@ -3,6 +3,7 @@ import {
   type ArtFamily,
   type ComfyuiWorkflowOption,
   userWorkflowId,
+  WORKFLOW_LIMITS,
   type WorkflowSummary,
 } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
+import { isComposing } from "@/lib/keys.ts";
 import { artStatusQuery } from "../creator/queries.ts";
 import {
   FAMILY_NAMES,
@@ -228,6 +230,7 @@ export function WorkflowRow({
                   aria-describedby={problem !== null ? problemId : undefined}
                   autoComplete="off"
                   spellCheck={false}
+                  maxLength={WORKFLOW_LIMITS.nameLength}
                   value={draft}
                   onChange={(event) => {
                     setDraft(event.target.value);
@@ -235,6 +238,7 @@ export function WorkflowRow({
                   }}
                   onBlur={() => commitName(false)}
                   onKeyDown={(event) => {
+                    if (isComposing(event)) return;
                     if (event.key === "Enter") {
                       event.preventDefault();
                       commitName(true);
