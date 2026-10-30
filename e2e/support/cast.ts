@@ -6,7 +6,9 @@ import { settingsTab } from "./settings.ts";
 /*
  * Drive the cast panel as the owner does, through its test hooks
  * (apps/web/src/chat/Cast.tsx): `data-cast` on the panel,
- * `data-cast-status` on its status line, `data-cast-entry` (with
+ * `data-cast-status` on its status line, `data-cast-updating` on
+ * "Updating…" and `data-cast-drift` on the light along its hairline while
+ * the cast updates, `data-cast-entry` (with
  * `data-present`) on each roster entry, `data-cast-field="<field>"` on a
  * record's field and `data-cast-corrected` on a corrected one. The panel
  * lists women only; a man the register holds has no entry.
@@ -20,6 +22,9 @@ export const castPanel = (page: Page) => page.locator("[data-cast]").filter({ vi
 
 /** The panel's status line ("Reading the card", "Cast couldn't update.", ...). */
 export const castStatus = (page: Page) => castPanel(page).locator("[data-cast-status]");
+
+/** "Updating…" beside the panel's "Cast" while the cast updates. */
+export const castUpdating = (page: Page) => castPanel(page).locator("[data-cast-updating]");
 
 /** The roster entry of the NPC named `name`, present or away. */
 export const castEntry = (page: Page, name: string) =>

@@ -614,9 +614,13 @@ Version 1.0 holds everything below.
   takes a corrected field back to what was recorded. Remove from cast
   leaves her out of the chat's cast, for the narrator and the keeper too,
   and the roster says she was removed, with Undo, until the cast next
-  updates or the panel is used. While the keeper works, a hairline under
-  "Cast" breathes; a failure says so, with Try again, and the fields the
-  newest update changed wash briefly.
+  updates or the panel is used. While the keeper works, "Updating…" stands
+  beside "Cast" and a soft light glides along a hairline under it, as on a
+  painting scene's frame, and the record surface's header carries both. On
+  phones the band shows only the light, so its names hold still, and the
+  header's cast control breathes. Under reduced motion the words alone say
+  it, the band's included. A failure says so, with Try again, and the
+  fields the newest update changed wash briefly.
 - The register, its snapshots and the corrections are chat content:
   Clear, a reload or leaving the page drops them with the chat.
 
