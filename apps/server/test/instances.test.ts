@@ -268,6 +268,30 @@ describe("instance registry", () => {
     expect(bob.presets.prompt.list()[0]?.id).not.toBe(alice.presets.prompt.list()[0]?.id);
   });
 
+  it("gives only a new user's library the starter character, so a deleted one stays gone", async () => {
+    const dataDir = await dataDirectory();
+    const starterCharacter = { card: blankCard("Starter"), portrait: portraitOf() };
+    const first = registry(dataDir, { starterCharacter });
+    const alice = first.instance(user("alice"));
+    const [starter] = alice.stores.characters.list();
+    expect(alice.stores.characters.list().map((row) => row.name)).toEqual(["Starter"]);
+    expect(
+      Buffer.from((await alice.stores.characters.portrait(starter?.id ?? "", "full"))?.bytes ?? []),
+    ).toEqual(Buffer.from(starterCharacter.portrait.png));
+    alice.stores.characters.remove(starter?.id ?? "");
+    await alice.flushIfDirty();
+    await first.close();
+
+    const restarted = registry(dataDir, { starterCharacter });
+    expect(restarted.instance(user("alice")).stores.characters.list()).toEqual([]);
+    expect(
+      restarted
+        .instance(user("bob"))
+        .stores.characters.list()
+        .map((row) => row.name),
+    ).toEqual(["Starter"]);
+  });
+
   it("encrypts the file, reopens it after a restart and never replaces one it cannot open", async () => {
     const dataDir = await dataDirectory();
     const marker = `canary-${randomUUID()}`;

@@ -87,6 +87,8 @@ const envSchema = z.object({
   EPHEMERA_DEFAULT_WORKFLOW: optional(comfyuiWorkflowIdSchema),
   /** More node classes graphs may use, each kept in memory on the operator's word; never a save or preview node. */
   EPHEMERA_COMFYUI_EXTRA_NODES: extraNodesSchema,
+  /** The bundled example character in every new user's library; off leaves new libraries empty. */
+  EPHEMERA_STARTER_CHARACTER: optional(z.enum(["on", "off"])).transform((value) => value !== "off"),
 });
 
 export interface AppConfig {
@@ -122,6 +124,8 @@ interface ServerConfig extends AppConfig {
   defaultWorkflow: string | undefined;
   /** The node classes index.ts adds to the allowlist. */
   extraNodes: readonly string[];
+  /** Whether index.ts gives the instance registry the bundled starter character. */
+  starterCharacter: boolean;
 }
 
 export class ConfigError extends Error {
@@ -182,5 +186,6 @@ export function loadConfig(env: Record<string, string | undefined>): ServerConfi
     workflowsDir: e.EPHEMERA_WORKFLOWS_DIR,
     defaultWorkflow: e.EPHEMERA_DEFAULT_WORKFLOW,
     extraNodes: e.EPHEMERA_COMFYUI_EXTRA_NODES,
+    starterCharacter: e.EPHEMERA_STARTER_CHARACTER,
   };
 }

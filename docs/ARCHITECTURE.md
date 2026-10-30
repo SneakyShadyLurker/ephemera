@@ -1780,7 +1780,12 @@ requester's instance from the registry
 route reaches only that user's stores. A user's first admitted request
 creates `<dataDir>/users/<username>/` (0700, and `users/` itself when it is
 the first user), asserted a direct child of `users/`, and seeds what a fresh
-install gets. Generation calibration ratios live on the instance, so they
+install gets. A database created that way also gets the starter character,
+the native card PNG in `apps/server/src/starter/`, which `index.ts` reads
+once at startup through the import reader (`starter.ts`); a database that
+already exists never does, so a deleted starter stays deleted.
+`EPHEMERA_STARTER_CHARACTER=off` leaves new libraries empty, as e2e does
+for its per-test users. Generation calibration ratios live on the instance, so they
 are per user; nothing else in server memory is addressable by user. An
 instance idle for ten minutes is flushed and dropped from memory; one with
 a request or stream in flight never is. A route marks a streamed response
