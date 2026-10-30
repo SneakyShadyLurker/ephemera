@@ -850,6 +850,23 @@ test("edit mode saves, cancels by button and by Escape without closing, and Reve
   await expect(record.getByRole("button", { name: "Revert hair" })).toHaveCount(0);
 });
 
+test("personality keywords, a repeated one included, revert to exactly the recorded ones", async ({
+  page,
+  request,
+}) => {
+  await castChat(request);
+  await seeded(page);
+  const record = await editRecord(page, SEEDED, { personality: "shy, shy, curious, kind" });
+  const personality = record.locator('[data-cast-field="personality"]');
+  const words = personality.locator("[data-tone]");
+  await expect(words).toHaveCount(4);
+  await expect(personality).toHaveText("shy, shy, curious, kind");
+  await record.getByRole("button", { name: "Revert personality" }).click();
+  await expect(personality).not.toHaveAttribute("data-cast-corrected");
+  await expect(words).toHaveCount(3);
+  await expect(personality).toHaveText("curious, quick, teasing personality");
+});
+
 test("Remove from cast leaves her out of the panel and the requests, and Undo brings her back", async ({
   page,
   request,
