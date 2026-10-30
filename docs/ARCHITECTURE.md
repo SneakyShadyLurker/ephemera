@@ -63,7 +63,7 @@ Major versions are architectural choices; exact versions live in
 | Dates | dayjs with `utc`, `timezone`, `duration` and `relativeTime` | Date macros, UTC offsets and relative differences in `packages/core`; naive dates use the browser's zone, including DST. It reaches the browser in the shared API chunk |
 | API | Hono 4 with `@hono/bun`, Zod 4 | Validated routes, streaming, typed RPC client, static SPA |
 | LLM | AI SDK 7, `@ai-sdk/openai-compatible` | Streaming, abort, reasoning parts, provider quirks |
-| Storage | `bun:sqlite`, Drizzle ORM, `node:crypto` | One SQLite database per user, in memory while in use and encrypted at rest (§ Users and storage): characters, personas and their character bindings, prompt presets with their Author's Note (a nullable column; a row without one reads as the default) and sampler presets, library lorebooks (`lorebooks`: a name and the whole book in the embedded book's schema and limits, its compact JSON within the card limit, the book's own `name` mirroring the row's, and the counts the library lists, written with the book and brought up to date when the database opens, so listing never parses a book) and their links to characters (`character_lorebooks`: at most `LOREBOOK_LINKS`, 8, per character, each at a position; a link is appended after the last in one transaction, linking again changes nothing, unlinking leaves the others' positions, deleting either side removes the link, and duplicating a character copies its links), events (`events`: at most `EVENT_LIMITS.events`, 200, each a one-line text, a chance, a cooldown in replies, an on/off flag and a scope of all cards or chosen character ids and tags, the ids held without a reference so an unknown one matches nothing; definitions only, with no column for which event fired where), a character's memory (`memory_notebooks`: one row per character, keyed by it, with the on/off flag, the situation, relationships, facts and threads, and `opening`, the next chat's opening (at most `MEMORY_LIMITS.opening`, 600 characters, empty when there is none); a PATCH carries the notebook whole, and one without the notebook or the opening keeps the stored one; `memories`: at most `MEMORY_LIMITS.episodes`, 2,000, per character, each an episode or a chapter with a per-character `seq`, a title, a summary, cues, how many turns it covered, the chapter that absorbed it and a pinned flag; both cascade with their character, and neither has a column for the turns, the chat or the span a memory came from), characters' cast sheets (`cast_sheets`: one row per character, keyed by it and cascading with it, holding the card fingerprint it was read at, its entries' fixed records without any state, at most `CAST_LIMITS.sheetEntries`, 8, and a `revision` each write increments; a chat's register has no column), up to three custom palettes (`custom_palettes`: by slot 1 to 3, a name, the palette it started from, its colours and the base's by scheme, the roles set by hand; deleting the chosen one returns the setting to its built-in base, or Lamplight, in the same transaction), one row of UI settings (theme, colour palette, model, image prompt model (null leaves each image prompt on its surface's default), chosen character and persona, default persona, chosen presets, context windows the owner set for models the provider reports none for, the owner's context limit per model, the ComfyUI address and workflow for card portraits, memory's model, effort and sizes, the cast calls' model and effort (null follows memory's), and `memoryOpening`, whether a new chat opens on the memory's opening, a column with SQL default true; references clear themselves when their target is deleted), and portraits of characters and personas in one table (each row belongs to exactly one owner and holds its dimensions, version and WebP thumbnail, and names the encrypted file under the user's folder that holds its PNG), so an entity and its portrait row change in one transaction, and a portrait's file is durable before any database image that names it. One store per entity, each parsing its core schema on every write. Characters, personas, presets, lorebooks, events, notebooks and memories carry a `revision` that each update increments; a PATCH names the revision its sheet loaded, and a stale one is refused with 409 and the current revision, checked and written in one transaction, so a tab behind another never overwrites it unasked (the sheet offers Reload or Keep mine, which saves the tab's whole version). A stale PATCH that would change nothing, such as a retry after a lost answer, is answered as saved and writes nothing; after a save whose answer was lost, the sheet sends it again alone, as it was, before newer edits, so it learns the revision instead of meeting a false conflict. drizzle-kit runs on demand (`bun run db:generate`, from outside the workspace) to generate migrations; the server applies them when a user's database opens, with foreign keys off (Drizzle runs them in one transaction, where a migration's own `PRAGMA foreign_keys=OFF` does nothing, so a table rebuild would cascade), checks the result with `PRAGMA foreign_key_check` and only then turns enforcement on. A migration therefore never relies on a cascade. At start the server verifies migrations and the native data upgrade, then durably encrypts every changed database before listening; failure refuses startup. The deploy's pre-migration snapshot is the way back |
+| Storage | `bun:sqlite`, Drizzle ORM, `node:crypto` | One SQLite database per user, in memory while in use and encrypted at rest (§ Users and storage): characters, personas and their character bindings, prompt presets with their Author's Note (a nullable column; a row without one reads as the default) and sampler presets, library lorebooks (`lorebooks`: a name and the whole book in the embedded book's schema and limits, its compact JSON within the card limit, the book's own `name` mirroring the row's, and the counts the library lists, written with the book and brought up to date when the database opens, so listing never parses a book) and their links to characters (`character_lorebooks`: at most `LOREBOOK_LINKS`, 8, per character, each at a position; a link is appended after the last in one transaction, linking again changes nothing, unlinking leaves the others' positions, deleting either side removes the link, and duplicating a character copies its links), events (`events`: at most `EVENT_LIMITS.events`, 200, each a one-line text, a chance, a cooldown in replies, an on/off flag and a scope of all cards or chosen character ids and tags, the ids held without a reference so an unknown one matches nothing; definitions only, with no column for which event fired where), a character's memory (`memory_notebooks`: one row per character, keyed by it, with the on/off flag, the situation, relationships, facts and threads, and `opening`, the next chat's opening (at most `MEMORY_LIMITS.opening`, 600 characters, empty when there is none); a PATCH carries the notebook whole, and one without the notebook or the opening keeps the stored one; `memories`: at most `MEMORY_LIMITS.episodes`, 2,000, per character, each an episode or a chapter with a per-character `seq`, a title, a summary, cues, how many turns it covered, the chapter that absorbed it and a pinned flag; both cascade with their character, and neither has a column for the turns, the chat or the span a memory came from), characters' cast sheets (`cast_sheets`: one row per character, keyed by it and cascading with it, holding the card fingerprint it was read at, its entries' fixed records without any state, at most `CAST_LIMITS.sheetEntries`, 8, and a `revision` each write increments; a chat's register has no column), up to three custom palettes (`custom_palettes`: by slot 1 to 3, a name, the palette it started from, its colours and the base's by scheme, the roles set by hand; deleting the chosen one returns the setting to its built-in base, or Lamplight, in the same transaction), the user's imported ComfyUI workflows (`workflows`: at most `WORKFLOW_LIMITS.workflows`, 24, each a name unique regardless of case, an image model family, the finalized API template with `{{prompt}}` in the prompt's place, its node count and a `revision`; deleting the one the settings choose returns them to the default workflow in the same transaction), one row of UI settings (theme, colour palette, model, image prompt model (null leaves each image prompt on its surface's default), chosen character and persona, default persona, chosen presets, context windows the owner set for models the provider reports none for, the owner's context limit per model, the ComfyUI address and workflow for card portraits, memory's model, effort and sizes, the cast calls' model and effort (null follows memory's), and `memoryOpening`, whether a new chat opens on the memory's opening, a column with SQL default true; references clear themselves when their target is deleted), and portraits of characters and personas in one table (each row belongs to exactly one owner and holds its dimensions, version and WebP thumbnail, and names the encrypted file under the user's folder that holds its PNG), so an entity and its portrait row change in one transaction, and a portrait's file is durable before any database image that names it. One store per entity, each parsing its core schema on every write. Characters, personas, presets, lorebooks, events, notebooks, memories and workflows carry a `revision` that each update increments; a PATCH names the revision its sheet loaded, and a stale one is refused with 409 and the current revision, checked and written in one transaction, so a tab behind another never overwrites it unasked (the sheet offers Reload or Keep mine, which saves the tab's whole version). A stale PATCH that would change nothing, such as a retry after a lost answer, is answered as saved and writes nothing; after a save whose answer was lost, the sheet sends it again alone, as it was, before newer edits, so it learns the revision instead of meeting a false conflict. drizzle-kit runs on demand (`bun run db:generate`, from outside the workspace) to generate migrations; the server applies them when a user's database opens, with foreign keys off (Drizzle runs them in one transaction, where a migration's own `PRAGMA foreign_keys=OFF` does nothing, so a table rebuild would cascade), checks the result with `PRAGMA foreign_key_check` and only then turns enforcement on. A migration therefore never relies on a cascade. At start the server verifies migrations and the native data upgrade, then durably encrypts every changed database before listening; failure refuses startup. The deploy's pre-migration snapshot is the way back |
 | Cards | Own PNG chunk walker, own Zod schemas | Native character JSON uses a strict versioned envelope. Native PNG reads and writes one base64 `ephemera` text chunk. Import-only readers accept foreign V2/V3 `ccv3` then `chara` chunks. Native data takes precedence; duplicates, unsupported versions, mixed shapes and malformed native markers fail closed. Recognized foreign fields become typed camelCase data and unknown metadata is dropped with an import report. Import fits lorebook keywords, names and tags to their limits. Compact serialization and UTF-8 limits live in `packages/core`. The bounded PNG walker strips compressed text before portrait decoding and validates at most one ICC profile within a 1 MiB inflation limit; portrait output strips metadata |
 | Images | sharp | Portraits: only the PNG, JPEG and WebP loaders unblocked, header-checked pixel cap, re-encoded to PNG plus a WebP thumbnail, metadata stripped; a JPEG vision copy for model calls; prebuilt for linux-arm64 |
 | Lorebook keys | re2js, `Intl.Segmenter` | A character book's regex keys run only on re2js, a linear-time RE2 port, never on the native `RegExp` (card patterns are untrusted; JavaScriptCore's backtracking limit answers "no match" instead of failing). Plain keys match with `includes`; whole words by `Intl.Segmenter` boundaries or punctuation beside the key, so scripts without spaces and possessives work. Every assembly's scan has a deterministic work bound, and entry text is filled and counted only up to the budget's cutoff, within a per-assembly allowance; entries past either are reported, not scanned. A request assembles at most `MEMORY_LIMITS.held` plus three times (Memory, step 9), each attempt with its own bounds so a fold never changes which entries activate. Secondary keys match on the same rules; recursive passes test each key against each chat or entry text once, charged to the same bound, and entries a bound kept a pass from reaching are reported unscanned. An entry's sparse native settings are read and written through one core owner (`entrySettings` and `withEntrySettings` in `lorebook/settings.ts`), and timed effects by another (`lorebook/timed.ts`), whose per-chat state names entries by their library book (absent for the book in the card), their index inside it and a digest of the entry (`Bun.hash`, injected by the server) so an edited entry loses its effect and an effect never moves to another book. re2js reaches the browser only in the lorebook editor's chunks, where the editor flags keys that never match |
@@ -1194,7 +1194,7 @@ content's path: the tab's memory and one request in the server.
   one; a failure preparing it is error `reference`. The log adds only
   `reference` and `referenceGraph` (always false here) as booleans. The
   art and scene routes share one run (`paint` in `creator.ts`). The
-  ComfyUI client then runs that built-in
+  ComfyUI client then runs the chosen
   workflow with a random seed. The server answers with
   `application/vnd.ephemera.art-stream.v1`: each atomic frame has a
   one-byte kind and four-byte big-endian payload length. Kind 0 is an empty keepalive, kind 1 a validated JSON
@@ -1214,9 +1214,10 @@ content's path: the tab's memory and one request in the server.
 - **`GET /api/creator/art/status?workflow=`**: off without an address;
   otherwise ComfyUI's `/object_info` says whether the instance answers and
   which node classes and model files the named workflow lacks (absent, the
-  saved one; one without a graph is refused with 400). Settings and
-  the describe screen ask it for the tab's workflow, one answer per
-  workflow, so a choice made while an earlier check runs gets its own.
+  saved one; one without a graph is refused with 400). Settings asks it
+  for every workflow it lists and the describe screen for the tab's
+  workflow, one answer per workflow, so a choice made while an earlier
+  check runs gets its own.
 - **`GET /api/creator/art/workflows`**: the request's workflow catalog,
   the user's own first, then the server's files, each by id and name with
   its family and `scope` (`user` or `server`); no call to ComfyUI.
@@ -1230,23 +1231,31 @@ content's path: the tab's memory and one request in the server.
   it. Create and replace bound the body at 2 MiB and its nesting depth,
   refuse `__proto__`, `constructor` and `prototype` as keys at every level
   and drop each node's `_meta`. They then run core's pipeline:
-  `normalizeWorkflow` (one image saver becomes `SaveImageWebsocket`, output
-  nodes nothing consumes are dropped), the allowlist in its import context
-  and the live ComfyUI's output nodes on the normalized graph (422
-  `blocked_nodes` with the classes), `detectWorkflow` (the prompt encoders
+  `normalizeWorkflow` (one image saver, else one preview, becomes
+  `SaveImageWebsocket`; output nodes nothing consumes are dropped), `detectWorkflow` (the prompt encoders
   traced to the sampler's positive input, the empty latent, every seed, the
-  family guess) and `finalizeWorkflow` with the tab's choices, which writes
-  the five placeholders, drops a text node that supplied the prompt (code
-  `linked_prompt` when that node takes links or feeds anything else),
-  makes the final image exactly the requested size and refuses any other
-  placeholder text (422 `invalid_workflow` with its code), then the dry fill and the 256 KiB template bound. The answer
+  family guess) and `finalizeWorkflow` with the tab's choices, which keeps
+  the chosen output and drops the others with the nodes only they used
+  (an output another node consumes stays), writes the five placeholders,
+  drops a text node that supplied the prompt (code `linked_prompt` when
+  that node takes links, feeds anything else or is itself a chosen place),
+  inserts a Lanczos `ImageScale` to exactly the requested size before the
+  saver unless one already gives it, and refuses any other placeholder text
+  (422 `invalid_workflow` with its code). The allowlist in its import
+  context and then the live ComfyUI's output nodes judge the finalized
+  template whole, the graph that runs (422 `blocked_nodes` with the
+  classes), so a class only a left-out output used is no refusal; then the
+  dry fill and the template bounds, 200 nodes and 256 KiB. The answer
   carries `checked: false` when ComfyUI did not answer or no address is
   saved. `POST /inspect` takes a file in either ComfyUI format and a file
   name and answers what the import screen shows, storing nothing: a saved
   (UI-format) workflow is converted to API format by core's
   `convertWorkflow` against the live `/object_info` (widget order, links,
   reroutes, primitive nodes, muted and bypassed nodes, subgraphs and
-  growing inputs; 409 `comfyui_required` when ComfyUI does not answer),
+  growing inputs, a list widget value wrapped as `{"__value__": [...]}`;
+  at most 400 nodes and four subgraph levels before flattening and 200
+  after, within a bound on conversion work, else `too_large`; 409
+  `comfyui_required` when ComfyUI does not answer),
   then the same pipeline gives the normalized graph, the node titles, the
   detection with its candidates, what conversion and normalization changed
   and left out (the tab runs core's `finalizeWorkflow` on these with its
@@ -1257,7 +1266,11 @@ content's path: the tab's memory and one request in the server.
   `workflows.update`, `workflows.replace`, `workflows.delete` and
   `workflows.inspect` (with the file's format) with the status, duration,
   node count, `checked` and the refusal class; never a name, file name,
-  node title or class, model file or text.
+  node title or class, model file or text. Settings > Portraits lists the
+  workflows and hosts the import panel (`apps/web/src/workflows/`), which
+  holds the file, the inspection and the choices in component state and
+  sends graphs through plain request functions, so no query cache holds
+  one.
 - **`POST /api/scene`** (`apps/server/src/scene.ts`): Picture this scene.
   The tab sends the model (Settings' image prompt model, else the chat's,
   taken at the press; no effort), the workflow, the character's
@@ -1284,7 +1297,7 @@ content's path: the tab's memory and one request in the server.
   picture.
 - **ComfyUI client** (`apps/server/src/comfyui/`): the standard API
   (`/object_info`, `/prompt`, `/ws`) through the app's one outbound fetch and
-  Bun's WebSocket, with the requested built-in workflow filled by JSON-safe
+  Bun's WebSocket, with the requested workflow filled by JSON-safe
   substitution. The workflows are API-format graphs from two sets, merged
   for each request into one catalog (`comfyui/catalog.ts`): the user's
   own, stored in their instance and named `user-<uuid>`, then the
@@ -1298,7 +1311,7 @@ content's path: the tab's memory and one request in the server.
   the id's first word names the family whose metaprompts write the image
   prompt: `krea2` or `moss`, and General for any other word, which the
   `startup.workflows` log reports with the file name. Adding a workflow is
-  adding a file.
+  adding a file, up to 64 server workflows in all.
   **Workflows directory.** `EPHEMERA_WORKFLOWS_DIR` names an optional
   directory of more graphs, read with the bundled ones once at startup in
   `persistence/workflow-files.ts`, the only server code that touches the
@@ -1328,10 +1341,11 @@ content's path: the tab's memory and one request in the server.
   supplies only the prompt, the seed, the 1024 x 1536 base dimensions and the count,
   four for portraits or one for scenes. A MOSS-family graph gets the MOSS
   Image metaprompts, a Krea 2 graph the Krea 2 ones and any other the
-  General ones. A graph with a hires pass must scale its final decode
-  back to the requested size (an `ImageScaleBy` before
-  `SaveImageWebsocket`): the PNG decoder requires exactly the requested
-  dimensions. Model dependencies follow one rule in `comfyui/workflow.ts`
+  General ones. The PNG decoder requires exactly the requested
+  dimensions: an imported graph gets its `ImageScale` from finalization,
+  and a server file with a hires pass must scale its final decode back to
+  the requested size itself (such as an `ImageScale` before
+  `SaveImageWebsocket`). Model dependencies follow one rule in `comfyui/workflow.ts`
   for server files and user workflows alike: with a live `/object_info`,
   any string input whose spec is a combo and whose name ends in `_name` or
   `_path`, with core's `MODEL_INPUT_EXCEPTIONS`; without one (server files
@@ -1641,7 +1655,8 @@ not an SSE comment; and the art request reaches a second upstream, ComfyUI.
 The settings row holds `comfyuiBaseUrl` (empty, or an http or https address
 without credentials, query or fragment) and `comfyuiWorkflow` (the id of a
 server workflow or one of the user's own, chosen in the describe screen beside the model or in the
-showcase under New art, and kept for the next card). A save naming an id without a graph is refused with
+showcase under New art, whose picker lists the user's own under Yours
+before the server's, and kept for the next card). A save naming an id without a graph is refused with
 422 `unknown_reference`, as one naming a deleted preset is, and a saved id
 whose file is gone reads as the default. The server environment holds `COMFYUI_ALLOWED_ORIGINS`, the
 comma-separated origins users may choose (empty or unset turns ComfyUI off
@@ -2064,7 +2079,7 @@ Principle 1 in `PRINCIPLES.md` owns the rules; this maps them to mechanisms.
 |---|---|
 | Browser | In-memory store with session epoch, `pagehide` clear, abort on Clear, chat metadata (pick seed, cache affinity id) renewed on Clear and held only in the store, `no-store, no-transform` overwrite on every response (which also keeps the page out of the back/forward cache and stops Cloudflare's script injection), no service worker, dependency audit, leave confirmation, expiry recovery without navigating |
 | Authentication proxy (SWAG in the reference topology) | Request and response buffering off, tmpfs body spill, no proxy cache, content-free access log, no error log, long stream timeouts |
-| Container | Streaming handler without writes, schema-restricted persistence (one module, audited, whose writes parse character, persona, preset, lorebook, event, memory, cast sheet and settings schemas), operational-only logger, read-only root, tmpfs `/tmp`, no swap, logging driver `none` |
+| Container | Streaming handler without writes, schema-restricted persistence (one module, audited, whose writes parse character, persona, preset, lorebook, event, memory, cast sheet, workflow and settings schemas), operational-only logger, read-only root, tmpfs `/tmp`, no swap, logging driver `none` |
 | Upstream (CLIProxyAPI in the reference topology) | Commercial mode, request/debug logging and error dumps off, a canary after upgrades (§ Deployment checks) |
 | ComfyUI | Receives the image prompt only; portraits return over the WebSocket from a node that saves nothing; the job removed after every run (lease release on Atelier's private worker; queue and history deletion and the cache release through `/free` on a plain instance); no prompt-bearing logs, disk output or retained history as deployment prerequisites |
 | Evidence | Retention test matrix across hops (browser storage, URL and history, back/forward, clipboard, profile directory; the server's data, temp and home directories, logs and the repository; the mock ComfyUI's queue, history and leases), content classes and failure paths, each row proving its content existed; uninspectable hops reported as unverified. Outside the matrix, `e2e/retention.spec.ts` › "the cache affinity id stays in the tab and the request" checks the id by value: one id for every request of a chat, a new one after Clear, none in previews, browser storage, URLs, the closed profile directory, the server's data directory or its log |

@@ -26,7 +26,7 @@ export function imageOutputs(graph: WorkflowGraph, meta: NodeMetaMap | undefined
 const isPreview = (classType: string) => classType.startsWith("Preview");
 
 /**
- * The safe fixes of spec § 10.1, run before blocked nodes are assessed. One
+ * The safe fixes, run before blocked nodes are assessed. One
  * linked sanctioned output is kept; without one, the one image saver (else
  * the one preview) becomes `SaveImageWebsocket` with only its `images`;
  * several stay for the output choice. Every other output node nothing

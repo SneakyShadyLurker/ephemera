@@ -11,7 +11,7 @@ are kept; conversations never are.
 Its users reach it at a hostname behind a trusted authentication proxy
 (for example SWAG with Authelia). Every user the proxy's access rule admits
 gets a separate instance, created on their first visit: their own
-characters, personas, presets, lorebooks, events, memories, portraits and settings, which no other user can see,
+characters, personas, presets, lorebooks, events, memories, portraits, imported workflows and settings, which no other user can see,
 list or change. There are no local accounts, sign-up, user administration or
 sharing: the proxy's identity is the only identity. When the sign-in
 expires, the open tab stays where it is: a notice offers Sign in in a new
@@ -29,6 +29,7 @@ reloads as that user.
 | Prompt presets (their Author's Note included) and sampler presets | Assembled prompts and the prompt inspector view |
 | Library lorebooks and the characters each is linked to | Model output, including reasoning |
 | UI settings (theme and colour palette, up to three custom palettes, default model, image prompt model, last chosen character and persona, defaults) | |
+| Imported ComfyUI workflows: the graph Ephemera runs, with a placeholder where the prompt goes, its name and its image model family | A workflow file being imported, until Save |
 | Events: each instruction, its chance, its cooldown, its scope and whether it is on | The lorebook's timed effects (which entries stay in or rest) |
 | | Which event fired on which reply, and the event text as filled for a request |
 | Memory, on for every character until the owner turns it off: its notebook and its memories (title, summary, cues) | The turns a memory was written from, which of them are folded, and which memories this chat carries |
@@ -149,8 +150,9 @@ Version 1.0 holds everything below.
 - With a ComfyUI address in Settings, the model writes an image prompt from
   the card (the image prompt model from Settings, when one is set), worded for the image model family of the workflow
   chosen beside the model (Krea 2, MOSS Image, or General for any other), and ComfyUI paints a batch of four portraits
-  (2:3, 1024 x 1536) with it; every workflow the server has (the built-in
-  ones and any its workflows directory adds) is offered, and the
+  (2:3, 1024 x 1536) with it; the owner's own imported workflows are offered
+  first, under Yours, then every workflow the server has (the built-in
+  ones and any its workflows directory adds), each with its family, and the
   choice is kept for the next card. The showcase offers it again under New
   art, with the model that writes the image prompt and
   its reasoning effort (the card's until others are chosen, kept for the
@@ -192,8 +194,27 @@ Version 1.0 holds everything below.
   receiving the four), says who it waits for after a silence, and Stop
   ends it; new art that fails or is stopped keeps the portraits on show,
   and a failure says why. Without an address, or when the art fails, the
-  card can be kept without a portrait. Settings shows whether ComfyUI answers and names any
-  node or model the chosen workflow lacks.
+  card can be kept without a portrait. Settings shows whether ComfyUI answers and, for
+  each workflow, whether it can paint now, naming any node or model it lacks.
+- Settings > Portraits lists the workflows: the owner's own under Yours,
+  then the server's, each with its family, its status in words (Ready,
+  Checking, Missing requirements, Unavailable or Unchecked) and In use beside
+  the one portraits paint with. Import takes a ComfyUI workflow file, saved
+  from ComfyUI or exported as API, chosen or dropped on the section on
+  tablet and desktop; a saved one needs ComfyUI to answer, since its nodes
+  are read from it. An owner keeps up to 24. The import panel shows where
+  Ephemera fills the prompt, the size and count, the seed and the image
+  output, asks which node to use where the file leaves one open, and says
+  what it changed, what it left out and what the owner's ComfyUI lacks; it
+  saves the workflow under a name and a family (Krea 2, MOSS or General for
+  any other model). Ephemera takes out the file's own prompt, scales the
+  picture to the requested size just before it is sent, and refuses any
+  node that could write to disk; every refusal says what to do instead.
+  Each of the owner's workflows can be renamed, given another family,
+  replaced with a new file or deleted; deleting the one in use returns
+  portraits to the server's default. A workflow whose node the server later
+  stops allowing stays listed, reads Missing requirements once ComfyUI
+  answers, and cannot paint.
 - Keep saves an ordinary character with the chosen portrait, ready to chat
   with or edit in its sheet. If only the portrait fails to save, the card is
   kept and the portrait can be tried again.
@@ -688,7 +709,7 @@ Version 1.0 holds everything below.
   taken at the press and kept for Paint it again) writes an image prompt from the card, the looks and
   state of the people present as the cast register has them, and the
   chat's latest turns (up to 40 turns and about 6,000 tokens), and ComfyUI paints
-  it with the workflow chosen in Settings, in a capture fitted to the era
+  it with the workflow last chosen for portraits, in a capture fitted to the era
   the card and the chat give, a selfie only when the chat has the
   character taking one. Only the character is shown,
   never the persona: a Subject card's subject, the subjects of a Group card

@@ -40,8 +40,8 @@ import {
 import { plainPng } from "./image-fixtures.ts";
 
 /*
- * Every admitted user gets their own instance (docs/specs: per-user
- * instances): nothing one user stores, uploads or calibrates reaches another,
+ * Every admitted user gets their own instance (docs/ARCHITECTURE.md § Users
+ * and storage): nothing one user stores, uploads or calibrates reaches another,
  * a user's folder appears only with their first admitted request, and every
  * write is on disk before the response that caused it completes.
  */

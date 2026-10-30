@@ -25,8 +25,8 @@ import {
 } from "./support/workflow-files.ts";
 
 /*
- * A ComfyUI workflow of the owner's own, imported in Settings > Portraits
- * (docs/specs/workflow-import.md § 16): what the panel shows of a file, its
+ * A ComfyUI workflow of the owner's own, imported in Settings > Portraits:
+ * what the panel shows of a file, its
  * focus and its guard, then the saved workflow in Describe's picker, in a
  * New art batch and a scene picture, renamed, replaced and deleted. The
  * mock ComfyUI serves the fixture's `/object_info`, so the file's nodes and

@@ -249,7 +249,7 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
     return inspection.reachable ? { inspection } : { status: artStatus(inspection) };
   }
 
-  /** The safe fixes (spec § 10.1), with the server's sanctioned output and refused classes. */
+  /** The safe fixes, with the server's sanctioned output and refused classes. */
   const normalize = (graph: WorkflowGraph, meta: NodeMetaMap | undefined, titles?: NodeTitles) =>
     normalizeWorkflow(
       graph,
@@ -260,7 +260,7 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
     );
 
   /**
-   * The classes of a graph an import refuses (spec § 11.2): the allowlist's
+   * The classes of a graph an import refuses: the allowlist's
    * reason, else a class the live ComfyUI reports as an output node. In a
    * normalized graph the image outputs are the output choice, which
    * finalization settles, so they are not assessed; a finalized template is
@@ -326,11 +326,11 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
   }
 
   /**
-   * The template a save stores, or the answer refusing it (spec § 10):
-   * normalization with the saved address's inventory when it answers (else
-   * none, § 10.7), detection, finalization with the tab's choices, the
-   * allowlist on the finalized template and the live output nodes on the
-   * normalized graph, the dry fill and the template's size.
+   * The template a save stores, or the answer refusing it: normalization
+   * with the saved address's inventory when it answers (else none),
+   * detection, finalization with the tab's choices, the allowlist and the
+   * live output nodes on the finalized template, the dry fill and the
+   * template's size.
    */
   async function template(
     c: Context<WorkflowsEnv>,
@@ -358,7 +358,7 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
       : detected;
 
     // Both checks judge the graph that runs: the finalized template, whole, so a node only a
-    // left-out output used is not refused (§ 16.3) and an output finalization keeps is. Without
+    // left-out output used is not refused and an output finalization keeps is. Without
     // a template, the normalized graph as the inspection judged it. The allowlist's refusals
     // first; the live output nodes only once it admits every class.
     const blocked = finalized.ok

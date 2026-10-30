@@ -20,8 +20,8 @@ import { ownerHeaders, requestJson, TEST_USER, testApp } from "./helpers.ts";
 import { TEST_WORKFLOWS } from "./test-workflows.ts";
 
 /*
- * The retention matrix row for imported workflows (docs/specs/workflow-import.md
- * § 13): the prompt place's literal text is replaced by `{{prompt}}`, and a
+ * The retention matrix row for imported workflows (docs/ARCHITECTURE.md
+ * § Retention matrix): the prompt place's literal text is replaced by `{{prompt}}`, and a
  * text node that supplies it is dropped, before anything is stored, so a
  * sentinel written there by the user reaches no database file, no log
  * line, no temp path and no response. An inspection

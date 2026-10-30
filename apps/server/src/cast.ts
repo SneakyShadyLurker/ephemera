@@ -118,7 +118,7 @@ export function createCastApi(deps: CastDeps) {
    * A keeper call's checks that need no model call, then the call to run:
    * the character there when named, a model with a known window and a
    * prompt that fits it. Canon goes in unless the chat acknowledged the
-   * stored sheet and that sheet is the card's current one (spec § 4.1).
+   * stored sheet and that sheet is the card's current one.
    */
   async function prepareUpdate(
     request: CastUpdateRequest,

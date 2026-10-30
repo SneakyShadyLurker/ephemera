@@ -13,8 +13,8 @@ import {
 } from "./ui-format.ts";
 
 /*
- * A saved (UI) ComfyUI workflow to the API graph its frontend would queue,
- * per spec § 9.3: bound the file, flatten subgraph instances into
+ * A saved (UI) ComfyUI workflow to the API graph its frontend would queue:
+ * bound the file, flatten subgraph instances into
  * `<instance>:<inner>` nodes, drop frontend-only, muted and bypassed nodes
  * (following links through them as the frontend does), name the widget
  * values from `/object_info`, resolve links and emit. Pure: the file and
@@ -25,7 +25,7 @@ import {
 
 export type WorkflowFormat = "api" | "ui";
 
-/** Which format a parsed file is in (§ 9.2), or undefined for neither. */
+/** Which format a parsed file is in, or undefined for neither. */
 export function detectFormat(source: unknown): WorkflowFormat | undefined {
   if (!isRecord(source)) return undefined;
   if (
@@ -60,7 +60,7 @@ export const CONVERT_REFUSALS = [
 ] as const satisfies readonly WorkflowRefusalCode[];
 export type ConvertRefusalCode = (typeof CONVERT_REFUSALS)[number];
 
-/** A node as the panel names it (§ 9.4); never inside the graph, never stored or logged. */
+/** A node as the panel names it; never inside the graph, never stored or logged. */
 export interface DisplayNode {
   id: string;
   title: string;
