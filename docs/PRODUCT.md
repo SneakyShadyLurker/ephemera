@@ -12,7 +12,9 @@ Its users reach it at a hostname behind a trusted authentication proxy
 (for example SWAG with Authelia). Every user the proxy's access rule admits
 gets a separate instance, created on their first visit: their own
 characters, personas, presets, lorebooks, events, memories, portraits, imported workflows and settings, which no other user can see,
-list or change. There are no local accounts, sign-up, user administration or
+list or change. A new library starts with one example character, Friday
+Abbams, an ordinary card the user can edit or delete; a server set to
+`EPHEMERA_STARTER_CHARACTER=off` starts libraries empty. There are no local accounts, sign-up, user administration or
 sharing: the proxy's identity is the only identity. When the sign-in
 expires, the open tab stays where it is: a notice offers Sign in in a new
 window, and once the user is back the tab carries on by itself, sending

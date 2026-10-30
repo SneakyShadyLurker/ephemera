@@ -15,6 +15,7 @@ import {
   verifyInstances,
 } from "./persistence/index.ts";
 import { MAX_REQUEST_BYTES } from "./routes.ts";
+import { loadStarterCharacter, type StarterCharacter } from "./starter.ts";
 
 const log = createLogger();
 
@@ -84,11 +85,21 @@ try {
   log.error({ event: "startup.verify", errorClass: errorClass(error) });
   process.exit(1);
 }
+let starterCharacter: StarterCharacter | undefined;
+if (config.starterCharacter) {
+  try {
+    starterCharacter = await loadStarterCharacter();
+  } catch (error) {
+    log.error({ event: "startup.starter", errorClass: errorClass(error) });
+    process.exit(1);
+  }
+}
 const instances = createInstanceRegistry({
   dataDir,
   key,
   log,
   defaultWorkflow: workflows.defaultWorkflow,
+  ...(starterCharacter && { starterCharacter }),
 });
 
 const stopping = new AbortController();

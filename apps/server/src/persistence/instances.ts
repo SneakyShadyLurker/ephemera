@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Username } from "../identity.ts";
 import { errorClass, type Logger } from "../log.ts";
+import type { StarterCharacter } from "../starter.ts";
 import { createStores } from "./create-stores.ts";
 import { MIGRATIONS } from "./db.ts";
 import {
@@ -36,6 +37,8 @@ export interface InstanceRegistryOptions {
   write?: (path: string, bytes: Uint8Array) => Promise<void>;
   /** The workflow a new user's settings start on: the workflow registry's default. */
   defaultWorkflow?: string;
+  /** Added to a new user's library once, when their database is created; none when unset. */
+  starterCharacter?: StarterCharacter;
 }
 
 const IDLE_MS = 10 * 60_000;
@@ -99,6 +102,11 @@ export function createInstanceRegistry(options: InstanceRegistryOptions): Instan
         files,
         options.defaultWorkflow === undefined ? {} : { defaultWorkflow: options.defaultWorkflow },
       );
+      // Only a database created here: a user who deleted the starter does not get it back.
+      const starter = options.starterCharacter;
+      if (snapshot === undefined && starter !== undefined) {
+        stores.characters.create(starter.card, starter.portrait);
+      }
     } catch (error) {
       database.close();
       throw error;

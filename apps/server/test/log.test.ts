@@ -146,6 +146,20 @@ describe("loadConfig", () => {
     }
   });
 
+  it("reads the starter character switch, on unless set off, naming only the variable", () => {
+    expect(loadConfig(valid).starterCharacter).toBe(true);
+    expect(loadConfig({ ...valid, EPHEMERA_STARTER_CHARACTER: "" }).starterCharacter).toBe(true);
+    expect(loadConfig({ ...valid, EPHEMERA_STARTER_CHARACTER: "on" }).starterCharacter).toBe(true);
+    expect(loadConfig({ ...valid, EPHEMERA_STARTER_CHARACTER: "off" }).starterCharacter).toBe(
+      false,
+    );
+    for (const value of ["true", "OFF", "0"]) {
+      expect(() => loadConfig({ ...valid, EPHEMERA_STARTER_CHARACTER: value })).toThrowError(
+        /^Invalid or missing environment variables: EPHEMERA_STARTER_CHARACTER$/,
+      );
+    }
+  });
+
   it("reads the data key as 32 bytes and ignores the retired owner variables", () => {
     const config = loadConfig({
       ...valid,

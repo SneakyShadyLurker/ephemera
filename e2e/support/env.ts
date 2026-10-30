@@ -84,6 +84,8 @@ export const serverEnv = (server: AppServer): Record<string, string> => ({
   EPHEMERA_PORT: String(server.port),
   EPHEMERA_STATIC_DIR: new URL("../../apps/web/dist", import.meta.url).pathname,
   EPHEMERA_DATA_DIR: server.data,
+  // Every test signs in as a new user; specs import the cards they need.
+  EPHEMERA_STARTER_CHARACTER: "off",
   /** A synthetic second workflow beside the bundled ones (e2e/support/workflows/). */
   EPHEMERA_WORKFLOWS_DIR: new URL("./workflows", import.meta.url).pathname,
   COMFYUI_ALLOWED_ORIGINS: `http://127.0.0.1:${COMFYUI_PORT}`,

@@ -81,6 +81,10 @@ cp .env.example .env   # set the upstream, the proxy key and the data key
 bun run dev            # http://localhost:5173
 ```
 
+Each new user's library starts with one example character, Friday Abbams, to
+chat with right away; delete her like any card, or set
+`EPHEMERA_STARTER_CHARACTER=off` to start new libraries empty.
+
 `bun run check` runs typecheck, lint, unit tests and the persistence audit;
 `bun run test:e2e` runs the Playwright flows and retention scans. The hardened
 container and its deploy checklist are in
