@@ -25,6 +25,8 @@ export {
 } from "./apply.ts";
 export {
   castIdentity,
+  discoveredCastAnchor,
+  discoveredCastEntry,
   effectiveCastAnchor,
   groundedCastChanges,
   type MemoryCastContext,
@@ -36,6 +38,7 @@ export { castKey } from "./key.ts";
 export { CAST_LIMITS } from "./limits.ts";
 export {
   castCanon,
+  castCardKind,
   KEEPER_OPENING,
   keeperInstructions,
   keeperMessage,
@@ -53,6 +56,7 @@ export {
   type CastContinuity,
   type CastCorrectionPatch,
   type CastDevelopments,
+  type CastDiscoveries,
   type CastEntry,
   type CastGender,
   type CastRegister,

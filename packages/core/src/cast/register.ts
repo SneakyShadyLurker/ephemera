@@ -70,6 +70,16 @@ const groundedValue = z.strictObject({
   value: field.min(1),
   evidence: z.string().trim().min(1).max(L.field),
 });
+const discoveryValue = groundedValue.extend({
+  basis: z.enum(["seen", "told", "demonstrated"]),
+});
+const discoveriesChange = z.strictObject(
+  Object.fromEntries(
+    Object.keys(castDevelopmentsSchema.shape).map((key) => [key, discoveryValue.exactOptional()]),
+  ) as Record<keyof CastDevelopments, ReturnType<typeof discoveryValue.exactOptional>>,
+);
+export type CastDiscoveries = z.infer<typeof discoveriesChange>;
+const introduction = z.strictObject({ evidence: z.string().trim().min(1).max(L.field) });
 const developmentsChange = z.strictObject(
   Object.fromEntries(
     Object.keys(castDevelopmentsSchema.shape).map((key) => [key, groundedValue.exactOptional()]),
@@ -104,6 +114,9 @@ export const castEntrySchema = z.strictObject({
   anchor: castAnchorSchema,
   developments: castDevelopmentsSchema.exactOptional(),
   continuity: castContinuitySchema.exactOptional(),
+  /** Player knowledge in this chat; canonical anchor fields stay complete. */
+  introduced: z.boolean().exactOptional(),
+  discovered: discoveriesChange.exactOptional(),
   /** Earlier names the chat used for this entry, for resolution. */
   aka: z.array(name).max(L.aka).default([]),
   state: castStateSchema,
@@ -157,6 +170,8 @@ const changeSchema = z.strictObject({
   state: castStateSchema.partial().exactOptional(),
   developments: developmentsChange.exactOptional(),
   continuity: continuityChange.exactOptional(),
+  introduce: introduction.exactOptional(),
+  discovered: discoveriesChange.exactOptional(),
 });
 export type CastChange = z.infer<typeof changeSchema>;
 
@@ -199,6 +214,22 @@ function clampChange(value: unknown): unknown {
     developments: (fields) => clampKeys(fields, groundedClamps(CAST_ANCHOR_FIELDS)),
     continuity: (fields) =>
       clampKeys(fields, groundedClamps(Object.keys(castContinuitySchema.shape))),
+    introduce: (item) => clampKeys(item, { evidence: (text) => clampText(text, L.field) }),
+    discovered: (fields) =>
+      clampKeys(
+        fields,
+        Object.fromEntries(
+          CAST_ANCHOR_FIELDS.map((key) => [
+            key,
+            (item: unknown) =>
+              clampKeys(item, {
+                value: (text) => clampText(text, L.field),
+                basis: keep,
+                evidence: (text) => clampText(text, L.field),
+              }),
+          ]),
+        ),
+      ),
   });
   if (isRecord(clamped) && clamped.was === "") delete clamped.was;
   return clamped;
@@ -248,6 +279,8 @@ export const castSheetEntrySchema = castEntrySchema.omit({
   state: true,
   developments: true,
   continuity: true,
+  introduced: true,
+  discovered: true,
 });
 export type CastSheetEntry = z.infer<typeof castSheetEntrySchema>;
 

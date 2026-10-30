@@ -45,7 +45,7 @@ const KEEPER_INSTRUCTIONS = `${KEEPER_OPENING} The model that tells the story re
 The register holds one entry per NPC, male and female, and never the player, whose name the message gives. An entry has a role, "principal" or "minor"; a gender, "female", "male" or "other"; an anchor, written once and fixed after; and a state that follows the scene. An entry's key is the NPC's full name as the story writes it.
 
 The anchor's keys, in this order:
-${anchorKeys("For a man, his cock and balls, only once a turn shows them; until then leave it empty.")}
+${anchorKeys("For a man, his cock and balls. Outside a Scenario's new-NPC canonical completion, only once a turn shows them; until then leave it empty.")}
 
 The state's keys:
 - "present": true while the NPC is in the scene, false once they left it.
@@ -53,23 +53,23 @@ The state's keys:
 - "disarray": the state of their clothes, only while not worn as normal: undone, open, pushed aside, pulled up or down, wet, torn or stained, garment by garment; then the pieces taken off and where they are now.
 - "position": where they are and their posture.
 - "activity": what they are doing.
-- "mood": how they feel.
-- "arousal": only while it shows.
-- "injuries": only while they have any.
-- "intoxication": only while drunk or high.
+- "mood": how they seem to feel from player-observable cues, never a private emotion.
+- "arousal": only while it outwardly shows or is communicated.
+- "injuries": only while seen or communicated.
+- "intoxication": only while perceptibly drunk or high.
 Each state value reads on its own as well and names what it describes, as in "grey hoodie over black jeans" or "leaning on the bar by the door"; never a bare "grey" or "sitting".
 
 Rules:
 - Answer only with changes. Every entry, key and field you leave out stays as it is.
-- An anchor field once set is fixed: never send it again, never paraphrase or correct it. Fill an empty one only, copying the words of canon or the turns exactly.
-- Extract a new NPC's anchor only from explicit canon or turn evidence. Leave unknown fields empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history. The narrator establishes new details when the story needs them.
-- Set no field that neither canon nor the turns show.
+- The canonical anchor is the NPC's complete truth, not what the player knows. An anchor field once set is fixed: never send it again, never paraphrase or correct it. Fill an empty one only.
+- Except for a new NPC in a Scenario, extract an anchor only from explicit canon or turn evidence, copying its words exactly. Leave unknown fields empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
+- For a new NPC in a Scenario, create one complete, coherent canonical anchor at introduction: preserve every established fact and invent what remains hidden, including anatomy, personality and preferences. This is the only permitted gap filling. Invented canon is not player discovery.
 - Name everyone who left the scene in "absent".
 - When a known NPC is named more fully, such as "Ilse" becoming "Ilse Brandt", key the change by the full name and give the earlier one in "was".
 - Never write an entry for the player, by any of their names.
 
 Return one JSON object with exactly these keys:
-- "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys) and "state" (the state's keys). {} when nothing changed.
+- "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys), "state" (the state's keys), "introduce" and "discovered". {} when nothing changed.
 - "absent": the names of the NPCs no longer in the scene at the end of the turns; [] when none.
 
 For example:
@@ -83,7 +83,16 @@ export const keeperInstructions = (): string => `${KEEPER_INSTRUCTIONS}
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
 - "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge.
-Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning. Never overwrite an owner's corrected field.`;
+Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning. Never overwrite an owner's corrected field.
+
+The Cast panel shows player knowledge, never hidden canon:
+- "introduce": {"evidence":"exact short quote"} when the player first encounters or learns of an NPC. Presence alone is not introduction; once introduced, omit this key.
+- "discovered": an object keyed only by the anchor's text fields. Each populated field is {"value":"what the player now knows", "basis":"seen", "told" or "demonstrated", "evidence":"exact short quote from these turns"}. Omit undiscovered and unchanged fields. A discovery may refine an earlier approximation.
+- Canon and durable developments never reveal themselves. Every introduction and discovery needs player-accessible evidence in the shown batch, not the card, private NPC thoughts or speculation.
+- "seen" is direct observation, "told" preserves what someone said as a claim when appropriate, and "demonstrated" is a trait or preference established by conduct.
+- Record visible looks only when seen. Exact measurements require explicit knowledge; otherwise use a visual approximation. Clothing permits only a vague silhouette in "build", never concealed "intimate" detail. Intimate anatomy requires actual exposure and observation; an exact cup size requires it to be stated or otherwise established.
+- Personality, experience, relationships, fetishes, taboos, goals and private knowledge enter only when learned through dialogue or demonstrated conduct. Mood and arousal must be perceptible or communicated. Once discovered, a field stays known while the NPC is away.
+- State is what the player can observe now: keep private thoughts, unseen actions and concealed injuries out of it as well.`;
 
 /**
  * The card's fields as the keeper's canon, names filled: description,
@@ -107,6 +116,11 @@ function registerJson(register: CastRegister): string {
     register.entries.map((entry) => {
       const { role, aka, state, continuity } = entry;
       const anchor = effectiveCastAnchor(entry);
+      const discovered = Object.fromEntries(
+        Object.entries(entry.discovered ?? {}).flatMap(([field, item]) =>
+          item === undefined ? [] : [[field, { value: item.value, basis: item.basis }]],
+        ),
+      );
       return {
         name: anchor.name,
         role,
@@ -115,6 +129,8 @@ function registerJson(register: CastRegister): string {
         anchor: setAnchorFields(anchor),
         state: filled(state),
         ...(continuity === undefined ? {} : { continuity: filled(continuity) }),
+        ...(entry.introduced === true ? { introduced: true } : {}),
+        ...(Object.keys(discovered).length === 0 ? {} : { discovered }),
       };
     }),
   );
@@ -132,6 +148,7 @@ export function keeperMessage({
   turns,
   mode,
   full,
+  kind = null,
 }: {
   canon: string | null;
   /** The character's and the player's names; the turns' speakers fall back to them. */
@@ -141,12 +158,15 @@ export function keeperMessage({
   mode: "seed" | "update";
   /** Whether the register holds `CAST_LIMITS.entries`. */
   full: boolean;
+  /** The card's creator kind, when it has one. */
+  kind?: string | null;
 }): string {
   const task =
     mode === "seed"
       ? "This is the opening. Set who is present and their state; add anyone it introduces."
       : "These are the newest turns. Answer with what changed.";
   return [
+    ...(kind === null ? [] : [`Kind: ${kind}`]),
     ...(canon === null ? [] : [tagged("canon", canon)]),
     tagged("player", `The player is ${names.user}: never an entry.`),
     tagged(
@@ -161,6 +181,11 @@ export function keeperMessage({
       ),
     ),
     task,
+    ...(kind === "Scenario"
+      ? [
+          "For this Scenario, a new NPC starts minor unless the introduction clearly establishes a continuing principal figure. Promote an NPC when later turns establish recurring importance, a developing relationship, independent goals or sustained narrative focus. Name, gender, age, physical detail and sexual relevance alone never decide role.",
+        ]
+      : []),
     ...(full ? ["The register is full: add no one; update and mark absent only."] : []),
   ].join("\n\n");
 }
@@ -195,7 +220,7 @@ Answer with the JSON object alone, with nothing before or after it and no code f
 export const sheetInstructions = (): string => SHEET_INSTRUCTIONS;
 
 /** The tag of the kind the card's tags name, or null when none does. */
-const cardKind = (tags: readonly string[]): string | null => {
+export const castCardKind = (tags: readonly string[]): string | null => {
   const kind = taggedCardKind(tags);
   return kind === null ? null : CREATOR_TAGS[kind];
 };
@@ -210,7 +235,7 @@ export function sheetMessage(
 ): string {
   const fields = canonFields({ card, names: { char: card.name, user: "{{user}}" } });
   return [
-    `Kind: ${cardKind(card.tags) ?? "none"}`,
+    `Kind: ${castCardKind(card.tags) ?? "none"}`,
     `Card: ${card.name}`,
     tagged("card", fields === "" ? "The card has no description." : fields),
     "Write the JSON object for the card above.",

@@ -10,6 +10,7 @@ import {
   type CastUpdateRequest,
   type CharacterCard,
   castCanon,
+  castCardKind,
   castChangesSchema,
   castFingerprintInput,
   castSheetAnswerSchema,
@@ -165,6 +166,7 @@ export function createCastApi(deps: CastDeps) {
       turns: request.turns,
       mode: request.mode,
       full: request.register.entries.length >= CAST_LIMITS.entries,
+      kind: castCardKind(card?.tags ?? []),
     });
     const room = roomFor(call, [instructions, message]);
     if (room === null) {

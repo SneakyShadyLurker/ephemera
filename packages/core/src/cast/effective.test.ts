@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyCastChanges, withKnownIdentities, withSheet } from "./apply.ts";
 import {
   castIdentity,
+  discoveredCastAnchor,
+  discoveredCastEntry,
   effectiveCastAnchor,
   memoryCastContext,
   memoryCastContextSchema,
@@ -230,5 +232,95 @@ describe("durable developments and compact continuity", () => {
     expect(keeperInstructions()).toContain("Leave unknown fields empty or omitted");
     expect(sheetInstructions()).toContain("Leave unknown anchor fields empty or omitted");
     expect(sheetInstructions()).not.toContain("fill a gap consistently");
+  });
+});
+
+describe("player discoveries", () => {
+  const shown = ["Mara arrives in a long coat. She says, ‘I am 31.’"];
+  const answer = castChangesSchema.parse({
+    cast: {
+      "Mara Holt": {
+        anchor: { age: "31", intimate: "canonical hidden anatomy", personality: "guarded" },
+        introduce: { evidence: "Mara arrives" },
+        discovered: {
+          age: { value: "early thirties", basis: "seen", evidence: "Mara arrives" },
+          build: { value: "curvy beneath her coat", basis: "seen", evidence: "long coat" },
+          personality: {
+            value: "guarded",
+            basis: "demonstrated",
+            evidence: "This was never shown.",
+          },
+        },
+      },
+    },
+  });
+
+  it("keeps full canon separate from grounded public knowledge", () => {
+    const result = firstEntry(
+      applyCastChanges({ entries: [] }, answer, {
+        player: null,
+        newId: () => person().id,
+        shown,
+      }),
+    );
+    expect(result.introduced).toBe(true);
+    expect(result.anchor).toMatchObject({ age: "31", intimate: "canonical hidden anatomy" });
+    expect(result.discovered?.personality).toBeUndefined();
+    expect(discoveredCastAnchor(result)).toMatchObject({
+      age: "early thirties",
+      build: "curvy beneath her coat",
+      intimate: "",
+      personality: "",
+    });
+    const publicEntry = discoveredCastEntry(result);
+    expect(publicEntry.developments).toBeUndefined();
+    expect(publicEntry.continuity).toBeUndefined();
+  });
+
+  it("retains and refines discoveries without reintroducing someone", () => {
+    const initial = applyCastChanges({ entries: [] }, answer, {
+      player: null,
+      newId: () => person().id,
+      shown,
+    });
+    const refined = castChangesSchema.parse({
+      cast: {
+        "Mara Holt": {
+          discovered: {
+            age: { value: "31", basis: "told", evidence: "I am 31" },
+            intimate: { value: "canonical hidden anatomy", basis: "seen", evidence: "not shown" },
+          },
+        },
+      },
+    });
+    const next = firstEntry(
+      applyCastChanges(initial, refined, {
+        player: null,
+        newId: () => "unused",
+        shown,
+      }),
+    );
+    expect(next.introduced).toBe(true);
+    expect(discoveredCastAnchor(next).age).toBe("31");
+    expect(discoveredCastAnchor(next).intimate).toBe("");
+    expect(discoveredCastAnchor(next).build).toBe("curvy beneath her coat");
+  });
+
+  it("drops an ungrounded introduction and all future knowledge on identity recovery", () => {
+    const ungrounded = applyCastChanges({ entries: [] }, answer, {
+      player: null,
+      newId: () => person().id,
+      shown: ["Another scene entirely."],
+    });
+    expect(ungrounded.entries[0]?.introduced).toBeUndefined();
+    expect(ungrounded.entries[0]?.discovered).toBeUndefined();
+    const introduced = applyCastChanges({ entries: [] }, answer, {
+      player: null,
+      newId: () => person().id,
+      shown,
+    });
+    const recovered = firstEntry(withKnownIdentities({ entries: [] }, introduced));
+    expect(recovered.introduced).toBeUndefined();
+    expect(recovered.discovered).toBeUndefined();
   });
 });

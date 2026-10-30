@@ -553,8 +553,11 @@ Version 1.0 holds everything below.
   switching branches or changing character or persona cancels work without
   automatically recomputing it. A context change with no active or queued work
   starts nothing and leaves any failure visible for Try again. It fills empty baseline fields
-  without rewriting set ones; developments are held separately. A person who
-  left the scene stays in the register as away. Each reply variant keeps its own
+  without rewriting set ones; developments are held separately. A newly introduced
+  Scenario NPC receives one complete hidden canonical profile, while only facts
+  grounded in what the player sees, is told or observes in conduct become public
+  discoveries. A minor NPC can become principal as the story establishes their
+  importance. A person who left the scene stays in the register as away. Each reply variant keeps its own
   snapshot: a swipe shows the cast as it stood after that variant, and
   editing or deleting history invalidates dependent snapshots, so catch-up
   starts from the last valid one. Deletion's Undo restores the snapshots.
@@ -588,12 +591,15 @@ Version 1.0 holds everything below.
   user and encrypted, never part of an export, and deleted with its
   character; the character sheet's Cast section lists its people by name
   and age, with Read the cast now, or Regenerate the cast.
-- The cast panel lists the women in the register: under the portrait, up
-  to five present, each with what she is doing and how she feels where
+- The cast panel lists introduced women, with only their discovered or
+  owner-corrected details visible; hidden canonical anatomy, personality and
+  preferences stay out until play reveals them, and later discoveries can refine
+  an approximation. Under the portrait, up
+  to five present, each with what she is doing and how she seems to feel where
   the column has room, then the rest and those away behind disclosures;
   across the phone's band, their names and ages over at most two lines,
   then how many more. Men and others are kept for the narrator but not listed,
-  and with no woman in the register the panel stays hidden. A name opens
+  and with no introduced woman the panel stays hidden. A name opens
   her record, beside the roster from tablet up and as a drawer on phones;
   the newest message's menu, and on phones a control in the header, open
   the whole roster. The record reads in sections under quiet headings,

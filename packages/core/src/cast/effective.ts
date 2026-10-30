@@ -24,10 +24,31 @@ export const effectiveCastAnchor = (
   return { ...anchor, ...correction };
 };
 
-/** Identity recovery must never borrow developments or continuity from a future scene. */
+/** The anchor as the player knows it, never a fallback to hidden canon. */
+export const discoveredCastAnchor = (
+  entry: Pick<CastEntry, "anchor" | "discovered">,
+  correction: Partial<CastAnchor> = {},
+): CastAnchor => {
+  const anchor = { ...entry.anchor };
+  for (const field of CAST_ANCHOR_FIELDS) anchor[field] = entry.discovered?.[field]?.value ?? "";
+  return { ...anchor, ...correction };
+};
+
+/** A panel entry: public discoveries and corrections, with canonical overrides left out. */
+export const discoveredCastEntry = (
+  entry: CastEntry,
+  correction: Partial<CastAnchor> = {},
+): CastEntry => {
+  const { developments: _developments, continuity: _continuity, ...rest } = entry;
+  return { ...rest, anchor: discoveredCastAnchor(entry, correction) };
+};
+
+/** Identity recovery must never borrow knowledge or developments from a future scene. */
 export const castIdentity = ({
   developments: _developments,
   continuity: _continuity,
+  introduced: _introduced,
+  discovered: _discovered,
   ...entry
 }: CastEntry): CastEntry => entry;
 
@@ -48,16 +69,25 @@ export function groundedCastChanges(changes: CastChanges, shown: readonly string
   return {
     ...changes,
     cast: Object.fromEntries(
-      Object.entries(changes.cast).map(([name, change]) => [
-        name,
-        {
-          ...change,
-          ...(change.developments === undefined
-            ? {}
-            : { developments: grounded(change.developments) }),
-          ...(change.continuity === undefined ? {} : { continuity: grounded(change.continuity) }),
-        },
-      ]),
+      Object.entries(changes.cast).map(([name, change]) => {
+        const { introduce: candidate, ...rest } = change;
+        const introduce =
+          candidate !== undefined && shown.some((text) => text.includes(candidate.evidence))
+            ? { introduce: candidate }
+            : {};
+        return [
+          name,
+          {
+            ...rest,
+            ...introduce,
+            ...(change.developments === undefined
+              ? {}
+              : { developments: grounded(change.developments) }),
+            ...(change.continuity === undefined ? {} : { continuity: grounded(change.continuity) }),
+            ...(change.discovered === undefined ? {} : { discovered: grounded(change.discovered) }),
+          },
+        ];
+      }),
     ),
   };
 }

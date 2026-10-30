@@ -194,6 +194,11 @@ describe("cast keeper", () => {
     const extended = {
       cast: {
         Maren: {
+          introduce: { evidence: "Maren cut her hair" },
+          discovered: {
+            hair: { value: "short hair", basis: "seen", evidence: "cut her hair" },
+            age: { value: "31", basis: "told", evidence: "turned 31" },
+          },
           developments: {
             hair: { value: "short hair", evidence: "cut her hair" },
             age: { value: "31", evidence: "turned 31" },
@@ -223,10 +228,24 @@ describe("cast keeper", () => {
     const change = result.changes.cast.Maren;
     expect(change?.developments).toEqual({ hair: extended.cast.Maren.developments.hair });
     expect(change?.continuity).toEqual(extended.cast.Maren.continuity);
+    expect(change?.introduce).toEqual(extended.cast.Maren.introduce);
+    expect(change?.discovered).toEqual({ hair: extended.cast.Maren.discovered.hair });
     const { system, user } = sent(upstream, 0);
     expect(system).toContain('"developments"');
     expect(user).toContain("Maren cut her hair. Captain, come home.");
     expect(user).not.toContain("stale transformed content");
+  });
+
+  it("tells the keeper when the card is a Scenario", async () => {
+    const { app, stores, upstream } = setup();
+    const characterId = stores.characters.create({ ...card, tags: ["Scenario"] });
+    const response = await postUpdate(app, update(characterId));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toHaveProperty("changes");
+    const { system, user } = sent(upstream, 0);
+    expect(user).toContain("Kind: Scenario");
+    expect(system).toContain("For a new NPC in a Scenario");
+    expect(system).toContain("Invented canon is not player discovery");
   });
 
   it("answers the changes and the usage, unknown figures left out, logging no content", async () => {

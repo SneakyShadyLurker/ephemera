@@ -188,12 +188,19 @@ function changed(
     const update = change.continuity?.[field];
     if (update !== undefined) continuity[field] = update.value;
   }
+  const discovered = { ...entry.discovered };
+  for (const field of CAST_ANCHOR_FIELDS) {
+    const update = change.discovered?.[field];
+    if (update !== undefined) discovered[field] = update;
+  }
   return {
     ...entry,
     role: change.role ?? entry.role,
     anchor,
     ...(Object.keys(developments).length === 0 ? {} : { developments }),
     ...(Object.keys(continuity).length === 0 ? {} : { continuity }),
+    ...(entry.introduced === true || change.introduce !== undefined ? { introduced: true } : {}),
+    ...(Object.keys(discovered).length === 0 ? {} : { discovered }),
     state: {
       ...entry.state,
       ...definedState(change.state),

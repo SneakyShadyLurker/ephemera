@@ -1,4 +1,5 @@
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
+import { formatCount } from "../apps/web/src/lib/text.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
@@ -301,7 +302,9 @@ test("the narrator is sent the whole cast, and the inspector shows its block, it
   await expect(rows.nth(0).getByRole("cell").nth(2)).toContainText(
     `${MOCK_REASONING_TOKENS} reasoning`,
   );
-  await expect(rows.nth(1).getByRole("cell").nth(2)).toHaveText(`${keeper[0]?.usage.outputTokens}`);
+  await expect(rows.nth(1).getByRole("cell").nth(2)).toHaveText(
+    formatCount(keeper[0]?.usage.outputTokens ?? 0),
+  );
   await usage.getByRole("button", { name: /^This session/ }).click();
   const sessionTable = usage.getByRole("table", { name: "This session usage", exact: true });
   await expect(sessionTable.getByRole("row", { name: /Narration/ })).toContainText("(2)");

@@ -1,5 +1,10 @@
 import type { CastAnchorField, CastEntry, CastRegister, CastStateField } from "@ephemera/core";
-import { CAST_ANCHOR_FIELDS, CAST_STATE_FIELDS, effectiveCastAnchor } from "@ephemera/core";
+import {
+  CAST_ANCHOR_FIELDS,
+  CAST_STATE_FIELDS,
+  discoveredCastEntry,
+  effectiveCastAnchor,
+} from "@ephemera/core";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { baseBefore, type ChatCast, currentRegister } from "./cast-slice.ts";
@@ -40,6 +45,24 @@ export interface CastChange {
 
 const changes = new WeakMap<ChatState["messages"], WeakMap<ChatCast, CastChange | null>>();
 
+const publicEntry = (state: ChatState, entry: CastEntry): CastEntry =>
+  discoveredCastEntry(entry, state.cast.corrections[entry.id]?.anchor);
+
+/** The in-chat panel's register: introduced people and discovered fields only. */
+const discovered = new WeakMap<CastRegister, CastRegister>();
+export function discoveredRegister(state: ChatState): CastRegister {
+  const current = currentRegister(state);
+  const known = discovered.get(current);
+  if (known !== undefined) return known;
+  const register = {
+    entries: current.entries.flatMap((entry) =>
+      entry.introduced === true ? [publicEntry(state, entry)] : [],
+    ),
+  };
+  discovered.set(current, register);
+  return register;
+}
+
 function findChange(state: ChatState): CastChange | null {
   for (let at = state.messages.length - 1; at >= 0; at--) {
     const message = state.messages[at];
@@ -47,9 +70,13 @@ function findChange(state: ChatState): CastChange | null {
     const reply = shownReply(message);
     const snapshot = state.cast.snapshots[reply.id];
     if (snapshot === undefined) continue;
-    const before = new Map(baseBefore(state, at).entries.map((entry) => [entry.id, entry]));
+    const before = new Map(
+      baseBefore(state, at).entries.map((entry) => [entry.id, publicEntry(state, entry)]),
+    );
     const fields = new Map<string, ReadonlySet<CastTextField>>();
-    for (const entry of snapshot.register.entries) {
+    for (const canonical of snapshot.register.entries) {
+      if (canonical.introduced !== true) continue;
+      const entry = publicEntry(state, canonical);
       const old = before.get(entry.id);
       if (old === undefined) continue;
       const changed = CAST_TEXT_FIELDS.filter(
@@ -151,9 +178,9 @@ export function toggleCast(entryId: string, anchor: HTMLElement): void {
   else openCast(entryId, anchor, "inline-end");
 }
 
-/** The entries the panel lists: women only (the owner's choice); the register keeps everyone. */
+/** The entries the panel lists: introduced women; the canonical register keeps everyone. */
 export const listedEntries = (register: CastRegister): CastEntry[] =>
-  register.entries.filter((entry) => entry.anchor.gender === "female");
+  register.entries.filter((entry) => entry.introduced === true && entry.anchor.gender === "female");
 
 /**
  * Remove from cast: the entry leaves the cast for this chat, the surface
@@ -161,7 +188,7 @@ export const listedEntries = (register: CastRegister): CastEntry[] =>
  */
 export function removeFromCast(entry: CastEntry): void {
   const state = chatStore.getState();
-  const group = listedEntries(currentRegister(state)).filter(
+  const group = listedEntries(discoveredRegister(state)).filter(
     (other) => other.state.present === entry.state.present,
   );
   store.setState((now) => ({
@@ -197,15 +224,15 @@ export function useCastRemoval(): CastRemoval | null {
 
 /** The sheet could not be read and nobody is in the register: the panel says so, with Try again. */
 export const sheetUnread = (state: ChatState): boolean =>
-  state.cast.sheetStatus === "failed" && currentRegister(state).entries.length === 0;
+  state.cast.sheetStatus === "failed" && discoveredRegister(state).entries.length === 0;
 
 /**
- * The panel shows with at least one woman in the register, present or away,
+ * The panel shows with at least one introduced woman, present or away,
  * and, with nobody in it yet, while the first sheet is read or when it could
  * not be.
  */
 const castVisible = (state: ChatState): boolean => {
-  const register = currentRegister(state);
+  const register = discoveredRegister(state);
   return (
     listedEntries(register).length > 0 ||
     (state.cast.sheetStatus === "loading" && register.entries.length === 0) ||

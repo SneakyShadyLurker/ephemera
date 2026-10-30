@@ -35,6 +35,7 @@ import {
   type CastTextField,
   castFieldText,
   closeCast,
+  discoveredRegister,
   latestChange,
   listedEntries,
   openCast,
@@ -55,8 +56,9 @@ import type { ChatState } from "./store.ts";
  * The cast panel: a compact roster under
  * the portrait, or across the phone's band, and each entry's record on a
  * surface of its own (a popover from tablet up, a drawer on phones), read
- * in labelled sections and corrected in an edit mode. Women only, as the owner chose;
- * the register keeps everyone for the narrator. Everything shown is chat
+ * in labelled sections and corrected in an edit mode. Introduced women only, as
+ * the owner chose, with discovered fields rather than hidden canon; the register
+ * keeps everyone and their complete profiles for the narrator. Everything shown is chat
  * content read from the store; nothing here keeps a copy past its surface.
  */
 
@@ -379,7 +381,7 @@ const isRemoval = (item: CastEntry | CastRemoval): item is CastRemoval => "name"
  */
 export function CastPanel({ placement }: { placement: "float" | "band" }) {
   const visible = useCastVisible();
-  const register = useChat(currentRegister);
+  const register = useChat(discoveredRegister);
   const busy = useChat(busyOf);
   const openId = useCastSurface((state) => (state.open ? state.entryId : null));
   const change = useChat(latestChange);
@@ -722,7 +724,7 @@ function RosterView({
   heading: RefObject<HTMLHeadingElement | null>;
   drawer: boolean;
 }) {
-  const register = useChat(currentRegister);
+  const register = useChat(discoveredRegister);
   const { present, away } = split(listedEntries(register));
   const row = (entry: CastEntry) => {
     const age = ageOf(entry);
@@ -787,7 +789,7 @@ function RecordView({
   heading: RefObject<HTMLHeadingElement | null>;
   drawer: boolean;
 }) {
-  const entry = useChat((state) => currentRegister(state).entries.find((e) => e.id === entryId));
+  const entry = useChat((state) => discoveredRegister(state).entries.find((e) => e.id === entryId));
   const fromRoster = useCastSurface((state) => state.fromRoster);
   const [editing, setEditing] = useState(false);
   const edit = useRef<HTMLButtonElement>(null);

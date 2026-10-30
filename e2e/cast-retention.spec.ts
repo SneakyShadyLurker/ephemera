@@ -123,8 +123,9 @@ matrixRow("casterr", async (row) => {
 
 matrixRow("castclear", async (row) => {
   const { page } = row;
-  // Read the sheet first, then hold the keeper's answer until the caller leaves.
+  // Read and introduce the sheet first, then hold the keeper's answer until the caller leaves.
   await castRow(row, "castclear");
+  await exchange(page, `Introduce the sheet ${crypto.randomUUID()}`);
   await expect(castPanel(page)).toContainText(SHEET_WOMAN);
   await chooseCastModel(page, "mock-slow");
   const line = canary("castclear");
@@ -265,10 +266,11 @@ matrixRow(
     await patchSettings(request, { castModel: "mock-cast" });
     await openChat(page, "mock-fast");
     await chooseCharacter(page, name);
-    await castPanel(page).locator("summary").filter({ hasText: SHEET_WOMAN }).click();
-    await expect(castEntry(page, SHEET_WOMAN)).toHaveAttribute("data-present", "false");
+    // Canon stays private until the keeper grounds her introduction in play.
+    await expect(castPanel(page)).toHaveCount(0);
     const line = canary("castsheet");
     await exchange(page, line);
+    await expect(castEntry(page, SHEET_WOMAN)).toHaveAttribute("data-present", "false");
     await expect(castEntry(page, UNMARKED)).toBeVisible();
     await expect.poll(async () => (await upstreamRecords(line, "cast")).length).toBe(1);
     expect(castBlock(await chatRecord(line))).toContain(SHEET_WOMAN);

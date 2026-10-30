@@ -864,9 +864,14 @@ keeper request and answer are chat content.
    optional durable `developments`, short `continuity` cues (`voice`, `goals`,
    `knowledge`) and a volatile state (`present` and the scene's fields). The
    baseline anchor stays fixed. `effectiveCastAnchor` overlays developments,
-   then owner corrections, including explicit clearing. Identity recovery
-   strips developments and continuity so future-scene facts cannot leak back.
-   A register holds at most `CAST_LIMITS.entries`, 40, in introduction order. Names
+   then owner corrections, including explicit clearing. Chat entries also carry
+   `introduced` and per-field `discovered` values (`seen`, `told` or
+   `demonstrated`, with evidence): the complete canonical profile stays intact,
+   while the in-chat panel reads a projection containing only introduced people
+   and discovered or owner-corrected fields. The narrator, scene and memory keep
+   canonical context. Identity recovery strips discoveries, developments and
+   continuity so future-scene facts and knowledge cannot leak back. A register
+   holds at most `CAST_LIMITS.entries`, 40, in introduction order. Names
    match by `castKey` (compatibility-decomposed, marks stripped, lower
    case, whitespace collapsed), never as ids.
 2. **The chain.** The slice keeps a snapshot per reply id, greetings and
@@ -953,17 +958,23 @@ keeper request and answer are chat content.
    card's, sends canon. The answer is changes only (`castChangesSchema`: by
    full name, fields to set, a `was` for a fuller name; `absent` names),
    clamped to the limits (`clampCastChanges`) before it is validated. Its
-   cache key is the instance's `cast:<characterId>`. Development and continuity
-   fields each require a nonempty value and a literal short quote found in a
-   shown turn (`groundedCastChanges`). This grounds the update, not its semantic
-   correctness. Keeper and sheet instructions forbid inventing gaps in
-   anatomy, history or psychology.
+   cache key is the instance's `cast:<characterId>`. Development, continuity,
+   introduction and discovery fields each require a nonempty value and a literal
+   short quote found in a shown turn (`groundedCastChanges`). This grounds the
+   update, not its semantic correctness. Discovery values may be less exact than
+   canon and refine as the player learns more; canon alone never reveals them.
+   Keeper and sheet instructions forbid inventing gaps except for a newly
+   introduced Scenario NPC, whose complete hidden canonical profile is created
+   once while its public discoveries remain evidence-led. The keeper receives
+   the card kind and can promote a minor Scenario NPC as their narrative role
+   emerges.
 5. **Applying changes.** `applyCastChanges` resolves each change by name
    or `aka`, then by `was`, then by a single first-name match, else adds
    an entry while there is room. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
-   continuity without overriding owner corrections, writes the state as given
-   and marks every entry named present unless the change says otherwise, and marks the
+   continuity without overriding owner corrections, merges grounded discoveries
+   monotonically within the branch, writes the state as given and marks every
+   entry named present unless the change says otherwise, and marks the
    `absent` names away. A change that resolves to a removed entry leaves
    it as it was, so the keeper cannot add it back.
 6. **The cast sheet.** A character's sheet is character data derived from

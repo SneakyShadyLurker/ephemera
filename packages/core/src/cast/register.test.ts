@@ -5,6 +5,7 @@ import {
   castAnchorSchema,
   castChangesSchema,
   castSheetAnswerSchema,
+  castSheetEntrySchema,
   castStateSchema,
   clampCastChanges,
   clampCastCorrection,
@@ -69,6 +70,37 @@ describe("clamping the keeper's answer", () => {
     expect(Object.keys(parsed.cast)).toHaveLength(CAST_LIMITS.entries);
     expect(parsed.cast["Person 0"]).toEqual({});
     expect(parsed.absent).toEqual([]);
+  });
+
+  it("clamps introductions and discoveries without letting them into stored sheets", () => {
+    const long = "x".repeat(400);
+    const parsed = castChangesSchema.parse(
+      clampCastChanges({
+        cast: {
+          Mara: {
+            introduce: { evidence: long, unknown: true },
+            discovered: {
+              age: { value: long, basis: "told", evidence: long, unknown: true },
+            },
+          },
+        },
+      }),
+    );
+    expect(parsed.cast.Mara?.introduce?.evidence).toHaveLength(CAST_LIMITS.field);
+    expect(parsed.cast.Mara?.discovered?.age).toMatchObject({ basis: "told" });
+    expect(parsed.cast.Mara?.discovered?.age?.value).toHaveLength(CAST_LIMITS.field);
+    expect(parsed.cast.Mara?.discovered?.age?.evidence).toHaveLength(CAST_LIMITS.field);
+    const [sheet] = sheetEntriesFromAnswer(
+      castSheetAnswerSchema.parse({ cast: [{ name: "Mara", gender: "female", anchor: {} }] }),
+      () => uuid(1),
+    );
+    expect(castSheetEntrySchema.safeParse({ ...sheet, introduced: true }).success).toBe(false);
+    expect(
+      castSheetEntrySchema.safeParse({
+        ...sheet,
+        discovered: parsed.cast.Mara?.discovered,
+      }).success,
+    ).toBe(false);
   });
 });
 

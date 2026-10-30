@@ -71,6 +71,39 @@ describe("the keeper prompt", () => {
     ).toContain("This is the opening.");
   });
 
+  it("keeps canonical truth and gradual player discovery distinct, and names a Scenario", () => {
+    const existing = register.entries[0];
+    if (existing === undefined) throw new Error("Expected the fixture's entry");
+    const discovered = {
+      ...register,
+      entries: [
+        {
+          ...existing,
+          introduced: true,
+          discovered: {
+            age: { value: "late teens", basis: "seen" as const, evidence: "Mara waits" },
+          },
+        },
+      ],
+    };
+    const text = keeperMessage({
+      canon: null,
+      names,
+      register: discovered,
+      turns,
+      mode: "update",
+      full: false,
+      kind: "Scenario",
+    });
+    expect(text).toContain("Kind: Scenario");
+    expect(text).toContain('"introduced":true');
+    expect(text).toContain('"discovered":{"age":{"value":"late teens","basis":"seen"}}');
+    expect(text).not.toContain("test discovery");
+    expect(text).toContain("a new NPC starts minor");
+    expect(keeperInstructions()).toContain("Invented canon is not player discovery");
+    expect(keeperInstructions()).toContain("Intimate anatomy requires actual exposure");
+  });
+
   it("builds canon from the card's fields with the names filled, null when blank", () => {
     const card = { ...blankCard("Mara"), description: "{{char}} meets {{user}}." };
     expect(castCanon(card, names)).toBe("Description:\nMara meets Ash.");

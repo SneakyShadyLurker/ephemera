@@ -14,7 +14,13 @@ import { charactersQuery } from "../characters/queries.ts";
 import { settingsQuery } from "../settings/settings.ts";
 import { CastPanel, EditRecord, RecordText } from "./Cast.tsx";
 import { type ChatCast, EMPTY_CAST } from "./cast-slice.ts";
-import { openCast, removeFromCast, undoCastRemoval, useCastSurface } from "./cast-ui.ts";
+import {
+  discoveredRegister,
+  openCast,
+  removeFromCast,
+  undoCastRemoval,
+  useCastSurface,
+} from "./cast-ui.ts";
 import { Presence } from "./Presence.tsx";
 import { chatStore } from "./session.ts";
 import type { ChatMessage } from "./store.ts";
@@ -73,6 +79,9 @@ function person(
     id: uuid(n),
     role: "principal",
     anchor: { ...emptyCastAnchor(name, gender), age },
+    introduced: true,
+    discovered:
+      age === "" ? {} : { age: { value: age, basis: "seen", evidence: "test discovery" } },
     aka: [],
     state: { ...emptyCastState(present), ...state },
   };
@@ -112,7 +121,14 @@ beforeEach(() => {
 
 describe("the roster", () => {
   it("shows effective ages and fields in roster, record and edit controls", () => {
-    const mara = { ...person(1, "Mara"), developments: { age: "31", hair: "short silver hair" } };
+    const mara = {
+      ...person(1, "Mara"),
+      developments: { age: "31", hair: "short silver hair" },
+      discovered: {
+        age: { value: "31", basis: "told" as const, evidence: "test discovery" },
+        hair: { value: "short silver hair", basis: "seen" as const, evidence: "test discovery" },
+      },
+    };
     mara.anchor.hair = "long black hair";
     chat([mara]);
     expect(panel()).toContain("(31)</span>");
@@ -122,6 +138,46 @@ describe("the roster", () => {
     expect(edit).toContain("short silver hair");
     expect(record + edit).not.toContain("long black hair");
   });
+  it("keeps unintroduced people and canonical secrets out of the public register", () => {
+    const hidden = person(1, "Hidden", { age: "24" });
+    delete hidden.introduced;
+    delete hidden.discovered;
+    hidden.anchor.intimate = "canonical secret";
+    chat([hidden]);
+    expect(panel()).toBe("");
+    expect(discoveredRegister(chatStore.getState()).entries).toEqual([]);
+
+    const gradual = person(2, "Mara", { age: "24" });
+    gradual.anchor.age = "24";
+    gradual.anchor.personality = "secretly guarded";
+    gradual.anchor.intimate = "canonical secret";
+    gradual.discovered = {
+      age: { value: "early twenties", basis: "seen", evidence: "test discovery" },
+    };
+    chat([gradual]);
+    const [publicEntry] = discoveredRegister(chatStore.getState()).entries;
+    expect(publicEntry?.anchor).toMatchObject({
+      name: "Mara",
+      age: "early twenties",
+      personality: "",
+      intimate: "",
+    });
+    expect(panel()).not.toContain("canonical secret");
+  });
+
+  it("lets owner corrections reveal or clear public fields without exposing canon", () => {
+    const mara = person(1, "Mara");
+    mara.anchor.personality = "canonical secret";
+    mara.discovered = {};
+    chat([mara], {
+      corrections: { [mara.id]: { anchor: { personality: "owner established" }, state: {} } },
+    });
+    expect(discoveredRegister(chatStore.getState()).entries[0]?.anchor).toMatchObject({
+      personality: "owner established",
+      intimate: "",
+    });
+  });
+
   it("lists women only, each with the age's first token and a clamped state line of mood and activity", () => {
     chat([
       person(1, "Mara Battin", {
