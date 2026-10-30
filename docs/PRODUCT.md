@@ -716,8 +716,9 @@ Version 1.0 holds everything below.
   the latest turns place in the scene, or the one person of a Scenario
   card they focus on, who looks as the chat has described them. A Subject or Group card's stored portrait goes to a
   prompt model that reads images, and on Atelier's private worker (an
-  optional hardened ComfyUI backend Ephemera supports) its top
-  third goes to the workflow's reference graph as the face to keep; a
+  optional hardened ComfyUI backend Ephemera supports), when the chosen
+  server workflow has a reference graph the worker can run, its top
+  third goes to that graph as the face to keep; a
   Scenario card sends text only. One picture per press, laid into the
   story after the newest message, large and view only, with the stage
   while it paints, Stop, and Paint it again or Hide after a failure or a

@@ -159,8 +159,9 @@ and only as long as it is needed.
   allowlist of in-memory classes stops the start, a user's workflow using one
   is refused when saved and never runs, and every save or preview node
   other than the in-memory `SaveImageWebsocket` is refused whatever the
-  operator adds to the allowlist (an imported file's one image saver, else
-  its one preview, becomes `SaveImageWebsocket` first). Private mode requires
+  operator adds to the allowlist (an imported file's one image saver, else its
+  one preview, or with several the chosen output, becomes
+  `SaveImageWebsocket` first). Private mode requires
   job status, memory image outputs, preview control, lease renewal and admission, plus the worker's build,
   allowlist and limits metadata. Missing capabilities fail closed;
   only a missing private handshake selects native mode. Ephemera opts out of

@@ -329,8 +329,9 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
    * The template a save stores, or the answer refusing it: normalization
    * with the saved address's inventory when it answers (else none),
    * detection, finalization with the tab's choices, the allowlist and the
-   * live output nodes on the finalized template, the dry fill and the
-   * template's size.
+   * live output nodes on the finalized template (on the normalized graph
+   * when finalization refuses, answered before that refusal), the dry fill
+   * and the template's size.
    */
   async function template(
     c: Context<WorkflowsEnv>,
