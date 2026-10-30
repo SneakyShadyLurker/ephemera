@@ -1384,6 +1384,29 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
+ * A tab's panel arrives from the side its tab was chosen from, 4px up or down
+ * on the spring with a fade; the panel it replaces hides at once, with no
+ * out-phase. Reduced motion zeroes the rise, leaving the fade.
+ */
+@utility panel-arrive {
+  transition:
+    opacity var(--duration-quick) var(--ease-fade),
+    translate var(--duration-arrive) var(--ease-spring);
+  &[data-starting-style] {
+    opacity: 0;
+  }
+  &[data-starting-style][data-activation-direction="down"] {
+    translate: 0 var(--rise);
+  }
+  &[data-starting-style][data-activation-direction="up"] {
+    translate: 0 calc(var(--rise) * -1);
+  }
+  &[data-ending-style] {
+    display: none;
+  }
+}
+
+/*
  * A bar that rises from under the scroller on the spring and fades in, and
  * leaves the same way, quicker (the AI Rework dock). Reduced motion zeroes
  * the shift, leaving the fade.

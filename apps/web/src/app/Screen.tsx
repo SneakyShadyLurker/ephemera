@@ -40,8 +40,14 @@ export const BROWSE_FRAME = "mx-auto w-full max-w-browse px-4 tablet:px-[clamp(1
  */
 export const BROWSE_GRID =
   "grid grid-cols-2 gap-x-3.5 gap-y-6 tablet:grid-cols-[repeat(auto-fill,minmax(clamp(10.25rem,12cqi,13rem),1fr))] tablet:gap-x-6 tablet:gap-y-8";
-/** One quiet page column: settings, an empty gallery. */
+/** One quiet page column: an empty gallery. */
 export const PAGE_FRAME = "mx-auto w-full max-w-page px-5 tablet:px-6";
+/**
+ * Settings: its index, the index's gap and a measure-wide panel, centred as
+ * one block (the character sheet's indexed frame, with the panel at the measure).
+ */
+export const SETTINGS_FRAME =
+  "mx-auto w-full max-w-[calc(var(--container-index)+var(--gap-index)+var(--container-measure))] px-5 tablet:px-6";
 
 /**
  * A screen's 56px header row. On phones it starts with the navigation button,

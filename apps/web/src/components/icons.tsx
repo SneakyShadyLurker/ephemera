@@ -161,6 +161,15 @@ export const CautionIcon = icon(
   </>,
 );
 
+/** More about a setting: a ring with a dot over a stem, the infotip's trigger. */
+export const InfoIcon = icon(
+  "Info",
+  <>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 8.25h.01M12 11.25v5" />
+  </>,
+);
+
 /** Down to the newest line of the story. */
 /** Down to the newest line, above the waterline. */
 export const LatestIcon = icon("Latest", <path d="M6.5 9.5 12 15l5.5-5.5M5 19.5h14" />);

@@ -1281,7 +1281,7 @@ content's path: the tab's memory and one request in the server.
   `workflows.update`, `workflows.replace`, `workflows.delete` and
   `workflows.inspect` (with the file's format) with the status, duration,
   node count, `checked` and the refusal class; never a name, file name,
-  node title or class, model file or text. Settings > Portraits lists the
+  node title or class, model file or text. Settings > Pictures lists the
   workflows and hosts the import panel (`apps/web/src/workflows/`), which
   holds the file, the inspection and the choices in component state and
   sends graphs through plain request functions, so no query cache holds

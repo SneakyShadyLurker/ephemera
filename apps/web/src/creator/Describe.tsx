@@ -1,6 +1,5 @@
 import { CREATOR_LIMITS, type CreatorKind } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef } from "react";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -10,8 +9,9 @@ import { isComposing } from "@/lib/keys.ts";
 import { modelsQuery, useModelOptions } from "../api.ts";
 import { useChatPersona } from "../chat/character.ts";
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
-import { portraitStatusLabel, portraitStatusLine } from "../settings/portraits.ts";
+import { portraitStatusLabel, portraitStatusLine } from "../settings/pictures.ts";
 import { useSetting, useSettings } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { StatusDot } from "../workflows/WorkflowRow.tsx";
 import { COLUMN, KINDS } from "./Choose.tsx";
@@ -256,12 +256,13 @@ function PortraitAvailability() {
               Missing: {[...line.missing.nodes, ...line.missing.models].join(", ")}
             </p>
           )}
-          <Link
-            to="/settings"
+          <WindowLink
+            model={null}
+            section="pictures"
             className={cn(buttonVariants({ variant: "outline" }), "h-8 w-fit text-note touch:h-11")}
           >
-            Portrait settings
-          </Link>
+            Picture settings
+          </WindowLink>
         </div>
       </PopoverContent>
     </Popover>

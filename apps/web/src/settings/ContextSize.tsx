@@ -13,13 +13,12 @@ import { formatCount } from "@/lib/text";
 import { modelsQuery } from "../api.ts";
 import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useNumberDraft } from "./number-draft.ts";
+import { HINT as HELP, ROW_SELECT, SettingRow } from "./SettingRow.tsx";
 import { useSettings, useUpdateSettings } from "./settings.ts";
 
-const HELP = "text-pretty text-note text-reed";
-
 /**
- * How much of each model's window a prompt may use, the window itself for a
- * model the provider reports none for, and how history is trimmed to fit
+ * The Context group's rows: how much of each model's window a prompt may
+ * use, and the window itself for a model the provider reports none for
  * (PRODUCT.md § Models). The window in use comes from `effectiveWindow` alone.
  * Listed: the reply model, models with a stored window or limit, models added
  * here, and `windowFor`, a model a link asked to set a window for, which is
@@ -36,7 +35,6 @@ export function ContextSize({
   const settings = useSettings();
   const { contextLimits, contextWindows, model } = settings;
   const updateSettings = useUpdateSettings();
-  const addLabel = useId();
   // Rows added here stay listed while the screen is open, even at the default.
   const [added, setAdded] = useState<string[]>([]);
   // The model a link asked for, and each ask counted, so asking again focuses again.
@@ -71,55 +69,46 @@ export function ContextSize({
     });
   };
 
+  // Rows of the Context group: the list, then adding a model as its last row.
   return (
-    <div className="grid gap-6">
-      <div className="grid gap-3">
-        <p className={HELP}>
-          How much of each model's context window a prompt may use,{" "}
-          {formatCount(DEFAULT_CONTEXT_LIMIT)} tokens unless set here. A model the provider reports
-          no window for needs one set before replies can be sent.
+    <>
+      {models.isError && catalog === undefined && (
+        <p className="py-3.5 text-ember text-note">
+          The model list didn't load. Reported windows are unknown until it does.
         </p>
-        {models.isError && catalog === undefined && (
-          <p className="text-ember text-note">
-            The model list didn't load. Reported windows are unknown until it does.
-          </p>
-        )}
-        {ids.length > 0 && (
-          <ul className="grid border-rush border-t">
-            {ids.map((id) => (
-              <ModelRow
-                key={id}
-                id={id}
-                reported={reported.get(id) ?? null}
-                fallback={
-                  (Object.hasOwn(contextWindows, id) ? contextWindows[id] : undefined) ?? null
-                }
-                stored={(Object.hasOwn(contextLimits, id) ? contextLimits[id] : undefined) ?? null}
-                window={effectiveWindow(id, catalog, settings)}
-                onWindow={(value) => saveWindow(id, value)}
-                onLimit={(value) => saveLimit(id, value)}
-                focus={id === asked.id ? asked.count : 0}
-                onFocused={onWindowShown}
-              />
-            ))}
-          </ul>
-        )}
-        <div className="grid gap-1.5">
-          <span id={addLabel} className="font-medium text-ink text-ui">
-            Add a model
-          </span>
-          <ModelSelect
-            label="Add a model's context limit"
-            options={offered}
-            value={null}
-            onChange={(id) => {
-              if (!ids.includes(id)) setAdded([...added, id]);
-            }}
-            className="max-w-sm tablet:w-full"
-          />
-        </div>
-      </div>
-    </div>
+      )}
+      {ids.length > 0 && (
+        <ul className="grid divide-y divide-rush">
+          {ids.map((id) => (
+            <ModelRow
+              key={id}
+              id={id}
+              reported={reported.get(id) ?? null}
+              fallback={
+                (Object.hasOwn(contextWindows, id) ? contextWindows[id] : undefined) ?? null
+              }
+              stored={(Object.hasOwn(contextLimits, id) ? contextLimits[id] : undefined) ?? null}
+              window={effectiveWindow(id, catalog, settings)}
+              onWindow={(value) => saveWindow(id, value)}
+              onLimit={(value) => saveLimit(id, value)}
+              focus={id === asked.id ? asked.count : 0}
+              onFocused={onWindowShown}
+            />
+          ))}
+        </ul>
+      )}
+      <SettingRow label="Add a model">
+        <ModelSelect
+          label="Add a model's context limit"
+          options={offered}
+          value={null}
+          onChange={(id) => {
+            if (!ids.includes(id)) setAdded([...added, id]);
+          }}
+          className={ROW_SELECT}
+        />
+      </SettingRow>
+    </>
   );
 }
 
@@ -186,7 +175,7 @@ function ModelRow({
       </span>
     );
   return (
-    <li ref={row} className="grid scroll-my-6 gap-2 border-rush border-b py-3 arrive">
+    <li ref={row} className="grid scroll-my-6 gap-2 py-3.5 arrive">
       <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 touch:min-h-11">
         <span className="min-w-0 flex-1 truncate font-medium text-ink text-ui max-tablet:basis-full">
           {id}

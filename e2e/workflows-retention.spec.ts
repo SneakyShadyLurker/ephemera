@@ -37,7 +37,7 @@ matrixRow(
   "wf",
   async ({ comfy, page }) => {
     await comfy({ objectInfo: SDXL_OBJECT_INFO });
-    await page.goto("/settings");
+    await page.goto("/settings?section=pictures");
     const name = uniqueName("Lighthouse");
 
     const imported = canary("wf");
@@ -63,7 +63,7 @@ matrixRow(
     await expect(page.locator("body")).not.toContainText(replaced);
   },
   {
-    start: "/settings",
+    start: "/settings?section=pictures",
     expectEmpty: async (page) => {
       await expect(
         page.getByRole("button", { name: "Import a workflow", exact: true }),

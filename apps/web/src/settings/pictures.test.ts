@@ -10,7 +10,7 @@ import {
   renameProblem,
   WORKFLOWS_FULL,
   workflowStatus,
-} from "./portraits.ts";
+} from "./pictures.ts";
 
 describe("the portrait status in Settings", () => {
   it("says plainly when portraits are off or ready", () => {

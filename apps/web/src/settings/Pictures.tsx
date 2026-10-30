@@ -4,22 +4,28 @@ import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { queryClient } from "@/app/query.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
+import { ModelSelect } from "@/components/model-select";
 import { cn } from "@/lib/cn";
+import { useModelOptions } from "../api.ts";
 import { ART_STATUS_KEY } from "../creator/queries.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
 import { SAVED_UNCHECKED } from "../workflows/copy.ts";
 import { ImportPanel, type WorkflowDraft } from "../workflows/ImportPanel.tsx";
 import { workflowsQuery } from "../workflows/queries.ts";
 import { Workflows } from "../workflows/Workflows.tsx";
+import { ROW_SELECT, SettingGroup, SettingRow } from "./SettingRow.tsx";
 import {
   applySettings,
   queueSettingsSave,
   type SaveError,
   useRefusedAddress,
   useSetting,
+  useUpdateSettings,
 } from "./settings.ts";
+import { WindowNote } from "./WindowNote.tsx";
 
-const HELP = "text-pretty text-note text-reed";
+/** The image prompt model choice that leaves each surface on its own default; never a model id. */
+const CHAT_MODEL = "";
 const addressSchema = settingsSchema.shape.comfyuiBaseUrl;
 
 /**
@@ -53,14 +59,15 @@ const ADDRESS_PROBLEMS = {
 } as const;
 
 /**
- * The owner's ComfyUI for card portraits: its address, and the workflows it
- * paints with and whether each can paint now. The workflow is chosen where
- * portraits are made, in Create with AI. A workflow file comes in through the
- * file picker, or dropped anywhere on this section on tablet and desktop;
- * `ImportPanel` shows it, under the list. A file arriving while one is open
- * waits as `incoming` until the panel takes it or keeps its own.
+ * Settings > Pictures: the model that writes image prompts, the owner's
+ * ComfyUI address, and the workflows it paints with and whether each can
+ * paint now. The workflow is chosen where portraits are made, in Create with
+ * AI. A workflow file comes in through the file picker, or dropped anywhere
+ * on this category on tablet and desktop; `ImportPanel` shows it, under the
+ * list. A file arriving while one is open waits as `incoming` until the panel
+ * takes it or keeps its own.
  */
-export function Portraits() {
+export function Pictures() {
   const comfyuiBaseUrl = useSetting((settings) => settings.comfyuiBaseUrl);
   const count = useQuery(workflowsQuery).data?.length ?? 0;
   const [draft, setDraft] = useState<WorkflowDraft | null>(null);
@@ -105,13 +112,31 @@ export function Portraits() {
 
   return (
     <div ref={root} className="relative grid gap-6" {...dropTarget}>
-      <AddressField saved={comfyuiBaseUrl} inputRef={address} />
-      <Workflows
-        importRef={importButton}
-        notice={unchecked ? SAVED_UNCHECKED : null}
-        onImport={() => choose(null)}
-        onReplace={(workflow) => choose(workflow)}
-      />
+      <SettingGroup>
+        <ImagePromptModel />
+        <AddressField saved={comfyuiBaseUrl} inputRef={address} />
+        <div className="py-3.5">
+          <Workflows
+            importRef={importButton}
+            notice={unchecked ? SAVED_UNCHECKED : null}
+            onImport={() => choose(null)}
+            onReplace={(workflow) => choose(workflow)}
+            about={
+              <>
+                <p>
+                  The ComfyUI graphs pictures are painted with. Yours are the ones you import:
+                  rename them, set their image model family, replace their file or delete them.
+                </p>
+                <p>
+                  On this server are the ones the server ships. Each row says whether it can paint
+                  now, and the one Create with AI uses says In use. Up to{" "}
+                  {WORKFLOW_LIMITS.workflows} of yours.
+                </p>
+              </>
+            }
+          />
+        </div>
+      </SettingGroup>
       <input
         ref={picker}
         type="file"
@@ -167,7 +192,40 @@ export function Portraits() {
   );
 }
 
-/** A workflow row's actions button or name, inside the section. */
+/** Writes the prompts for portraits and scene pictures; unset, each surface's own default. */
+function ImagePromptModel() {
+  const imagePromptModel = useSetting((settings) => settings.imagePromptModel);
+  const updateSettings = useUpdateSettings();
+  const options = useModelOptions(imagePromptModel);
+  const labelId = useId();
+  return (
+    <SettingRow
+      label="Image prompt model"
+      labelId={labelId}
+      about={
+        <p>
+          Writes the image prompts for portraits and scene pictures, from the card and the scene.
+          The chat model unless you pick another; Create with AI and the art studio can still choose
+          one per picture.
+        </p>
+      }
+      below={<WindowNote model={imagePromptModel} />}
+    >
+      <ModelSelect
+        labelId={labelId}
+        options={options}
+        lead={{ value: CHAT_MODEL, label: "The chat model" }}
+        value={imagePromptModel ?? CHAT_MODEL}
+        onChange={(model) =>
+          updateSettings({ imagePromptModel: model === CHAT_MODEL ? null : model })
+        }
+        className={ROW_SELECT}
+      />
+    </SettingRow>
+  );
+}
+
+/** A workflow row's actions button or name, inside the category. */
 const rowPart = (root: HTMLElement | null, id: string, part: "actions" | "name") =>
   root
     ?.querySelector(`[data-workflow="${CSS.escape(id)}"]`)
@@ -225,13 +283,28 @@ function AddressField({
     });
   };
   return (
-    <div className="grid gap-2">
-      <label htmlFor={id} className="font-medium text-ink text-ui">
-        ComfyUI address
-      </label>
+    <SettingRow
+      label="ComfyUI address"
+      htmlFor={id}
+      hint={
+        shown !== null
+          ? ADDRESS_PROBLEMS[shown]
+          : "Saved when you leave the field; empty turns pictures off."
+      }
+      hintId={`${id}-help`}
+      problem={invalid}
+      live
+      about={
+        <p>
+          Where Ephemera sends image prompts for portraits and scene pictures. Clear the field to
+          turn pictures off.
+        </p>
+      }
+    >
       <div
         className={cn(
-          "flex h-9 max-w-sm items-center rounded-md border border-control-edge bg-surface px-3 touch:h-11",
+          "flex h-9 items-center rounded-md border border-control-edge bg-surface px-3 touch:h-11",
+          ROW_SELECT,
           FOCUS_WITHIN,
           invalid && "border-ember",
         )}
@@ -263,11 +336,6 @@ function AddressField({
           className="min-w-0 flex-1 bg-transparent text-ink text-ui outline-none placeholder:text-reed"
         />
       </div>
-      <p id={`${id}-help`} aria-live="polite" className={cn(HELP, invalid && "text-ember")}>
-        {shown !== null
-          ? ADDRESS_PROBLEMS[shown]
-          : "Saved when you leave the field; empty turns portraits off. Only the image prompt for a new card goes there; its token stays in the server's environment."}
-      </p>
-    </div>
+    </SettingRow>
   );
 }

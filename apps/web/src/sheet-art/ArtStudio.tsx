@@ -1,6 +1,5 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { type CreatorKind, imagePromptModelOf } from "@ephemera/core";
-import { Link } from "@tanstack/react-router";
 import { type Ref, type RefObject, useId, useRef } from "react";
 import { useStore } from "zustand";
 import { useFormFactor } from "@/app/form-factor.ts";
@@ -32,6 +31,7 @@ import { FullPortrait, Leaf } from "../portraits/Portrait.tsx";
 import { PortraitViewer } from "../portraits/PortraitViewer.tsx";
 import { portraitDefault } from "../rework/portrait-switch.ts";
 import { useSetting } from "../settings/settings.ts";
+import { WindowLink } from "../settings/window-link.tsx";
 import { useSignInPhase } from "../signin/hooks.ts";
 import { SignInNotice } from "../signin/SignInNotice.tsx";
 import { signIn } from "../signin/signin.ts";
@@ -227,12 +227,13 @@ function PortraitsOff() {
         <p className="font-medium text-ink">Portraits off</p>
         <p className="text-pretty text-reed">{SHEET_ART_COPY.off}</p>
       </div>
-      <Link
-        to="/settings"
+      <WindowLink
+        model={null}
+        section="pictures"
         className={cn(buttonVariants({ variant: "outline" }), "h-8 w-fit text-note touch:h-11")}
       >
-        Portrait settings
-      </Link>
+        Picture settings
+      </WindowLink>
     </div>
   );
 }

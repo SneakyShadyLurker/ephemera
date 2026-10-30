@@ -142,13 +142,14 @@ function PaletteTile({
 }
 
 /**
- * Settings > Appearance > Palette: the six built-ins and, in a row that
+ * Settings > Appearance > Palette, named by the row's label (`labelId`):
+ * the six built-ins and, in a row that
  * opens below them, up to three of the player's own: one choice over two
  * radio groups in a 3x3 grid (2 columns on phones). Saved ones are edited in place; the
  * one New tile starts another from any palette. Opening an editor while
  * another has unsaved changes asks first.
  */
-export function PalettePicker() {
+export function PalettePicker({ labelId }: { labelId: string }) {
   const { palette, setPalette } = useTheme();
   const scheme = useScheme();
   const list = useQuery(customPalettesQuery);
@@ -158,7 +159,6 @@ export function PalettePicker() {
   const [pending, setPending] = useState<(() => void) | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const labelId = useId();
   const ownLabelId = useId();
   const answerId = useId();
 
@@ -203,9 +203,6 @@ export function PalettePicker() {
 
   return (
     <div className="grid gap-2">
-      <span id={labelId} className="font-medium text-ink text-ui">
-        Palette
-      </span>
       {/* The checked swatch changes inside the Transition, which starts React's view transition. */}
       <ViewTransition>
         {/*
@@ -216,7 +213,7 @@ export function PalettePicker() {
         <Collapsible.Root
           open={open || draft !== null}
           onOpenChange={setOpen}
-          className="grid max-w-xl grid-cols-2 gap-3 tablet:grid-cols-3"
+          className="grid grid-cols-2 gap-3 tablet:grid-cols-3"
         >
           <RadioGroup<PaletteChoice>
             aria-labelledby={labelId}

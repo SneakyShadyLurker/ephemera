@@ -39,19 +39,51 @@ function Switch({
 /**
  * A switch with its short label and help text beside it. The switch is named
  * by the label alone and described by the help, and a click anywhere on
- * either toggles it.
+ * either toggles it. `trailing` puts the switch on the row's trailing edge
+ * (a settings row), where a click on the label toggles it; `about` (an
+ * infotip) then follows the label, outside the `<label>`, so pressing it
+ * never toggles the switch.
  */
 function SwitchField({
   label,
   description,
+  trailing = false,
+  about,
   className,
   ...props
-}: Omit<SwitchPrimitive.Root.Props, "aria-labelledby" | "aria-describedby"> & {
+}: Omit<SwitchPrimitive.Root.Props, "aria-labelledby" | "aria-describedby" | "id" | "about"> & {
   label: ReactNode;
   description: ReactNode;
+  trailing?: boolean;
+  about?: ReactNode;
 }) {
   const labelId = useId();
   const descriptionId = useId();
+  const inputId = useId();
+  if (trailing) {
+    return (
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-6">
+        <div className="grid gap-0.5">
+          <span className="block">
+            <label id={labelId} htmlFor={inputId} className="font-medium text-ink text-ui">
+              {label}
+            </label>
+            {about}
+          </span>
+          <span id={descriptionId} className="text-pretty text-note text-reed">
+            {description}
+          </span>
+        </div>
+        <Switch
+          id={inputId}
+          aria-labelledby={labelId}
+          aria-describedby={descriptionId}
+          className={cn("mt-0.5", className)}
+          {...props}
+        />
+      </div>
+    );
+  }
   return (
     <label className="flex items-start gap-3">
       <Switch

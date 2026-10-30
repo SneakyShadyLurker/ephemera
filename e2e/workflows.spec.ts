@@ -4,6 +4,7 @@ import { ART_TIMEOUT, COPY, expectBatch, recordArt } from "./support/creator.ts"
 import { keptBase, ownerDescription } from "./support/creator-fixtures.ts";
 import { choose, readSettings } from "./support/entities.ts";
 import { sceneButton, sceneChat, scenePicture } from "./support/scene.ts";
+import { settingsTab } from "./support/settings.ts";
 import { expect, test } from "./support/test.ts";
 import {
   actionsFor,
@@ -25,7 +26,7 @@ import {
 } from "./support/workflow-files.ts";
 
 /*
- * A ComfyUI workflow of the owner's own, imported in Settings > Portraits:
+ * A ComfyUI workflow of the owner's own, imported in Settings > Pictures:
  * what the panel shows of a file, its
  * focus and its guard, then the saved workflow in Describe's picker, in a
  * New art batch and a scene picture, renamed, replaced and deleted. The
@@ -39,7 +40,7 @@ const DEFAULT_WORKFLOW = "Krea 2 Gonzalomo";
 const READY = "Every node and model file is there.";
 
 async function openSettings(page: Page) {
-  await page.goto("/settings");
+  await page.goto("/settings?section=pictures");
   await expect(importButton(page)).toBeEnabled();
 }
 
@@ -276,7 +277,7 @@ test("a file read and not saved asks before it is left", async ({ comfy, page })
   await expect(guard).toBeVisible();
   await guard.getByRole("button", { name: "Keep importing", exact: true }).click();
   await expect(guard).toHaveCount(0);
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page).toHaveURL(/\/settings\?section=pictures$/);
   await expect(mappingRows(panel)).toHaveCount(4);
 
   // Escape in the panel asks the same.
@@ -289,6 +290,28 @@ test("a file read and not saved asks before it is left", async ({ comfy, page })
   await presets.click();
   await guard.getByRole("button", { name: "Discard", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Presets" })).toBeVisible();
+});
+
+test("an import in progress survives a look at another Settings category", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const panel = await openImport(page, cleanUiFile());
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  const name = uniqueName("Harbour light");
+  await panel.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+
+  await settingsTab(page, "Chat").click();
+  await expect(page).toHaveURL(/\/settings\?section=chat$/);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
+
+  await settingsTab(page, "Pictures").click();
+  await expect(panel).toBeVisible();
+  await expect(mappingRows(panel)).toHaveCount(4);
+  await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
 });
 
 test("an IME composition keeps Enter and Escape from the rename and the panel", async ({

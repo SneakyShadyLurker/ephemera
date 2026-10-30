@@ -191,7 +191,7 @@ export const EXEMPTIONS: { file: string; problem: string; reason: string }[] = [
     file: "apps/web/src/settings/window-link.tsx",
     problem: "passes router state, search or hash, which reach the URL or history",
     reason:
-      "Links to Settings with a model ID (a setting, validated as one) so Context focuses that model's window field, then clears it; no chat content is in reach.",
+      "The one owner of the Settings address: a category id (validated as one of six constants), a model ID (a setting, validated as one) so Context focuses that model's window field, then clears it, and a constant flag marking a category opened from the phone's list; no chat content is in reach.",
   },
   {
     file: "apps/server/src/persistence/encrypted-file.ts",
