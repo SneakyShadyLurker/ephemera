@@ -529,8 +529,10 @@ Version 1.0 holds everything below.
   the persona, men and women alike, each with a fixed record (age,
   ethnicity, skin, face, sexual experience, relationship, height, weight,
   build, hair, eyes, intimate body, personality, fetishes and taboos) and
-  a state that follows the scene (present or away, outfit, position,
-  activity, mood, arousal, injuries, intoxication). The fixed anchor is the
+  a state that follows the scene (present or away, outfit garment by
+  garment, the clothes' state such as undone, pushed aside, wet or torn
+  and where taken-off pieces lie, position, activity, mood, arousal,
+  injuries, intoxication). The fixed anchor is the
   card or initial baseline. Evidence-backed developments can change current
   durable facts, and short voice, goals and knowledge cues carry continuity.
   Owner corrections take precedence over developments and the baseline.

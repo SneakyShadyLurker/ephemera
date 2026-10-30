@@ -37,6 +37,13 @@ describe("the keeper prompt", () => {
     expect(keeperInstructions().startsWith(KEEPER_OPENING)).toBe(true);
   });
 
+  it("asks for every garment worn and the state the clothes are in", () => {
+    const instructions = keeperInstructions();
+    expect(instructions).toMatch(/- "outfit": every garment they have on now/);
+    expect(instructions).toMatch(/- "disarray": the state of their clothes/);
+    expect(instructions.indexOf('"outfit"')).toBeLessThan(instructions.indexOf('"disarray"'));
+  });
+
   it("orders canon, player, register and turns, then the task", () => {
     const text = message("Description:\nMara keeps the light.");
     const at = ["<canon>", "<player>", "<register>", "<turn>", "Answer with what changed."].map(

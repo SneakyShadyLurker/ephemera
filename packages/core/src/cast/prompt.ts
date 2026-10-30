@@ -49,7 +49,8 @@ ${anchorKeys("For a man, his cock and balls, only once a turn shows them; until 
 
 The state's keys:
 - "present": true while the NPC is in the scene, false once they left it.
-- "outfit": what they wear now.
+- "outfit": every garment they have on now, outer layers to underwear and footwear, each with its colour and material as shown; a piece taken off leaves it.
+- "disarray": the state of their clothes, only while not worn as normal: undone, open, pushed aside, pulled up or down, wet, torn or stained, garment by garment; then the pieces taken off and where they are now.
 - "position": where they are and their posture.
 - "activity": what they are doing.
 - "mood": how they feel.
@@ -72,7 +73,7 @@ Return one JSON object with exactly these keys:
 - "absent": the names of the NPCs no longer in the scene at the end of the turns; [] when none.
 
 For example:
-{"cast":{"Mara Battin":{"state":{"outfit":"a towel","activity":"drying her hair","mood":"flustered"}},"Jonas Reyes":{"role":"minor","gender":"male","anchor":{"age":"34","ethnicity":"Mexican-American","build":"broad, heavy-set build"},"state":{"position":"standing behind the bar","activity":"polishing a glass"}}},"absent":["Ana Pires"]}
+{"cast":{"Mara Battin":{"state":{"outfit":"a white bath towel","disarray":"towel slipping at her chest; her jeans and grey T-shirt on the bathroom floor","activity":"drying her hair","mood":"flustered"}},"Jonas Reyes":{"role":"minor","gender":"male","anchor":{"age":"34","ethnicity":"Mexican-American","build":"broad, heavy-set build"},"state":{"position":"standing behind the bar","activity":"polishing a glass"}}},"absent":["Ana Pires"]}
 
 Answer with the JSON object alone, with nothing before or after it and no code fence.`;
 

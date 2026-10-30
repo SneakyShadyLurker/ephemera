@@ -95,16 +95,17 @@ const PEOPLE_ANCHOR: readonly CastAnchorField[] = [
   "eyes",
   "intimate",
 ];
-/** The state fields a scene picture shows: the outfit and how the entry stands. */
+/** The state fields a scene picture shows: the outfit as it is worn and how the entry stands. */
 const PEOPLE_STATE: readonly CastStateField[] = [
   "outfit",
+  "disarray",
   "position",
   "activity",
   "mood",
   "injuries",
 ];
 
-/** What a scene picture shows of a present entry: its looks, outfit and how it stands. */
+/** What a scene picture shows of a present entry: its looks, outfit as worn and how it stands. */
 const peopleLine = (anchor: CastAnchor, state: CastState): string =>
   joined([
     anchor.name,
