@@ -57,7 +57,7 @@
   --dusk-hover: light-dark(#1f5cbd, #8db0f9);
   --dusk-line: light-dark(#2e7de9, #7aa2f7);
   --on-dusk: light-dark(#f4f5f8, #16161e);
-  --ember: light-dark(#bf024f, #f7768e);
+  --ember: light-dark(#b60048, #f7768e);
   --tone-rose: light-dark(#7e20bd, #bb9af7);
   --tone-sage: light-dark(#425f23, #9ece6a);
   --tone-iris: light-dark(#035d7d, #7dcfff);
@@ -130,7 +130,7 @@
   --dusk-hover: light-dark(#7a2ee0, #d7b9fa);
   --dusk-line: light-dark(#8839ef, #cba6f7);
   --on-dusk: light-dark(#eff1f5, #11111b);
-  --ember: light-dark(#c50434, #f38ba8);
+  --ember: light-dark(#bf002f, #f38ba8);
   --tone-rose: light-dark(#9c287e, #f5c2e7);
   --tone-sage: light-dark(#1a6903, #a6e3a1);
   --tone-iris: light-dark(#024ad9, #89b4fa);
@@ -190,7 +190,7 @@
   --dusk-hover: light-dark(#45679a, #9acbd9);
   --dusk-line: light-dark(#4f72a0, #88c0d0);
   --on-dusk: light-dark(#f4f7fc, #2e3440);
-  --ember: light-dark(#954c55, #e89f83);
+  --ember: light-dark(#904751, #fbb194);
   --tone-rose: light-dark(#695567, #e6c0df);
   --tone-sage: light-dark(#515f3f, #b9d4a2);
   --tone-iris: light-dark(#3c5f76, #afcfef);
@@ -220,7 +220,7 @@
   --dusk-hover: light-dark(#9a3302, #ff9440);
   --dusk-line: light-dark(#af3a03, #fe8019);
   --on-dusk: light-dark(#fbf1c7, #1d2021);
-  --ember: light-dark(#9d0006, #fe5a45);
+  --ember: light-dark(#9d0006, #ff715a);
   --tone-rose: light-dark(#893c6e, #db8ea3);
   --tone-sage: light-dark(#5a5c04, #b8bb26);
   --tone-iris: light-dark(#065f71, #8bada0);
@@ -1291,7 +1291,7 @@ details[open] > summary .disclosure-chevron {
   }
 }
 
-/* The sheet's name joins its header once the name field scrolls beneath it. */
+/* A header element rising into view as its source scrolls away. */
 @keyframes title-in {
   from {
     opacity: 0;
@@ -1303,10 +1303,29 @@ details[open] > summary .disclosure-chevron {
   }
 }
 
+/*
+ * The sheet's name joins its header once the name field scrolls beneath it.
+ * It is fully opaque early in its range, so a scroll that comes to rest
+ * partway leaves a readable title; the rise takes the whole range.
+ */
+@keyframes name-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--rise);
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 /* Hidden until scrolling drives it in; a sheet too short to scroll keeps its name in the field. */
 @utility title-in {
   opacity: 0;
-  animation: title-in linear both;
+  animation: name-in linear both;
   animation-timeline: --thread;
   animation-range: 3rem 5.5rem;
 }

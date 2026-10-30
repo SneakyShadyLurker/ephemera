@@ -216,7 +216,11 @@ export const CONTRAST_FLOORS: readonly {
   { role: "control-edge", grounds: on("canvas", "surface"), floor: 3 },
   { role: "dusk-line", grounds: on("canvas", "surface"), floor: 3 },
   { role: "on-dusk", grounds: on("dusk", "dusk-hover"), floor: 4.5 },
-  { role: "ember", grounds: on("canvas", "surface", "error-surface"), floor: 4.5 },
+  {
+    role: "ember",
+    grounds: on("canvas", "surface", "surface-hover", "surface-selected", "error-surface"),
+    floor: 4.5,
+  },
   // Mist is the ink alone, with no wash (styles.css), so only the plain grounds apply.
   ...HIGHLIGHT_TONES.map((tone) => ({
     role: `tone-${tone}` as const,
