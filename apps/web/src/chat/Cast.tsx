@@ -6,6 +6,8 @@ import {
   type CastEntry,
   type CastState,
 } from "@ephemera/core";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
 import {
   type CSSProperties,
   type FormEvent,
@@ -18,6 +20,7 @@ import {
   useState,
 } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { FADE, MotionScope } from "@/app/motion.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { BackIcon, CastIcon, CloseIcon, EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -187,8 +190,8 @@ const useMountedAt = (): number => useState(() => Date.now())[0];
 const busyOf = (state: ChatState) =>
   state.cast.status === "updating" || state.cast.status === "seeding";
 
-/** The status line's words; "" when there is nothing to say. */
-function castStatusText(state: ChatState, reduced: boolean): string {
+/** The status line's words; "" when there is nothing to say. An update says so beside "Cast". */
+function castStatusText(state: ChatState): string {
   const { cast } = state;
   if (cast.status === "failed" && keeperTargetUncovered(state)) {
     if (cast.failure === "upstream_busy") return "Cast couldn't update: the cast model is busy.";
@@ -198,8 +201,75 @@ function castStatusText(state: ChatState, reduced: boolean): string {
     return "Reading the card";
   }
   if (sheetUnread(state)) return "Couldn't read the cast from the card.";
-  if (busyOf(state)) return reduced ? "Updating" : "";
+  if (busyOf(state)) return "";
   return stale(state) ? "As of the previous reply" : "";
+}
+
+/**
+ * Fades in and out on `--duration-arrive`; reduced motion keeps the fade.
+ * Each user brings its own MotionScope: the band, the float before the first
+ * reply and the record surface sit outside the thread's.
+ */
+const FADING = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: FADE,
+} as const;
+
+/**
+ * "Updating…" while the keeper works, polite to assistive technology where
+ * `live`; said only, not shown, unless `shown`. Nothing without either.
+ */
+function Updating({
+  shown,
+  live,
+  className,
+}: {
+  shown: boolean;
+  live: boolean;
+  className?: string;
+}) {
+  const busy = useChat(busyOf);
+  if (!shown && !live) return null;
+  return (
+    <span aria-live={live ? "polite" : undefined} className={cn(shown ? className : "sr-only")}>
+      <MotionScope>
+        <AnimatePresence initial={false}>
+          {busy && (
+            <m.span key="updating" data-cast-updating="" {...FADING}>
+              Updating…
+            </m.span>
+          )}
+        </AnimatePresence>
+      </MotionScope>
+    </span>
+  );
+}
+
+/**
+ * The light that glides along the edge of what holds it while the keeper
+ * works: the art frame's drift (styles.css), on the lamp's breath. Under
+ * reduced motion it is not drawn; "Updating…" says it.
+ */
+function Drift({ on }: { on: boolean }) {
+  return (
+    <MotionScope>
+      <AnimatePresence initial={false}>
+        {on && (
+          <m.span
+            key="drift"
+            aria-hidden="true"
+            data-cast-drift=""
+            {...FADING}
+            className="pointer-events-none absolute inset-0"
+          >
+            <span className="frame-drift" />
+          </m.span>
+        )}
+      </AnimatePresence>
+    </MotionScope>
+  );
 }
 
 const retry = () => chatStore.getState().retryCast();
@@ -210,8 +280,7 @@ const LINE_ACTION =
 
 /** The status line, polite to assistive technology, and Try again after a failure. */
 function Status({ className }: { className?: string }) {
-  const reduced = useReducedMotion();
-  const text = useChat((state) => castStatusText(state, reduced));
+  const text = useChat(castStatusText);
   const failed = useChat((state) => state.cast.status === "failed" && keeperTargetUncovered(state));
   const unread = useChat(sheetUnread);
   return (
@@ -258,20 +327,29 @@ function RemovalLine({ removal }: { removal: CastRemoval }) {
   );
 }
 
-/** "Cast", and under it the hairline that breathes while the cast updates and no record is open. */
-function Heading({ breathing }: { breathing: boolean }) {
+/**
+ * "Cast", "Updating…" beside it while the cast updates, and under it a faint
+ * hairline the drift's light glides along while no record is open. The
+ * band's measured row says Updating without showing it, unless reduced
+ * motion leaves the words alone to show it.
+ */
+function Heading({ breathing, band }: { breathing: boolean; band: boolean }) {
   const reduced = useReducedMotion();
   return (
     <div className="grid gap-1">
-      <p className="font-sans text-meta text-reed">Cast</p>
-      <span
-        aria-hidden="true"
-        data-cast-breath={breathing && !reduced ? "" : undefined}
-        className={cn(
-          "h-px bg-dusk transition-opacity duration-(--duration-quick) ease-fade",
-          breathing && !reduced ? REMEMBERING : "opacity-0",
-        )}
-      />
+      <p className="flex flex-wrap items-baseline gap-x-2 font-sans text-meta text-reed">
+        Cast
+        <Updating shown={!band || reduced} live />
+      </p>
+      <span aria-hidden="true" className="relative h-px">
+        <span
+          className={cn(
+            "absolute inset-0 bg-dusk/30 transition-opacity duration-(--duration-quick) ease-fade",
+            !breathing && "opacity-0",
+          )}
+        />
+        <Drift on={breathing} />
+      </span>
     </div>
   );
 }
@@ -440,7 +518,7 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
   const shownFirst = withRemoval(first, removal, true);
   return (
     <div data-cast="" className="mt-4 grid gap-1.5 font-story">
-      <Heading breathing={breathing} />
+      <Heading breathing={breathing} band={false} />
       {shownFirst.length > 0 && list(shownFirst, "Cast", true)}
       {more.length > 0 && (
         <Disclosure summary={`and ${formatCount(more.length)} more`}>
@@ -478,16 +556,22 @@ function BandRoster({
   const rosterOpen = useCastSurface((state) => state.open && state.entryId === null);
   const row = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  // The heading's width too: under reduced motion "Updating…" arrives and leaves in the row.
+  const [headingWidth, setHeadingWidth] = useState(0);
   useEffect(() => {
     const element = row.current;
-    if (element === null) return;
-    const observer = new ResizeObserver(([found]) => {
-      if (found !== undefined) setWidth(Math.round(found.contentRect.width));
+    const heading = element?.firstElementChild;
+    if (element == null || heading == null) return;
+    const observer = new ResizeObserver((found) => {
+      for (const { target, contentRect } of found) {
+        (target === element ? setWidth : setHeadingWidth)(Math.round(contentRect.width));
+      }
     });
     observer.observe(element);
+    observer.observe(heading);
     return () => observer.disconnect();
   }, []);
-  const probe = `${present.map((item) => item.id).join()}|${away.length}|${removal?.entryId ?? ""}|${width}`;
+  const probe = `${present.map((item) => item.id).join()}|${away.length}|${removal?.entryId ?? ""}|${width}|${headingWidth}`;
   const [fit, setFit] = useState({ probe: "", count: present.length });
   const measuring = fit.probe !== probe;
   const count = measuring ? present.length : fit.count;
@@ -525,7 +609,7 @@ function BandRoster({
   return (
     <div data-cast="" className="mt-3 grid">
       <div ref={row} className="flex flex-wrap items-baseline gap-x-4 font-story">
-        <Heading breathing={breathing} />
+        <Heading breathing={breathing} band />
         {items.length > 0 && (
           <ul aria-label="Cast" className="contents">
             {items.map((item, index) =>
@@ -565,10 +649,14 @@ function BandRoster({
   );
 }
 
-/** The phone header's quiet control: the record surface at the roster. */
+/**
+ * The phone header's quiet control: the record surface at the roster. Its
+ * icon breathes while the cast updates, as the memory mark beside it does.
+ */
 export function CastHeaderControl() {
   const visible = useCastVisible();
   const open = useCastSurface((state) => state.open && state.entryId === null);
+  const busy = useChat(busyOf);
   if (!visible) return null;
   return (
     <Button
@@ -578,7 +666,7 @@ export function CastHeaderControl() {
       aria-expanded={open}
       onClick={(event) => openCast(null, event.currentTarget)}
     >
-      <CastIcon />
+      <CastIcon className={cn(busy && REMEMBERING)} />
     </Button>
   );
 }
@@ -674,7 +762,7 @@ function Title({
   children: ReactNode;
 }) {
   const className = cn(
-    "min-w-0 flex-1 outline-none",
+    "min-w-0 flex-1 break-words outline-none",
     quiet
       ? "py-2.5 font-normal font-sans text-meta text-reed"
       : "py-1.5 font-semibold font-story text-ink text-lead",
@@ -698,8 +786,27 @@ function CloseControl() {
   );
 }
 
-const HEADER = "flex shrink-0 items-start gap-1 px-5 pt-3 pb-2";
+const HEADER = "relative flex shrink-0 items-start gap-1 px-5 pt-3 pb-2";
 const BODY = "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5";
+
+/**
+ * The surface header's part while the cast updates: "Updating…" after the
+ * title, and the drift along the header's lower edge. The drawer, modal,
+ * says it; beside the popover the panel already does.
+ */
+function SurfaceUpdating({ drawer }: { drawer: boolean }) {
+  const busy = useChat(busyOf);
+  return (
+    <>
+      <Updating
+        shown
+        live={drawer}
+        className="self-center whitespace-nowrap px-1 font-sans text-meta text-reed"
+      />
+      <Drift on={busy} />
+    </>
+  );
+}
 
 function SurfaceBody({
   heading,
@@ -755,6 +862,7 @@ function RosterView({
         <Title drawer={drawer} heading={heading} quiet>
           Cast
         </Title>
+        <SurfaceUpdating drawer={drawer} />
         {drawer && <CloseControl />}
       </header>
       <div className={cn(BODY, "grid content-start gap-3 font-story")}>
@@ -826,6 +934,7 @@ function RecordView({
           {entry.anchor.name}
           {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
         </Title>
+        <SurfaceUpdating drawer={drawer} />
         {!editing && (
           <Button
             ref={edit}

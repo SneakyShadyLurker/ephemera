@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { charactersQuery } from "../characters/queries.ts";
 import { settingsQuery } from "../settings/settings.ts";
-import { CastPanel, EditRecord, RecordText } from "./Cast.tsx";
+import { CastHeaderControl, CastPanel, EditRecord, RecordText } from "./Cast.tsx";
 import { type ChatCast, EMPTY_CAST } from "./cast-slice.ts";
 import {
   discoveredRegister,
@@ -110,6 +110,7 @@ function chat(entries: CastEntry[], cast: Partial<ChatCast> = {}) {
 
 const panel = () => renderToStaticMarkup(<CastPanel placement="float" />);
 const status = (out: string) => /data-cast-status=""[^>]*>([^<]*)</.exec(out)?.[1];
+const updating = (out: string) => /data-cast-updating=""[^>]*>([^<]*)</.exec(out)?.[1];
 const entries = (out: string) =>
   [...out.matchAll(/data-cast-entry=""[\s\S]*?<span class="[^"]*">([^<]+)</g)].map((m) => m[1]);
 
@@ -453,17 +454,39 @@ describe("the status line", () => {
     expect(out).not.toContain("Try again");
   });
 
-  it("breathes a hairline while updating, and says Updating in still text under reduced motion", () => {
+  it("says Updating beside Cast and runs a light along its hairline while updating", () => {
     chat(woman, { status: "updating" });
     let out = panel();
-    expect(out).toContain("data-cast-breath");
-    expect(out).toContain("animate-[breathe");
+    expect(updating(out)).toBe("Updating…");
+    expect(out).toContain("data-cast-drift");
+    expect(out).toContain("frame-drift");
     expect(status(out)).toBe("");
+    // Under reduced motion the words stay; the light is not drawn (frame-drift's own rule).
     motion.reduced = true;
     out = panel();
-    expect(out).not.toContain("data-cast-breath");
-    expect(out).not.toContain("animate-[breathe");
-    expect(status(out)).toBe("Updating");
+    expect(updating(out)).toBe("Updating…");
+    chat(woman);
+    out = panel();
+    expect(updating(out)).toBeUndefined();
+    expect(out).not.toContain("data-cast-drift");
+  });
+
+  it("keeps the band's names in place: Updating is said, and shown only under reduced motion", () => {
+    chat(woman, { status: "updating" });
+    let out = renderToStaticMarkup(<CastPanel placement="band" />);
+    expect(updating(out)).toBe("Updating…");
+    expect(out).toMatch(/class="sr-only"[^>]*><span[^>]*data-cast-updating/);
+    expect(out).toContain("data-cast-drift");
+    motion.reduced = true;
+    out = renderToStaticMarkup(<CastPanel placement="band" />);
+    expect(out).not.toMatch(/class="sr-only"[^>]*><span[^>]*data-cast-updating/);
+  });
+
+  it("breathes the phone header's control while updating", () => {
+    chat(woman, { status: "updating" });
+    expect(renderToStaticMarkup(<CastHeaderControl />)).toContain("animate-[breathe");
+    chat(woman);
+    expect(renderToStaticMarkup(<CastHeaderControl />)).not.toContain("animate-[breathe");
   });
 });
 

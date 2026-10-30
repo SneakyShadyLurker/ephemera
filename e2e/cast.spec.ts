@@ -7,6 +7,7 @@ import {
   castPanel,
   castRecord,
   castStatus,
+  castUpdating,
   chooseCastModel,
   editRecord,
   openRecord,
@@ -202,6 +203,24 @@ for (const factor of FACTORS) {
   });
 }
 
+test("an update starting under the phone's band lights its hairline and says Updating until it lands", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize(FACTORS[2]);
+  await castChat(request);
+  await seeded(page);
+  const release = await hold(page, "**/api/cast/update");
+  await send(page, `Lamp ${mark()}`);
+  // The band sits outside the thread's motion: the light fades in all the same.
+  const drift = castPanel(page).locator("[data-cast-drift]");
+  await expect(drift).toHaveCSS("opacity", "1");
+  await expect(castUpdating(page)).toHaveText("Updating…");
+  release();
+  await expect(drift).toHaveCount(0);
+  await expect(castUpdating(page)).toHaveCount(0);
+});
+
 test("the narrator is sent the whole cast, and the inspector shows its block, its state line, the counts and the keeper", async ({
   page,
   request,
@@ -367,11 +386,12 @@ test("a swipe shows its own snapshot, an alternate without one shows the previou
 
   // The new alternate's keeper call is held: the roster shows the previous snapshot, updating.
   const release = await hold(page, "**/api/cast/update");
-  const breath = castPanel(page).locator("[data-cast-breath]");
+  const drift = castPanel(page).locator("[data-cast-drift]");
   await replyActions(page).getByRole("button", { name: "New reply" }).click();
   await expect(replyCounter(page)).toContainText("2 / 2");
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-  await expect(breath).toHaveCount(1);
+  await expect(drift).toHaveCount(1);
+  await expect(castUpdating(page)).toHaveText("Updating…");
   await expect(castEntry(page, womanOf(second))).toHaveCount(0);
   await expect(castEntry(page, womanOf(first))).toBeVisible();
 
@@ -381,7 +401,8 @@ test("a swipe shows its own snapshot, an alternate without one shows the previou
   await expect(castEntry(page, womanOf(second))).toBeVisible();
   // The held answer lands for an alternate no longer shown: dropped.
   release();
-  await expect(breath).toHaveCount(0);
+  await expect(drift).toHaveCount(0);
+  await expect(castUpdating(page)).toHaveCount(0);
   await expect(castStatus(page)).toHaveText("");
 
   // The second alternate has no snapshot: the previous one, marked stale.
@@ -623,7 +644,7 @@ test("retrying an unread empty sheet queues reselected B1 behind the running kee
   await keeperDelivered.promise;
   await expect(castEntry(page, womanOf(newer))).toBeVisible();
   await expect(castEntry(page, womanOf(line))).toBeVisible();
-  await expect(castPanel(page).locator("[data-cast-breath]")).toHaveCount(0);
+  await expect(castPanel(page).locator("[data-cast-drift]")).toHaveCount(0);
   await expect(castStatus(page)).toHaveText("");
   expect(failedRequests).not.toContain(keeperRequest);
   expect(await upstreamRecords(name, "castSheet")).toHaveLength(2);
