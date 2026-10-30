@@ -8,7 +8,8 @@ import { HIGHLIGHT_TONES } from "./preset/highlight.ts";
 
 /**
  * The colour palette, each with a light and a dark scheme the theme picks
- * between; colours only, never layout or type. Lamplight is Ephemera's own;\n * Tokyo Night is the default.
+ * between; colours only, never layout or type. Lamplight is Ephemera's own;
+ * Tokyo Night is the default.
  */
 export const PALETTES = [
   "lamplight",
