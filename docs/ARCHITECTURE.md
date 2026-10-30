@@ -1038,8 +1038,9 @@ keeper request and answer are chat content.
    follows the Author's Note at that depth; it is user, not system,
    because CLIProxyAPI hoists a mid-chat system message into Claude's
    system prompt. A preset without a history sends it after the memory
-   blocks. A scene picture's source carries the present entries' looks
-   and state as `<people>` (`castPeopleNotes`). When the source is too
+   blocks. A scene picture's source carries the present entries' looks,
+   outfit and clothing state, and how they stand as `<people>`
+   (`castPeopleNotes`). When the source is too
    long, static card notes are cut first, then present people's notes;
    the excerpt keeps priority.
 9. **The inspector.** The Cast block and the "Cast state, depth 1" line

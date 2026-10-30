@@ -596,9 +596,11 @@ Version 1.0 holds everything below.
   and with no woman in the register the panel stays hidden. A name opens
   her record, beside the roster from tablet up and as a drawer on phones;
   the newest message's menu, and on phones a control in the header, open
-  the whole roster. The record reads as prose: her looks, her intimate
-  body, her personality, experience, fetishes and taboos, then her state,
-  or where she was last seen. Edit record shows every field; Save keeps
+  the whole roster. The record reads in sections under quiet headings,
+  each shown only when it holds something: Now (Last seen once she is
+  away) leads with what she is doing, then her mood, outfit, clothing
+  state, position and the rest of her state; then Looks, Character and
+  Intimate. Edit record shows every field in the same sections; Save keeps
   the changes as the owner's corrections for this chat, a fixed field for
   the whole chat and a state field until the keeper next answers. Revert
   takes a corrected field back to what was recorded. Remove from cast
