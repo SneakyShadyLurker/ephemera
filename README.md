@@ -99,8 +99,8 @@ EPHEMERA_UPSTREAM_API_KEY=your-key   # leave empty for a local server without on
 Restart the server after a change. The model list comes from the provider's
 `/models`, and every model picker also takes a model ID typed in full. Where the
 provider reports a model's context window, reasoning levels or image input,
-Ephemera uses them; where it does not, set the window in Settings, under
-Context, before chatting with that model.
+Ephemera uses them; where it does not, set the window in Settings > Model setup,
+under Context, before chatting with that model.
 
 | Provider | Base URL | Key | Context windows reported |
 |---|---|---|---|
