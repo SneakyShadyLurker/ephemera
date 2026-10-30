@@ -28,7 +28,8 @@ const register: CastRegister = {
       aka: [],
       state: {
         present: true,
-        outfit: "work shirt open",
+        outfit: "blue denim work shirt, black jeans, brown boots",
+        disarray: "shirt unbuttoned to the waist, sleeves rolled up",
         position: "behind the bar",
         activity: "polishing a glass",
         mood: "amused",
@@ -62,6 +63,7 @@ const register: CastRegister = {
       state: {
         present: false,
         outfit: "red coat",
+        disarray: "",
         position: "",
         activity: "",
         mood: "",
@@ -86,9 +88,9 @@ describe("the register as the narrator reads it", () => {
     );
   });
 
-  it("writes the Cast now line with the present entries' state and the away ones by name", () => {
+  it("writes the Cast now line with the present entries' state, clothes as they are worn, and the away ones by name", () => {
     expect(castStateText(register)).toBe(
-      "[Cast now:\nJonas Reyes: present, work shirt open, behind the bar, polishing a glass, amused, bruised knuckles, two beers in\nAway: Ana Pires]",
+      "[Cast now:\nJonas Reyes: present, blue denim work shirt, black jeans, brown boots, shirt unbuttoned to the waist, sleeves rolled up, behind the bar, polishing a glass, amused, bruised knuckles, two beers in\nAway: Ana Pires]",
     );
   });
 
@@ -110,9 +112,9 @@ describe("the register as the narrator reads it", () => {
     expect(castStateText({ entries: [] })).toBe("");
   });
 
-  it("gives a scene picture the present entries' looks and state", () => {
+  it("gives a scene picture the present entries' looks, clothes as they are worn and state", () => {
     expect(castPeopleNotes(register)).toBe(
-      "Jonas Reyes, 34 years old, Mexican-American, warm tan skin, square face, broken nose, thin lips, 183cm, 88kg, broad, short black curls, dark brown hooded eyes, work shirt open, behind the bar, polishing a glass, amused, bruised knuckles",
+      "Jonas Reyes, 34 years old, Mexican-American, warm tan skin, square face, broken nose, thin lips, 183cm, 88kg, broad, short black curls, dark brown hooded eyes, blue denim work shirt, black jeans, brown boots, shirt unbuttoned to the waist, sleeves rolled up, behind the bar, polishing a glass, amused, bruised knuckles",
     );
   });
 });

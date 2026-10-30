@@ -84,7 +84,10 @@ const continuityChange = z.strictObject(
 /** Volatile: the keeper rewrites what changed. */
 export const castStateSchema = z.strictObject({
   present: z.boolean(),
+  /** Every garment worn now, underwear and footwear included. */
   outfit: field,
+  /** The clothes' state while not worn as normal: undone, pushed aside, wet, torn; pieces taken off and where. */
+  disarray: field,
   position: field,
   activity: field,
   mood: field,

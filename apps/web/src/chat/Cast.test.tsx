@@ -594,9 +594,11 @@ describe("a record", () => {
 
   it("edits every field under a visible label, empty ones included, with help, Save and Cancel", () => {
     const out = renderToStaticMarkup(<EditRecord entry={mara} onDone={() => {}} />);
-    expect(out.split("<textarea").length - 1).toBe(21);
+    expect(out.split("<textarea").length - 1).toBe(22);
     expect(out).toContain('<span class="font-sans text-meta text-reed">Skin</span>');
     expect(out).toMatch(/<textarea[^>]*data-cast-field="skin"/);
+    expect(out).toContain('<span class="font-sans text-meta text-reed">Clothing state</span>');
+    expect(out).toMatch(/<textarea[^>]*data-cast-field="disarray"/);
     expect(out).toContain(
       "Looks and character hold for this chat. Current state yields to the next update.",
     );

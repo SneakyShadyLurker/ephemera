@@ -79,6 +79,7 @@ const LABELS: Record<TextField, string> = {
   personality: "Personality",
   fetishes: "Fetishes and taboos",
   outfit: "Outfit",
+  disarray: "Clothing state",
   position: "Position",
   activity: "Activity",
   mood: "Mood",
@@ -100,7 +101,10 @@ const TONES: Partial<Record<TextField, "rose" | "sage" | "iris">> = {
  * it changes with each reply (its activity the lead), then the anchor.
  */
 const SECTIONS: readonly (readonly [string, readonly TextField[]])[] = [
-  ["Now", ["activity", "mood", "outfit", "position", "arousal", "injuries", "intoxication"]],
+  [
+    "Now",
+    ["activity", "mood", "outfit", "disarray", "position", "arousal", "injuries", "intoxication"],
+  ],
   ["Looks", ["age", "ethnicity", "height", "weight", "build", "face", "skin", "hair", "eyes"]],
   ["Character", ["personality", "relationship"]],
   ["Intimate", ["experience", "intimate", "fetishes"]],
