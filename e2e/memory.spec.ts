@@ -545,7 +545,7 @@ test("with the setting off, or memory off for the character, the card's greeting
   await expectOpening(page, "User");
 
   // Off in Settings, on by default; the choice is kept.
-  await page.goto("/settings");
+  await page.goto("/settings?section=memory");
   const opening = page.getByRole("switch", { name: "Open new chats where the story left off" });
   await expect(opening).toBeChecked();
   await opening.click();
@@ -755,6 +755,23 @@ test("while memory turns off, Regenerate's answer is not applied and Undo waits"
   offing.release();
   await expect(page.getByText(`Memory is off, so ${name} forgets each chat`)).toBeVisible();
   expect((await storedMemory(request, characterId)).state?.opening).toBe(typed);
+});
+
+test("an opening too long for the memory model links to Memory & cast", async ({
+  page,
+  request,
+}) => {
+  const { characterId } = await memoryChat(request, { card: GREETED });
+  await rememberSituation(request, characterId);
+  await page.goto(`/characters/${characterId}/memory`);
+  await page.route(`**/api/memory/characters/${characterId}/opening`, (route) =>
+    route.fulfill({ status: 422, json: { error: "prompt_too_long" } }),
+  );
+  await page.getByRole("button", { name: "Regenerate" }).click();
+  await page.getByRole("link", { name: "Memory settings" }).click();
+  await expect(page).toHaveURL(/\/settings\?section=memory$/);
+  await expect(page.getByRole("tab", { name: "Memory & cast", selected: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Remember every", exact: true })).toBeVisible();
 });
 
 test("Regenerate waits, saying why, while the character remembers nothing", async ({

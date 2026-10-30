@@ -196,7 +196,7 @@ Version 1.0 holds everything below.
   and a failure says why. Without an address, or when the art fails, the
   card can be kept without a portrait. Settings shows whether ComfyUI answers and, for
   each workflow, whether it can paint now, naming any node or model it lacks.
-- Settings > Portraits lists the workflows: the owner's own under Yours,
+- Settings > Pictures lists the workflows: the owner's own under Yours,
   then the server's, each with its family, its status in words (Ready,
   Checking, Missing requirements, Unavailable or Unchecked) and In use beside
   the one portraits paint with. Import takes a ComfyUI workflow file, saved
@@ -506,7 +506,7 @@ Version 1.0 holds everything below.
   each opens to edit its title, summary, cues and Always in the prompt, or
   to delete it. Remember now writes a memory of the open chat with this
   character whatever its size.
-- Settings has a Memory section: Open new chats where the story left
+- Settings > Memory & cast holds memory's settings: Open new chats where the story left
   off, on by default (off, the card's greeting opens every chat), the
   model memory calls use (the reply's
   by default) and its effort (one the model does not offer goes as its
@@ -514,7 +514,7 @@ Version 1.0 holds everything below.
   recent turns stay out, and the recap budget: Automatic by default, the
   room memory has in the memory model's context window, or a number that
   caps it.
-- Settings has a Cast section: the model the keeper and the cast sheet
+- Under Cast in the same category: the model the keeper and the cast sheet
   use (memory's by default) and its effort (memory's by default).
 - The notebook, the next chat's opening and the memories are character
   data, kept per user and encrypted; Settings lists them under what is
@@ -808,7 +808,7 @@ Version 1.0 holds everything below.
   reasoning control is offered only for models that support it. Until the catalog reports reasoning support, the
   control is offered for every model and says so. A model that reports no
   context window is never sent a silently guessed budget: the owner sets
-  its window in Settings, under Context, and until then nothing is sent to
+  its window in Settings > Model setup, under Context, and until then nothing is sent to
   it. Every place that refuses for that reason links to that model's
   window field, and a model picker in Settings notes it under the choice.
 - Settings also hold a context limit per model, 131,072 tokens unless set
@@ -854,6 +854,18 @@ Keys are matched against the chat and, with
 recursion, the text of entries already sent; card fields, the persona and
 notes are not scanned.
 
+**Settings**
+- Six categories: Appearance (theme and palettes), Chat (default persona,
+  reply model, character prompts, reasoning), Model setup (context limits
+  and windows, post-processing, model by model), Memory & cast, Pictures
+  (image prompt model, ComfyUI address, workflows) and What is kept. From
+  tablet up an index beside the open category chooses between them; on
+  phones a list opens each on a screen of its own, with a back control.
+  The category is in the address (`/settings?section=memory`), so links
+  open the right one. Every setting that changes behavior explains itself
+  in an infotip beside its label. Choices save at once; a save that fails
+  or is refused is shown above whichever category is open.
+
 ### Prompt and lorebook behavior
 
 - **`{{random}}`**: options chosen uniformly from the platform's generator.
@@ -891,9 +903,8 @@ notes are not scanned.
   case-insensitive and whole-word matching as the defaults.
 - **A prompt that cannot fit**: when the fixed blocks alone exceed the
   context in use, Ephemera sends nothing and says why.
-- **Block trimming**: by default history is left out a block at a time,
-  so the retained start of the chat holds for the provider's prompt cache.
-  Turning block trimming off in Settings drops the oldest messages one at a time.
+- **Block trimming**: history is left out a block at a time, so the
+  retained start of the chat holds for the provider's prompt cache.
 - **Memory**: memories are separate from lorebook entries. The remembered
   turns fold out of the request by themselves and come back with Show, and
   a notebook of where the story stands, rewritten by every memory, goes in

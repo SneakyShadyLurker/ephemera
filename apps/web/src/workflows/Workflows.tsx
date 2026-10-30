@@ -1,16 +1,17 @@
 import { userWorkflowId, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { type RefObject, useId, useState } from "react";
+import { type ReactNode, type RefObject, useId, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { ImportIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Infotip } from "@/components/ui/infotip";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import {
   deletedLine,
   EMPTY_WORKFLOWS,
   listFailedLine,
   WORKFLOWS_FULL,
-} from "../settings/portraits.ts";
+} from "../settings/pictures.ts";
 import { useSetting } from "../settings/settings.ts";
 import { Glides } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
@@ -30,6 +31,7 @@ export function Workflows({
   notice = null,
   onImport,
   onReplace,
+  about,
 }: {
   /** "Import a workflow", where focus returns after an import or a delete. */
   importRef: RefObject<HTMLButtonElement | null>;
@@ -37,6 +39,8 @@ export function Workflows({
   notice?: string | null;
   onImport: () => void;
   onReplace: (workflow: WorkflowSummary) => void;
+  /** More about workflows, behind an infotip beside the heading. */
+  about?: ReactNode;
 }) {
   const phone = useFormFactor() === "phone";
   const notReached = useNotReached();
@@ -67,9 +71,12 @@ export function Workflows({
   return (
     <section aria-labelledby={headingId} className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h3 id={headingId} className="font-medium text-ink text-ui">
-          Workflows
-        </h3>
+        <span className="block">
+          <h3 id={headingId} className="inline font-medium text-ink text-ui">
+            Workflows
+          </h3>
+          {about !== undefined && <Infotip label="Workflows">{about}</Infotip>}
+        </span>
         <Button
           ref={importRef}
           variant="outline"

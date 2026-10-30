@@ -230,7 +230,7 @@ function ReadFailure({ reason }: { reason: CastReadFailure }) {
         <CastWindowLink className={look} />
       ) : (
         action === "settings" && (
-          <WindowLink model={null} className={look}>
+          <WindowLink model={null} section="memory" className={look}>
             {CAST_ACTION_LABEL.settings}
           </WindowLink>
         )

@@ -8,7 +8,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
-import { FAMILY_NAMES } from "../settings/portraits.ts";
+import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { applySettings, queueSettingsSave, useSetting } from "../settings/settings.ts";
 import { artWorkflowsQuery } from "./queries.ts";
 

@@ -10,7 +10,7 @@ import sdxlUi from "../../packages/core/test-fixtures/workflows/sdxl-basic.ui.js
 };
 
 /*
- * Importing a ComfyUI workflow in Settings > Portraits as the owner drives
+ * Importing a ComfyUI workflow in Settings > Pictures as the owner drives
  * it (e2e/workflows.spec.ts, e2e/workflows-retention.spec.ts). The files
  * are the stock ComfyUI exports in packages/core/test-fixtures/workflows,
  * read here rather than copied: e2e/support/workflows/ is the server's

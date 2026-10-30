@@ -30,20 +30,20 @@ import {
   setLorebookViaApi,
 } from "./support/entities.ts";
 import { boundHeaders, CANARY_MARKER, canary, UPSTREAM_PORT } from "./support/env.ts";
+import { openSettings, settingsTab } from "./support/settings.ts";
 import { expect, test, unsafe } from "./support/test.ts";
 
 const canvas = (page: import("@playwright/test").Page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
 
-/** Each Settings switch's short name, and its help text as its accessible description. */
+/** Each Settings switch's short name (all in Chat), and its hint as its accessible description. */
 const SWITCH_HELP = {
   "Prefer the character's system prompt":
-    "A character's own system prompt replaces the preset's main prompt. Off, the preset's is used even then.",
+    "Its own system prompt replaces the preset's main prompt.",
   "Prefer the character's post-history instructions":
-    "A character's own post-history instructions replace the preset's. Off, the preset's are used even then.",
-  "Show reasoning open": "A reply's reasoning starts open instead of folded away.",
-  "Time hidden reasoning":
-    "When a model reasons but keeps its reasoning to itself, say how long it thought.",
+    "Its own post-history instructions replace the preset's.",
+  "Show reasoning open": "A reply's reasoning starts open instead of folded.",
+  "Time hidden reasoning": "When a model keeps its reasoning to itself, say how long it thought.",
 } as const;
 
 /** A Settings switch found by its short name, once it is described by its help text. */
@@ -236,13 +236,17 @@ test("a tab that started on the fallback settings takes the saved theme and pale
 test("a theme and palette chosen before the saved settings load stay once they do", async ({
   page,
 }) => {
-  // Reasoning open shows when the saved settings have reached the screen.
+  // Reasoning open shows when the saved settings have reached the screen (in Chat, kept mounted).
   await patchSettings(page.request, { theme: "dark", palette: "nord", reasoningOpen: true });
   const load = await holdSettingsLoad(page);
   const html = page.locator("html");
   const theme = page.getByRole("group", { name: "Theme" }).last();
   const palettes = page.getByRole("radiogroup", { name: "Palette", exact: true });
-  const reasoning = page.getByRole("switch", { name: "Show reasoning open", exact: true });
+  const reasoning = page.getByRole("switch", {
+    name: "Show reasoning open",
+    exact: true,
+    includeHidden: true,
+  });
   try {
     await page.goto("/settings");
     await load.held;
@@ -648,13 +652,15 @@ test("after a reload the app comes back with its selection and an empty chat", a
 test("the settings screen sets the default persona and the model", async ({ page }) => {
   const persona = uniqueName("Default");
   await createPersonaViaApi(page.request, persona);
-  await page.goto("/settings");
+  await openSettings(page, "chat");
   await choose(page, "Default persona", persona);
-  await choose(page, "Model", "mock-fast");
+  await choose(page, "Reply model", "mock-fast");
   expect(await seriousAxeViolations(page)).toEqual([]);
   await page.reload();
   await expect(page.getByRole("combobox", { name: "Default persona" })).toContainText(persona);
-  await expect(page.getByRole("combobox", { name: "Model", exact: true })).toHaveText("mock-fast");
+  await expect(page.getByRole("combobox", { name: "Reply model", exact: true })).toHaveText(
+    "mock-fast",
+  );
   // The list draws each persona as the Session panel does: its leaf, every name at one x.
   await page.getByRole("combobox", { name: "Default persona" }).click();
   const option = page.getByRole("option", { name: persona, exact: true });
@@ -703,19 +709,21 @@ test("another tab's saved choices never reach an open tab", async ({ page, conte
 
 test("a change that could not be saved stays listed until it is", async ({ page }) => {
   await page.clock.install();
-  await page.goto("/settings");
+  await openSettings(page, "chat");
   let blocked = true;
   await page.route("**/api/settings", (route) =>
     blocked && route.request().method() === "PATCH" ? route.abort() : route.fallback(),
   );
-  await choose(page, "Model", "mock-long");
+  await choose(page, "Reply model", "mock-long");
   const alert = page.getByRole("alert").filter({ hasText: "Not saved" });
   // Retried first, then reported.
   await expect(alert).toBeVisible({ timeout: 20_000 });
   // Leave all settings-screen observers, advance beyond mutation GC, then return.
   await page.getByRole("link", { name: "Characters", exact: true }).first().click();
   await page.clock.fastForward(301_000);
+  // Settings opens on Appearance; the alert stands above every category.
   await page.getByRole("link", { name: "Settings", exact: true }).first().click();
+  await expect(settingsTab(page, "Appearance")).toHaveAttribute("aria-selected", "true");
   await expect(alert).toBeVisible();
   blocked = false;
   // A later save of another field does not hide the unsaved model.
@@ -735,7 +743,10 @@ test("a change that could not be saved stays listed until it is", async ({ page 
   await expect(alert).toHaveCount(0);
   await saved;
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Model", exact: true })).toHaveText("mock-long");
+  await settingsTab(page, "Chat").click();
+  await expect(page.getByRole("combobox", { name: "Reply model", exact: true })).toHaveText(
+    "mock-long",
+  );
 });
 
 test("a model without a known context window blocks sending until a window is set", async ({
@@ -760,8 +771,9 @@ test("a model without a known context window blocks sending until a window is se
     "Use the window your provider documents for this model.",
   );
   await expect(field).toBeInViewport();
-  // Shown, the model leaves the address.
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(settingsTab(page, "Model setup")).toHaveAttribute("aria-selected", "true");
+  // Shown, the model leaves the address; the category stays.
+  await expect(page).toHaveURL(/\/settings\?section=setup$/);
   await field.fill("16384");
   await field.press("Tab");
   await expect(field).toHaveValue("16,384");
@@ -784,6 +796,7 @@ test("a model without a known context window blocks sending until a window is se
 
   // Removing it blocks sending again.
   await page.getByRole("link", { name: "Settings", exact: true }).first().click();
+  await settingsTab(page, "Model setup").click();
   await page.getByRole("button", { name: "Reset Context window for mock-nowindow" }).click();
   await expect(page.getByText("Not set: replies can't be sent")).toBeVisible();
 
@@ -800,8 +813,8 @@ test("a model the provider does not list can be typed, and its window note leads
   page,
 }) => {
   const typed = "vendor/typed-model-7";
-  await page.goto("/settings");
-  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  await openSettings(page, "chat");
+  const model = page.getByRole("combobox", { name: "Reply model", exact: true });
   await model.click();
   const find = page.getByRole("combobox", { name: "Find a model", exact: true });
   await expect(find).toBeFocused();
@@ -833,6 +846,7 @@ test("a model the provider does not list can be typed, and its window note leads
     .toEqual({ [typed]: 32_768 });
 
   // An ID past the model rule's length is refused in words, not offered.
+  await settingsTab(page, "Chat").click();
   await model.click();
   await find.fill("x".repeat(201));
   await expect(page.getByText("Model IDs are at most 200 characters.")).toBeVisible();
@@ -844,8 +858,8 @@ test("a model the provider does not list can be typed, and its window note leads
 });
 
 test("finding a model narrows the list, and Enter picks the highlighted row", async ({ page }) => {
-  await page.goto("/settings");
-  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  await openSettings(page, "chat");
+  const model = page.getByRole("combobox", { name: "Reply model", exact: true });
   await model.click();
   const find = page.getByRole("combobox", { name: "Find a model", exact: true });
   // Any part of the ID, in any case.
@@ -886,8 +900,8 @@ test("a long model list shows the first 200 matches and asks for more letters", 
     images: null,
   }));
   await page.route("**/api/models", (route) => route.fulfill({ json: { models } }));
-  await page.goto("/settings");
-  await page.getByRole("combobox", { name: "Model", exact: true }).click();
+  await openSettings(page, "chat");
+  await page.getByRole("combobox", { name: "Reply model", exact: true }).click();
   await expect(page.getByText("Showing 200 of 2,000. Keep typing to narrow.")).toBeVisible();
   await expect(page.getByRole("option")).toHaveCount(200);
   const find = page.getByRole("combobox", { name: "Find a model", exact: true });
@@ -912,8 +926,8 @@ test("a model list that didn't load says so, retries, and still takes a typed ID
     asked += 1;
     return failing ? route.fulfill({ status: 503, body: "" }) : route.fallback();
   });
-  await page.goto("/settings");
-  const model = page.getByRole("combobox", { name: "Model", exact: true });
+  await openSettings(page, "chat");
+  const model = page.getByRole("combobox", { name: "Reply model", exact: true });
   // Never disabled for want of a list.
   await expect(model).toBeEnabled();
   await model.click();
@@ -952,7 +966,7 @@ test("a model list that didn't load says so, retries, and still takes a typed ID
 
 test("a chat model the catalog does not list can still get a context window", async ({ page }) => {
   await patchSettings(page.request, { model: "mock-unlisted" });
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   await expect(
     page.getByRole("button", { name: "Set Context window for mock-unlisted" }),
   ).toBeVisible();
@@ -970,7 +984,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
   page,
 }) => {
   await openChat(page, "mock-fast");
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   const field = page.getByRole("textbox", { name: "Context limit for mock-fast", exact: true });
   const reset = page.getByRole("button", { name: "Reset Context limit for mock-fast" });
   await expect(field).toHaveValue("131,072");
@@ -1006,6 +1020,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
   await page.keyboard.press("Escape");
 
   await page.getByRole("link", { name: "Settings", exact: true }).first().click();
+  await settingsTab(page, "Model setup").click();
   await reset.click();
   await expect(field).toHaveValue("131,072");
   await expect(reset).toHaveCount(0);
@@ -1033,7 +1048,7 @@ test("a window above the default limit is fitted to the default, and says so", a
 
 test("a model added for a context limit stays listed while Settings is open", async ({ page }) => {
   await openChat(page, "mock-fast");
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   const field = page.getByRole("textbox", {
     name: "Context limit for mock-lowonly",
     exact: true,
@@ -1058,7 +1073,7 @@ test("a model added for a context limit stays listed while Settings is open", as
 
 test("a limit stored for a model with no known window can still be removed", async ({ page }) => {
   await patchSettings(page.request, { contextLimits: { "mock-nowindow": 16_384 } });
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   // No window to limit, so no limit field: the stored limit is listed to be removed.
   await expect(
     page.getByRole("textbox", { name: "Context limit for mock-nowindow", exact: true }),
@@ -1071,7 +1086,7 @@ test("a limit stored for a model with no known window can still be removed", asy
 });
 
 test("history uses the native block policy without a legacy switch", async ({ page }) => {
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   await expect(page.getByRole("switch", { name: "Trim history in blocks" })).toHaveCount(0);
 });
 
@@ -1123,7 +1138,7 @@ test("history overflowing a limited context is left out in a block that stays pu
 });
 
 test("prompt post-processing is off unless set for a model, then sent as set", async ({ page }) => {
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   const add = page.getByRole("combobox", { name: "Add a model", exact: true });
   await add.click();
   await page.getByRole("option", { name: "mock-lowonly", exact: true }).click();
@@ -1145,7 +1160,7 @@ test("prompt post-processing is off unless set for a model, then sent as set", a
   await expect(page.getByRole("dialog", { name: "Prompt" })).toContainText("One system message");
   await page.keyboard.press("Escape");
 
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   await page.getByRole("button", { name: "Remove post-processing for mock-lowonly" }).click();
   await expect(mode).toHaveCount(0);
 });
@@ -1153,7 +1168,7 @@ test("prompt post-processing is off unless set for a model, then sent as set", a
 test("reasoning shows open when set, and a model's hidden reasoning is timed when asked", async ({
   page,
 }) => {
-  await page.goto("/settings");
+  await openSettings(page, "chat");
   const open = await settingSwitch(page, "Show reasoning open");
   const hidden = await settingSwitch(page, "Time hidden reasoning");
   // The short label toggles its switch, like the switch itself.
@@ -1192,7 +1207,7 @@ test("reasoning shows open when set, and a model's hidden reasoning is timed whe
     /Thought for \d+ seconds?; the model keeps its reasoning/,
   );
 
-  await page.goto("/settings");
+  await openSettings(page, "chat");
   await open.click();
   await hidden.click();
   await expect(open).not.toBeChecked();
@@ -1227,7 +1242,7 @@ test("the character's own prompt and instructions are used only while preferred"
   );
   expect(preferred).toContain("Card closing words.");
 
-  await page.goto("/settings");
+  await openSettings(page, "chat");
   const prompt = await settingSwitch(page, "Prefer the character's system prompt");
   const instructions = await settingSwitch(
     page,
@@ -1256,7 +1271,7 @@ test("the character's own prompt and instructions are used only while preferred"
   expect(presetOnly.join("\n")).not.toContain("Card rules first.");
   expect(presetOnly.join("\n")).not.toContain("Card closing words.");
 
-  await page.goto("/settings");
+  await openSettings(page, "chat");
   await prompt.click();
   await instructions.click();
   await expect(instructions).toBeChecked();
@@ -1305,7 +1320,7 @@ test("a memory size steps with the arrow keys, each step saved and the field kep
       }
     ).settings.memoryKeepTurns;
   const start = await memoryKeepTurns();
-  await page.goto("/settings");
+  await openSettings(page, "memory");
   const field = page.getByRole("textbox", { name: "Keep recent turns", exact: true });
   await expect(field).toHaveValue(String(start));
   // From the bottom of the range, so every step goes up.
@@ -1328,7 +1343,7 @@ test("a memory size steps with the arrow keys, each step saved and the field kep
 test("a context limit steps with quick arrow keys, each step counted", async ({ page }) => {
   const limits = async () => (await savedSettings(page)).contextLimits;
   await openChat(page, "mock-fast");
-  await page.goto("/settings");
+  await openSettings(page, "setup");
   const field = page.getByRole("textbox", { name: "Context limit for mock-fast", exact: true });
   await field.fill("16384");
   await field.press("Tab");
@@ -1365,6 +1380,116 @@ test("a long persona name never makes the empty composer taller or wider", async
   expect((await composer.boundingBox())?.height).toBeGreaterThan(oneLine ?? 0);
 });
 
+test("a category opens from the address, an unknown one falls back to Appearance", async ({
+  page,
+}) => {
+  await openSettings(page, "memory");
+  await expect(settingsTab(page, "Memory & cast")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { level: 2, name: "Memory & cast" })).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "Open new chats where the story left off" }),
+  ).toBeVisible();
+  // Only the open category is there for role queries; Appearance's palettes are not.
+  await expect(page.getByRole("radiogroup", { name: "Palette", exact: true })).toHaveCount(0);
+
+  // A category is chosen in the index: the address follows it, and Back returns.
+  await settingsTab(page, "Pictures").click();
+  await expect(page).toHaveURL(/\/settings\?section=pictures$/);
+  await expect(page.getByRole("textbox", { name: "ComfyUI address" })).toBeVisible();
+  await page.goBack();
+  await expect(settingsTab(page, "Memory & cast")).toHaveAttribute("aria-selected", "true");
+
+  await page.goto("/settings?section=portraits");
+  await expect(settingsTab(page, "Appearance")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("radiogroup", { name: "Palette", exact: true })).toBeVisible();
+});
+
+test("a window link opens Model setup on its field, then keeps only the category", async ({
+  page,
+}) => {
+  await page.goto("/settings?section=memory&window=mock-nowindow");
+  await expect(settingsTab(page, "Model setup")).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("textbox", { name: "Context window for mock-nowindow", exact: true }),
+  ).toBeFocused();
+  await expect(page).toHaveURL(/\/settings\?section=setup$/);
+});
+
+test("an infotip opens on hover and from the keyboard, and Escape closes it", async ({ page }) => {
+  await openSettings(page, "memory");
+  const trigger = page.getByRole("button", { name: "About Remember every", exact: true });
+  const tip = page.getByRole("dialog", { name: "Remember every" });
+  await trigger.hover();
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText("Writes a memory once this much new story has built up.");
+  await page.mouse.move(0, 0);
+  await expect(tip).toBeHidden();
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(tip).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  // A switch's infotip sits outside its label: opening it never toggles the switch.
+  await settingsTab(page, "Chat").click();
+  const open = page.getByRole("switch", { name: "Show reasoning open", exact: true });
+  const checked = await open.isChecked();
+  await page.getByRole("button", { name: "About Show reasoning open", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Show reasoning open" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  expect(await open.isChecked()).toBe(checked);
+});
+
+test.describe("on touch", () => {
+  test.use({ hasTouch: true });
+
+  test("an infotip opens on tap", async ({ page }) => {
+    await openSettings(page, "memory");
+    await page.getByRole("button", { name: "About Keep recent turns", exact: true }).tap();
+    await expect(page.getByRole("dialog", { name: "Keep recent turns" })).toBeVisible();
+  });
+});
+
+test("a phone opens a category from the list, and its back control returns to the row", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSettings(page);
+  const list = page.getByRole("navigation", { name: "Settings categories" });
+  const row = list.getByRole("link", { name: /^Memory & cast / });
+  await row.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Memory & cast" })).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\?section=memory$/);
+  await expect(list).toHaveCount(0);
+  await page.getByRole("button", { name: "Back to settings" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(row).toBeFocused();
+
+  // Opened by its address, the category's back control still lands on the list.
+  await page.goto("/settings?section=pictures");
+  await expect(page.getByRole("heading", { level: 1, name: "Pictures" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to settings" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(list).toBeVisible();
+});
+
+test("an unsaved palette stays open while another category is looked at", async ({ page }) => {
+  await openSettings(page);
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: /^Your palettes/ }).click();
+  await page.getByRole("button", { name: "New palette" }).click();
+  await page.getByRole("menuitem", { name: "Nord" }).click();
+  const name = page.getByRole("textbox", { name: "Name", exact: true });
+  await name.fill("Harbour");
+  await settingsTab(page, "Chat").click();
+  await expect(page.getByRole("region", { name: "New palette" })).toHaveCount(0);
+  await settingsTab(page, "Appearance").click();
+  await expect(page.getByRole("region", { name: "New palette" })).toBeVisible();
+  await expect(name).toHaveValue("Harbour");
+});
+
 for (const { name, width, height, scheme } of [
   { name: "desktop light", width: 1440, height: 900, scheme: "light" },
   { name: "tablet dark", width: 834, height: 1112, scheme: "dark" },
@@ -1375,8 +1500,19 @@ for (const { name, width, height, scheme } of [
   }) => {
     await page.setViewportSize({ width, height });
     await page.emulateMedia({ colorScheme: scheme });
-    await page.goto("/settings");
-    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    await openSettings(page);
+    // Phones open on the list of categories, which must fit too.
+    if (name === "phone dark") {
+      await expectNoOverflow(page);
+      expect(await seriousAxeViolations(page)).toEqual([]);
+      await page
+        .getByRole("navigation", { name: "Settings categories" })
+        .getByRole("link", { name: /^Chat / })
+        .click();
+      await expect(page.getByRole("heading", { level: 1, name: "Chat" })).toBeVisible();
+    } else {
+      await settingsTab(page, "Chat").click();
+    }
     for (const label of Object.keys(SWITCH_HELP) as (keyof typeof SWITCH_HELP)[]) {
       await expect(await settingSwitch(page, label)).toBeVisible();
     }

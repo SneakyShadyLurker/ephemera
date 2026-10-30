@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { CastAnchorField, CastStateField } from "../../packages/core/src/cast/index.ts";
 import { choose } from "./entities.ts";
+import { settingsTab } from "./settings.ts";
 
 /*
  * Drive the cast panel as the owner does, through its test hooks
@@ -65,6 +66,7 @@ export async function chooseCastModel(page: Page, label: string) {
   const main = page.getByRole("navigation", { name: "Main" });
   await main.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  await settingsTab(page, "Memory & cast").click();
   const saved = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/settings" &&

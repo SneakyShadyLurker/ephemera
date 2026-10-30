@@ -11,7 +11,7 @@ import {
   type WorkflowRefusalCode,
   type WorkflowSummary,
 } from "@ephemera/core";
-import { nameTakenLine, renameProblem } from "../settings/portraits.ts";
+import { nameTakenLine, renameProblem } from "../settings/pictures.ts";
 import { refusalText, SERVER_NAME_NOTE, type TabRefusal } from "./copy.ts";
 import type { WorkflowFailure } from "./queries.ts";
 

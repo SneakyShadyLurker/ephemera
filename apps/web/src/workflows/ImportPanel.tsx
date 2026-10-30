@@ -27,7 +27,7 @@ import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { countOf } from "@/lib/text";
 import { artWorkflowsQuery } from "../creator/queries.ts";
-import { FAMILY_NAMES } from "../settings/portraits.ts";
+import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { useSetting } from "../settings/settings.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import { FIELD } from "../sheet/fields.ts";
@@ -90,7 +90,7 @@ export type WorkflowDraft =
   | { mode: "import"; file: File }
   | { mode: "replace"; workflow: WorkflowSummary; file: File };
 
-/** What the import panel gets from the Portraits section that holds the file picker. */
+/** What the import panel gets from the Pictures category that holds the file picker. */
 export interface ImportPanelProps {
   draft: WorkflowDraft;
   /** Another file chosen or dropped while this one is open, until `onIncoming` answers. */

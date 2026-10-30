@@ -25,7 +25,7 @@ import {
   renameProblem,
   type StatusTone,
   workflowStatus,
-} from "../settings/portraits.ts";
+} from "../settings/pictures.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
 import { useGlide } from "../sheet/ordering.tsx";

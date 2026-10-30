@@ -5,11 +5,10 @@ import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { modelsQuery } from "../api.ts";
+import { HINT as HELP, ROW_SELECT, SettingRow } from "./SettingRow.tsx";
 import { useSetting, useUpdateSettings } from "./settings.ts";
 
 type Mode = PromptProcessingSettings[string];
-
-const HELP = "text-pretty text-note text-reed";
 
 /** Provider role options, least to most restrictive. */
 const MODES: Record<Mode, { label: string; help: string }> = {
@@ -32,9 +31,9 @@ const MODES: Record<Mode, { label: string; help: string }> = {
 };
 
 /**
- * Prompt post-processing per model:
- * none unless set here, for models whose chat template needs it, such as
- * one leading system message.
+ * The Post-processing group's rows: prompt post-processing per model, none
+ * unless set here, for models whose chat template needs it, such as one
+ * leading system message.
  */
 export function PostProcessing() {
   const models = useQuery(modelsQuery);
@@ -53,16 +52,11 @@ export function PostProcessing() {
     updateSettings({ promptProcessing: mode === null ? others : { ...others, [id]: mode } });
   };
 
+  // Rows of the Post-processing group: the list, then adding a model as its last row.
   return (
-    <div className="grid gap-3">
-      <p className={HELP}>
-        Off for every model unless set here. Some models' chat templates refuse a prompt with system
-        messages between the turns, or need turns to alternate: Qwen 3.8 Max, for one, takes a
-        single system message at the start. GPT models drop the speaker names of example dialogue;
-        any mode here, Merge consecutive roles the lightest, writes each name into its line.
-      </p>
+    <>
       {set.length > 0 && (
-        <ul className="grid border-rush border-t">
+        <ul className="grid divide-y divide-rush">
           {set.map((id) => (
             <ModeRow
               key={id}
@@ -73,10 +67,7 @@ export function PostProcessing() {
           ))}
         </ul>
       )}
-      <div className="grid gap-1.5">
-        <span id={addLabel} className="font-medium text-ink text-ui">
-          Add a model
-        </span>
+      <SettingRow label="Add a model" labelId={addLabel}>
         <ModelSelect
           labelId={addLabel}
           options={offered}
@@ -85,10 +76,10 @@ export function PostProcessing() {
             // A typed model already set keeps its mode.
             if (!Object.hasOwn(promptProcessing, id)) save(id, "semiStrict");
           }}
-          className="max-w-sm tablet:w-full"
+          className={ROW_SELECT}
         />
-      </div>
-    </div>
+      </SettingRow>
+    </>
   );
 }
 
@@ -103,7 +94,7 @@ function ModeRow({
 }) {
   const labelId = useId();
   return (
-    <li className="grid gap-1.5 border-rush border-b py-3 arrive">
+    <li className="grid gap-1.5 py-3.5 arrive">
       <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 touch:min-h-11">
         <span
           id={labelId}

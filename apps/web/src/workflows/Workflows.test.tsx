@@ -96,7 +96,7 @@ function render({
 const rows = (markup: string) => markup.split("<li").slice(1);
 const rowOf = (markup: string, name: string) => rows(markup).find((row) => row.includes(name));
 
-describe("the workflows list in Settings > Portraits", () => {
+describe("the workflows list in Settings > Pictures", () => {
   it("groups the user's workflows before the server's, family and nodes as text", () => {
     const markup = render();
     expect(markup).toContain("Import a workflow");

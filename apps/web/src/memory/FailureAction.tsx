@@ -44,9 +44,9 @@ export function MemoryFailureAction({
       );
     case "settings":
       return (
-        <Link to="/settings" className={ACTION}>
+        <WindowLink model={null} section="memory" className={ACTION}>
           {label}
-        </Link>
+        </WindowLink>
       );
     case "memory":
       return (
