@@ -55,7 +55,7 @@ scenes keep moving without you steering every turn.
   ordered prompt blocks, an Author's Note, independent sampler presets and a
   macro engine for `{{char}}`, `{{user}}` and more
 - **Pictures**: portraits and scene pictures through ComfyUI or [Atelier](https://github.com/SneakyShadyLurker/atelier-studio), with
-  your own workflows mounted in
+  your own ComfyUI workflows imported in Settings or mounted on the server
 - **Polish**: light and dark themes, custom palettes, and layouts built for
   phones, tablets and desktops
 

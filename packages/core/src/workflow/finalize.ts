@@ -165,7 +165,7 @@ const fits = (value: unknown, latent: unknown, placeholder: string): boolean =>
   value === placeholder || JSON.stringify(value) === JSON.stringify(latent);
 
 /**
- * The template (spec § 10.6): the chosen output, every other output dropped
+ * The template: the chosen output, every other output dropped
  * with the nodes only they consumed; the chosen latent, reached from the
  * output, and an ImageScale before the save unless one already gives the
  * latent's size; the chosen encoders' text inputs; every seed; then the

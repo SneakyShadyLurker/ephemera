@@ -207,7 +207,7 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
   Object.fromEntries(Object.entries(state ?? {}).filter(([, value]) => value !== undefined));
 
 /**
- * The register after the keeper's changes (spec § 3.5): each change resolved
+ * The register after the keeper's changes: each change resolved
  * to an entry by name or `aka` or a single first-name match (a fuller name
  * renames a one-word entry), then `was`, then an identity the reply's earlier
  * the chat knew before (`previous`), else a new entry; the player's names dropped; a set anchor field never

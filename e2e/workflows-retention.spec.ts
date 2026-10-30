@@ -16,8 +16,8 @@ import {
 } from "./support/workflow-files.ts";
 
 /*
- * Retention matrix, an imported workflow (docs/specs/workflow-import.md
- * § 13): the one place content could enter a workflow is the prompt place's
+ * Retention matrix, an imported workflow (docs/ARCHITECTURE.md § Retention
+ * matrix): the one place content could enter a workflow is the prompt place's
  * literal text, which is replaced by `{{prompt}}` before anything is stored.
  * The row imports a saved workflow whose prompt holds a canary, then
  * replaces its file with an API export holding another. Each canary is

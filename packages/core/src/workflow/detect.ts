@@ -8,8 +8,7 @@ import { type NodeTitles, nodeTitle } from "./report.ts";
 import type { SlotTarget } from "./slots.ts";
 
 /*
- * Where Ephemera's values go in a normalized graph (spec § 10.2 to 10.5,
- * § 10.8): the image output, the encoders whose conditioning reaches the
+ * Where Ephemera's values go in a normalized graph: the image output, the encoders whose conditioning reaches the
  * output's sampler positive, the empty latent the sampler chain starts
  * from, every seed, and the art family the loaders suggest. A place with
  * several candidates and no evidence stays unchosen for the user.
@@ -146,7 +145,7 @@ export function latentIn(latents: readonly string[], chain: ReadonlySet<string>)
 }
 
 /**
- * The places of spec § 10.2 to 10.5 and the family guess, or the refusal
+ * The places and the family guess, or the refusal
  * naming the missing one. With several outputs, the prompt and latent are
  * found across every output's branch; finalization finds them again from
  * the chosen output's.

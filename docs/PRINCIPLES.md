@@ -115,7 +115,9 @@ and only as long as it is needed.
   fired where never reaches it. A memory is the model's validated answer;
   the span it was written from never reaches it. A cast sheet is character
   data read from the card alone: the people it names and their fixed
-  details, never a chat's state.
+  details, never a chat's state. A workflow is the graph Ephemera runs,
+  with `{{prompt}}` where the prompt goes; the text the file had there never
+  reaches it.
 - Each user's database lives in server memory and reaches the disk only as
   one encrypted file, and each portrait's image as one more encrypted file
   beside it; plaintext database or image bytes are never written (no temp
@@ -155,8 +157,11 @@ and only as long as it is needed.
   Releasing the lease removes these outputs with the inputs. No image node
   writes to disk: a server graph using a node class outside Ephemera's
   allowlist of in-memory classes stops the start, a user's workflow using one
-  is refused when saved and never runs, and every save or preview node is
-  refused whatever the operator adds to the allowlist. Private mode requires
+  is refused when saved and never runs, and every save or preview node
+  other than the in-memory `SaveImageWebsocket` is refused whatever the
+  operator adds to the allowlist (an imported file's one image saver, else its
+  one preview, or with several the chosen output, becomes
+  `SaveImageWebsocket` first). Private mode requires
   job status, memory image outputs, preview control, lease renewal and admission, plus the worker's build,
   allowlist and limits metadata. Missing capabilities fail closed;
   only a missing private handshake selects native mode. Ephemera opts out of

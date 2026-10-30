@@ -34,7 +34,7 @@ import { type AssistantMessage, type ChatMessage, shownReply } from "./store.ts"
 import type { UsageHandle } from "./usage.ts";
 
 /*
- * The cast register (PRINCIPLES.md 1, spec § 7): a snapshot per reply of
+ * The cast register (PRINCIPLES.md 1): a snapshot per reply of
  * who is in the story and how they stand, kept by a keeper call after each
  * complete reply, the owner's corrections over it, and the cast sheet this
  * chat acknowledged. All of it is chat content, held in this store only: no
