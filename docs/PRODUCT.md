@@ -861,10 +861,11 @@ recursion, the text of entries already sent; card fields, the persona and
 notes are not scanned.
 
 **Settings**
-- Six categories: Appearance (theme and palettes), Chat (default persona,
-  reply model, character prompts, reasoning), Model setup (context limits
-  and windows, post-processing, model by model), Memory & cast, Pictures
-  (image prompt model, ComfyUI address, workflows) and What is kept. From
+- Six categories: Appearance (theme and palettes, Tokyo Night by default),
+  Chat (default persona, reply model, character prompts, reasoning), Model
+  setup (context limits and windows, post-processing, model by model),
+  Memory & cast, Pictures (image prompt model, ComfyUI address, workflows)
+  and What is kept. From
   tablet up an index beside the open category chooses between them; on
   phones a list opens each on a screen of its own, with a back control.
   The category is in the address (`/settings?section=memory`), so links
