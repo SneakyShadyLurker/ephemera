@@ -71,8 +71,8 @@ per character.
 
 ### ✦ Cast register
 After each reply a keeper notes who is in the scene: their mood, what they
-wear, where they stand and what they are doing. Open anyone's record to read
-or correct it, so outfits, positions and names stay consistent.
+wear, where they stand and what they are doing. Open a record from the cast
+panel to read or correct it, so outfits, positions and names stay consistent.
 
 <p align="center">
   <img src="docs/images/cast.png" alt="Friday Abbams's cast record open over the chat: what she is doing now, her mood, outfit and position, and a personality note">
