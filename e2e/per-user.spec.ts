@@ -58,6 +58,31 @@ const signInAs = (context: BrowserContext, user: string) =>
   context.setExtraHTTPHeaders(swagHeaders(user));
 
 /**
+ * Holds the tab's background reads (late workflow-status reads, refetches)
+ * across a same-tab switch, so the request under test is the one that
+ * crosses the identity boundary. Routing turns the HTTP cache off, so the
+ * release ends it as soon as the refusal is seen, and the test reloads once
+ * more with the cache on.
+ */
+async function holdBackgroundReads(page: Page): Promise<() => Promise<void>> {
+  const held = Promise.withResolvers<void>();
+  await page.route("**/api/**", async (route) => {
+    if (route.request().method() === "GET") await held.promise;
+    await route.continue();
+  });
+  return async () => {
+    held.resolve();
+    await page.unrouteAll({ behavior: "wait" });
+  };
+}
+
+/** A reload with the HTTP cache on serves the new user's shell, not a cached one of the earlier user. */
+async function reloadsAs(page: Page, user: string) {
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-user", user);
+}
+
+/**
  * The refusal of a request bound to the tab's earlier user. Its body is gone
  * with the reload it causes; the tab reloads only for `identity_mismatch`, so
  * the reload that follows says which refusal it was.
@@ -147,11 +172,17 @@ test.describe("a same-tab switch to another user", () => {
         "true",
       );
 
-      await signInAs(context, b);
-      const refused = responseTo(page, "PATCH", "/api/settings");
-      await theme.getByRole("button", { name: "Light" }).click();
-      expectIdentityMismatch(await refused);
-      await expect(page.locator("html")).toHaveAttribute("data-user", b);
+      const release = await holdBackgroundReads(page);
+      try {
+        await signInAs(context, b);
+        const refused = responseTo(page, "PATCH", "/api/settings");
+        await theme.getByRole("button", { name: "Light" }).click();
+        expectIdentityMismatch(await refused);
+        await expect(page.locator("html")).toHaveAttribute("data-user", b);
+      } finally {
+        await release();
+      }
+      await reloadsAs(page, b);
 
       // The new user's own defaults, nothing of the first user's.
       await expect(page.locator("html")).not.toHaveAttribute("data-theme");
@@ -187,12 +218,18 @@ test.describe("a same-tab switch to another user", () => {
       await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
       await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
-      await signInAs(context, b);
-      const refused = responseTo(page, "PATCH", `/api/characters/${id}`);
       const typed = `Typed after the switch ${crypto.randomUUID()}`;
-      await page.getByRole("textbox", { name: "Description" }).fill(typed);
-      expectIdentityMismatch(await refused);
-      await expect(page.locator("html")).toHaveAttribute("data-user", b);
+      const release = await holdBackgroundReads(page);
+      try {
+        await signInAs(context, b);
+        const refused = responseTo(page, "PATCH", `/api/characters/${id}`);
+        await page.getByRole("textbox", { name: "Description" }).fill(typed);
+        expectIdentityMismatch(await refused);
+        await expect(page.locator("html")).toHaveAttribute("data-user", b);
+      } finally {
+        await release();
+      }
+      await reloadsAs(page, b);
 
       await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveCount(0);
       await expect(page.getByText(name)).toHaveCount(0);

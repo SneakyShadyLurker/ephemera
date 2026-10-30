@@ -55,7 +55,7 @@ import type { ChatState } from "./store.ts";
  * The cast panel: a compact roster under
  * the portrait, or across the phone's band, and each entry's record on a
  * surface of its own (a popover from tablet up, a drawer on phones), read
- * as prose and corrected in an edit mode. Women only, as the owner chose;
+ * in labelled sections and corrected in an edit mode. Women only, as the owner chose;
  * the register keeps everyone for the narrator. Everything shown is chat
  * content read from the store; nothing here keeps a copy past its surface.
  */
@@ -95,45 +95,33 @@ const TONES: Partial<Record<TextField, "rose" | "sage" | "iris">> = {
   intimate: "iris",
 };
 
-/** The anchor as three short paragraphs: identity and looks; intimate body; personality, fetishes and taboos. */
-const PARAGRAPHS: readonly (readonly CastAnchorField[])[] = [
-  ["age", "ethnicity", "relationship", "skin", "face", "height", "weight", "build", "hair", "eyes"],
-  ["intimate"],
-  ["personality", "experience", "fetishes"],
+/**
+ * The record's sections, in reading and edit mode alike: the state first, as
+ * it changes with each reply (its activity the lead), then the anchor.
+ */
+const SECTIONS: readonly (readonly [string, readonly TextField[]])[] = [
+  ["Now", ["activity", "mood", "outfit", "position", "arousal", "injuries", "intoxication"]],
+  ["Looks", ["age", "ethnicity", "height", "weight", "build", "face", "skin", "hair", "eyes"]],
+  ["Character", ["personality", "relationship"]],
+  ["Intimate", ["experience", "intimate", "fetishes"]],
 ];
 
-/** Edit mode's groups, under quiet labels. */
-const EDIT_GROUPS: readonly (readonly [string, readonly TextField[]])[] = [
-  [
-    "Looks and character",
-    [
-      "age",
-      "ethnicity",
-      "relationship",
-      "skin",
-      "face",
-      "height",
-      "weight",
-      "build",
-      "hair",
-      "eyes",
-      "personality",
-    ],
-  ],
-  ["Intimate", ["intimate", "experience", "fetishes"]],
-  ["Now", CAST_STATE_FIELDS],
-];
+/** A section's quiet label: a heading in reading mode, a legend in edit mode. */
+const SECTION_LABEL = "font-medium font-sans text-meta text-reed";
 
 const isAnchorField = (field: TextField): field is CastAnchorField =>
   !(CAST_STATE_FIELDS as readonly string[]).includes(field);
 
-/** The roster's state line: what she is doing and how she feels; where she was, once away. */
+/**
+ * The roster's state line: how she feels, then what she is doing, so a line
+ * cut short keeps the mood; where she was, once away.
+ */
 const stateLine = ({ state }: CastEntry): string => {
   if (!state.present) {
     const where = state.position || state.activity;
     return where === "" ? "" : `last seen: ${where}`;
   }
-  return [state.activity, state.mood].filter((part) => part !== "").join(", ");
+  return [state.mood, state.activity].filter((part) => part !== "").join(", ");
 };
 
 /** Present and away, in the register's order. */
@@ -340,7 +328,7 @@ function Entry({
           key={wash?.key ?? "still"}
           data-cast-changed={wash === undefined ? undefined : ""}
           style={wash?.style}
-          className="max-h-[2lh] justify-self-start overflow-hidden rounded-sm text-narration text-note transition-colors duration-(--duration-quick) ease-fade group-hover:text-ink"
+          className="line-clamp-2 @chat-roomy/chat:line-clamp-3 justify-self-start rounded-sm text-narration text-note transition-colors duration-(--duration-quick) ease-fade group-hover:text-ink"
         >
           {text}
         </span>
@@ -865,7 +853,26 @@ function RecordView({
   );
 }
 
-/** One field in reading mode: its name for assistive technology, its tone, its correction's hairline. */
+/**
+ * Personality keywords, each its own highlight, when the field reads as a
+ * short list (two to eight pieces of at most three words, none led by a
+ * conjunction: "shy, but warms up" or "loyal, if guarded" is a phrase); else
+ * null, and it reads as written.
+ */
+function keywordsOf(text: string): string[] | null {
+  const parts = text
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+  const listed = parts.every(
+    (part) =>
+      part.split(/\s+/).length <= 3 &&
+      !/^(and|or|but|yet|so|if|when|unless|though|although|except)\b/i.test(part),
+  );
+  return parts.length >= 2 && parts.length <= 8 && listed ? parts : null;
+}
+
+/** One field in reading mode: its tone, its correction's hairline, its wash. */
 function Field({
   entry,
   field,
@@ -878,42 +885,65 @@ function Field({
   wash: { key: string; style: CSSProperties } | undefined;
 }) {
   const tone = TONES[field];
-  return (
+  const text = castFieldText(entry, field);
+  const keywords = field === "personality" ? keywordsOf(text) : null;
+  const marks = {
+    "data-cast-field": field,
+    "data-cast-corrected": corrected ? "" : undefined,
+    "data-cast-changed": wash === undefined ? undefined : "",
+  };
+  return keywords === null ? (
     <span
       key={wash?.key ?? "still"}
-      data-cast-field={field}
-      data-cast-corrected={corrected ? "" : undefined}
-      data-cast-changed={wash === undefined ? undefined : ""}
+      {...marks}
       data-tone={tone}
       style={wash?.style}
       className={cn(tone !== undefined && "tone-wash")}
     >
-      <span className="sr-only">{LABELS[field]}: </span>
-      {castFieldText(entry, field)}
+      {text}
+    </span>
+  ) : (
+    <span
+      key={wash?.key ?? "still"}
+      {...marks}
+      style={wash?.style}
+      className="flex flex-wrap gap-x-2 gap-y-1"
+    >
+      {keywords.map((word, at) => {
+        // Keyed by the word and its occurrence (a list may repeat one), as sheet/TokenField.tsx
+        // does; the hidden comma keeps the words apart when read aloud or copied.
+        const occurrence = keywords.slice(0, at).filter((other) => other === word).length;
+        return (
+          <span key={`${occurrence}:${word}`} data-tone={tone} className="tone-wash">
+            {at > 0 && <span className="sr-only">, </span>}
+            {word}
+          </span>
+        );
+      })}
     </span>
   );
 }
 
-/**
- * Revert, out of the sentence: a quiet line after the paragraph that holds
- * the corrected field, taking it back to the recorded value.
- */
+/** Revert, under the corrected field: a quiet line taking it back to the recorded value. */
 function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
   return (
-    <button
-      type="button"
-      onClick={() => chatStore.getState().revertCast(entry.id, field)}
-      className="press flex items-center font-sans text-meta text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink touch:min-h-11"
-    >
-      Revert {LABELS[field].toLowerCase()}
-    </button>
+    <div className="mt-1 grid justify-items-start">
+      <button
+        type="button"
+        onClick={() => chatStore.getState().revertCast(entry.id, field)}
+        className="press flex items-center font-sans text-meta text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink touch:min-h-11"
+      >
+        Revert {LABELS[field].toLowerCase()}
+      </button>
+    </div>
   );
 }
 
 /**
- * The record in reading mode: the anchor in three short paragraphs, then
- * the state, or how she was last seen once away. A minor entry's empty
- * fields leave its record a paragraph.
+ * The record in reading mode: its sections, each under a quiet heading and
+ * only when it holds something. Now (Last seen, once away) leads with the
+ * activity, set apart on a hairline frame; every other field is a labelled
+ * row, and a phone too narrow for two columns sets each label over its value.
  */
 export function RecordText({ entry }: { entry: CastEntry }) {
   const correction = useChat((state) => state.cast.corrections[entry.id]);
@@ -923,54 +953,64 @@ export function RecordText({ entry }: { entry: CastEntry }) {
     ...(Object.keys(correction?.anchor ?? {}) as TextField[]),
     ...(Object.keys(correction?.state ?? {}) as TextField[]),
   ]);
-  // The title carries a bare age; a fuller one, or a corrected one, reads here too.
-  const paragraphs = PARAGRAPHS.map((fields) =>
-    fields.filter(
-      (field) =>
-        field !== "age" ||
-        corrections.has("age") ||
-        castFieldText(entry, "age").trim() !== ageOf(entry),
-    ),
+  // A corrected field shows even when cleared, for its Revert. The title carries a bare age; a
+  // fuller one reads here too.
+  const shows = (field: TextField) => {
+    const text = castFieldText(entry, field);
+    if (corrections.has(field)) return true;
+    return text !== "" && (field !== "age" || text.trim() !== ageOf(entry));
+  };
+  const value = (field: TextField) => (
+    <>
+      <Field
+        entry={entry}
+        field={field}
+        corrected={corrections.has(field)}
+        wash={washOf(change, entry.id, [field], mountedAt)}
+      />
+      {corrections.has(field) && <Revert entry={entry} field={field} />}
+    </>
   );
-  /** A paragraph of the fields that hold text, then a Revert line per corrected one. */
-  const block = (fields: readonly TextField[], lead?: ReactNode) => {
-    const filled = fields.filter((field) => castFieldText(entry, field) !== "");
-    const corrected = fields.filter((field) => corrections.has(field));
-    if (filled.length === 0 && corrected.length === 0) return null;
+  const sections = SECTIONS.flatMap(([title, fields], index) => {
+    const shown = fields.filter(shows);
+    if (shown.length === 0) return [];
+    const now = index === 0;
+    const lead = now && shown[0] === "activity";
+    const rows = lead ? shown.slice(1) : shown;
     return (
-      <div key={fields.join()} className="grid">
-        {filled.length > 0 && (
-          <p>
-            {lead}
-            {filled.map((field, index) => (
-              <span key={field}>
-                {index > 0 && ", "}
-                <Field
-                  entry={entry}
-                  field={field}
-                  corrected={corrections.has(field)}
-                  wash={washOf(change, entry.id, [field], mountedAt)}
-                />
-              </span>
-            ))}
-          </p>
+      <section
+        key={title}
+        className={cn(
+          "grid gap-2",
+          now && "-mx-[calc(--spacing(3)+1px)] rounded-md border border-rush p-3",
         )}
-        {corrected.length > 0 && (
-          <div className="mt-1 grid justify-items-start">
-            {corrected.map((field) => (
-              <Revert key={field} entry={entry} field={field} />
-            ))}
+      >
+        <h3 className={SECTION_LABEL}>{now && !entry.state.present ? "Last seen" : title}</h3>
+        {lead && (
+          <div className="text-ink text-lead">
+            <span className="sr-only">Activity: </span>
+            {value("activity")}
           </div>
         )}
-      </div>
+        {rows.length > 0 && (
+          <dl className="grid grid-cols-1 gap-y-2 @[20rem]:grid-cols-[6.5rem_minmax(0,1fr)] @[20rem]:gap-x-3">
+            {rows.map((field) => (
+              <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
+                <dt className="font-sans text-meta text-reed">{LABELS[field]}</dt>
+                <dd className="min-w-0 break-words text-narration text-ui">{value(field)}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </section>
     );
-  };
+  });
   return (
-    <div className="grid gap-3 font-story text-lead text-narration">
-      {paragraphs.map((fields) => block(fields))}
-      {block(
-        CAST_STATE_FIELDS,
-        !entry.state.present && <span className="text-reed">Last seen: </span>,
+    <div className="@container grid gap-5 font-story">
+      {sections.length > 0 ? (
+        sections
+      ) : (
+        <p className="font-sans text-note text-reed">No other details recorded yet.</p>
       )}
     </div>
   );
@@ -985,7 +1025,7 @@ const valuesOf = (entry: CastEntry): Values =>
   ) as Values;
 
 /**
- * The record in edit mode: every field labelled under three quiet groups,
+ * The record in edit mode: every field labelled under the reading mode's sections,
  * the empty ones too, read once on entry, so a snapshot landing meanwhile
  * leaves the edit alone and only says so. Escape cancels without closing
  * the surface; Save writes the fields changed as the owner's corrections.
@@ -1037,9 +1077,9 @@ export function EditRecord({ entry, onDone }: { entry: CastEntry; onDone: () => 
             </p>
           )}
         </div>
-        {EDIT_GROUPS.map(([legend, fields], group) => (
+        {SECTIONS.map(([legend, fields], group) => (
           <fieldset key={legend} className="grid gap-4">
-            <legend className="mb-2 font-medium font-sans text-meta text-reed">{legend}</legend>
+            <legend className={cn("mb-2", SECTION_LABEL)}>{legend}</legend>
             {fields.map((field, index) => (
               <label key={field} className="grid gap-1">
                 <span className="font-sans text-meta text-reed">{LABELS[field]}</span>

@@ -122,7 +122,7 @@ describe("the roster", () => {
     expect(edit).toContain("short silver hair");
     expect(record + edit).not.toContain("long black hair");
   });
-  it("lists women only, each with the age's first token and a state line of activity and mood", () => {
+  it("lists women only, each with the age's first token and a clamped state line of mood and activity", () => {
     chat([
       person(1, "Mara Battin", {
         age: "18, looks younger",
@@ -134,7 +134,12 @@ describe("the roster", () => {
     const out = panel();
     expect(entries(out)).toEqual(["Mara Battin"]);
     expect(out).toContain('<span class="font-normal text-reed"> (18)</span>');
-    expect(out).toContain(">scrolling her phone, nervous</span>");
+    expect(out).toContain(">nervous, scrolling her phone</span>");
+    // Cut at whole lines with an ellipsis, a line more in a roomy column.
+    expect(out).toMatch(
+      /class="[^"]*line-clamp-2 @chat-roomy\/chat:line-clamp-3[^"]*"[^>]*>nervous/,
+    );
+    expect(out).not.toContain("max-h-[2lh]");
     expect(out).not.toContain("a hoodie");
     expect(out).toMatch(/<ul aria-label="Cast"/);
     expect(out).toMatch(
@@ -160,6 +165,14 @@ describe("the roster", () => {
     out = panel();
     expect(out).toContain(">and 2 away");
     expect(out).not.toContain('aria-label="Cast"');
+  });
+
+  it("gives an age that leads with a number, and none for one in words", () => {
+    chat([person(1, "Mara", { age: "late twenties" }), person(2, "Bea", { age: "31." })]);
+    const out = panel();
+    expect(out).not.toContain("(late)");
+    expect(out).toMatch(/>Mara<\/span>/);
+    expect(out).toContain('<span class="font-normal text-reed"> (31)</span>');
   });
 
   it("shows nothing with no woman in the register, a present man included", () => {
@@ -411,21 +424,61 @@ describe("a record", () => {
     fetishes: "fetishes: none",
   };
 
-  it("reads as three paragraphs and the state, toned, with field names for assistive technology only", () => {
+  const headings = (out: string) => [...out.matchAll(/<h3[^>]*>([^<]+)</g)].map((m) => m[1]);
+  const labels = (out: string) => [...out.matchAll(/<dt[^>]*>([^<]+)</g)].map((m) => m[1]);
+
+  it("reads in labelled sections, the state first with the activity as its lead, toned as before", () => {
     chat([mara]);
     const out = renderToStaticMarkup(<RecordText entry={mara} />);
-    expect(out.split("<p").length - 1).toBe(4);
-    expect(out).toContain('<span class="sr-only">Ethnicity: </span>Portuguese');
+    expect(headings(out)).toEqual(["Now", "Looks", "Character", "Intimate"]);
+    expect(out).toMatch(/<span class="sr-only">Activity: <\/span><span data-cast-field="activity"/);
+    expect(labels(out)).toEqual([
+      "Outfit",
+      "Ethnicity",
+      "Hair",
+      "Personality",
+      "Intimate body",
+      "Fetishes and taboos",
+    ]);
+    expect(out).toMatch(/<dt[^>]*>Ethnicity<\/dt><dd[^>]*><span data-cast-field="ethnicity"/);
     expect(out).toMatch(/data-cast-field="intimate"[^>]*data-tone="iris"/);
-    expect(out).toMatch(/data-cast-field="personality"[^>]*data-tone="sage"/);
     expect(out).toMatch(/data-cast-field="fetishes"[^>]*data-tone="rose"/);
-    expect(out).toContain('data-cast-field="outfit"');
     expect(out).not.toContain('data-cast-field="age"');
     expect(out).not.toContain("Revert");
     expect(out).not.toContain("Last seen");
   });
 
-  it("marks a corrected field with its hairline, and puts its Revert on a line after the paragraph", () => {
+  it("sets a short keyword list apart, each word its own highlight, and a phrase as written", () => {
+    chat([mara]);
+    const out = renderToStaticMarkup(<RecordText entry={mara} />);
+    // A hidden comma between the words, so they read aloud and copy apart.
+    expect(out).toMatch(
+      /data-cast-field="personality"[^>]*><span data-tone="sage" class="tone-wash">shy<\/span><span data-tone="sage" class="tone-wash"><span class="sr-only">, <\/span>curious<\/span>/,
+    );
+    for (const personality of [
+      "quiet until she trusts you",
+      "shy, but warms up",
+      "shy, curious, and loyal",
+      "loyal, if guarded",
+    ]) {
+      const prose = { ...mara, anchor: { ...mara.anchor, personality } };
+      chat([prose]);
+      expect(renderToStaticMarkup(<RecordText entry={prose} />)).toContain(
+        `data-cast-field="personality" data-tone="sage" class="tone-wash">${personality}<`,
+      );
+    }
+  });
+
+  it("keeps a keyword list's correction hairline and Revert on the field", () => {
+    chat([mara], {
+      corrections: { [mara.id]: { anchor: { personality: "shy, curious" }, state: {} } },
+    });
+    const out = renderToStaticMarkup(<RecordText entry={mara} />);
+    expect(out).toMatch(/data-cast-field="personality" data-cast-corrected="" class="flex/);
+    expect(out).toContain(">Revert personality</button>");
+  });
+
+  it("marks a corrected field with its hairline, and puts its Revert under its row", () => {
     chat([mara], {
       corrections: {
         [mara.id]: {
@@ -436,18 +489,54 @@ describe("a record", () => {
     });
     const out = renderToStaticMarkup(<RecordText entry={mara} />);
     expect(out).toMatch(/data-cast-field="hair" data-cast-corrected=""/);
-    expect(out).toMatch(/<\/p><div[^>]*><button[^>]*>Revert hair<\/button><\/div>/);
-    expect(out).toMatch(/<\/p><div[^>]*><button[^>]*>Revert outfit<\/button><\/div>/);
-    expect(out).toMatch(/Revert hair<\/button>[\s\S]*grey hoodie/);
+    expect(out).toMatch(
+      /shoulder-length<\/span><div[^>]*><button[^>]*>Revert hair<\/button><\/div><\/dd>/,
+    );
+    expect(out).toMatch(
+      /grey hoodie<\/span><div[^>]*><button[^>]*>Revert outfit<\/button><\/div><\/dd>/,
+    );
   });
 
-  it("skips a minor entry's empty fields, and shows an absent one as last seen", () => {
+  it("keeps a corrected field cleared to nothing, so its Revert stays", () => {
+    chat([mara], { corrections: { [mara.id]: { anchor: { ethnicity: "" }, state: {} } } });
+    const cleared = { ...mara, anchor: { ...mara.anchor, ethnicity: "" } };
+    const out = renderToStaticMarkup(<RecordText entry={cleared} />);
+    expect(labels(out)).toContain("Ethnicity");
+    expect(out).toContain(">Revert ethnicity</button>");
+  });
+
+  it("keeps a cleared, corrected activity as the lead with its Revert", () => {
+    const cleared = { ...mara, state: { ...mara.state, activity: "" } };
+    chat([cleared], {
+      corrections: { [mara.id]: { anchor: {}, state: { activity: { value: "", version: 1 } } } },
+    });
+    const out = renderToStaticMarkup(<RecordText entry={cleared} />);
+    expect(out).toMatch(
+      /Activity: <\/span><span data-cast-field="activity" data-cast-corrected=""/,
+    );
+    expect(out).toContain(">Revert activity</button>");
+  });
+
+  it("shows only a minor entry's sections that hold something, an absent one as last seen", () => {
     const minor = person(2, "Waitress", { present: false, state: { position: "by the door" } });
     minor.anchor = { ...minor.anchor, ethnicity: "Thai" };
     chat([minor]);
     const out = renderToStaticMarkup(<RecordText entry={minor} />);
-    expect(out.split("<p").length - 1).toBe(2);
-    expect(out).toContain("Last seen: ");
+    expect(headings(out)).toEqual(["Last seen", "Looks"]);
+    expect(labels(out)).toEqual(["Position", "Ethnicity"]);
+  });
+
+  it("says so when nothing past the name and age is recorded, and shows an age in words", () => {
+    const bare = person(3, "Bea", { age: "late twenties" });
+    chat([bare]);
+    const out = renderToStaticMarkup(<RecordText entry={bare} />);
+    expect(headings(out)).toEqual(["Looks"]);
+    expect(labels(out)).toEqual(["Age"]);
+    const nothing = person(4, "Cleo");
+    chat([nothing]);
+    expect(renderToStaticMarkup(<RecordText entry={nothing} />)).toContain(
+      "No other details recorded yet.",
+    );
   });
 
   it("washes the fields the newest snapshot changed as it lands, and not once remounted after", () => {
@@ -480,13 +569,17 @@ describe("a record", () => {
     expect(panel()).not.toContain("data-cast-changed");
   });
 
-  it("edits the fields under three quiet groups, each with its label", () => {
+  it("edits the fields under the reading mode's sections, in its order", () => {
     const out = renderToStaticMarkup(<EditRecord entry={mara} onDone={() => {}} />);
     expect([...out.matchAll(/<legend[^>]*>([^<]+)</g)].map((m) => m[1])).toEqual([
-      "Looks and character",
-      "Intimate",
       "Now",
+      "Looks",
+      "Character",
+      "Intimate",
     ]);
+    expect(out.indexOf('data-cast-field="activity"')).toBeLessThan(
+      out.indexOf('data-cast-field="mood"'),
+    );
     expect(out).toMatch(/<textarea[^>]*class="cast-field/);
   });
 
