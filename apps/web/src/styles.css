@@ -32,11 +32,42 @@
  * Palettes: every colour token, defined once per palette as a light-dark()
  * pair, so the theme picks the scheme and the palette only the colours.
  * `data-palette` on <html> (core PALETTES, saved in Settings) chooses one;
- * on a swatch it scopes one to the swatch. Lamplight, Ephemera's own, needs
- * no attribute. Every palette holds Lamplight's contrast floors in both
- * schemes (e2e/design.spec.ts).
+ * on a swatch it scopes one to the swatch. Tokyo Night, the default (core
+ * DEFAULT_PALETTE), needs no attribute, so its block comes first and every
+ * later one overrides it. Every palette holds Lamplight's contrast floors in
+ * both schemes (e2e/design.spec.ts).
  */
+/* Tokyo Night: Day by day, Night by night, a blue accent. */
 :root,
+[data-palette="tokyo-night"] {
+  --canvas-base: light-dark(#e1e2e7, #16161e);
+  --surface-base: light-dark(#e9e9ed, #1a1b26);
+  --surface-hover-base: light-dark(#d6d8e2, #222436);
+  --surface-pressed-base: light-dark(#c4c8da, #292e42);
+  --surface-selected-base: light-dark(#d0d3e2, #24283b);
+  --rush-base: light-dark(#c4c8da, #292e42);
+  --ink: light-dark(#343b58, #c0caf5);
+  --narration: light-dark(#414868, #a9b1d6);
+  --ink-action: light-dark(#454d6d, #969ec2);
+  --ink-thought: light-dark(#4b5b97, #838bb5);
+  --ink-narration: light-dark(#466376, #7999ad);
+  --reed: light-dark(#485890, #858fba);
+  --control-edge: light-dark(#7b7d97, #5d6697);
+  --dusk: light-dark(#2668cf, #7aa2f7);
+  --dusk-hover: light-dark(#1f5cbd, #8db0f9);
+  --dusk-line: light-dark(#2e7de9, #7aa2f7);
+  --on-dusk: light-dark(#f4f5f8, #16161e);
+  --ember: light-dark(#bf024f, #f7768e);
+  --tone-rose: light-dark(#7e20bd, #bb9af7);
+  --tone-sage: light-dark(#425f23, #9ece6a);
+  --tone-iris: light-dark(#035d7d, #7dcfff);
+  --tone-mist: light-dark(#516290, #a9b1d6);
+  --error-surface: light-dark(#f0d7df, #3a1f2b);
+  --text-disabled: light-dark(#a1a6c5, #414868);
+  --scrim: light-dark(rgb(52 59 88 / 0.3), rgb(0 0 0 / 0.55));
+  --shadow-overlay: light-dark(rgb(52 59 88 / 0.14), rgb(0 0 0 / 0.5));
+}
+
 [data-palette="lamplight"] {
   /* Warm plaster by day, a lamplit room by night, one amber lamp. */
   --canvas-base: light-dark(#e6e2dc, #17130f);
@@ -93,7 +124,7 @@
   --ink-action: light-dark(#4e5168, #99a0bb);
   --ink-thought: light-dark(#5e6177, #878ea8);
   --ink-narration: light-dark(#57647a, #8898b0);
-  --reed: light-dark(#5d6076, #8893ad);
+  --reed: light-dark(#5a5d73, #8b96b0);
   --control-edge: light-dark(#81828d, #6c7086);
   --dusk: light-dark(#8839ef, #cba6f7);
   --dusk-hover: light-dark(#7a2ee0, #d7b9fa);
@@ -123,7 +154,7 @@
   --ink-action: light-dark(#565270, #a19dba);
   --ink-thought: light-dark(#66627f, #8f8ba9);
   --ink-narration: light-dark(#576978, #849aa3);
-  --reed: light-dark(#696583, #8f8aa8);
+  --reed: light-dark(#65617f, #938eac);
   --control-edge: light-dark(#888593, #6e6a86);
   --dusk: light-dark(#d7827e, #ebbcba);
   --dusk-hover: light-dark(#cc716d, #f2cbc9);
@@ -153,7 +184,7 @@
   --ink-action: light-dark(#495265, #c4cad4);
   --ink-thought: light-dark(#586277, #b0b7c4);
   --ink-narration: light-dark(#516675, #a5b9bf);
-  --reed: light-dark(#566175, #b6becc);
+  --reed: light-dark(#535e72, #bbc3d1);
   --control-edge: light-dark(#778499, #8092ab);
   --dusk: light-dark(#4f72a0, #88c0d0);
   --dusk-hover: light-dark(#45679a, #9acbd9);
@@ -183,7 +214,7 @@
   --ink-action: light-dark(#564f4b, #b4a58a);
   --ink-thought: light-dark(#685e56, #a3947e);
   --ink-narration: light-dark(#5d635b, #92a091);
-  --reed: light-dark(#685d55, #a8997f);
+  --reed: light-dark(#645951, #ab9c82);
   --control-edge: light-dark(#8a7f70, #7e7166);
   --dusk: light-dark(#af3a03, #fe8019);
   --dusk-hover: light-dark(#9a3302, #ff9440);
@@ -198,36 +229,6 @@
   --text-disabled: light-dark(#a89984, #665c54);
   --scrim: light-dark(rgb(60 56 54 / 0.3), rgb(0 0 0 / 0.55));
   --shadow-overlay: light-dark(rgb(60 56 54 / 0.14), rgb(0 0 0 / 0.5));
-}
-
-/* Tokyo Night: Day by day, Night by night, a blue accent. */
-[data-palette="tokyo-night"] {
-  --canvas-base: light-dark(#e1e2e7, #16161e);
-  --surface-base: light-dark(#e9e9ed, #1a1b26);
-  --surface-hover-base: light-dark(#d6d8e2, #222436);
-  --surface-pressed-base: light-dark(#c4c8da, #292e42);
-  --surface-selected-base: light-dark(#d0d3e2, #24283b);
-  --rush-base: light-dark(#c4c8da, #292e42);
-  --ink: light-dark(#343b58, #c0caf5);
-  --narration: light-dark(#414868, #a9b1d6);
-  --ink-action: light-dark(#454d6d, #969ec2);
-  --ink-thought: light-dark(#4b5b97, #838bb5);
-  --ink-narration: light-dark(#466376, #7999ad);
-  --reed: light-dark(#4a5a92, #828cb7);
-  --control-edge: light-dark(#7b7d97, #5d6697);
-  --dusk: light-dark(#2668cf, #7aa2f7);
-  --dusk-hover: light-dark(#1f5cbd, #8db0f9);
-  --dusk-line: light-dark(#2e7de9, #7aa2f7);
-  --on-dusk: light-dark(#f4f5f8, #16161e);
-  --ember: light-dark(#bf024f, #f7768e);
-  --tone-rose: light-dark(#7e20bd, #bb9af7);
-  --tone-sage: light-dark(#425f23, #9ece6a);
-  --tone-iris: light-dark(#035d7d, #7dcfff);
-  --tone-mist: light-dark(#516290, #a9b1d6);
-  --error-surface: light-dark(#f0d7df, #3a1f2b);
-  --text-disabled: light-dark(#a1a6c5, #414868);
-  --scrim: light-dark(rgb(52 59 88 / 0.3), rgb(0 0 0 / 0.55));
-  --shadow-overlay: light-dark(rgb(52 59 88 / 0.14), rgb(0 0 0 / 0.5));
 }
 
 :root {

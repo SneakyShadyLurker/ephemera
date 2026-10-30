@@ -64,14 +64,14 @@ describe("custom palette store", () => {
   it("refuses to choose an empty slot, as a missing reference", () => {
     const { stores } = setup();
     expect(stores.settings.update({ palette: "custom-2" })).toBeUndefined();
-    expect(stores.settings.get().palette).toBe("lamplight");
+    expect(stores.settings.get().palette).toBe("tokyo-night");
     stores.palettes.create(2, palette());
     expect(stores.settings.update({ palette: "custom-2" })?.palette).toBe("custom-2");
   });
 
   it.each([
     ["its built-in base", "nord", "nord"],
-    ["Lamplight when its base is custom", "custom-1", "lamplight"],
+    ["the default when its base is custom", "custom-1", "tokyo-night"],
   ] as const)(
     "returns the settings to %s when the chosen palette is deleted",
     (_case, base, after) => {

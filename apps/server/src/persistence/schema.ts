@@ -312,7 +312,10 @@ export const settings = sqliteTable(
   {
     id: integer().primaryKey(),
     theme: text().$type<Theme>().notNull(),
-    /** A core palette id or a saved custom slot's; existing rows keep Ephemera's own. */
+    /**
+     * A core palette id or a saved custom slot's. The SQL default filled rows
+     * from before the column with Lamplight; a new row takes core DEFAULT_PALETTE.
+     */
     palette: text().$type<PaletteChoice>().notNull().default("lamplight"),
     model: text(),
     /** The model that starts image prompts; null uses each surface's own default. */

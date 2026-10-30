@@ -8,7 +8,7 @@ import { HIGHLIGHT_TONES } from "./preset/highlight.ts";
 
 /**
  * The colour palette, each with a light and a dark scheme the theme picks
- * between; colours only, never layout or type. Lamplight is Ephemera's own.
+ * between; colours only, never layout or type. Lamplight is Ephemera's own;\n * Tokyo Night is the default.
  */
 export const PALETTES = [
   "lamplight",
@@ -21,7 +21,7 @@ export const PALETTES = [
 export type Palette = (typeof PALETTES)[number];
 
 /** The palette a new installation starts on; it needs no `data-palette` attribute. */
-export const DEFAULT_PALETTE = "lamplight" satisfies Palette;
+export const DEFAULT_PALETTE = "tokyo-night" satisfies Palette;
 
 /** The player's palettes, one per slot. */
 const CUSTOM_PALETTES = ["custom-1", "custom-2", "custom-3"] as const;
@@ -208,7 +208,11 @@ export const CONTRAST_FLOORS: readonly {
   { role: "ink-action", grounds: on("canvas", "surface"), floor: 6 },
   { role: "ink-thought", grounds: on("canvas", "surface"), floor: 4.8 },
   { role: "ink-narration", grounds: on("canvas", "surface"), floor: 4.8 },
-  { role: "reed", grounds: on("canvas", "surface", "surface-hover"), floor: 4.5 },
+  {
+    role: "reed",
+    grounds: on("canvas", "surface", "surface-hover", "surface-selected"),
+    floor: 4.5,
+  },
   { role: "control-edge", grounds: on("canvas", "surface"), floor: 3 },
   { role: "dusk-line", grounds: on("canvas", "surface"), floor: 3 },
   { role: "on-dusk", grounds: on("dusk", "dusk-hover"), floor: 4.5 },
