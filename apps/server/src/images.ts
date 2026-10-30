@@ -35,7 +35,7 @@ export const IMAGE_LIMITS = {
    */
   vision: { width: 1024, height: 1024, quality: 80, worstCaseBytes: 800_000 },
   /** Image of a PNG export for a character without a portrait. */
-  placeholder: { width: 512, height: 768, background: "#e6e2dc" },
+  placeholder: { width: 512, height: 768, background: "#e1e2e7" },
 } as const;
 
 const ALLOWED_FORMATS = new Set(["png", "jpeg", "webp"]);

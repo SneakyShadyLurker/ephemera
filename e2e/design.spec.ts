@@ -1909,7 +1909,7 @@ for (const scheme of ["light", "dark"] as const) {
       const { canvas, lowest } = await page.evaluate(
         ({ id, floors, wash }) => {
           const root = document.documentElement;
-          if (id === "lamplight") delete root.dataset.palette;
+          if (id === "tokyo-night") delete root.dataset.palette;
           else if (id !== null) root.dataset.palette = id;
           // Every colour as `color(srgb r g b)`, channels 0 to 1, whatever its own form.
           const srgb = (color: string) => {
@@ -1948,7 +1948,7 @@ for (const scheme of ["light", "dark"] as const) {
       }
       canvases.add(canvas);
     }
-    // Each palette applied its own colours, rather than falling back to Lamplight's.
+    // Each palette applied its own colours, rather than falling back to the default's.
     expect(canvases.size).toBe(ids.length);
   });
 }

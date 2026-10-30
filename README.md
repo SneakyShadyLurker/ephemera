@@ -10,15 +10,15 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-c77f1e"></a>
-  <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-2a231e">
-  <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-2a231e">
-  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-c77f1e">
-  <img alt="Chat retention: zero" src="https://img.shields.io/badge/chat%20retention-zero-c77f1e">
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-2668cf"></a>
+  <img alt="Runtime: Bun" src="https://img.shields.io/badge/runtime-Bun-1a1b26">
+  <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-1a1b26">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-2668cf">
+  <img alt="Chat retention: zero" src="https://img.shields.io/badge/chat%20retention-zero-2668cf">
 </p>
 
 <p align="center">
-  <img src="docs/images/chat.png" alt="A chat with Friday Abbams in the dark theme: her portrait and live cast entry on the left, a streamed reply with scene, actions and dialogue on the right">
+  <img src="docs/images/chat.png" alt="A chat with Friday Abbams in Tokyo Night, dark: her portrait and live cast entry on the left, a streamed reply with scene, actions and dialogue on the right">
 </p>
 
 Ephemera is a self-hosted roleplay chat that makes the choices for you: cards
@@ -48,7 +48,7 @@ writes a complete card, consistent with the persona you play, and paints
 portrait candidates when an image backend is connected.
 
 <p align="center">
-  <img src="docs/images/create-with-ai.png" alt="Create with AI: a new card for Lenore Hetch, written from two sentences, with summary, opening scene and sections for background, appearance, personality and voice">
+  <img src="docs/images/create-with-ai.png" alt="Create with AI: a new card for Lenore Hetch, written from two sentences, with a summary, an opening scene and sections for background, appearance, personality and voice">
 </p>
 
 ### ✦ AI Rework
@@ -56,7 +56,7 @@ Tell the model what should change in an existing card. Its edits arrive as
 tracked changes, each with a reason, for you to accept or reject one by one.
 
 <p align="center">
-  <img src="docs/images/ai-rework.png" alt="AI Rework on Friday Abbams: insertions and deletions marked inline in her description, a reason under each change, and Apply 5 changes at the bottom">
+  <img src="docs/images/ai-rework.png" alt="AI Rework on Friday Abbams: tracked insertions marked inline in her description, a reason under each change, and Apply 9 changes at the bottom">
 </p>
 
 ### ✦ Memory
@@ -75,7 +75,7 @@ wear, where they stand and what they are doing. Open a record from the cast
 panel to read or correct it, so outfits, positions and names stay consistent.
 
 <p align="center">
-  <img src="docs/images/cast.png" alt="Friday Abbams's cast record open over the chat: what she is doing now, her mood, outfit and position, and a personality note">
+  <img src="docs/images/cast.png" alt="Friday Abbams's cast record open over the chat: what she is doing now, her mood, outfit, position and looks, with Wren Kowalski listed as away">
 </p>
 
 ### ✦ Events
@@ -84,11 +84,11 @@ scenes keep moving without you steering every turn.
 
 ### ✦ Phones and themes
 Layouts built for phones, tablets and desktops, in light and dark themes and
-six palettes, with custom palettes of your own. Here the next chat with Friday
+six palettes, Tokyo Night by default, with custom palettes of your own. Here the next chat with Friday
 opens where the last one left off, the morning after.
 
 <p align="center">
-  <img src="docs/images/phone-memory-opening.png" width="300" alt="A phone in the light theme: a new chat with Friday opens on the memory's opening, the next morning in her studio">
+  <img src="docs/images/phone-memory-opening.png" width="300" alt="A phone in the light theme: a new chat with Friday opens on the memory's opening, the next morning at her home">
   &nbsp;&nbsp;
   <img src="docs/images/phone-chat.png" width="300" alt="A phone in the light theme: Friday's reply to a text message, with Continue and New reply under it">
 </p>

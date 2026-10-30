@@ -18,8 +18,8 @@ import type { CustomPaletteStore } from "./store.ts";
  * replacing never creates, and replacing or deleting names the save it acts
  * on (`updatedAt`), so a tab whose list is behind another's cannot overwrite
  * or delete a palette it has not seen. Deleting the palette the settings
- * choose returns them to its built-in base, or to Lamplight, in the same
- * transaction.
+ * choose returns them to its built-in base, or to the default palette, in
+ * the same transaction.
  */
 export function createCustomPaletteStore(db: Db): CustomPaletteStore {
   const get = (slot: CustomSlot): CustomPalette | undefined =>

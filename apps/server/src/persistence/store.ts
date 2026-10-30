@@ -289,7 +289,7 @@ export interface CustomPaletteStore {
   ): CustomPalette | "missing" | "changed";
   /**
    * Removes the palette saved at `updatedAt`; settings that chose it return
-   * to its built-in base or Lamplight. "missing" or "changed" as for replace.
+   * to its built-in base or the default palette. "missing" or "changed" as for replace.
    */
   delete(slot: CustomSlot, updatedAt: number): "deleted" | "missing" | "changed";
 }

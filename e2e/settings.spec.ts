@@ -56,8 +56,9 @@ async function settingSwitch(
   return control;
 }
 
-const LIGHT = "rgb(230, 226, 220)";
-const DARK = "rgb(23, 19, 15)";
+/** Tokyo Night, the default palette: its canvas by day and by night. */
+const LIGHT = "rgb(225, 226, 231)";
+const DARK = "rgb(22, 22, 30)";
 
 test("the theme follows the system unless overridden", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -154,7 +155,7 @@ test("a palette recolours the app in either scheme and is painted onto the app s
   const palettes = () => page.getByRole("radiogroup", { name: "Palette", exact: true });
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/settings");
-  await expect(palettes().getByRole("radio", { name: "Lamplight" })).toBeChecked();
+  await expect(palettes().getByRole("radio", { name: "Tokyo Night" })).toBeChecked();
 
   await palettes().getByRole("radio", { name: "Nord" }).click();
   await expect.poll(() => canvas(page)).toBe(NORD_LIGHT);
@@ -167,7 +168,7 @@ test("a palette recolours the app in either scheme and is painted onto the app s
   expect(await canvas(page)).toBe(NORD_DARK);
   await expect(palettes().getByRole("radio", { name: "Nord" })).toBeChecked();
 
-  await palettes().getByRole("radio", { name: "Lamplight" }).click();
+  await palettes().getByRole("radio", { name: "Tokyo Night" }).click();
   await expect.poll(() => canvas(page)).toBe(DARK);
   await expect.poll(shellPalette).toBe(false);
 });
@@ -210,7 +211,7 @@ test("a tab that started on the fallback settings takes the saved theme and pale
       "aria-pressed",
       "true",
     );
-    await expect(palettes.getByRole("radio", { name: "Lamplight" })).toBeChecked();
+    await expect(palettes.getByRole("radio", { name: "Tokyo Night" })).toBeChecked();
     // Marks this document, so the recovery below is shown without a reload.
     await page.evaluate(() => {
       (window as unknown as { __sameDocument: boolean }).__sameDocument = true;
@@ -375,7 +376,7 @@ test("a custom palette starts from a built-in, warns, saves, paints before scrip
   await expect(own().getByRole("radio", { name: "Harbour" })).toHaveCount(0);
   await expect.poll(async () => (await shell()).includes("/api/palettes.css")).toBe(false);
 
-  await palettes().getByRole("radio", { name: "Lamplight" }).click();
+  await palettes().getByRole("radio", { name: "Tokyo Night" }).click();
   await expect.poll(() => canvas(page)).toBe(LIGHT);
 });
 
