@@ -18,6 +18,13 @@
 </p>
 
 <p align="center">
+  <a href="#get-started"><strong>Get started</strong></a> ·
+  <a href="#with-your-ai-assistant">Set up with AI</a> ·
+  <a href="#model-providers">Model providers</a> ·
+  <a href="#sister-project-atelier">Sister project: Atelier</a>
+</p>
+
+<p align="center">
   <img src="docs/images/chat.png" alt="A chat with Friday Abbams in Tokyo Night, dark: her portrait and live cast entry on the left, a streamed reply with scene, actions and dialogue on the right">
 </p>
 
@@ -246,6 +253,22 @@ without that field; the usage request then stays off, and token counts show as
 not reported. Inside the container, `localhost` is the container itself: point a
 server on the host at an address the container can reach, such as
 `host.docker.internal`.
+
+## Sister project: Atelier
+
+**[Atelier](https://github.com/SneakyShadyLurker/atelier-studio)** is a
+self-hosted image and video studio from the same author, also AGPL and built
+on Bun. One prompt box reaches cloud, bring-your-own-key and local ComfyUI
+models, and your images stay yours.
+
+The two apps run independently and work well together:
+
+- **Pictures in chat**: Ephemera can use Atelier as its image backend for
+  portraits and scene pictures.
+- **Image to card**: an optional action on a finished Atelier image sends it
+  to Ephemera, which writes a character card from it.
+
+Neither app needs the other.
 
 ## Documentation
 
