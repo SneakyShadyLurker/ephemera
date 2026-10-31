@@ -130,6 +130,102 @@ async function hold(page: Page, url: string) {
   return release;
 }
 
+test("a first chat without a model asks for one in place, and the cast waits for it instead of failing", async ({
+  page,
+  request,
+}) => {
+  // A new library: a character with a greeting is chosen, and no model is.
+  const name = uniqueName("Keeper");
+  const characterId = await createCharacterViaApi(request, name, {
+    description: `${name} keeps the lighthouse with her brother.`,
+    firstMessage: `The lamp room is warm. ${name} looks up from the log.`,
+  });
+  await patchSettings(request, { characterId });
+  const sheets: Request[] = [];
+  page.on("request", (sent) => {
+    if (sent.method() === "POST" && sent.url().includes("/api/cast/sheets/")) sheets.push(sent);
+  });
+  await page.goto("/");
+  await expect(lastReply(page)).toContainText("The lamp room is warm.");
+
+  // The notice above the composer says why Send waits and holds the picker itself.
+  const notice = page.getByRole("status").filter({ hasText: "Choose a model to begin" });
+  await expect(notice).toContainText(`${name} replies through the model you choose.`);
+  const field = page.getByLabel("Message", { exact: true });
+  const sendButton = page.getByRole("button", { name: "Send" });
+  await expect(field).toHaveAccessibleDescription(/replies through the model you choose/);
+  await field.fill("Good evening");
+  await expect(sendButton).toBeDisabled();
+  await expect(sendButton).toHaveAccessibleDescription(/replies through the model you choose/);
+
+  // The cast waits quietly: nothing was asked, so nothing failed.
+  await expect(castStatus(page)).toHaveText("Choose a model to load the cast.");
+  await expect(
+    castPanel(page).getByRole("button", { name: "Try again to read the cast from the card" }),
+  ).toHaveCount(0);
+  expect(sheets).toHaveLength(0);
+
+  // Enter, with nothing able to go out, leads to the picker; the draft stays.
+  await field.press("Enter");
+  const picker = page.getByRole("combobox", { name: "Chat model", exact: true });
+  await expect(picker).toBeFocused();
+  await expect(field).toHaveValue("Good evening");
+
+  // One choice in place: the notice folds away, focus returns to the draft, Send works.
+  await picker.click();
+  await page.getByRole("option", { name: "mock-cast", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("Good evening");
+  await expect(sendButton).toBeEnabled();
+  await expect(field).not.toHaveAttribute("aria-describedby");
+  await expect.poll(async () => (await readSettings(request)).model).toBe("mock-cast");
+
+  // The card is read as soon as the model is chosen, before anything is sent.
+  await expect(castEntry(page, SEEDED)).toBeVisible();
+  expect(sheets).toHaveLength(1);
+});
+
+test("a first model without a known context window turns the notice to the window, and the cast waits for it too", async ({
+  page,
+  request,
+}) => {
+  const name = uniqueName("Keeper");
+  const characterId = await createCharacterViaApi(request, name, {
+    description: `${name} keeps the lighthouse with her brother.`,
+    firstMessage: `The lamp room is warm. ${name} looks up from the log.`,
+  });
+  await patchSettings(request, { characterId });
+  const sheets: Request[] = [];
+  page.on("request", (sent) => {
+    if (sent.method() === "POST" && sent.url().includes("/api/cast/sheets/")) sheets.push(sent);
+  });
+  await page.goto("/");
+  const picker = page.getByRole("combobox", { name: "Chat model", exact: true });
+  await picker.click();
+  await page.getByRole("option", { name: "mock-nowindow", exact: true }).click();
+
+  // The same notice now says what still blocks, and its way out takes focus.
+  const notice = page.getByRole("status").filter({ hasText: "Context window unknown" });
+  await expect(notice).toContainText("mock-nowindow has no known context window");
+  await expect(page.getByRole("status").filter({ hasText: "Choose a model to begin" })).toHaveCount(
+    0,
+  );
+  await expect(notice.getByRole("link", { name: "Set a context window" })).toBeFocused();
+  await expect(picker).toHaveText("mock-nowindow");
+
+  // Nothing could be sized, so nothing was asked: the cast says what it waits for, not a failure.
+  await expect(castStatus(page)).toHaveText("Set a context window to load the cast.");
+  await expect(castPanel(page).getByRole("button", { name: /^Try again/ })).toHaveCount(0);
+  expect(sheets).toHaveLength(0);
+
+  // With a window set, the card is read on the next chat without a Send.
+  await patchSettings(request, { contextWindows: { "mock-nowindow": 16_384 } });
+  await page.reload();
+  await expect(notice).toHaveCount(0);
+  await expect.poll(() => sheets.length).toBe(1);
+});
+
 for (const factor of FACTORS) {
   test(`the cast seeds from the card's sheet and the greeting, lists women only, and opens each record (${factor.name})`, async ({
     page,

@@ -5,6 +5,7 @@ import {
   type CastAnchorField,
   type CastEntry,
   type CastState,
+  castModelOf,
 } from "@ephemera/core";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
@@ -29,7 +30,9 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui
 import { Popover, PopoverContent, PopoverTitle } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
+import { useContextWindow } from "../api.ts";
 import { ageOf } from "../cast/age.ts";
+import { useSettings } from "../settings/settings.ts";
 import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
   CAST_TEXT_FIELDS,
@@ -44,6 +47,7 @@ import {
   openCast,
   removeFromCast,
   sheetUnread,
+  sheetWaiting,
   showCastEntry,
   toggleCast,
   undoCastRemoval,
@@ -279,14 +283,35 @@ const LINE_ACTION =
   "press relative text-dusk-line hover:text-ink after:absolute after:-inset-x-1 after:-inset-y-1.5 touch:after:-inset-y-3.5";
 
 /** The status line, polite to assistive technology, and Try again after a failure. */
+/**
+ * Why the card is not read yet, while the sheet waits (session.ts
+ * `usableCastModel`): no cast model, its model list still coming, or a model
+ * without a known context window.
+ */
+function useWaitingText(): string {
+  const settings = useSettings();
+  const model = castModelOf(settings);
+  const window = useContextWindow(model, settings);
+  if (model === null) return "Choose a model to load the cast.";
+  if (window === "loading") return "Reading the card";
+  return "Set a context window to load the cast.";
+}
+
 function Status({ className }: { className?: string }) {
-  const text = useChat(castStatusText);
+  const waiting = useChat(sheetWaiting);
+  const waitingText = useWaitingText();
+  const statusText = useChat(castStatusText);
+  // Nothing has been asked while it waits, so no other line can be newer.
+  const text = waiting ? waitingText : statusText;
   const failed = useChat((state) => state.cast.status === "failed" && keeperTargetUncovered(state));
   const unread = useChat(sheetUnread);
   return (
     <div className={cn("flex flex-wrap items-baseline gap-x-2 font-sans text-meta", className)}>
       <p data-cast-status="" aria-live="polite" className="text-reed">
-        {text}
+        {/* Keyed by its words, so each new line fades in; the live region itself stays. */}
+        <span key={text} className="change-arrive">
+          {text}
+        </span>
       </p>
       {(failed || unread) && (
         <button

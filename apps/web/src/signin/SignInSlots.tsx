@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
+import { noticeFold } from "@/app/NoticeCard.tsx";
 import { SCRIPT_FRAME } from "../chat/frame.ts";
 import { useChat } from "../chat/session.ts";
 import { SHEET_GRID } from "../sheet/fields.ts";
@@ -65,11 +66,7 @@ function Notice({
         if (leaving && event.target === event.currentTarget && event.propertyName === "height")
           signIn.dismiss();
       }}
-      className={
-        leaving
-          ? "h-0 overflow-clip opacity-0 transition-[height,opacity] duration-(--duration-panel-out) ease-spring [interpolate-size:allow-keywords]"
-          : "h-auto transition-[height,opacity] duration-(--duration-panel-out) ease-spring [interpolate-size:allow-keywords]"
-      }
+      className={noticeFold(leaving)}
     >
       <div className={placement === "dock" ? "pb-2" : undefined}>
         <SignInNotice

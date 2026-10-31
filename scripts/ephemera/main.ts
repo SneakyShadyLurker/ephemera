@@ -74,6 +74,7 @@ ${bold("Options")}
     ${command("--user <name>")}        Your library's name (default: your account name)
     ${command("--port <port>")}        The port to open it on (default: 8780)
     ${command("--behind-proxy <url>")} Serve behind your own sign-in proxy at that address
+    ${command("--model <id>")}         The chat model new libraries start with
     ${command("--no-check")}           Do not test the provider
     ${command("--no-start")}           Do not start once set up
 `;
@@ -191,13 +192,11 @@ async function stop(): Promise<boolean> {
   return true;
 }
 
-async function status(): Promise<void> {
+/** Shows how Ephemera is; returns the line the command ends on. */
+async function status(): Promise<string> {
   const { env, access, config } = configured();
   const state = running();
-  if (state === undefined) {
-    log.warn(`Stopped. Start it with ${command(`${CLI} start`)}.`);
-    return;
-  }
+  if (state === undefined) return `Stopped. Start it with ${command(`${CLI} start`)}.`;
   const ok = await healthy(state, config.proxyKey);
   const revision = builtRevision();
   note(
@@ -211,6 +210,7 @@ async function status(): Promise<void> {
     ].join("\n"),
     "Ephemera",
   );
+  return ok ? "Ready when you are." : `It does not answer. Try ${command(`${CLI} restart`)}.`;
 }
 
 /**
@@ -218,7 +218,7 @@ async function status(): Promise<void> {
  * built beside the running one, then made current while the server is
  * stopped, and started from its own code.
  */
-async function updateInstalledCopy(): Promise<void> {
+async function updateInstalledCopy(): Promise<string> {
   const current = checkoutRevision();
   let latest: string;
   try {
@@ -229,18 +229,14 @@ async function updateInstalledCopy(): Promise<void> {
     );
   }
   if (latest === current) {
-    if (!buildOutdated()) {
-      log.success("Already up to date.");
-      return;
-    }
+    if (!buildOutdated()) return "Already up to date.";
     // The code is current and only its build is missing: built from it, beside the served one.
     await buildIfOutdated(true);
     const wasRunning = running() !== undefined;
     if (wasRunning) await stop();
     installStagedBuild();
     if (wasRunning) await start({ foreground: false, open: false, built: true });
-    log.success("Rebuilt the app.");
-    return;
+    return "Rebuilt the app.";
   }
   const fetching = activity();
   fetching.start("Downloading the latest version");
@@ -274,7 +270,6 @@ async function updateInstalledCopy(): Promise<void> {
   installStagedBuild();
   switchTo(dir);
   removeOldVersions(dir);
-  log.success(`Updated to ${latest.slice(0, 7)}.`);
   if (wasRunning) {
     // Started by the new version's own code.
     const restarted = Bun.spawn(
@@ -289,9 +284,11 @@ async function updateInstalledCopy(): Promise<void> {
     );
     if ((await restarted.exited) !== 0) process.exit(1);
   }
+  return `Updated to ${latest.slice(0, 7)}.`;
 }
 
-async function update(): Promise<void> {
+/** Updates this copy; returns its outcome, the line the command ends on. */
+async function update(): Promise<string> {
   configured();
   if (installedCopy()) return updateInstalledCopy();
   if (!existsSync(join(ROOT, ".git")))
@@ -304,10 +301,7 @@ async function update(): Promise<void> {
   ]);
   if (!pulled) fail("Updating stopped; your copy is as it was.");
   const after = checkoutRevision() ?? "";
-  if (after === before && !buildOutdated()) {
-    log.success("Already up to date.");
-    return;
-  }
+  if (after === before && !buildOutdated()) return "Already up to date.";
   const installed = await step("Installing dependencies", "Dependencies installed", [
     process.execPath,
     "install",
@@ -320,7 +314,7 @@ async function update(): Promise<void> {
   if (wasRunning) await stop();
   installStagedBuild();
   if (wasRunning) await start({ foreground: false, open: false, built: true });
-  log.success(`Updated to ${after.slice(0, 7)}.`);
+  return `Updated to ${after.slice(0, 7)}.`;
 }
 
 async function doctor(): Promise<boolean> {
@@ -376,10 +370,18 @@ async function doctor(): Promise<boolean> {
     report(
       check.ok,
       check.ok
-        ? `The model provider answers with ${models(check.models)}`
+        ? `The model provider answers with ${models(check.models.length)}`
         : `The model provider does not answer (${check.reason})`,
       "Check EPHEMERA_UPSTREAM_BASE_URL and EPHEMERA_UPSTREAM_API_KEY, or run setup again.",
     );
+    const defaultModel = env.EPHEMERA_DEFAULT_MODEL ?? "";
+    if (check.ok && defaultModel !== "" && !check.models.includes(defaultModel)) {
+      log.warn(
+        `EPHEMERA_DEFAULT_MODEL is ${defaultModel}, which the provider does not list.\n${dim(
+          `Run ${command(`${CLI} setup`)} to choose another.`,
+        )}`,
+      );
+    }
   }
   const state: RunState | undefined = running();
   if (state && config) {
@@ -408,6 +410,7 @@ const { positionals, values } = parseArgs({
     user: { type: "string" },
     port: { type: "string" },
     "behind-proxy": { type: "string" },
+    model: { type: "string" },
     "no-check": { type: "boolean", default: false },
     "no-start": { type: "boolean", default: false },
     foreground: { type: "boolean", default: false },
@@ -436,6 +439,7 @@ switch (name) {
       user: values.user,
       port: values.port,
       behindProxy: values["behind-proxy"],
+      model: values.model,
       check: !values["no-check"],
     });
     const staged = await buildIfOutdated();
@@ -467,20 +471,21 @@ switch (name) {
     outro("Restarted.");
     break;
   case "status":
-    await status();
-    outro("");
+    outro(await status());
     break;
   case "open": {
     const state = running();
     if (state === undefined)
       fail(`Ephemera is not running. Start it with ${command(`${CLI} start`)}.`);
-    if (!openBrowser(state.url)) log.info(`Open ${accent(state.url)} in your browser.`);
-    outro("");
+    outro(
+      openBrowser(state.url)
+        ? "Opening Ephemera in your browser."
+        : `Open ${accent(state.url)} in your browser.`,
+    );
     break;
   }
   case "update":
-    await update();
-    outro("");
+    outro(await update());
     break;
   case "doctor": {
     const ok = await doctor();

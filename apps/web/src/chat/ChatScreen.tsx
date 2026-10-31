@@ -35,6 +35,7 @@ import { SCRIPT_FRAME } from "./frame.ts";
 import { useGreetings } from "./greetings.ts";
 import { MemoryMark } from "./MemoryMark.tsx";
 import { MeterFigures, PromptButton, Waterline } from "./Meter.tsx";
+import { ModelNotice } from "./ModelNotice.tsx";
 import { loadInspector } from "./open-inspector.ts";
 import { HeaderPortrait } from "./Presence.tsx";
 import { SESSION_SHEET, SessionPanel } from "./SessionPanel.tsx";
@@ -42,7 +43,6 @@ import { chatStore, useChat } from "./session.ts";
 import { useChatShortcuts } from "./shortcuts.ts";
 import { hasChatContent } from "./store.ts";
 import { Thread } from "./Thread.tsx";
-import { WindowNotice } from "./WindowNotice.tsx";
 
 // The inspector's code arrives with the page's preload (app/preload.ts).
 const Inspector = lazy(() => loadInspector().then((module) => ({ default: module.Inspector })));
@@ -93,7 +93,7 @@ export function ChatScreen() {
         </OpenEpisodeContext>
         {/* From tablet up, the thread scroller's gutters on both sides, so the composer shares the story's width. */}
         <div className={cn("shrink-0 overflow-hidden pt-1", SCROLL_GUTTERS)}>
-          <WindowNotice />
+          <ModelNotice composer={composer} />
           <SignInDock composer={composer} />
           <Composer field={composer} />
         </div>

@@ -292,6 +292,21 @@ describe("instance registry", () => {
     ).toEqual(["Starter"]);
   });
 
+  it("starts a new library's reply model on the default model and never changes a saved one", async () => {
+    const dataDir = await dataDirectory();
+    const first = registry(dataDir, { defaultModel: "vendor/chat-large" });
+    const alice = first.instance(user("alice"));
+    expect(alice.stores.settings.get().model).toBe("vendor/chat-large");
+    alice.stores.settings.update({ model: "vendor/chat-own" });
+    await alice.flushIfDirty();
+    await first.close();
+
+    const restarted = registry(dataDir, { defaultModel: "vendor/chat-small" });
+    expect(restarted.instance(user("alice")).stores.settings.get().model).toBe("vendor/chat-own");
+    expect(restarted.instance(user("bob")).stores.settings.get().model).toBe("vendor/chat-small");
+    expect(registry(":memory:").instance(user("carol")).stores.settings.get().model).toBeNull();
+  });
+
   it("encrypts the file, reopens it after a restart and never replaces one it cannot open", async () => {
     const dataDir = await dataDirectory();
     const marker = `canary-${randomUUID()}`;

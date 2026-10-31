@@ -9,9 +9,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
-import { confirm, log, note, password, select, text } from "@clack/prompts";
+import { autocomplete, confirm, log, note, password, select, text } from "@clack/prompts";
 import { ConfigError, DEFAULT_PORT, loadConfig } from "../../apps/server/src/config.ts";
 import { usernameSchema } from "../../apps/server/src/identity.ts";
+import { modelIdSchema } from "../../packages/core/src/chat.ts";
 import {
   DEFAULT_LOCAL_PORT,
   ENV_EXAMPLE,
@@ -35,6 +36,8 @@ export interface SetupFlags {
   user?: string | undefined;
   port?: string | undefined;
   behindProxy?: string | undefined;
+  /** The model new libraries start with; `--yes` keeps the current one without it. */
+  model?: string | undefined;
   check: boolean;
 }
 
@@ -59,7 +62,7 @@ const isPort = (value: string) =>
   /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 65_535;
 
 function describe(check: ModelsCheck): string {
-  if (check.ok) return `Connected: ${models(check.models)} available`;
+  if (check.ok) return `Connected: ${models(check.models.length)} available`;
   if (check.reason === "unreachable") return "Nothing answered at that address";
   if (check.reason === "unauthorized") return "The provider refused the API key";
   return `The provider answered with something unexpected${check.status ? ` (HTTP ${check.status})` : ""}`;
@@ -199,7 +202,91 @@ export async function access(
   return { EPHEMERA_LOCAL_USER: user, EPHEMERA_LOCAL_PORT: port };
 }
 
-async function provider(
+/** The number of single-character edits that turn `a` into `b`. */
+function editDistance(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (row[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    previous = row;
+  }
+  return previous[b.length] ?? 0;
+}
+
+/**
+ * Up to three listed IDs near `id`, nearest first: few edits from the whole
+ * ID or from its last segment (`chat-large` for `vendor/chat-large`).
+ */
+export function closestModels(id: string, listed: readonly string[]): string[] {
+  const typed = id.toLowerCase();
+  const near = Math.max(2, Math.floor(typed.length / 3));
+  return listed
+    .map((candidate) => {
+      const lower = candidate.toLowerCase();
+      const distance = Math.min(
+        editDistance(typed, lower),
+        editDistance(typed, lower.slice(lower.lastIndexOf("/") + 1)),
+      );
+      return { candidate, distance };
+    })
+    .filter(({ distance }) => distance <= near)
+    .toSorted((a, b) => a.distance - b.distance || a.candidate.localeCompare(b.candidate))
+    .slice(0, 3)
+    .map(({ candidate }) => candidate);
+}
+
+/**
+ * The default model `--yes` saves: the `--model` ID, which must be one the
+ * provider lists when it was checked (`listed`), or else the current one.
+ */
+export function flagModel(
+  id: string | undefined,
+  listed: readonly string[] | undefined,
+  current: string,
+): { model: string } | { error: string } {
+  if (id === undefined) return { model: current };
+  if (!modelIdSchema.safeParse(id).success) return { error: "--model takes a model ID." };
+  if (listed === undefined || listed.includes(id)) return { model: id };
+  const closest = closestModels(id, listed);
+  return {
+    error: [
+      `The provider doesn't list "${id}".`,
+      ...(closest.length > 0 ? [`Closest: ${closest.join(", ")}.`] : []),
+      "Pass --no-check to use it as typed.",
+    ].join(" "),
+  };
+}
+
+/** Said when setup ends without a default model: the first chat asks for one. */
+const CHOOSE_IN_APP = "Choose a model in the app before your first message.";
+
+/** Asks which listed model chats start with; empty for none, so the app asks. */
+async function chosenModel(listed: readonly string[], current: string): Promise<string> {
+  return answered(
+    await autocomplete({
+      message: "Which model should chats start with?",
+      placeholder: "Type to filter",
+      maxItems: 8,
+      // Enter on a search that matches nothing answers undefined: ask again rather than save it.
+      validate: (value) =>
+        value === undefined ? "Choose a listed model, or Choose later in the app." : undefined,
+      options: [
+        ...(current ? [{ value: current, label: "Keep the current one", hint: current }] : []),
+        { value: "", label: "Choose later in the app", hint: "the first chat asks" },
+        // The current one is offered once, as Keep.
+        ...listed.filter((id) => id !== current).map((id) => ({ value: id, label: id })),
+      ],
+    }),
+  );
+}
+
+export async function provider(
   flags: SetupFlags,
   current: Record<string, string>,
 ): Promise<Record<string, string>> {
@@ -217,6 +304,7 @@ async function provider(
     const saved =
       baseUrl === current.EPHEMERA_UPSTREAM_BASE_URL ? current.EPHEMERA_UPSTREAM_API_KEY : "";
     const apiKey = process.env.EPHEMERA_UPSTREAM_API_KEY ?? saved ?? "";
+    let listed: string[] | undefined;
     if (flags.check) {
       const progress = activity();
       progress.start("Checking the model provider");
@@ -226,8 +314,16 @@ async function provider(
         fail("Fix the address or key and run setup again, or pass --no-check to skip this.");
       }
       progress.stop(describe(check));
+      listed = check.models;
     }
-    return { EPHEMERA_UPSTREAM_BASE_URL: baseUrl, EPHEMERA_UPSTREAM_API_KEY: apiKey };
+    const chosen = flagModel(flags.model, listed, current.EPHEMERA_DEFAULT_MODEL ?? "");
+    if ("error" in chosen) fail(chosen.error);
+    if (chosen.model === "") log.info(CHOOSE_IN_APP);
+    return {
+      EPHEMERA_UPSTREAM_BASE_URL: baseUrl,
+      EPHEMERA_UPSTREAM_API_KEY: apiKey,
+      EPHEMERA_DEFAULT_MODEL: chosen.model,
+    };
   }
 
   const keep = current.EPHEMERA_UPSTREAM_BASE_URL;
@@ -285,7 +381,14 @@ async function provider(
     const check = await checkModels(baseUrl, apiKey || undefined);
     if (check.ok) {
       progress.stop(describe(check));
-      return { EPHEMERA_UPSTREAM_BASE_URL: baseUrl, EPHEMERA_UPSTREAM_API_KEY: apiKey };
+      return {
+        EPHEMERA_UPSTREAM_BASE_URL: baseUrl,
+        EPHEMERA_UPSTREAM_API_KEY: apiKey,
+        EPHEMERA_DEFAULT_MODEL: await chosenModel(
+          check.models,
+          current.EPHEMERA_DEFAULT_MODEL ?? "",
+        ),
+      };
     }
     progress.error(describe(check));
     const next = answered(
@@ -297,8 +400,10 @@ async function provider(
         ],
       }),
     );
-    if (next === "keep")
+    if (next === "keep") {
+      if (!current.EPHEMERA_DEFAULT_MODEL) log.info(CHOOSE_IN_APP);
       return { EPHEMERA_UPSTREAM_BASE_URL: baseUrl, EPHEMERA_UPSTREAM_API_KEY: apiKey };
+    }
   }
 }
 

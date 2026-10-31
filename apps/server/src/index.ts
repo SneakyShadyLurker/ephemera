@@ -99,6 +99,7 @@ const instances = createInstanceRegistry({
   key,
   log,
   defaultWorkflow: workflows.defaultWorkflow,
+  ...(config.defaultModel !== undefined && { defaultModel: config.defaultModel }),
   ...(starterCharacter && { starterCharacter }),
 });
 

@@ -144,10 +144,11 @@ Paste this into Claude Code, Codex or any assistant that can run commands:
 ```text
 Install Ephemera on this computer from https://github.com/SneakyShadyLurker/ephemera.
 Clone it and work in the clone. Ask me which model provider I use and for its API key
-(base URLs are in the README's "Model providers" table; local servers need no key). Then run
-./ephemera setup --yes --upstream '<base URL>' (.\ephemera.cmd on Windows) with the key
-in the EPHEMERA_UPSTREAM_API_KEY environment variable, and fix whatever it reports until
-it succeeds. Never print .env. Finish with ./ephemera doctor, give me the address it
+(base URLs are in the README's "Model providers" table; local servers need no key), then
+which of its models chats should start with. Then run ./ephemera setup --yes --upstream
+'<base URL>' --model '<model ID>' (.\ephemera.cmd on Windows) with the key in the
+EPHEMERA_UPSTREAM_API_KEY environment variable, and fix whatever it reports until it
+succeeds. Never print .env. Finish with ./ephemera doctor, give me the address it
 serves, and remind me to back up EPHEMERA_DATA_KEY from .env.
 ```
 
@@ -176,8 +177,8 @@ cd ephemera
 ```
 
 Setup installs Bun if it is missing, asks for your model provider and key,
-checks that they work, builds the app and opens it at
-`http://localhost:8780`. From then on:
+checks that they work, lets you pick the model chats start with, builds the
+app and opens it at `http://localhost:8780`. From then on:
 
 | Command | Does |
 |---|---|
@@ -222,6 +223,7 @@ these and writes it for you:
 ```sh
 EPHEMERA_UPSTREAM_BASE_URL=https://openrouter.ai/api/v1
 EPHEMERA_UPSTREAM_API_KEY=your-key   # leave empty for a local server without one
+EPHEMERA_DEFAULT_MODEL=vendor/model  # optional: the model new libraries start with
 ```
 
 Restart the server after a change (`./ephemera restart`). The model list comes from the provider's

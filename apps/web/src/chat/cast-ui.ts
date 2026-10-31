@@ -226,16 +226,21 @@ export function useCastRemoval(): CastRemoval | null {
 export const sheetUnread = (state: ChatState): boolean =>
   state.cast.sheetStatus === "failed" && discoveredRegister(state).entries.length === 0;
 
+/** No cast model is chosen and nobody is in the register: the panel says how to fill it. */
+export const sheetWaiting = (state: ChatState): boolean =>
+  state.cast.sheetStatus === "waiting" && discoveredRegister(state).entries.length === 0;
+
 /**
  * The panel shows with at least one introduced woman, present or away,
- * and, with nobody in it yet, while the first sheet is read or when it could
- * not be.
+ * and, with nobody in it yet, while the first sheet waits for a model, is
+ * read, or could not be.
  */
 const castVisible = (state: ChatState): boolean => {
   const register = discoveredRegister(state);
   return (
     listedEntries(register).length > 0 ||
     (state.cast.sheetStatus === "loading" && register.entries.length === 0) ||
+    sheetWaiting(state) ||
     sheetUnread(state)
   );
 };

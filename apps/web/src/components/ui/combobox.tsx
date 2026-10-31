@@ -1,5 +1,5 @@
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { type ReactNode, type RefObject, useId } from "react";
+import { type ComponentProps, type ReactNode, type RefObject, useId } from "react";
 import { CheckIcon, ChevronDownIcon, SearchIcon } from "@/components/icons";
 import { POPUP_EDGE } from "@/components/ui/positioner";
 import { TRIGGER, TRIGGER_ICON } from "@/components/ui/select";
@@ -46,6 +46,7 @@ function ComboboxPopup({
   footer,
   after,
   results,
+  finalFocus,
   children,
 }: {
   label: string;
@@ -56,6 +57,8 @@ function ComboboxPopup({
   /** A line under the list that is not an item. */
   after?: ReactNode;
   results: RefObject<HTMLDivElement | null>;
+  /** Where focus goes when it closes; the trigger unless the host moves it itself. */
+  finalFocus?: ComponentProps<typeof ComboboxPrimitive.Popup>["finalFocus"];
   children: ReactNode;
 }) {
   return (
@@ -70,6 +73,7 @@ function ComboboxPopup({
         <ComboboxPrimitive.Popup
           aria-label={label}
           initialFocus={() => (coarsePointer() ? (results.current?.parentElement ?? true) : true)}
+          {...(finalFocus === undefined ? {} : { finalFocus })}
           className="pop flex max-h-[min(24rem,var(--available-height))] flex-col overflow-hidden rounded-lg border border-rush bg-surface shadow-overlay outline-none"
         >
           <div className="flex h-10 shrink-0 items-center gap-2 border-rush border-b px-3 transition-[border-color] duration-(--duration-quick) ease-fade focus-within:border-dusk-line touch:h-12">

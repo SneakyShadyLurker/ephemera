@@ -24,11 +24,13 @@ import type { SettingsStore } from "./store.ts";
  * Every write parses the strict settings patch; references must name rows
  * that exist, and clear themselves when those rows are deleted. A custom
  * palette must be saved in its slot to be chosen. A new row starts on the
- * server's default workflow (the workflow registry's).
+ * server's default workflow (the workflow registry's) and its default reply
+ * model, if any; an existing row keeps its own.
  */
 export function createSettingsStore(
   db: Db,
   defaultWorkflow: string = DEFAULT_SETTINGS.comfyuiWorkflow,
+  defaultModel?: string,
 ): SettingsStore {
   const latest = (table: typeof promptPresets | typeof samplerPresets) =>
     db.select({ id: table.id }).from(table).orderBy(desc(table.updatedAt)).limit(1).get()?.id ??
@@ -55,6 +57,7 @@ export function createSettingsStore(
       .values({
         id: 1,
         ...DEFAULT_SETTINGS,
+        model: defaultModel ?? null,
         comfyuiWorkflow: defaultWorkflow,
         promptPresetId,
         samplerPresetId,
