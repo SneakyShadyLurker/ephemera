@@ -108,8 +108,13 @@ function chat(entries: CastEntry[], cast: Partial<ChatCast> = {}) {
   });
 }
 
-const panel = () => renderToStaticMarkup(<CastPanel placement="float" />);
-const status = (out: string) => /data-cast-status=""[^>]*>([^<]*)</.exec(out)?.[1];
+/** Renders under a query client, as the app does: the status line reads the settings. */
+const inApp = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>{node}</QueryClientProvider>,
+  );
+const panel = () => inApp(<CastPanel placement="float" />);
+const status = (out: string) => /data-cast-status=""[^>]*>(?:<span[^>]*>)?([^<]*)</.exec(out)?.[1];
 const updating = (out: string) => /data-cast-updating=""[^>]*>([^<]*)</.exec(out)?.[1];
 const entries = (out: string) =>
   [...out.matchAll(/data-cast-entry=""[\s\S]*?<span class="[^"]*">([^<]+)</g)].map((m) => m[1]);
@@ -330,6 +335,14 @@ describe("the status line", () => {
     expect(out).not.toContain("data-cast-entry");
   });
 
+  it("says what fills the cast while it waits for a model, without a failure or Try again", () => {
+    chatStore.setState({ messages: [], cast: { ...EMPTY_CAST, sheetStatus: "waiting" } });
+    const out = panel();
+    expect(status(out)).toBe("Choose a model to load the cast.");
+    expect(out).not.toContain("Try again");
+    expect(out).not.toContain("couldn&#x27;t");
+  });
+
   it("says a failure in the interface's voice, with Try again", () => {
     chat(woman, { status: "failed", failure: "cast_failed", failures: 1 });
     chatStore.setState((state) => ({ messages: [...state.messages, reply("m2", "r2")] }));
@@ -473,12 +486,12 @@ describe("the status line", () => {
 
   it("keeps the band's names in place: Updating is said, and shown only under reduced motion", () => {
     chat(woman, { status: "updating" });
-    let out = renderToStaticMarkup(<CastPanel placement="band" />);
+    let out = inApp(<CastPanel placement="band" />);
     expect(updating(out)).toBe("Updating…");
     expect(out).toMatch(/class="sr-only"[^>]*><span[^>]*data-cast-updating/);
     expect(out).toContain("data-cast-drift");
     motion.reduced = true;
-    out = renderToStaticMarkup(<CastPanel placement="band" />);
+    out = inApp(<CastPanel placement="band" />);
     expect(out).not.toMatch(/class="sr-only"[^>]*><span[^>]*data-cast-updating/);
   });
 

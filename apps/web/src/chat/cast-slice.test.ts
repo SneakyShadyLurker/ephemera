@@ -92,6 +92,7 @@ function castChat(
   const castSettings = {
     model: "cast-model" as string | null,
     reasoning: null as ReasoningEffort | null,
+    windowKnown: true,
   };
   let replies = 0;
   let ids = 100;
@@ -3182,18 +3183,37 @@ describe("remembered cast seeds", () => {
   });
 
   for (const lines of [[], [NPC_LINE]]) {
-    it(`bounds greeting retries without a model and ${lines.length} remembered people`, async () => {
+    it(`waits for a model with ${lines.length} remembered people, then reads the card once one is chosen`, async () => {
       const chat = castChat(async () => remembered(lines));
       chat.castSettings.model = null;
       chat.state().setGreetings(["Hello"]);
       await tick();
       expect(chat.sheets).toHaveLength(0);
       expect(chat.keeper).toHaveLength(0);
-      expect(chat.state().cast.sheetStatus).toBe("failed");
+      // Nothing was asked, so nothing failed: no Try again, only a wait.
+      expect(chat.state().cast.sheetStatus).toBe("waiting");
       await tick();
       expect(chat.keeper).toHaveLength(0);
       chat.castSettings.model = "cast-model";
-      chat.state().retryCast();
+      chat.state().castModelReady();
+      expect(chat.sheets).toHaveLength(1);
+      expect(chat.state().cast.sheetStatus).toBe("loading");
+      await chat.sheet([]);
+      expect(chat.keeper).toHaveLength(1);
+      // Once asked, a second readiness signal asks nothing more.
+      chat.state().castModelReady();
+      expect(chat.sheets).toHaveLength(1);
+    });
+
+    it(`waits for a known window with ${lines.length} remembered people, without failing`, async () => {
+      const chat = castChat(async () => remembered(lines));
+      chat.castSettings.windowKnown = false;
+      chat.state().setGreetings(["Hello"]);
+      await tick();
+      expect(chat.sheets).toHaveLength(0);
+      expect(chat.state().cast.sheetStatus).toBe("waiting");
+      chat.castSettings.windowKnown = true;
+      chat.state().castModelReady();
       expect(chat.sheets).toHaveLength(1);
       await chat.sheet([]);
       expect(chat.keeper).toHaveLength(1);

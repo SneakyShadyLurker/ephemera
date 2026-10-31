@@ -16,7 +16,9 @@ gets a separate instance, created on their first visit: their own
 characters, personas, presets, lorebooks, events, memories, portraits, imported workflows and settings, which no other user can see,
 list or change. A new library starts with one example character, Friday
 Abbams, an ordinary card the user can edit or delete; a server set to
-`EPHEMERA_STARTER_CHARACTER=off` starts libraries empty. There are no local
+`EPHEMERA_STARTER_CHARACTER=off` starts libraries empty. A server that
+names a default model (`EPHEMERA_DEFAULT_MODEL`, which `./ephemera setup`
+asks for) starts new libraries with it as the reply model. There are no local
 accounts, sign-up, user administration or sharing: the proxy's identity is the only identity. When the sign-in
 expires, the open tab stays where it is: a notice offers Sign in in a new
 window, and once the user is back the tab carries on by itself, sending
@@ -819,6 +821,13 @@ Version 1.0 holds everything below.
   its window in Settings > Model setup, under Context, and until then nothing is sent to
   it. Every place that refuses for that reason links to that model's
   window field, and a model picker in Settings notes it under the choice.
+- Without a reply model, or with one whose context window is unknown, a
+  notice above the composer says why nothing can be sent and holds the
+  model picker itself, whatever the chat shows, a greeting included; a
+  choice made there folds the notice away and returns focus to the
+  message, its draft kept. Enter in the message leads to the picker until
+  then. The cast waits for a usable model, saying what it waits for
+  rather than failing, and reads the card as soon as one is chosen.
 - Settings also hold a context limit per model, 131,072 tokens unless set
   there. The context in use, which sets the token budget, is the smaller
   of the model's window and its limit.

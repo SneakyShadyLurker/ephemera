@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { comfyuiWorkflowIdSchema } from "@ephemera/core";
+import { comfyuiWorkflowIdSchema, modelIdSchema } from "@ephemera/core";
 import { z } from "zod";
 import { BUILD_REVISION } from "./build.ts";
 import { isRefusedNodeClass } from "./comfyui/allowlist.ts";
@@ -85,6 +85,8 @@ const envSchema = z.object({
   EPHEMERA_WORKFLOWS_DIR: optional(z.string().min(1)),
   /** The workflow a new user starts with and a vanished choice falls back to; the core one when unset. */
   EPHEMERA_DEFAULT_WORKFLOW: optional(comfyuiWorkflowIdSchema),
+  /** The reply model a new user's settings start with; none when unset, so the app asks. */
+  EPHEMERA_DEFAULT_MODEL: optional(modelIdSchema),
   /** More node classes graphs may use, each kept in memory on the operator's word; never a save or preview node. */
   EPHEMERA_COMFYUI_EXTRA_NODES: extraNodesSchema,
   /** The bundled example character in every new user's library; off leaves new libraries empty. */
@@ -122,6 +124,8 @@ interface ServerConfig extends AppConfig {
   /** Read by the workflow registry index.ts builds; the app gets the registry, not these. */
   workflowsDir: string | undefined;
   defaultWorkflow: string | undefined;
+  /** The reply model a new library's settings start with; a saved choice always wins. */
+  defaultModel: string | undefined;
   /** The node classes index.ts adds to the allowlist. */
   extraNodes: readonly string[];
   /** Whether index.ts gives the instance registry the bundled starter character. */
@@ -185,6 +189,7 @@ export function loadConfig(env: Record<string, string | undefined>): ServerConfi
     dataKey: e.EPHEMERA_DATA_KEY,
     workflowsDir: e.EPHEMERA_WORKFLOWS_DIR,
     defaultWorkflow: e.EPHEMERA_DEFAULT_WORKFLOW,
+    defaultModel: e.EPHEMERA_DEFAULT_MODEL,
     extraNodes: e.EPHEMERA_COMFYUI_EXTRA_NODES,
     starterCharacter: e.EPHEMERA_STARTER_CHARACTER,
   };

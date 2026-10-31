@@ -159,7 +159,7 @@ function PreviewView() {
     </>
   );
   if (model === null) {
-    return <Status intro={intro}>Choose a model in Session to preview a prompt.</Status>;
+    return <Status intro={intro}>Choose a model to preview a prompt.</Status>;
   }
   return <PreviewBody preview={preview} intro={intro} model={model} />;
 }

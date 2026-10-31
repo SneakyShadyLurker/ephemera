@@ -12,6 +12,7 @@ import { useSignedIn } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { retryGreeting } from "./greetings.ts";
+import { focusModelNotice, MODEL_NOTICE_BODY, useModelBlocker } from "./ModelNotice.tsx";
 import { IMPERSONATION_REFUSAL, REFUSAL_NOTE } from "./refusal.ts";
 import { chatStore, useChat } from "./session.ts";
 import { awaitsGreeting, type ImpersonationNote, type MacroNotice } from "./store.ts";
@@ -53,11 +54,14 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
   const inspectorUnavailable = useUi((state) => state.inspectorUnavailable);
   const settings = useSettings();
   const { model } = settings;
-  // Without a known window nothing can be fitted; WindowNotice says why.
+  // Without a model or a known window nothing can be sent; ModelNotice says why and offers the way out.
   const window = useContextWindow(model, settings);
   // Signed out, nothing can be generated until the session is back; the draft stays editable.
   const signedIn = useSignedIn();
   const sendable = model !== null && window !== null && signedIn;
+  // While the notice above says why Send cannot work, the field and Send are described by it.
+  const blocked = useModelBlocker().blocker !== null;
+  const describedBy = blocked ? MODEL_NOTICE_BODY : undefined;
   // An empty draft goes too when the prompt preset sends its Send If Empty text instead.
   const canSend = useChat((state) => state.draft.trim() !== "") && sendable;
   const persona = useChatPersona();
@@ -96,6 +100,8 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
     const modified = event.ctrlKey || event.metaKey || event.altKey;
     if (event.key === "Enter" && !event.shiftKey && !modified && !composing) {
       event.preventDefault();
+      // Nothing can go out yet: Enter goes to the notice's way out instead of doing nothing.
+      if (blocked && focusModelNotice()) return;
       void send();
     } else if (event.key === "Escape" && generating) {
       event.preventDefault();
@@ -204,6 +210,7 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
               data-skip-target=""
               ref={field}
               aria-label="Message"
+              aria-describedby={describedBy}
               placeholder={placeholder}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -242,7 +249,13 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
               </span>
             ) : (
               <span key="send" className={SWAP}>
-                <Button type="submit" variant="primary" disabled={!canSend} {...trackFocus}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={!canSend}
+                  aria-describedby={describedBy}
+                  {...trackFocus}
+                >
                   Send
                 </Button>
               </span>

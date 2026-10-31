@@ -1,6 +1,6 @@
 import { modelIdSchema } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { Combobox, ComboboxItem, ComboboxPopup, ComboboxTrigger } from "@/components/ui/combobox";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
@@ -25,6 +25,7 @@ export function ModelSelect({
   lead,
   placeholder,
   disabled = false,
+  finalFocus,
   className,
 }: {
   options: readonly string[];
@@ -34,6 +35,8 @@ export function ModelSelect({
   placeholder?: string;
   /** Held by the host (a run painting); an empty list never disables it. */
   disabled?: boolean;
+  /** Where focus goes when the list closes (`ComboboxPopup`); the trigger by default. */
+  finalFocus?: ComponentProps<typeof ComboboxPopup>["finalFocus"];
   className?: string;
 } & ({ labelId: string; label?: never } | { label: string; labelId?: never })) {
   const models = useQuery(modelsQuery);
@@ -114,6 +117,7 @@ export function ModelSelect({
         )}
       </ComboboxTrigger>
       <ComboboxPopup
+        {...(finalFocus === undefined ? {} : { finalFocus })}
         label="Models"
         find={{ label: "Find a model", placeholder: "Find a model or type its ID" }}
         status={status}

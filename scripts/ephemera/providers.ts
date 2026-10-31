@@ -1,3 +1,5 @@
+import { modelIdSchema } from "../../packages/core/src/chat.ts";
+
 /**
  * The model providers `./ephemera setup` offers, as README § Model providers
  * lists them (a unit test keeps the two in step). Local servers carry
@@ -24,12 +26,13 @@ export const PROVIDERS: readonly Provider[] = [
 ];
 
 export type ModelsCheck =
-  | { ok: true; models: number }
+  | { ok: true /** The listed model IDs, valid, sorted and once each. */; models: string[] }
   | { ok: false; reason: "unreachable" | "unauthorized" | "unexpected"; status?: number };
 
 /**
  * Asks the upstream for its model list, as the server does: whether the
- * address answers, the key is accepted and the answer looks like a list.
+ * address answers, the key is accepted and the answer looks like a list,
+ * and which model IDs it lists. Entries without a valid ID are left out.
  */
 export async function checkModels(
   baseUrl: string,
@@ -55,9 +58,16 @@ export async function checkModels(
   }
   try {
     const body = (await response.json()) as { data?: unknown };
-    return Array.isArray(body.data)
-      ? { ok: true, models: body.data.length }
-      : { ok: false, reason: "unexpected", status: response.status };
+    if (!Array.isArray(body.data)) {
+      return { ok: false, reason: "unexpected", status: response.status };
+    }
+    const ids = body.data.flatMap((entry: unknown) => {
+      const id = modelIdSchema.safeParse(
+        typeof entry === "object" && entry !== null && "id" in entry ? entry.id : undefined,
+      );
+      return id.success ? [id.data] : [];
+    });
+    return { ok: true, models: [...new Set(ids)].toSorted() };
   } catch {
     return { ok: false, reason: "unexpected", status: response.status };
   }

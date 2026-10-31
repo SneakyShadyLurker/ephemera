@@ -37,6 +37,8 @@ export interface InstanceRegistryOptions {
   write?: (path: string, bytes: Uint8Array) => Promise<void>;
   /** The workflow a new user's settings start on: the workflow registry's default. */
   defaultWorkflow?: string;
+  /** The reply model a new user's settings start with; none when unset. */
+  defaultModel?: string;
   /** Added to a new user's library once, when their database is created; none when unset. */
   starterCharacter?: StarterCharacter;
 }
@@ -97,11 +99,10 @@ export function createInstanceRegistry(options: InstanceRegistryOptions): Instan
         if (orphans > 0) log.info({ event: "instance.portrait_orphans", count: orphans });
         if (missing > 0) log.warn({ event: "instance.portrait_missing", count: missing });
       }
-      stores = createStores(
-        database.db,
-        files,
-        options.defaultWorkflow === undefined ? {} : { defaultWorkflow: options.defaultWorkflow },
-      );
+      stores = createStores(database.db, files, {
+        ...(options.defaultWorkflow !== undefined && { defaultWorkflow: options.defaultWorkflow }),
+        ...(options.defaultModel !== undefined && { defaultModel: options.defaultModel }),
+      });
       // Only a database created here: a user who deleted the starter does not get it back.
       const starter = options.starterCharacter;
       if (snapshot === undefined && starter !== undefined) {

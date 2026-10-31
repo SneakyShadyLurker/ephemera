@@ -76,6 +76,17 @@ describe("loadConfig", () => {
     }
   });
 
+  it("reads the default model new libraries start with; empty counts as unset", () => {
+    expect(loadConfig(valid).defaultModel).toBeUndefined();
+    expect(loadConfig({ ...valid, EPHEMERA_DEFAULT_MODEL: "" }).defaultModel).toBeUndefined();
+    expect(loadConfig({ ...valid, EPHEMERA_DEFAULT_MODEL: "vendor/chat-large" }).defaultModel).toBe(
+      "vendor/chat-large",
+    );
+    expect(() => loadConfig({ ...valid, EPHEMERA_DEFAULT_MODEL: "x".repeat(201) })).toThrowError(
+      /EPHEMERA_DEFAULT_MODEL$/,
+    );
+  });
+
   it("reads the build revision; empty counts as unset, and anything unsafe in a header is refused", () => {
     expect(loadConfig(valid).buildRevision).toBeUndefined();
     expect(loadConfig({ ...valid, EPHEMERA_BUILD_REVISION: "" }).buildRevision).toBeUndefined();

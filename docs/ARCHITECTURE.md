@@ -1009,7 +1009,10 @@ keeper request and answer are chat content.
    character: at a chat's start, and before a request or a keeper call
    when the chat's character changed. Once it lands for the same epoch
    and character, a greeting that is the newest reply and has no snapshot
-   gets a seed call. A sheet register starts with every entry away
+   gets a seed call. Without a usable cast model (none chosen, or one whose
+   context window is not known yet, as the server requires;
+   `usableCastModel`, `apps/web/src/chat/session.ts`) the sheet waits
+   instead of failing, and is asked for as soon as one becomes usable. A sheet register starts with every entry away
    (`registerFromSheet`). Saving a card or applying a rework refreshes
    the character sheet's view of the stored sheet, which then shows it as
    stale; its Cast section reads it now or regenerates it (`force`), and
@@ -1793,7 +1796,8 @@ requester's instance from the registry
 route reaches only that user's stores. A user's first admitted request
 creates `<dataDir>/users/<username>/` (0700, and `users/` itself when it is
 the first user), asserted a direct child of `users/`, and seeds what a fresh
-install gets. A database created that way also gets the starter character,
+install gets. A new settings row starts with `EPHEMERA_DEFAULT_MODEL` as its
+reply model when set; an existing row keeps its own. A database created that way also gets the starter character,
 the native card PNG in `apps/server/src/starter/`, which `index.ts` reads
 once at startup through the import reader (`starter.ts`); a database that
 already exists never does, so a deleted starter stays deleted.
@@ -2639,13 +2643,18 @@ folder `EPHEMERA_HOME` names.
   who uses Ephemera (just me, or behind a sign-in proxy), the username and
   port, and the model provider (the list in `scripts/ephemera/providers.ts`,
   kept equal to README § Model providers by a unit test), checks the
-  provider's `/models` with the key, validates the whole configuration with
+  provider's `/models` with the key, asks which listed model new libraries
+  start with (`EPHEMERA_DEFAULT_MODEL`; Choose later in the app clears it),
+  validates the whole configuration with
   the server's `loadConfig`, builds and restarts a running server. A saved
   API key is reused only for the base URL it was saved with. A value Bun's
   loader would read otherwise (`$`, a quote, a backslash, a newline) is
   refused. Without a terminal, or with `--yes`, it takes flags and
-  `EPHEMERA_UPSTREAM_API_KEY` instead, keeps the current access mode unless
-  a flag names one, and fails rather than asks.
+  `EPHEMERA_UPSTREAM_API_KEY` instead, keeps the current access mode and
+  default model unless a flag names one, and fails rather than asks;
+  `--model` must be an ID the checked provider lists, with the closest
+  listed IDs named when it is not (`--no-check` takes it as typed).
+  `doctor` warns when the provider does not list the default model.
 - The served build lives in `.ephemera/web`, apart from `apps/web/dist`,
   which `bun run build` and e2e rewrite. A build is made in
   `.ephemera/web-next` with the checkout's commit (outside Git, a fresh

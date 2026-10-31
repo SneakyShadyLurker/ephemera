@@ -28,6 +28,7 @@ import {
 } from "../memory/queries.ts";
 import { personaQuery } from "../personas/queries.ts";
 import { presetQuery, presetsQuery } from "../presets/queries.ts";
+import { SETTINGS_MUTATION_KEY } from "../settings/save-history.ts";
 import { currentSettings } from "../settings/settings.ts";
 import { identity } from "../signin/identity.ts";
 import { SignedOut, signIn } from "../signin/signin.ts";
@@ -322,7 +323,11 @@ export const chatStore = createChatStore(
       // Read when a call starts, so a model changed in Settings meanwhile counts.
       settings: () => {
         const settings = currentSettings();
-        return { model: castModelOf(settings), reasoning: castReasoningOf(settings) };
+        return {
+          model: castModelOf(settings),
+          reasoning: castReasoningOf(settings),
+          windowKnown: castWindowKnown(settings),
+        };
       },
       newId: () => crypto.randomUUID(),
       // As last loaded: the chosen persona is fetched with the chat.
@@ -458,6 +463,49 @@ function followSelection(): () => void {
   });
 }
 followSelection();
+
+/**
+ * Whether the cast model (core `castModelOf`) has a known context window,
+ * which the server requires before it reads a card: false without a model,
+ * a window, or the model list.
+ */
+function castWindowKnown(settings: Settings): boolean {
+  const model = castModelOf(settings);
+  if (model === null) return false;
+  const catalog = queryClient.getQueryData(modelsQuery.queryKey);
+  return effectiveWindow(model, catalog, settings) !== null;
+}
+
+/**
+ * A cast sheet that waited is asked for once its model becomes usable
+ * (chosen, given a window, or the list arrived), so the cast is read before
+ * anything is sent. It waits for the settings saves in flight: the server
+ * reads the window from the saved settings, not from this tab.
+ */
+function followCastModel(): () => void {
+  let usable = castWindowKnown(currentSettings());
+  let owed = false;
+  const settle = () => {
+    if (!owed || queryClient.isMutating({ mutationKey: SETTINGS_MUTATION_KEY }) > 0) return;
+    owed = false;
+    chatStore.getState().castModelReady();
+  };
+  const queries = queryClient.getQueryCache().subscribe(() => {
+    const now = castWindowKnown(currentSettings());
+    if (now && !usable) owed = true;
+    else if (!now) owed = false;
+    usable = now;
+    // A change made here is applied before its save is queued (`useUpdateSettings`), in the same
+    // task, and the save is added to the cache idle before it runs: settled after both, never between.
+    queueMicrotask(settle);
+  });
+  const mutations = queryClient.getMutationCache().subscribe(() => queueMicrotask(settle));
+  return () => {
+    queries();
+    mutations();
+  };
+}
+followCastModel();
 
 // Once the session is back, after edits and settings are saved: the generation that waited
 // goes out once.

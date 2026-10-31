@@ -12,7 +12,6 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { useSetting } from "../settings/settings.ts";
 import { useChatCharacter } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { SeamSlot, seamIndex } from "./MemorySeam.tsx";
@@ -229,24 +228,16 @@ const RETENTION = "This conversation isn't saved. Refreshing or closing this tab
 /**
  * The empty story. With a character, the presence beside it is the welcome:
  * one line and the retention note, level with the portrait. Without one, the
- * invitation, a way to choose a character, then the note. "Choose a model"
- * only when that blocks.
+ * invitation, a way to choose a character, then the note. A missing model is
+ * the notice above the composer's to say (ModelNotice), whatever the story holds.
  */
 function EmptyStory() {
-  const needsModel = useSetting((settings) => settings.model) === null;
   const character = useChatCharacter();
-  const choose = (character === undefined || needsModel) && (
+  const choose = character === undefined && (
     <div className="flex flex-wrap gap-2">
-      {character === undefined && (
-        <Button variant="outline" onClick={() => setSessionOpen(true)}>
-          Choose a character
-        </Button>
-      )}
-      {needsModel && (
-        <Button variant="outline" onClick={() => setSessionOpen(true)}>
-          Choose a model
-        </Button>
-      )}
+      <Button variant="outline" onClick={() => setSessionOpen(true)}>
+        Choose a character
+      </Button>
     </div>
   );
   const retention = <p className="max-w-empty text-pretty text-note text-reed">{RETENTION}</p>;

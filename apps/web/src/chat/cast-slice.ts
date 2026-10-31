@@ -90,7 +90,8 @@ export interface ChatCast {
   } | null;
   /** The sheet this chat acknowledged, laid over every base; null without one. */
   sheet: { fingerprint: string; entries: CastSheetEntry[] } | null;
-  sheetStatus: "idle" | "loading" | "failed";
+  /** `waiting`: no usable cast model yet (none, or no known window), so nothing was asked. */
+  sheetStatus: "idle" | "waiting" | "loading" | "failed";
   /** By reply id, greetings included. */
   snapshots: Record<string, CastSnapshot>;
   /** By entry id. */
@@ -135,6 +136,8 @@ export interface CastSliceState {
   restoreCast: (entryId: string) => void;
   /** Runs the keeper for the newest reply now (Try again). */
   retryCast: () => void;
+  /** A cast model became available: a sheet that waited for one is asked for now. */
+  castModelReady: () => void;
   /** A memory query changed or became unavailable. Old seed-only identities are replaced. */
   receiveCastMemory: (characterId: string, memory: CharacterMemory | undefined) => void;
 }
@@ -153,8 +156,16 @@ export interface CastDeps {
     signal: AbortSignal,
     onAccounting?: (accounting: CallAccounting) => void,
   ) => Promise<CastSheetOutcome>;
-  /** The cast model and effort Settings choose (core `castModelOf`, `castReasoningOf`). */
-  settings: () => { model: string | null; reasoning: ReasoningEffort | null };
+  /**
+   * The cast model and effort Settings choose (core `castModelOf`,
+   * `castReasoningOf`), and whether that model's context window is known: a
+   * sheet waits for one, as the server cannot read the card without it.
+   */
+  settings: () => {
+    model: string | null;
+    reasoning: ReasoningEffort | null;
+    windowKnown: boolean;
+  };
   /** A new entry's id. */
   newId: () => string;
   /** The persona's name, never an entry; null when unknown. */
@@ -1082,6 +1093,13 @@ export function createCastSlice(
     const changedCharacter =
       sheetFor !== undefined && (sheetFor.epoch !== epoch || sheetFor.characterId !== characterId);
     sheetFor?.controller.abort();
+    const { model, reasoning, windowKnown } = deps.settings();
+    // Nothing the server could read it with: the sheet waits, without a failure, until it can.
+    if (model === null || !windowKnown) {
+      sheetFor = undefined;
+      patchCast({ ...(changedCharacter ? { sheet: null } : {}), sheetStatus: "waiting" });
+      return;
+    }
     const controller = new AbortController();
     sheetFor = { epoch, characterId, controller };
     patchCast({ ...(changedCharacter ? { sheet: null } : {}), sheetStatus: "loading" });
@@ -1090,11 +1108,6 @@ export function createCastSlice(
       sheetFor = undefined;
       patchCast({ sheetStatus: "failed" });
     };
-    const { model, reasoning } = deps.settings();
-    if (model === null) {
-      failed();
-      return;
-    }
     const accounting = host.trackUsage?.("cast.sheet", model, null);
     let received = false;
     const outcome = await deps
@@ -1275,6 +1288,12 @@ export function createCastSlice(
         return;
       }
       keep(newest.id, { reloadSheet: sheetFailed });
+    },
+
+    castModelReady: () => {
+      if (get().cast.sheetStatus !== "waiting") return;
+      // As a chat start does: the sheet is asked for, and the greeting seeds once it lands.
+      if (follow()) seedGreeting();
     },
   };
 

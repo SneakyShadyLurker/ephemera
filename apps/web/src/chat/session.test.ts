@@ -17,6 +17,7 @@ import { characterQuery } from "../characters/queries.ts";
 import { MEMORY_KEY, memoryQuery } from "../memory/queries.ts";
 import { personaQuery } from "../personas/queries.ts";
 import { presetQuery } from "../presets/queries.ts";
+import { SETTINGS_MUTATION_KEY } from "../settings/save-history.ts";
 import { settingsQuery } from "../settings/settings.ts";
 import { signIn } from "../signin/signin.ts";
 import { currentRegister } from "./cast-slice.ts";
@@ -664,5 +665,39 @@ describe("the chosen character's memory", () => {
     vi.stubGlobal("fetch", async () => Response.json(stored([])));
     await queryClient.fetchQuery({ ...memoryQuery(CHARACTER), staleTime: 0 });
     expect(chatStore.getState().memory).toEqual(NO_MEMORY);
+  });
+});
+
+describe("a cast sheet that waits for a context window", () => {
+  it("is asked for once the save that gave the window is done, not when the tab applies it", async () => {
+    queryClient.setQueryData(modelsQuery.queryKey, [
+      { id: "model-n", contextWindow: null, outputLimit: null, reasoning: null, images: null },
+    ]);
+    settle({ model: "model-n" });
+    await Promise.resolve();
+    const ready = vi.fn();
+    const original = chatStore.getState().castModelReady;
+    chatStore.setState({ castModelReady: ready });
+    try {
+      let release = () => {};
+      const stored = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      // As useUpdateSettings does: applied in this tab first, its save queued in the same task.
+      settle({ model: "model-n", contextWindows: { "model-n": 8_192 } });
+      const save = queryClient
+        .getMutationCache()
+        .build(queryClient, { mutationKey: SETTINGS_MUTATION_KEY, mutationFn: () => stored });
+      const saving = save.execute(undefined);
+      await Promise.resolve();
+      await Promise.resolve();
+      // The server reads the window from what it stored: nothing is asked while the save runs.
+      expect(ready).not.toHaveBeenCalled();
+      release();
+      await saving;
+      await vi.waitFor(() => expect(ready).toHaveBeenCalledTimes(1));
+    } finally {
+      chatStore.setState({ castModelReady: original });
+    }
   });
 });
