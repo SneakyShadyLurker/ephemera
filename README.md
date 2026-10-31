@@ -156,7 +156,9 @@ It installs everything into your user account, adds an Ephemera shortcut
 to the Start menu and the desktop, asks whether to start Ephemera when you
 sign in, and runs the setup below. Afterwards the shortcut starts Ephemera
 and opens it, and `ephemera update` in any terminal updates it. Your
-settings and library live in `%LOCALAPPDATA%\Ephemera`.
+settings and library live in `%LOCALAPPDATA%\Ephemera`. To remove
+Ephemera, run `ephemera stop`, then delete that folder and the Ephemera
+shortcuts.
 
 ### On macOS and Linux
 
