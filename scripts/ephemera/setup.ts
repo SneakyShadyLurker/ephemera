@@ -103,7 +103,7 @@ export function missingKeys(file: Record<string, string>, shell: Env): Record<st
   return values;
 }
 
-async function access(
+export async function access(
   flags: SetupFlags,
   current: Record<string, string>,
 ): Promise<Record<string, string>> {
@@ -115,6 +115,8 @@ async function access(
     if (!(error instanceof LocalAccessError)) throw error;
     wasLocal = undefined;
   }
+  // The username names the library, so a valid one survives settings that no longer hold.
+  const savedUser = wasLocal?.user ?? usernameSchema.safeParse(current.EPHEMERA_LOCAL_USER).data;
   const serverPort = Number(current.EPHEMERA_PORT || DEFAULT_PORT);
   // A local username, even one in settings that no longer hold, means local mode.
   const wasProxy =
@@ -168,14 +170,14 @@ async function access(
     ? answered(
         await text({
           message: "Your name for your library",
-          initialValue: wasLocal?.user ?? suggestedUser(),
+          initialValue: savedUser ?? suggestedUser(),
           validate: (value) =>
             usernameSchema.safeParse(value ?? "").success
               ? undefined
               : "Lowercase letters and digits, then ., _ or -",
         }),
       )
-    : (flags.user ?? wasLocal?.user ?? suggestedUser());
+    : (flags.user ?? savedUser ?? suggestedUser());
   if (!usernameSchema.safeParse(user).success)
     fail("--user takes lowercase letters and digits, then ., _ or -");
   const port = flags.interactive

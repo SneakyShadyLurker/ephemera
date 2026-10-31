@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DataKeyMissingError, missingKeys } from "./setup.ts";
+import { access, DataKeyMissingError, missingKeys } from "./setup.ts";
 
 const DATA_KEY = "ab".repeat(32);
 const PROXY_KEY = "p".repeat(40);
@@ -53,5 +53,24 @@ describe("setup's keys", () => {
         shell,
       ),
     ).toEqual(shell);
+  });
+});
+
+describe("setup's access, asking nothing", () => {
+  it("keeps the library's username when the rest of the local settings no longer hold", async () => {
+    const current = {
+      EPHEMERA_LOCAL_USER: "library-owner",
+      EPHEMERA_LOCAL_PORT: "8790",
+      EPHEMERA_ORIGIN: "https://ephemera.example",
+    };
+    expect(await access({ interactive: false, check: false }, current)).toEqual({
+      EPHEMERA_LOCAL_USER: "library-owner",
+      EPHEMERA_LOCAL_PORT: "8780",
+    });
+  });
+
+  it("keeps an install behind a proxy there", async () => {
+    const current = { EPHEMERA_LOCAL_USER: "", EPHEMERA_ORIGIN: "https://ephemera.example" };
+    expect(await access({ interactive: false, check: false }, current)).toEqual({});
   });
 });
