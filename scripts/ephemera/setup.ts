@@ -75,17 +75,30 @@ export class DataKeyMissingError extends Error {
   }
 }
 
+const validProxyKey = (value: string | undefined) => (value ?? "").length >= 32;
+const validDataKey = (value: string | undefined) => /^[0-9a-fA-F]{64}$/.test(value ?? "");
+
 /**
- * The proxy key and data key to add: those that exist, in `.env` or the
- * shell's environment the server also reads, are kept. A data key is never
- * made while libraries exist, since only the old one opens them.
+ * The proxy key and data key `.env` needs: a valid one there is kept; one
+ * the shell supplies is written there, since `.env` is what the server
+ * reads first; otherwise one is made. A data key is never made while
+ * libraries exist, since only the old one opens them.
  */
-export function missingKeys(current: Env): Record<string, string> {
+export function missingKeys(file: Record<string, string>, shell: Env): Record<string, string> {
   const values: Record<string, string> = {};
-  if ((current.EPHEMERA_PROXY_KEY ?? "").length < 32) values.EPHEMERA_PROXY_KEY = key();
-  if (!/^[0-9a-fA-F]{64}$/.test(current.EPHEMERA_DATA_KEY ?? "")) {
-    if (librariesExist(current)) throw new DataKeyMissingError();
-    values.EPHEMERA_DATA_KEY = key();
+  if (!validProxyKey(file.EPHEMERA_PROXY_KEY)) {
+    values.EPHEMERA_PROXY_KEY = validProxyKey(shell.EPHEMERA_PROXY_KEY)
+      ? (shell.EPHEMERA_PROXY_KEY as string)
+      : key();
+  }
+  if (!validDataKey(file.EPHEMERA_DATA_KEY)) {
+    if (validDataKey(shell.EPHEMERA_DATA_KEY)) {
+      values.EPHEMERA_DATA_KEY = shell.EPHEMERA_DATA_KEY as string;
+    } else if (librariesExist(effectiveEnv(shell, file))) {
+      throw new DataKeyMissingError();
+    } else {
+      values.EPHEMERA_DATA_KEY = key();
+    }
   }
   return values;
 }
@@ -103,8 +116,9 @@ async function access(
     wasLocal = undefined;
   }
   const serverPort = Number(current.EPHEMERA_PORT || DEFAULT_PORT);
+  // A local username, even one in settings that no longer hold, means local mode.
   const wasProxy =
-    wasLocal === undefined &&
+    (current.EPHEMERA_LOCAL_USER ?? "") === "" &&
     current.EPHEMERA_ORIGIN !== undefined &&
     !/^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(current.EPHEMERA_ORIGIN);
   const behindProxy = flags.interactive
@@ -295,7 +309,7 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
 
   let keys: Record<string, string>;
   try {
-    keys = missingKeys(effectiveEnv(process.env, current));
+    keys = missingKeys(current, process.env);
   } catch (error) {
     if (error instanceof DataKeyMissingError) fail(`${error.message}.`);
     throw error;

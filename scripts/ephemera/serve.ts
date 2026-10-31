@@ -84,15 +84,19 @@ const exited = new Promise<number>((resolve) => {
   server.on("exit", (code, signal) => resolve(code ?? (signal === null ? 1 : 128)));
 });
 
+/** How long the gateway may take to hand the last replies to the browser. */
+const GATEWAY_DRAIN_MS = 5_000;
+
 let stopping = false;
 async function stop(): Promise<never> {
   if (!stopping) {
     stopping = true;
     server.kill("SIGTERM");
-    // In-flight replies finish within the server's own drain; new requests are refused.
-    void gateway?.stop();
   }
-  finish(await exited);
+  const code = await exited;
+  // Replies the server finished may still be on their way to the browser.
+  await Promise.race([gateway?.stop(), Bun.sleep(GATEWAY_DRAIN_MS)]);
+  finish(code);
 }
 
 for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {

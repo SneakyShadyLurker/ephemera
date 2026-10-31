@@ -190,17 +190,19 @@ export type StopOutcome = "saved" | "not-saved" | "still-running";
  * library first, and `serve.ts` records whether that worked.
  */
 export async function stopServer(state: RunState, timeoutMs = 30_000): Promise<StopOutcome> {
+  // Saved only on serve.ts's own word that its server ended cleanly.
+  const outcome = (): StopOutcome => {
+    const exit = readJson<ExitState>(EXIT_FILE);
+    return exit?.pid === state.pid && exit.code === 0 ? "saved" : "not-saved";
+  };
   try {
     process.kill(state.pid, "SIGTERM");
   } catch {
-    return "saved";
+    return outcome();
   }
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (!alive(state.pid)) {
-      const exit = readJson<ExitState>(EXIT_FILE);
-      return exit?.pid === state.pid && exit.code === 0 ? "saved" : "not-saved";
-    }
+    if (!alive(state.pid)) return outcome();
     await sleep(200);
   }
   return "still-running";

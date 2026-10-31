@@ -21,16 +21,19 @@ afterEach(() => {
 describe("setup's keys", () => {
   it("keeps keys that exist", () => {
     expect(
-      missingKeys({
-        EPHEMERA_PROXY_KEY: PROXY_KEY,
-        EPHEMERA_DATA_KEY: DATA_KEY,
-        EPHEMERA_DATA_DIR: dataDir(true),
-      }),
+      missingKeys(
+        {
+          EPHEMERA_PROXY_KEY: PROXY_KEY,
+          EPHEMERA_DATA_KEY: DATA_KEY,
+          EPHEMERA_DATA_DIR: dataDir(true),
+        },
+        {},
+      ),
     ).toEqual({});
   });
 
   it("makes the missing ones for a new install", () => {
-    const keys = missingKeys({ EPHEMERA_DATA_DIR: dataDir(false) });
+    const keys = missingKeys({ EPHEMERA_DATA_DIR: dataDir(false) }, {});
     expect(keys.EPHEMERA_PROXY_KEY).toMatch(/^[0-9a-f]{64}$/);
     expect(keys.EPHEMERA_DATA_KEY).toMatch(/^[0-9a-f]{64}$/);
     expect(keys.EPHEMERA_DATA_KEY).not.toBe(keys.EPHEMERA_PROXY_KEY);
@@ -38,7 +41,17 @@ describe("setup's keys", () => {
 
   it("never makes a data key while libraries exist", () => {
     expect(() =>
-      missingKeys({ EPHEMERA_PROXY_KEY: PROXY_KEY, EPHEMERA_DATA_DIR: dataDir(true) }),
+      missingKeys({ EPHEMERA_PROXY_KEY: PROXY_KEY, EPHEMERA_DATA_DIR: dataDir(true) }, {}),
     ).toThrow(DataKeyMissingError);
+  });
+
+  it("writes keys the shell supplies into .env, where the empty template lines would hide them", () => {
+    const shell = { EPHEMERA_PROXY_KEY: PROXY_KEY, EPHEMERA_DATA_KEY: DATA_KEY };
+    expect(
+      missingKeys(
+        { EPHEMERA_PROXY_KEY: "", EPHEMERA_DATA_KEY: "", EPHEMERA_DATA_DIR: dataDir(true) },
+        shell,
+      ),
+    ).toEqual(shell);
   });
 });

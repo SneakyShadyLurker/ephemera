@@ -10,7 +10,7 @@ import {
   openSync,
   readFileSync,
   renameSync,
-  writeSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,12 +37,11 @@ export function readEnvFile(path = ENV_FILE): Record<string, string> | undefined
 
 /**
  * The environment the server runs with: the shell's, with `.env` on top, so
- * the file `./ephemera setup` wrote is what counts. An empty value in the
- * file is unset, as the server reads it, so it never hides the shell's.
+ * the file `./ephemera setup` wrote is what counts, an empty value included
+ * (it clears a key, a mode or a port the shell still carries).
  */
 export function effectiveEnv(shell: Env, file: Record<string, string> = {}): Env {
-  const set = Object.entries(file).filter(([, value]) => value !== "");
-  return { ...shell, ...Object.fromEntries(set) };
+  return { ...shell, ...file };
 }
 
 export function serverEnv(): Env {
@@ -105,7 +104,8 @@ export function writeEnvFile(text: string, path = ENV_FILE): void {
   const next = `${path}.${process.pid}.tmp`;
   const file = openSync(next, "wx", 0o600);
   try {
-    writeSync(file, text);
+    // Given a descriptor, writeFileSync writes until every byte is out or throws.
+    writeFileSync(file, text);
     fsyncSync(file);
   } finally {
     closeSync(file);

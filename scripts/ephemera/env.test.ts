@@ -37,14 +37,15 @@ describe("env file", () => {
     );
   });
 
-  it("lets the file's values win, while an empty one leaves the shell's", () => {
-    const shell = { EPHEMERA_DATA_KEY: "from-shell", EPHEMERA_PORT: "8790", OTHER: "kept" };
-    const file = { EPHEMERA_DATA_KEY: "", EPHEMERA_PORT: "9000" };
+  it("lets every value in the file win, an empty one clearing the shell's", () => {
+    const shell = { EPHEMERA_UPSTREAM_API_KEY: "old", EPHEMERA_LOCAL_USER: "theo", OTHER: "kept" };
+    const file = { EPHEMERA_UPSTREAM_API_KEY: "", EPHEMERA_LOCAL_USER: "" };
     expect(effectiveEnv(shell, file)).toEqual({
-      EPHEMERA_DATA_KEY: "from-shell",
-      EPHEMERA_PORT: "9000",
+      EPHEMERA_UPSTREAM_API_KEY: "",
+      EPHEMERA_LOCAL_USER: "",
       OTHER: "kept",
     });
+    expect(localAccess(effectiveEnv(shell, file))).toBeUndefined();
   });
 
   it("turns the gateway on only with a username, on its own origin", () => {

@@ -2620,13 +2620,13 @@ computer behind the local gateway, or behind the operator's own proxy. The
 launcher installs Bun when it is
 missing and the dependencies from `bun.lock` once; every command reads the
 root `.env` itself (Bun's automatic `.env` loading is off), with its values
-over the shell's; an empty one, which the server reads as unset, leaves the
-shell's.
+over the shell's, an empty one included.
 
 - `setup` writes `.env` from `.env.example`, atomically (a crash leaves the
   old file or the new one) and owner-only. It keeps a proxy key and data
-  key that exist in `.env` or the shell's environment and makes the missing
-  ones, refusing to make a data key while a `users/` tree exists. It asks
+  key that exist in `.env`, writes one the shell supplies into `.env` and
+  makes the others, refusing to make a data key while a `users/` tree
+  exists. It asks
   who uses Ephemera (just me, or behind a sign-in proxy), the username and
   port, and the model provider (the list in `scripts/ephemera/providers.ts`,
   kept equal to README § Model providers by a unit test), checks the
@@ -2652,8 +2652,9 @@ shell's.
   runs the gateway and the server in a process group of its own, so a
   terminal's hangup or Ctrl-C reaches `serve.ts` alone, which turns it into
   the server's SIGTERM and orderly shutdown and waits for it. It records the
-  server's exit status in `.ephemera/exit.json`; `stop` reports a library
-  that may not have been saved. `stop`, `restart`, `status`, `open`, `update`
+  server's exit status in `.ephemera/exit.json` once the gateway has handed
+  over the last replies (5 s at most); `stop` reports saved only on that
+  record. `stop`, `restart`, `status`, `open`, `update`
   (`git pull --ff-only`, install, build, restart when it ran) and `doctor`
   work from that record, matching the process by its exact command line.
   `.ephemera/` is Git-ignored and holds no content.
