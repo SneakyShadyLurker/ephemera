@@ -10,16 +10,21 @@ import { ConfigError, loadConfig } from "../../apps/server/src/config.ts";
 import { ENV_FILE, LocalAccessError, localAccess, ROOT, serverEnv } from "./env.ts";
 import { checkModels } from "./providers.ts";
 import {
+  buildCommand,
+  buildOutdated,
   builtRevision,
   checkoutRevision,
   healthy,
+  installStagedBuild,
+  nextRevision,
   portTaken,
   type RunState,
   runEnv,
   running,
   SERVE_ENTRY,
-  stampBuild,
+  stageBuild,
   stopServer,
+  WEB_WORKSPACE,
   waitUntilReady,
 } from "./service.ts";
 import { setup } from "./setup.ts";
@@ -78,18 +83,23 @@ function configured() {
   }
 }
 
-/** Builds the app when the checkout moved on since the last build. */
-async function ensureBuild(force = false): Promise<void> {
-  const revision = checkoutRevision();
-  if (!force && builtRevision() === revision) return;
+/**
+ * Builds the app beside the served one when the checkout moved on (or
+ * always, outside Git). True when a new build waits to be installed.
+ */
+async function buildIfOutdated(force = false): Promise<boolean> {
+  if (!force && !buildOutdated()) return false;
+  const revision = nextRevision();
   const built = await step(
     "Building the app",
     "Built the app",
-    [process.execPath, "run", "build"],
+    buildCommand(),
     { ...process.env, EPHEMERA_BUILD_REVISION: revision },
+    WEB_WORKSPACE,
   );
-  if (!built) fail("The build failed; the output above says why.");
-  stampBuild(revision);
+  if (!built) fail("The build failed; the output above says why. Nothing was changed.");
+  stageBuild(revision);
+  return true;
 }
 
 async function start(options: { foreground: boolean; open: boolean }): Promise<void> {
@@ -100,16 +110,13 @@ async function start(options: { foreground: boolean; open: boolean }): Promise<v
     if (options.open && current.local) openBrowser(current.url);
     return;
   }
-  await ensureBuild();
-  for (const [port, what] of [
-    ...(access ? [[access.port, "EPHEMERA_LOCAL_PORT"] as const] : []),
-    [config.port, "EPHEMERA_PORT"] as const,
-  ]) {
-    if (await portTaken(port)) {
-      fail(
-        `Port ${port} is taken by another program. Pick another with ${command("./ephemera setup")} (${what}).`,
-      );
-    }
+  if (await buildIfOutdated()) installStagedBuild();
+  const ports = [
+    ...(access ? [[access.port, `pick another with ${command("./ephemera setup")}`] as const] : []),
+    [config.port, "set another EPHEMERA_PORT in .env"] as const,
+  ];
+  for (const [port, fix] of ports) {
+    if (await portTaken(port)) fail(`Port ${port} is taken by another program; ${fix}.`);
   }
 
   const argv = [process.execPath, "--no-env-file", SERVE_ENTRY];
@@ -117,7 +124,7 @@ async function start(options: { foreground: boolean; open: boolean }): Promise<v
     log.step(
       `Running in the foreground at ${accent(access?.origin ?? `http://${config.host}:${config.port}`)}; Ctrl-C stops it`,
     );
-    // Ctrl-C reaches the server too; this process waits for it to save and end.
+    // Ctrl-C reaches serve.ts too, which stops the server in order; this waits for it.
     process.on("SIGINT", () => {});
     const child = Bun.spawn(argv, { cwd: ROOT, stdio: ["inherit", "inherit", "inherit"] });
     process.exit(await child.exited);
@@ -155,11 +162,16 @@ async function stop(): Promise<boolean> {
   }
   const progress = activity();
   progress.start("Stopping Ephemera and saving every library");
-  if (!(await stopServer(state))) {
+  const outcome = await stopServer(state);
+  if (outcome === "still-running") {
     progress.error("Ephemera is still saving");
     fail(`Give it a moment, then run ${command("./ephemera status")}.`);
   }
-  progress.stop("Stopped");
+  if (outcome === "not-saved") {
+    progress.error("Ephemera stopped, but it could not confirm every library was saved");
+    fail(`Run ${command("./ephemera start --foreground")} and stop it with Ctrl-C to see why.`);
+  }
+  progress.stop("Stopped, every library saved");
   return true;
 }
 
@@ -189,15 +201,15 @@ async function update(): Promise<void> {
   configured();
   if (!existsSync(`${ROOT}/.git`))
     fail("This copy is not a Git checkout, so it cannot update itself.");
-  const before = checkoutRevision();
+  const before = checkoutRevision() ?? "";
   const pulled = await step("Fetching the latest version", "Fetched the latest version", [
     "git",
     "pull",
     "--ff-only",
   ]);
   if (!pulled) fail("Updating stopped; your copy is as it was.");
-  const after = checkoutRevision();
-  if (after === before && builtRevision() === after) {
+  const after = checkoutRevision() ?? "";
+  if (after === before && !buildOutdated()) {
     log.success("Already up to date.");
     return;
   }
@@ -207,8 +219,12 @@ async function update(): Promise<void> {
     "--frozen-lockfile",
   ]);
   if (!installed) fail("Installing dependencies failed.");
-  await ensureBuild(true);
-  if (await stop()) await start({ foreground: false, open: false });
+  // Built beside the served app, which is replaced only once the server is stopped.
+  await buildIfOutdated(true);
+  const wasRunning = running() !== undefined;
+  if (wasRunning) await stop();
+  installStagedBuild();
+  if (wasRunning) await start({ foreground: false, open: false });
   log.success(`Updated to ${after.slice(0, 7)}.`);
 }
 
@@ -246,7 +262,7 @@ async function doctor(): Promise<boolean> {
     );
   }
   report(
-    builtRevision() === checkoutRevision(),
+    !buildOutdated(),
     "The app is built for this version",
     `${command("./ephemera start")} builds it.`,
   );
@@ -316,9 +332,17 @@ switch (name) {
       behindProxy: values["behind-proxy"],
       check: !values["no-check"],
     });
-    await ensureBuild();
-    if (startNow && !values["no-start"]) await start({ foreground: false, open: interactive });
-    else log.info(`Start it any time with ${command("./ephemera start")}.`);
+    const staged = await buildIfOutdated();
+    if (running() !== undefined) {
+      log.step("Restarting Ephemera so it uses the new settings");
+      await stop();
+      if (staged) installStagedBuild();
+      await start({ foreground: false, open: false });
+    } else {
+      if (staged) installStagedBuild();
+      if (startNow && !values["no-start"]) await start({ foreground: false, open: interactive });
+      else log.info(`Start it any time with ${command("./ephemera start")}.`);
+    }
     outro("You're all set.");
     break;
   }

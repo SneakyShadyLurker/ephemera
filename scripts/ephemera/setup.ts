@@ -9,12 +9,15 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import { confirm, log, note, password, select, text } from "@clack/prompts";
-import { ConfigError, loadConfig } from "../../apps/server/src/config.ts";
+import { ConfigError, DEFAULT_PORT, loadConfig } from "../../apps/server/src/config.ts";
 import { usernameSchema } from "../../apps/server/src/identity.ts";
 import {
   DEFAULT_LOCAL_PORT,
   ENV_EXAMPLE,
   ENV_FILE,
+  type Env,
+  EnvValueError,
+  LocalAccessError,
   localAccess,
   ROOT,
   readEnvFile,
@@ -37,7 +40,7 @@ export interface SetupFlags {
 const key = () => randomBytes(32).toString("hex");
 
 /** Whether any library exists under the data directory, which only the current data key opens. */
-function librariesExist(env: Record<string, string | undefined>): boolean {
+function librariesExist(env: Env): boolean {
   const users = join(env.EPHEMERA_DATA_DIR || join(ROOT, "data"), "users");
   return existsSync(users) && readdirSync(users).length > 0;
 }
@@ -61,16 +64,25 @@ function describe(check: ModelsCheck): string {
   return `The provider answered with something unexpected${check.status ? ` (HTTP ${check.status})` : ""}`;
 }
 
-/** Keeps the proxy key and data key that exist; makes the ones that do not. */
-function keys(current: Record<string, string>): Record<string, string> {
+export class DataKeyMissingError extends Error {
+  override name = "DataKeyMissingError";
+  constructor() {
+    super(
+      "Libraries exist, but there is no valid EPHEMERA_DATA_KEY to open them. Restore the key from your backup into .env; a new one cannot read them",
+    );
+  }
+}
+
+/**
+ * The proxy key and data key to add: those that exist, in `.env` or the
+ * shell's environment the server also reads, are kept. A data key is never
+ * made while libraries exist, since only the old one opens them.
+ */
+export function missingKeys(current: Env): Record<string, string> {
   const values: Record<string, string> = {};
   if ((current.EPHEMERA_PROXY_KEY ?? "").length < 32) values.EPHEMERA_PROXY_KEY = key();
   if (!/^[0-9a-fA-F]{64}$/.test(current.EPHEMERA_DATA_KEY ?? "")) {
-    if (librariesExist(current)) {
-      fail(
-        "Libraries exist, but .env has no valid EPHEMERA_DATA_KEY to open them. Restore the key from your backup; a new one cannot read them.",
-      );
-    }
+    if (librariesExist(current)) throw new DataKeyMissingError();
     values.EPHEMERA_DATA_KEY = key();
   }
   return values;
@@ -81,6 +93,7 @@ async function access(
   current: Record<string, string>,
 ): Promise<Record<string, string>> {
   const wasLocal = localAccess(current);
+  const serverPort = Number(current.EPHEMERA_PORT || DEFAULT_PORT);
   const wasProxy =
     wasLocal === undefined &&
     current.EPHEMERA_ORIGIN !== undefined &&
@@ -104,9 +117,12 @@ async function access(
           ],
         }),
       ) === "proxy"
-    : flags.behindProxy !== undefined;
+    : // Without an access flag, an install behind a proxy stays behind it.
+      flags.behindProxy !== undefined ||
+      (wasProxy && flags.user === undefined && flags.port === undefined);
 
   if (behindProxy) {
+    if (!flags.interactive && flags.behindProxy === undefined) return {};
     const origin = flags.interactive
       ? answered(
           await text({
@@ -144,11 +160,18 @@ async function access(
         await text({
           message: "Port to open it on",
           initialValue: String(wasLocal?.port ?? DEFAULT_LOCAL_PORT),
-          validate: (value) => (isPort(value ?? "") ? undefined : "A port from 1 to 65535"),
+          validate: (value) =>
+            !isPort(value ?? "")
+              ? "A port from 1 to 65535"
+              : Number(value) === serverPort
+                ? `The server itself uses ${serverPort}`
+                : undefined,
         }),
       )
     : (flags.port ?? String(wasLocal?.port ?? DEFAULT_LOCAL_PORT));
   if (!isPort(port)) fail("--port takes a port from 1 to 65535");
+  if (Number(port) === serverPort)
+    fail(`--port must differ from the server's own port, ${serverPort}`);
   return { EPHEMERA_LOCAL_USER: user, EPHEMERA_LOCAL_PORT: port };
 }
 
@@ -166,7 +189,10 @@ async function provider(
         "Name the model provider: --upstream <base URL>, with its key in EPHEMERA_UPSTREAM_API_KEY.",
       );
     }
-    const apiKey = process.env.EPHEMERA_UPSTREAM_API_KEY ?? current.EPHEMERA_UPSTREAM_API_KEY ?? "";
+    // A key goes only to the address it was saved for.
+    const saved =
+      baseUrl === current.EPHEMERA_UPSTREAM_BASE_URL ? current.EPHEMERA_UPSTREAM_API_KEY : "";
+    const apiKey = process.env.EPHEMERA_UPSTREAM_API_KEY ?? saved ?? "";
     if (flags.check) {
       const progress = activity();
       progress.start("Checking the model provider");
@@ -208,7 +234,12 @@ async function provider(
               validate: (value) => (isHttpUrl(value ?? "") ? undefined : "An http or https URL"),
             }),
           );
-    const hasKey = (current.EPHEMERA_UPSTREAM_API_KEY ?? "") !== "";
+    // A key goes only to the address it was saved for.
+    const savedKey =
+      baseUrl === current.EPHEMERA_UPSTREAM_BASE_URL
+        ? (current.EPHEMERA_UPSTREAM_API_KEY ?? "")
+        : "";
+    const hasKey = savedKey !== "";
     const entered = answered(
       await password({
         message: `API key ${dim(
@@ -224,7 +255,7 @@ async function provider(
             : undefined,
       }),
     );
-    const apiKey = entered || (current.EPHEMERA_UPSTREAM_API_KEY ?? "");
+    const apiKey = entered || savedKey;
     const progress = activity();
     progress.start("Checking the model provider");
     const check = await checkModels(baseUrl, apiKey || undefined);
@@ -253,21 +284,38 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
   const current = readEnvFile() ?? {};
   if (!fresh) log.info(`Updating your settings in ${dim(".env")}; your keys stay as they are.`);
 
+  let keys: Record<string, string>;
+  try {
+    keys = missingKeys({ ...process.env, ...current });
+  } catch (error) {
+    if (error instanceof DataKeyMissingError) fail(`${error.message}.`);
+    throw error;
+  }
   const values = {
-    ...keys(current),
+    ...keys,
     ...(await access(flags, current)),
     ...(await provider(flags, current)),
   };
   const merged = { ...current, ...values };
+  let config: ReturnType<typeof loadConfig>;
   try {
-    loadConfig(runEnv({ ...process.env, ...merged }));
+    config = loadConfig(runEnv({ ...process.env, ...merged }));
+    writeEnvFile(
+      withValues(
+        fresh ? readFileSync(ENV_EXAMPLE, "utf8") : readFileSync(ENV_FILE, "utf8"),
+        values,
+      ),
+    );
   } catch (error) {
-    if (error instanceof ConfigError) fail(error.message);
+    if (
+      error instanceof ConfigError ||
+      error instanceof LocalAccessError ||
+      error instanceof EnvValueError
+    ) {
+      fail(`${error.message}. Nothing was saved.`);
+    }
     throw error;
   }
-  writeEnvFile(
-    withValues(fresh ? readFileSync(ENV_EXAMPLE, "utf8") : readFileSync(ENV_FILE, "utf8"), values),
-  );
   log.success(`Saved your settings to ${dim(".env")}`);
 
   if (values.EPHEMERA_DATA_KEY !== undefined) {
@@ -285,7 +333,7 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
   if (local === undefined) {
     note(
       [
-        `Run ${command("./ephemera start")}; it listens on 127.0.0.1:${merged.EPHEMERA_PORT || "8790"}.`,
+        `Run ${command("./ephemera start")}; it listens on ${config.host}:${config.port}.`,
         "Point your sign-in proxy there. It must clear inbound identity",
         "headers and send Remote-User and X-Ephemera-Proxy-Key, the",
         "EPHEMERA_PROXY_KEY in .env (docs/ARCHITECTURE.md § Deployment).",

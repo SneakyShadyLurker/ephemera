@@ -3,8 +3,8 @@
  * machine (docs/ARCHITECTURE.md § Local gateway). It listens on loopback,
  * admits only requests addressed to its own origin, clears inbound identity
  * headers, injects the proxy key and the one `Remote-User`, and streams
- * everything else through unchanged, aborting the server's request when the
- * browser goes away.
+ * everything else through unchanged, never through an HTTP proxy, aborting
+ * the server's request when the browser goes away.
  */
 import { PROXY_KEY_HEADER } from "../../apps/server/src/boundary.ts";
 import { USER_HEADER } from "../../apps/server/src/identity.ts";
@@ -81,6 +81,9 @@ export function gatewayHandler(options: GatewayOptions) {
         headers,
         body: request.body,
         redirect: "manual",
+        // The hop stays on loopback whatever HTTP_PROXY the shell sets: it
+        // carries the proxy key and chat content.
+        proxy: false,
         signal: request.signal,
       });
     } catch {

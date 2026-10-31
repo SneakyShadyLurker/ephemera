@@ -3,10 +3,19 @@
  * what the command derives from it: whether the local gateway runs, on which
  * port and as whom.
  */
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  writeSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
+import { DEFAULT_PORT } from "../../apps/server/src/config.ts";
 import { type Username, usernameSchema } from "../../apps/server/src/identity.ts";
 
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -34,33 +43,74 @@ export function serverEnv(): Env {
   return { ...process.env, ...readEnvFile() };
 }
 
-/** A value as one `.env` line can hold it: bare when plain, else single-quoted. */
+export class EnvValueError extends Error {
+  override name = "EnvValueError";
+}
+
+/**
+ * A value as one `.env` line holds it for every reader here (Bun's loader,
+ * `parseEnv`): bare when plain, else single-quoted. Bun expands `$` even in
+ * single quotes, so values with `$`, a quote, a backslash or a newline are
+ * refused rather than written so that they read back otherwise.
+ */
 export function quote(value: string): string {
   if (/^[\w.,:/@+=-]*$/.test(value)) return value;
-  if (/['\n\r]/.test(value)) throw new Error("a value may not contain a single quote or a newline");
+  if (/['$\\\n\r]/.test(value)) {
+    throw new EnvValueError("may not contain $, a quote, a backslash or a newline");
+  }
   return `'${value}'`;
 }
 
 /**
- * `text` with each key set to its value: an existing `KEY=` line is replaced
- * where it stands, so comments and order survive; a missing key is appended.
+ * `text` with each key set to its value: existing `KEY=` lines are replaced
+ * where they stand (every copy, since the last one counts), so comments and
+ * order survive; a missing key is appended. The result is read back and
+ * must give every value.
  */
 export function withValues(text: string, values: Record<string, string>): string {
   let result = text;
   for (const [key, value] of Object.entries(values)) {
-    const line = `${key}=${quote(value)}`;
-    const pattern = new RegExp(`^${RegExp.escape(key)}=.*$`, "m");
+    let quoted: string;
+    try {
+      quoted = quote(value);
+    } catch (error) {
+      if (error instanceof EnvValueError) throw new EnvValueError(`${key} ${error.message}`);
+      throw error;
+    }
+    const line = `${key}=${quoted}`;
+    const pattern = new RegExp(`^${RegExp.escape(key)}=.*$`, "gm");
     result = pattern.test(result)
       ? result.replace(pattern, () => line)
       : `${result}${result.endsWith("\n") || result === "" ? "" : "\n"}${line}\n`;
   }
+  const read = parseEnv(result);
+  for (const [key, value] of Object.entries(values)) {
+    if (read[key] !== value) throw new EnvValueError(`${key} would not read back as written`);
+  }
   return result;
 }
 
-/** Writes `.env` readable by its owner only: it holds the keys. */
+/**
+ * Writes `.env` readable by its owner only, since it holds the keys, and
+ * atomically: a crash leaves the old file or the new one, never a torn one
+ * without the data key.
+ */
 export function writeEnvFile(text: string, path = ENV_FILE): void {
-  writeFileSync(path, text, { mode: 0o600 });
-  chmodSync(path, 0o600);
+  const next = `${path}.${process.pid}.tmp`;
+  const file = openSync(next, "wx", 0o600);
+  try {
+    writeSync(file, text);
+    fsyncSync(file);
+  } finally {
+    closeSync(file);
+  }
+  renameSync(next, path);
+  const dir = openSync(dirname(path), "r");
+  try {
+    fsyncSync(dir);
+  } finally {
+    closeSync(dir);
+  }
 }
 
 export interface LocalAccess {
@@ -91,5 +141,8 @@ export function localAccess(env: Env): LocalAccess | undefined {
     throw new LocalAccessError(`Invalid environment variables: ${invalid.join(", ")}`);
   }
   if (named === "") return undefined;
+  if (port === Number(env.EPHEMERA_PORT || DEFAULT_PORT)) {
+    throw new LocalAccessError("EPHEMERA_LOCAL_PORT must differ from the server's EPHEMERA_PORT");
+  }
   return { user: usernameSchema.parse(named), port, origin: `http://localhost:${port}` };
 }

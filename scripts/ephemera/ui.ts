@@ -52,10 +52,11 @@ export async function step(
   done: string,
   argv: string[],
   env: Record<string, string | undefined> = process.env,
+  cwd = ROOT,
 ): Promise<boolean> {
   const shown = activity();
   shown.start(label);
-  const child = Bun.spawn(argv, { cwd: ROOT, env, stdout: "pipe", stderr: "pipe" });
+  const child = Bun.spawn(argv, { cwd, env, stdout: "pipe", stderr: "pipe" });
   const [out, err, exit] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),

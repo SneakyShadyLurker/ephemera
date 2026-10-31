@@ -2615,41 +2615,54 @@ then update `BUN_VERSION` and `BUN_DIGEST` together with `@types/bun`.
 ### Local gateway
 
 `./ephemera` (the launcher at the repository root, then `scripts/ephemera`)
-sets up and runs the server for one person on the computer it runs on,
-without the container or a proxy. The launcher installs Bun when it is
+sets up and runs the server without the container: for one person on this
+computer behind the local gateway, or behind the operator's own proxy. The
+launcher installs Bun when it is
 missing and the dependencies from `bun.lock` once; every command reads the
 root `.env` itself (Bun's automatic `.env` loading is off), with its values
 over the shell's.
 
-- `setup` writes `.env` from `.env.example`: it keeps an existing proxy key
-  and data key and makes the missing ones, refusing to make a data key while
-  a `users/` tree exists. It asks who uses Ephemera (just me, or behind a
-  sign-in proxy), the username and port, and the model provider (the list in
-  `scripts/ephemera/providers.ts`, kept equal to README § Model providers by a unit test), checks the
-  provider's `/models` with the key, validates the whole configuration
-  with the server's `loadConfig` and builds. Without a terminal, or with
-  `--yes`, it takes flags and `EPHEMERA_UPSTREAM_API_KEY` instead and fails
-  rather than asks.
-- `start` builds when the checkout's commit differs from the stamped build
-  (`.ephemera/build.json`, with the built page's modification time, so a
-  build made by other means is redone), checks the ports, then runs
-  `scripts/ephemera/serve.ts` in its own session with its output discarded,
-  as the container's logging driver `none` does; `--foreground` keeps it
-  attached with the operational log on the terminal. `serve.ts` runs the
-  server on the built app with the build's commit as
-  `EPHEMERA_BUILD_REVISION` (so an open tab offers a reload after an
-  update), runs the gateway beside it, records its PID and address in
-  `.ephemera/server.json` and stops both together; a stop sends the server
-  SIGTERM and waits for its orderly shutdown. `stop`, `restart`, `status`,
-  `open`, `update` (`git pull --ff-only`, install, build, restart when it
-  ran) and `doctor` work from that record. `.ephemera/` is Git-ignored and
-  holds no content.
+- `setup` writes `.env` from `.env.example`, atomically (a crash leaves the
+  old file or the new one) and owner-only. It keeps a proxy key and data
+  key that exist in `.env` or the shell's environment and makes the missing
+  ones, refusing to make a data key while a `users/` tree exists. It asks
+  who uses Ephemera (just me, or behind a sign-in proxy), the username and
+  port, and the model provider (the list in `scripts/ephemera/providers.ts`,
+  kept equal to README § Model providers by a unit test), checks the
+  provider's `/models` with the key, validates the whole configuration with
+  the server's `loadConfig`, builds and restarts a running server. A saved
+  API key is reused only for the base URL it was saved with. A value Bun's
+  loader would read otherwise (`$`, a quote, a backslash, a newline) is
+  refused. Without a terminal, or with `--yes`, it takes flags and
+  `EPHEMERA_UPSTREAM_API_KEY` instead, keeps the current access mode unless
+  a flag names one, and fails rather than asks.
+- The served build lives in `.ephemera/web`, apart from `apps/web/dist`,
+  which `bun run build` and e2e rewrite. A build is made in
+  `.ephemera/web-next` with the checkout's commit (outside Git, a fresh
+  name, every start) as `EPHEMERA_BUILD_REVISION`, and swapped in only
+  while the server is stopped, so `update` builds while the old version
+  still serves. The server runs with the served build's revision, so an
+  open tab offers a reload after an update.
+- `start` checks the ports, then runs `scripts/ephemera/serve.ts` in its own
+  session with its output discarded, as the container's logging driver
+  `none` does; `--foreground` keeps it attached with the operational log on
+  the terminal. `serve.ts` takes `.ephemera/server.json` exclusively (its
+  PID and address), so a second start ends before anything listens, then
+  runs the gateway and the server in a process group of its own, so a
+  terminal's hangup or Ctrl-C reaches `serve.ts` alone, which turns it into
+  the server's SIGTERM and orderly shutdown and waits for it. It records the
+  server's exit status in `.ephemera/exit.json`; `stop` reports a library
+  that may not have been saved. `stop`, `restart`, `status`, `open`, `update`
+  (`git pull --ff-only`, install, build, restart when it ran) and `doctor`
+  work from that record, matching the process by its exact command line.
+  `.ephemera/` is Git-ignored and holds no content.
 - `EPHEMERA_LOCAL_USER` turns the gateway on. The gateway listens on
-  `127.0.0.1` at `EPHEMERA_LOCAL_PORT` (8780 unless set); the server then
-  listens on `127.0.0.1` too, and `http://localhost:<port>` replaces
-  `EPHEMERA_ORIGIN`, so the root `.env` still serves `bun run dev`. Unset,
-  `./ephemera` runs the server alone for a trusted authentication proxy of
-  the operator's, which must meet § Deployment's prerequisites.
+  `127.0.0.1` at `EPHEMERA_LOCAL_PORT` (8780 unless set, never the server's
+  own port); the server then listens on `127.0.0.1` too, and
+  `http://localhost:<port>` replaces `EPHEMERA_ORIGIN`, so the root `.env`
+  still serves `bun run dev`. Unset, `./ephemera` runs the server alone for
+  a trusted authentication proxy of the operator's, which must meet
+  § Deployment's prerequisites.
 - The gateway (`scripts/ephemera/gateway.ts`) is that proxy for one user
   on this computer: a request whose `Host` is not the gateway's origin is
   refused with 421 before anything is forwarded (a page elsewhere can point
@@ -2657,9 +2670,11 @@ over the shell's.
   redirected there with 308. It clears inbound `Remote-User` and proxy key
   headers, injects the proxy key and `EPHEMERA_LOCAL_USER`, passes the
   tab's `X-Ephemera-User`, `Origin` and everything else unchanged, never
-  follows redirects, streams both ways without an idle limit (the server
-  bounds every request) and aborts the server's request when the browser
-  disconnects. It buffers, caches and logs nothing.
+  through the shell's `HTTP_PROXY`, never follows redirects, lifts its own
+  idle limit for every request (the server bounds each one and keeps its
+  streams alive) and aborts the server's request when the browser
+  disconnects. A stop lets in-flight replies finish within the server's
+  drain. It buffers, caches and logs nothing.
 - Any program or account on the computer can reach loopback, so the
   gateway admits whoever uses the computer. It is not the hardened
   container: no read-only root, tmpfs or dropped capabilities.

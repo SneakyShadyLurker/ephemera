@@ -4,17 +4,26 @@
  * running.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PROXY_KEY_HEADER } from "../../apps/server/src/boundary.ts";
 import { type Env, localAccess, ROOT, STATE_DIR } from "./env.ts";
 
 export const SERVER_ENTRY = join(ROOT, "apps/server/src/index.ts");
 export const SERVE_ENTRY = join(ROOT, "scripts/ephemera/serve.ts");
-export const STATIC_DIR = join(ROOT, "apps/web/dist");
+export const WEB_WORKSPACE = join(ROOT, "apps/web");
+/**
+ * The build the server serves, apart from `apps/web/dist` (which `bun run
+ * build` and e2e rewrite), and the next one, made beside it while the
+ * server runs and swapped in only while it is stopped.
+ */
+export const STATIC_DIR = join(STATE_DIR, "web");
+export const STAGING_DIR = join(STATE_DIR, "web-next");
 export const RUN_FILE = join(STATE_DIR, "server.json");
+/** How the last `serve.ts` ended: whether its server saved every library. */
+export const EXIT_FILE = join(STATE_DIR, "exit.json");
 const BUILD_FILE = join(STATE_DIR, "build.json");
-const BUILT_PAGE = join(STATIC_DIR, "index.html");
+const STAGED_FILE = join(STATE_DIR, "build-next.json");
 
 /** What the running `serve.ts` wrote about itself. */
 export interface RunState {
@@ -24,24 +33,22 @@ export interface RunState {
   startedAt: string;
 }
 
-/** The build in `apps/web/dist`, as `./ephemera` made it. */
-interface BuildStamp {
-  revision: string;
-  /** The built page's modification time, so a build made by other means is noticed. */
-  pageModified: number;
+export interface ExitState {
+  pid: number;
+  code: number;
 }
 
 export function ensureStateDir(): void {
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
 }
 
-/** The checkout's commit, or a fixed name outside Git. */
-export function checkoutRevision(): string {
+/** The checkout's commit; undefined outside Git, where every start builds afresh. */
+export function checkoutRevision(): string | undefined {
   const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim() : "local";
+  return result.status === 0 ? result.stdout.trim() : undefined;
 }
 
-function readJson<T>(path: string): T | undefined {
+export function readJson<T>(path: string): T | undefined {
   try {
     return JSON.parse(readFileSync(path, "utf8")) as T;
   } catch {
@@ -49,18 +56,43 @@ function readJson<T>(path: string): T | undefined {
   }
 }
 
-/** The revision the current build was made at, when it is still the build `./ephemera` made. */
+/** The revision the served build was made at. */
 export function builtRevision(): string | undefined {
-  const stamp = readJson<BuildStamp>(BUILD_FILE);
-  if (stamp === undefined || !existsSync(BUILT_PAGE)) return undefined;
-  return statSync(BUILT_PAGE).mtimeMs === stamp.pageModified ? stamp.revision : undefined;
+  if (!existsSync(join(STATIC_DIR, "index.html"))) return undefined;
+  return readJson<{ revision: string }>(BUILD_FILE)?.revision;
 }
 
-/** Records that the build in `apps/web/dist` was made at `revision`. */
-export function stampBuild(revision: string): void {
-  ensureStateDir();
-  const stamp: BuildStamp = { revision, pageModified: statSync(BUILT_PAGE).mtimeMs };
-  writeFileSync(BUILD_FILE, `${JSON.stringify(stamp)}\n`);
+/** Whether the served build is not this checkout's, or cannot be known to be. */
+export function buildOutdated(): boolean {
+  const revision = checkoutRevision();
+  return revision === undefined || builtRevision() !== revision;
+}
+
+/** The revision a new build is made at: the commit, or a fresh name outside Git. */
+export function nextRevision(): string {
+  return checkoutRevision() ?? `local-${Date.now().toString(36)}`;
+}
+
+/** The command that builds the app into the staging directory, run in the web workspace. */
+export function buildCommand(): string[] {
+  return [process.execPath, "run", "build", "--outDir", STAGING_DIR, "--emptyOutDir"];
+}
+
+/** Records the staged build's revision once it is complete. */
+export function stageBuild(revision: string): void {
+  writeFileSync(STAGED_FILE, `${JSON.stringify({ revision })}\n`);
+}
+
+/** Puts the staged build in the served one's place; only while the server is stopped. */
+export function installStagedBuild(): void {
+  const staged = readJson<{ revision: string }>(STAGED_FILE);
+  if (staged === undefined || !existsSync(join(STAGING_DIR, "index.html"))) {
+    throw new Error("no complete staged build");
+  }
+  rmSync(STATIC_DIR, { recursive: true, force: true });
+  renameSync(STAGING_DIR, STATIC_DIR);
+  writeFileSync(BUILD_FILE, `${JSON.stringify(staged)}\n`);
+  rmSync(STAGED_FILE, { force: true });
 }
 
 /**
@@ -85,9 +117,9 @@ function alive(pid: number): boolean {
   } catch {
     return false;
   }
-  // A recycled PID belongs to some other program.
+  // A recycled PID belongs to some other program: only serve.ts's own command line counts.
   const command = spawnSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
-  return command.status === 0 && command.stdout.includes(SERVE_ENTRY);
+  return command.status === 0 && command.stdout.trim().endsWith(` --no-env-file ${SERVE_ENTRY}`);
 }
 
 /** The running server, if any; a record left by one that died is removed. */
@@ -104,6 +136,8 @@ export async function healthy(state: RunState, proxyKey: string): Promise<boolea
   try {
     const response = await fetch(`${state.url}/api/health`, {
       headers: state.local ? {} : { [PROXY_KEY_HEADER]: proxyKey },
+      // Loopback never goes through the shell's HTTP_PROXY.
+      proxy: false,
       signal: AbortSignal.timeout(3_000),
     });
     await response.body?.cancel();
@@ -149,23 +183,25 @@ export async function waitUntilReady(
   return undefined;
 }
 
+export type StopOutcome = "saved" | "not-saved" | "still-running";
+
 /**
  * Stops the running server and waits for it: the orderly stop saves every
- * library first. True once it has ended.
+ * library first, and `serve.ts` records whether that worked.
  */
-export async function stopServer(state: RunState, timeoutMs = 30_000): Promise<boolean> {
+export async function stopServer(state: RunState, timeoutMs = 30_000): Promise<StopOutcome> {
   try {
     process.kill(state.pid, "SIGTERM");
   } catch {
-    return true;
+    return "saved";
   }
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!alive(state.pid)) {
-      rmSync(RUN_FILE, { force: true });
-      return true;
+      const exit = readJson<ExitState>(EXIT_FILE);
+      return exit?.pid === state.pid && exit.code === 0 ? "saved" : "not-saved";
     }
     await sleep(200);
   }
-  return false;
+  return "still-running";
 }
