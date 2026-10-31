@@ -20,6 +20,7 @@ import {
   runEnv,
   running,
   SERVER_ENTRY,
+  STOP_FILE,
 } from "./service.ts";
 
 const env = runEnv(serverEnv());
@@ -33,6 +34,9 @@ if (running() !== undefined) {
   process.stderr.write("Ephemera is already running.\n");
   process.exit(1);
 }
+// A request left for an earlier process with this PID is not for this one;
+// cleared before the record names this PID, so no request for it is lost.
+rmSync(STOP_FILE, { force: true });
 const state: RunState = {
   pid: process.pid,
   url: access?.origin ?? `http://${config.host}:${config.port}`,
@@ -74,15 +78,20 @@ try {
 }
 
 // Its own process group, so a terminal's hangup or Ctrl-C reaches this
-// process alone, which turns it into the server's orderly stop.
+// process alone, which turns it into the server's orderly stop. The stop is
+// asked over IPC, which works where signals do not (Windows).
 const server = spawn(process.execPath, ["--no-env-file", SERVER_ENTRY], {
   env,
   detached: true,
-  stdio: ["ignore", "inherit", "inherit"],
+  windowsHide: true,
+  stdio: ["ignore", "inherit", "inherit", "ipc"],
 });
 const exited = new Promise<number>((resolve) => {
   server.on("exit", (code, signal) => resolve(code ?? (signal === null ? 1 : 128)));
 });
+
+/** How often a stop request is looked for. */
+const STOP_POLL_MS = 300;
 
 /** How long the gateway may take to hand the last replies to the browser. */
 const GATEWAY_DRAIN_MS = 5_000;
@@ -91,7 +100,7 @@ let stopping = false;
 async function stop(): Promise<never> {
   if (!stopping) {
     stopping = true;
-    server.kill("SIGTERM");
+    if (!server.connected || !server.send("stop")) server.kill("SIGTERM");
   }
   const code = await exited;
   // Replies the server finished may still be on their way to the browser.
@@ -104,3 +113,9 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) {
 }
 // The server ending on its own (a refused start, a crash) ends the gateway too.
 void exited.then(() => stop());
+// `./ephemera stop` asks through a file: a signal would end this at once on Windows.
+setInterval(() => {
+  if (readJson<{ pid: number }>(STOP_FILE)?.pid !== process.pid) return;
+  rmSync(STOP_FILE, { force: true });
+  void stop();
+}, STOP_POLL_MS);

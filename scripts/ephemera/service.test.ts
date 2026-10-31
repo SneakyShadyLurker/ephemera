@@ -1,5 +1,7 @@
+import { join } from "node:path";
 import { expect, it } from "vitest";
-import { runEnv, STATIC_DIR } from "./service.ts";
+import { HOME_DIR } from "./env.ts";
+import { dataDir, runEnv, STATIC_DIR } from "./service.ts";
 
 it("serves the built app, behind the gateway on loopback when it is on", () => {
   const local = runEnv({
@@ -18,4 +20,12 @@ it("serves the built app, behind the gateway on loopback when it is on", () => {
   });
   expect(proxied.EPHEMERA_ORIGIN).toBe("https://ephemera.example");
   expect(proxied.EPHEMERA_HOST).toBe("10.0.0.2");
+});
+
+it("reads a relative data directory from the install's home, never from the code's folder", () => {
+  expect(dataDir({ EPHEMERA_DATA_DIR: "library" })).toBe(join(HOME_DIR, "library"));
+  expect(dataDir({})).toBe(join(HOME_DIR, "data"));
+  expect(runEnv({ EPHEMERA_DATA_DIR: "library" }).EPHEMERA_DATA_DIR).toBe(
+    join(HOME_DIR, "library"),
+  );
 });

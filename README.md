@@ -125,7 +125,7 @@ Settings > What is kept lists the same split inside the app.
 
 ## Get started
 
-You need macOS or Linux (on Windows, use WSL), a model provider with an
+You need Windows 10 or 11, macOS or Linux, a model provider with an
 OpenAI-compatible API (a hosted one such as OpenRouter, or a local server
 such as Ollama) and a current Chromium-based browser. Everything else is
 installed for you.
@@ -138,13 +138,29 @@ Paste this into Claude Code, Codex or any assistant that can run commands:
 Install Ephemera on this computer from https://github.com/SneakyShadyLurker/ephemera.
 Clone it and work in the clone. Ask me which model provider I use and for its API key
 (base URLs are in the README's "Model providers" table; local servers need no key). Then run
-EPHEMERA_UPSTREAM_API_KEY='<key>' ./ephemera setup --yes --upstream '<base URL>'
-and fix whatever it reports until it succeeds. Never print .env. Finish with
-./ephemera doctor, give me the address it serves, and remind me to back up
-EPHEMERA_DATA_KEY from .env.
+./ephemera setup --yes --upstream '<base URL>' (.\ephemera.cmd on Windows) with the key
+in the EPHEMERA_UPSTREAM_API_KEY environment variable, and fix whatever it reports until
+it succeeds. Never print .env. Finish with ./ephemera doctor, give me the address it
+serves, and remind me to back up EPHEMERA_DATA_KEY from .env.
 ```
 
-### By hand
+### On Windows
+
+Open PowerShell (right-click Start, then Terminal) and paste:
+
+```powershell
+irm https://raw.githubusercontent.com/SneakyShadyLurker/ephemera/main/install.ps1 | iex
+```
+
+It installs everything into your user account, adds an Ephemera shortcut
+to the Start menu and the desktop, asks whether to start Ephemera when you
+sign in, and runs the setup below. Afterwards the shortcut starts Ephemera
+and opens it, and `ephemera update` in any terminal updates it. Your
+settings and library live in `%LOCALAPPDATA%\Ephemera`. To remove
+Ephemera, run `ephemera stop`, then delete that folder and the Ephemera
+shortcuts.
+
+### On macOS and Linux
 
 ```sh
 git clone https://github.com/SneakyShadyLurker/ephemera.git
@@ -164,14 +180,15 @@ checks that they work, builds the app and opens it at
 | `./ephemera update` | Pulls the latest version, rebuilds and restarts |
 | `./ephemera doctor` | Checks the setup and says what to fix |
 
-`./ephemera help` lists the rest. Each new library starts with the example
+On Windows the same commands run without the `./`. `./ephemera help` lists
+the rest. Each new library starts with the example
 character; delete her like any card, or set `EPHEMERA_STARTER_CHARACTER=off`
 in `.env` to start new libraries empty.
 
 > [!IMPORTANT]
-> Your library is encrypted under `EPHEMERA_DATA_KEY` in `.env`. Copy it
-> into your password manager: without it, nothing can open your library
-> again.
+> Your library is encrypted under `EPHEMERA_DATA_KEY` in `.env`
+> (`%LOCALAPPDATA%\Ephemera\.env` on Windows). Copy it into your password
+> manager: without it, nothing can open your library again.
 
 ### For several people
 

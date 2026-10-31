@@ -21,14 +21,13 @@ import {
   effectiveEnv,
   LocalAccessError,
   localAccess,
-  ROOT,
   readEnvFile,
   withValues,
   writeEnvFile,
 } from "./env.ts";
 import { checkModels, type ModelsCheck, PROVIDERS } from "./providers.ts";
-import { runEnv } from "./service.ts";
-import { activity, answered, bold, command, dim, fail, models } from "./ui.ts";
+import { dataDir, runEnv } from "./service.ts";
+import { activity, answered, bold, CLI, command, dim, fail, models } from "./ui.ts";
 
 export interface SetupFlags {
   interactive: boolean;
@@ -43,7 +42,7 @@ const key = () => randomBytes(32).toString("hex");
 
 /** Whether any library exists under the data directory, which only the current data key opens. */
 function librariesExist(env: Env): boolean {
-  const users = join(env.EPHEMERA_DATA_DIR || join(ROOT, "data"), "users");
+  const users = join(dataDir(env), "users");
   return existsSync(users) && readdirSync(users).length > 0;
 }
 
@@ -360,7 +359,7 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
   if (local === undefined) {
     note(
       [
-        `Run ${command("./ephemera start")}; it listens on ${config.host}:${config.port}.`,
+        `Run ${command(`${CLI} start`)}; it listens on ${config.host}:${config.port}.`,
         "Point your sign-in proxy there. It must clear inbound identity",
         "headers and send Remote-User and X-Ephemera-Proxy-Key, the",
         "EPHEMERA_PROXY_KEY in .env (docs/ARCHITECTURE.md § Deployment).",

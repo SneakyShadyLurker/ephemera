@@ -143,6 +143,8 @@ const directorySyncUnsupported = (error: unknown) =>
  * where the filesystem can sync a directory at all.
  */
 export async function syncDirectory(path: string): Promise<void> {
+  // Windows cannot open a directory to sync it; NTFS journals the rename itself.
+  if (process.platform === "win32") return;
   let handle: FileHandle;
   try {
     handle = await open(path, "r");
@@ -160,6 +162,31 @@ export async function syncDirectory(path: string): Promise<void> {
 }
 
 /**
+ * What Windows answers while another program (an antivirus scan, the search
+ * indexer) briefly holds the target open; the rename is retried for a while.
+ */
+const RENAME_BUSY = new Set(["EPERM", "EACCES", "EBUSY"]);
+const RENAME_ATTEMPTS = 10;
+
+async function replace(temp: string, path: string): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await rename(temp, path);
+      return;
+    } catch (error) {
+      const busy =
+        process.platform === "win32" &&
+        error instanceof Error &&
+        "code" in error &&
+        typeof error.code === "string" &&
+        RENAME_BUSY.has(error.code);
+      if (!busy || attempt === RENAME_ATTEMPTS) throw error;
+      await Bun.sleep(50 * attempt);
+    }
+  }
+}
+
+/**
  * Replaces `path` with `bytes` atomically: a 0600 temp file beside it,
  * written and synced, renamed over the target, then the folder synced. On
  * failure the temp file is removed and the target is left as it was.
@@ -173,7 +200,7 @@ export async function writeEncryptedFile(path: string, bytes: Uint8Array): Promi
     await handle.sync();
     await handle.close();
     handle = undefined;
-    await rename(temp, path);
+    await replace(temp, path);
   } catch (error) {
     await handle?.close().catch(() => {});
     await unlink(temp).catch(() => {});

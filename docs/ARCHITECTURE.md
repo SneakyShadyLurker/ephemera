@@ -46,7 +46,7 @@ Bun workspace, strict TypeScript, ESM.
 | `infra/docker` | The `@ephemera/infra` workspace: Dockerfile, Compose file, healthcheck and the container contract check |
 | `e2e` | Playwright flows and the retention matrix, against a synthetic mock upstream and a mock ComfyUI |
 | `scripts` | Workspace checks, dependency persistence audit and in-memory native card checks |
-| `scripts/ephemera` | The `./ephemera` command: setup wizard, server management and the local gateway |
+| `scripts/ephemera` | The `./ephemera` command: setup wizard, server management, updates of installed copies and the local gateway; `ephemera.cmd` and `install.ps1` at the root start it on Windows |
 | `packages/core/test-fixtures/imports` | Synthetic foreign card import corpus |
 | `packages/core/test-fixtures/workflows` | ComfyUI workflow exports in both formats from a stock frontend, with their node definitions and expected outcomes |
 | `docs` | Product, principles and architecture |
@@ -1539,7 +1539,9 @@ content's path: the tab's memory and one request in the server.
   the queue and in `GET /history/<id>`. Wherever the prompt appears it is
   removed, its history entry deleted and the cache freed. A cleanup that
   ends unresolved logs `comfyui.cleanup.unresolved` with a reason code
-  only. On SIGTERM or SIGINT the server stops accepting requests, aborts
+  only. On SIGTERM or SIGINT, or the `stop` message on an IPC channel
+  (how `./ephemera` stops it, Windows having no SIGTERM), the server stops
+  accepting requests, aborts
   creator runs and waits up to eight seconds for their cleanup, follow-ups
   making a last check at once, before it closes the database and exits. A
   process killed mid-job cleans up nothing (principle 1's residual risk).
@@ -1832,7 +1834,10 @@ portrait file's id (`portrait:<id>`) as well, so a file copied into another
 user's folder, renamed to another portrait, presented as the other kind, or
 altered, does not open. The
 ciphertext goes to a temp file in the same folder, which is synced and
-renamed into place, and the folder is synced. Plaintext database and image
+renamed into place, and the folder is synced. Windows cannot sync a folder
+(NTFS journals the rename itself) and refuses a rename while a scanner
+briefly holds the target, so there the folder sync is skipped and a refused
+rename is retried for about two seconds. Plaintext database and image
 bytes never touch the disk. Every SQLite connection, including startup
 verification copies, sets `PRAGMA temp_store = MEMORY` before queries
 or migrations, so temporary tables and sort results stay in memory too.
@@ -2614,13 +2619,17 @@ then update `BUN_VERSION` and `BUN_DIGEST` together with `@types/bun`.
 
 ### Local gateway
 
-`./ephemera` (the launcher at the repository root, then `scripts/ephemera`)
-sets up and runs the server without the container: for one person on this
-computer behind the local gateway, or behind the operator's own proxy. The
-launcher installs Bun when it is
-missing and the dependencies from `bun.lock` once; every command reads the
-root `.env` itself (Bun's automatic `.env` loading is off), with its values
-over the shell's, an empty one included.
+`./ephemera` (the launcher at the repository root, `ephemera.cmd` and
+`scripts/ephemera/launch.ps1` on Windows, then `scripts/ephemera`) sets up
+and runs the server without the container: for one person on this computer
+behind the local gateway, or behind the operator's own proxy. The launcher
+installs Bun when it is missing and the dependencies from `bun.lock` once;
+every command reads `.env` itself (Bun's automatic `.env` loading is off),
+with its values over the shell's, an empty one included. `.env`, the data
+directory (unless `EPHEMERA_DATA_DIR` names another; a relative one is read
+from the home, never from a version folder an update removes) and the run
+state in `.ephemera/` live in the install's home: the checkout, or the
+folder `EPHEMERA_HOME` names.
 
 - `setup` writes `.env` from `.env.example`, atomically (a crash leaves the
   old file or the new one) and owner-only. It keeps a proxy key and data
@@ -2651,12 +2660,18 @@ over the shell's, an empty one included.
   PID and address), so a second start ends before anything listens, then
   runs the gateway and the server in a process group of its own, so a
   terminal's hangup or Ctrl-C reaches `serve.ts` alone, which turns it into
-  the server's SIGTERM and orderly shutdown and waits for it. It records the
+  the server's orderly shutdown, asked over IPC, and waits for it. `stop`
+  asks `serve.ts` through `.ephemera/stop.json`, naming its PID, which it
+  looks for every 300 ms (a signal would end it at once on Windows), and
+  elsewhere sends SIGTERM as well; `serve.ts` clears a request left for an
+  earlier process when it starts.
+  It records the
   server's exit status in `.ephemera/exit.json` once the gateway has handed
   over the last replies (5 s at most); `stop` reports saved only on that
   record. `stop`, `restart`, `status`, `open`, `update`
   (`git pull --ff-only`, install, build, restart when it ran) and `doctor`
-  work from that record, matching the process by its exact command line.
+  work from that record, matching the process by its exact command line
+  (`ps`, or the process's CIM record on Windows).
   `.ephemera/` is Git-ignored and holds no content.
 - `EPHEMERA_LOCAL_USER` turns the gateway on. The gateway listens on
   `127.0.0.1` at `EPHEMERA_LOCAL_PORT` (8780 unless set, never the server's
@@ -2677,6 +2692,35 @@ over the shell's, an empty one included.
   streams alive) and aborts the server's request when the browser
   disconnects. A stop lets in-flight replies finish within the server's
   drain. It buffers, caches and logs nothing.
+- On Windows, `install.ps1` (run as
+  `irm https://raw.githubusercontent.com/SneakyShadyLurker/ephemera/main/install.ps1 | iex`
+  in Windows PowerShell 5.1 or later; ASCII only, since 5.1 reads a script
+  without a byte order mark in the system code page) makes an installed
+  copy in `%LOCALAPPDATA%\Ephemera`, its home: it installs Bun with Bun's
+  own installer, downloads the newest commit of `main` as an archive (no
+  Git), unpacks it into `app-<commit>` with the system's `tar.exe`, records
+  the commit in its `REVISION` file and names the folder in `current`. A
+  shim `ephemera.cmd` in the home sets `EPHEMERA_HOME` and runs the current
+  version's launcher; the home joins the user's `Path`, read and written
+  raw in the registry so entries such as `%USERPROFILE%\...` stay
+  expandable. Start menu and
+  desktop shortcuts run `start --pause` (an error waits for Enter, so the
+  window can be read), an optional Startup shortcut `start --no-open`; then
+  it runs `setup`. Its steps throw rather than exit, so under `iex` the
+  user's window stays open. Run again, it makes the shim, `Path` entry and
+  shortcuts anew, so an interrupted install is repaired, then updates (or
+  finishes a setup that never wrote `.env`). `update` in an installed copy (`scripts/ephemera/release.ts`)
+  asks GitHub for the newest commit, downloads and unpacks it beside the
+  running version, installs its dependencies and builds it from its own
+  code, then stops the server, swaps the build in, names the new folder in
+  `current`, removes versions but the new and the previous one (only
+  `app-<commit>` folders and their partial downloads), and starts again from
+  the new code, so no folder a running program holds is renamed. When the
+  newest commit is the running one and only its build is missing, it
+  rebuilds from that code instead.
+  `EPHEMERA_REF` names another branch for testing. Windows has no mode
+  bits: the home lies in the user's own profile, which other accounts
+  cannot read by default, and `doctor` skips the `.env` mode check.
 - Any program or account on the computer can reach loopback, so the
   gateway admits whoever uses the computer. It is not the hardened
   container: no read-only root, tmpfs or dropped capabilities.

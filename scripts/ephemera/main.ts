@@ -4,11 +4,19 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { intro, log, note, outro } from "@clack/prompts";
 import { ConfigError, loadConfig } from "../../apps/server/src/config.ts";
 import { ENV_FILE, LocalAccessError, localAccess, ROOT, serverEnv } from "./env.ts";
 import { checkModels } from "./providers.ts";
+import {
+  downloadVersion,
+  installedCopy,
+  latestRevision,
+  removeOldVersions,
+  switchTo,
+} from "./release.ts";
 import {
   buildCommand,
   buildOutdated,
@@ -32,11 +40,13 @@ import {
   accent,
   activity,
   bold,
+  CLI,
   command,
   dim,
   fail,
   models,
   openBrowser,
+  session,
   since,
   step,
   TITLE,
@@ -44,7 +54,7 @@ import {
 
 const HELP = `${TITLE} ${dim("· your own roleplay server")}
 
-${bold("Usage")}  ./ephemera ${dim("<command> [options]")}
+${bold("Usage")}  ${CLI} ${dim("<command> [options]")}
 
 ${bold("Commands")}
   ${command("setup")}     Choose your model provider and write .env, then build
@@ -71,13 +81,13 @@ ${bold("Options")}
 /** The settings, valid, or the command ends saying what to fix. */
 function configured() {
   if (!existsSync(ENV_FILE))
-    fail(`Ephemera is not set up yet. Run ${command("./ephemera setup")} first.`);
+    fail(`Ephemera is not set up yet. Run ${command(`${CLI} setup`)} first.`);
   const env = runEnv(serverEnv());
   try {
     return { env, access: localAccess(env), config: loadConfig(env) };
   } catch (error) {
     if (error instanceof ConfigError || error instanceof LocalAccessError) {
-      fail(`${error.message}. Run ${command("./ephemera setup")} or edit .env.`);
+      fail(`${error.message}. Run ${command(`${CLI} setup`)} or edit .env.`);
     }
     throw error;
   }
@@ -117,7 +127,7 @@ async function start(options: {
   }
   if (!options.built && (await buildIfOutdated())) installStagedBuild();
   const ports = [
-    ...(access ? [[access.port, `pick another with ${command("./ephemera setup")}`] as const] : []),
+    ...(access ? [[access.port, `pick another with ${command(`${CLI} setup`)}`] as const] : []),
     [config.port, "set another EPHEMERA_PORT in .env"] as const,
   ];
   for (const [port, fix] of ports) {
@@ -140,6 +150,7 @@ async function start(options: {
   const child = spawn(argv[0] as string, argv.slice(1), {
     cwd: ROOT,
     detached: true,
+    windowsHide: true,
     stdio: "ignore",
   });
   child.unref();
@@ -149,7 +160,7 @@ async function start(options: {
     child.pid === undefined ? undefined : await waitUntilReady(child.pid, config.proxyKey);
   if (state === undefined) {
     progress.error("Ephemera did not start");
-    fail(`Run ${command("./ephemera start --foreground")} to see why.`);
+    fail(`Run ${command(`${CLI} start --foreground`)} to see why.`);
   }
   progress.stop(`Ephemera is running at ${accent(state.url)}`);
   if (state.local) {
@@ -170,11 +181,11 @@ async function stop(): Promise<boolean> {
   const outcome = await stopServer(state);
   if (outcome === "still-running") {
     progress.error("Ephemera is still saving");
-    fail(`Give it a moment, then run ${command("./ephemera status")}.`);
+    fail(`Give it a moment, then run ${command(`${CLI} status`)}.`);
   }
   if (outcome === "not-saved") {
     progress.error("Ephemera stopped, but it could not confirm every library was saved");
-    fail(`Run ${command("./ephemera start --foreground")} and stop it with Ctrl-C to see why.`);
+    fail(`Run ${command(`${CLI} start --foreground`)} and stop it with Ctrl-C to see why.`);
   }
   progress.stop("Stopped, every library saved");
   return true;
@@ -184,7 +195,7 @@ async function status(): Promise<void> {
   const { env, access, config } = configured();
   const state = running();
   if (state === undefined) {
-    log.warn(`Stopped. Start it with ${command("./ephemera start")}.`);
+    log.warn(`Stopped. Start it with ${command(`${CLI} start`)}.`);
     return;
   }
   const ok = await healthy(state, config.proxyKey);
@@ -202,9 +213,88 @@ async function status(): Promise<void> {
   );
 }
 
+/**
+ * Updates an installed copy: the next version is downloaded, installed and
+ * built beside the running one, then made current while the server is
+ * stopped, and started from its own code.
+ */
+async function updateInstalledCopy(): Promise<void> {
+  const current = checkoutRevision();
+  let latest: string;
+  try {
+    latest = await latestRevision();
+  } catch (error) {
+    fail(
+      `${error instanceof Error ? error.message : "Checking for updates failed"}. Try again later.`,
+    );
+  }
+  if (latest === current) {
+    if (!buildOutdated()) {
+      log.success("Already up to date.");
+      return;
+    }
+    // The code is current and only its build is missing: built from it, beside the served one.
+    await buildIfOutdated(true);
+    const wasRunning = running() !== undefined;
+    if (wasRunning) await stop();
+    installStagedBuild();
+    if (wasRunning) await start({ foreground: false, open: false, built: true });
+    log.success("Rebuilt the app.");
+    return;
+  }
+  const fetching = activity();
+  fetching.start("Downloading the latest version");
+  let dir: string;
+  try {
+    dir = await downloadVersion(latest);
+  } catch (error) {
+    fetching.error(error instanceof Error ? error.message : "The download failed");
+    fail("Updating stopped; your copy is as it was.");
+  }
+  fetching.stop("Downloaded the latest version");
+  const installed = await step(
+    "Installing dependencies",
+    "Dependencies installed",
+    [process.execPath, "install", "--frozen-lockfile"],
+    process.env,
+    dir,
+  );
+  if (!installed) fail("Installing dependencies failed; your copy is as it was.");
+  const built = await step(
+    "Building the app",
+    "Built the app",
+    buildCommand(),
+    { ...process.env, EPHEMERA_BUILD_REVISION: latest },
+    join(dir, "apps", "web"),
+  );
+  if (!built) fail("The build failed; your copy is as it was.");
+  stageBuild(latest);
+  const wasRunning = running() !== undefined;
+  if (wasRunning) await stop();
+  installStagedBuild();
+  switchTo(dir);
+  removeOldVersions(dir);
+  log.success(`Updated to ${latest.slice(0, 7)}.`);
+  if (wasRunning) {
+    // Started by the new version's own code.
+    const restarted = Bun.spawn(
+      [
+        process.execPath,
+        "--no-env-file",
+        join(dir, "scripts", "ephemera", "main.ts"),
+        "start",
+        "--no-open",
+      ],
+      { stdio: ["inherit", "inherit", "inherit"] },
+    );
+    if ((await restarted.exited) !== 0) process.exit(1);
+  }
+}
+
 async function update(): Promise<void> {
   configured();
-  if (!existsSync(`${ROOT}/.git`))
+  if (installedCopy()) return updateInstalledCopy();
+  if (!existsSync(join(ROOT, ".git")))
     fail("This copy is not a Git checkout, so it cannot update itself.");
   const before = checkoutRevision() ?? "";
   const pulled = await step("Fetching the latest version", "Fetched the latest version", [
@@ -244,14 +334,17 @@ async function doctor(): Promise<boolean> {
   };
   report(true, `Bun ${Bun.version}`);
   if (!existsSync(ENV_FILE)) {
-    report(false, "No .env yet", `Run ${command("./ephemera setup")}.`);
+    report(false, "No .env yet", `Run ${command(`${CLI} setup`)}.`);
     return false;
   }
-  report(
-    (statSync(ENV_FILE).mode & 0o077) === 0,
-    ".env is readable by you alone",
-    "It holds your keys: chmod 600 .env",
-  );
+  // Windows has no mode bits; .env sits in the user's own profile there.
+  if (process.platform !== "win32") {
+    report(
+      (statSync(ENV_FILE).mode & 0o077) === 0,
+      ".env is readable by you alone",
+      "It holds your keys: chmod 600 .env",
+    );
+  }
   const env = runEnv(serverEnv());
   let config: ReturnType<typeof loadConfig> | undefined;
   let access: ReturnType<typeof localAccess>;
@@ -263,7 +356,7 @@ async function doctor(): Promise<boolean> {
     report(
       false,
       error instanceof Error ? error.message : "Settings are invalid",
-      `Run ${command("./ephemera setup")}.`,
+      `Run ${command(`${CLI} setup`)}.`,
     );
   }
   if (checkoutRevision() === undefined) {
@@ -272,7 +365,7 @@ async function doctor(): Promise<boolean> {
     report(
       !buildOutdated(),
       "The app is built for this version",
-      `${command("./ephemera start")} builds it.`,
+      `${command(`${CLI} start`)} builds it.`,
     );
   }
   if (env.EPHEMERA_UPSTREAM_BASE_URL) {
@@ -293,7 +386,7 @@ async function doctor(): Promise<boolean> {
     report(
       await healthy(state, config.proxyKey),
       `Running at ${state.url}`,
-      `Try ${command("./ephemera restart")}.`,
+      `Try ${command(`${CLI} restart`)}.`,
     );
   } else if (config) {
     for (const port of [...(access ? [access.port] : []), config.port]) {
@@ -319,10 +412,14 @@ const { positionals, values } = parseArgs({
     "no-start": { type: "boolean", default: false },
     foreground: { type: "boolean", default: false },
     "no-open": { type: "boolean", default: false },
+    // Windows shortcuts: keep the window open on an error, so it can be read.
+    pause: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
 });
 const [name = "help"] = positionals;
+
+session.pauseOnError = values.pause;
 
 if (values.help || name === "help") {
   process.stdout.write(HELP);
@@ -351,16 +448,14 @@ switch (name) {
       if (staged) installStagedBuild();
       if (startNow && !values["no-start"]) {
         await start({ foreground: false, open: interactive, built: staged });
-      } else log.info(`Start it any time with ${command("./ephemera start")}.`);
+      } else log.info(`Start it any time with ${command(`${CLI} start`)}.`);
     }
     outro("You're all set.");
     break;
   }
   case "start":
     await start({ foreground: values.foreground, open: !values["no-open"] });
-    outro(
-      `${command("./ephemera stop")} stops it; ${command("./ephemera status")} shows how it is.`,
-    );
+    outro(`${command(`${CLI} stop`)} stops it; ${command(`${CLI} status`)} shows how it is.`);
     break;
   case "stop":
     await stop();
@@ -378,7 +473,7 @@ switch (name) {
   case "open": {
     const state = running();
     if (state === undefined)
-      fail(`Ephemera is not running. Start it with ${command("./ephemera start")}.`);
+      fail(`Ephemera is not running. Start it with ${command(`${CLI} start`)}.`);
     if (!openBrowser(state.url)) log.info(`Open ${accent(state.url)} in your browser.`);
     outro("");
     break;
@@ -394,5 +489,5 @@ switch (name) {
     break;
   }
   default:
-    fail(`There is no command "${name}". Run ${command("./ephemera help")} to see them.`);
+    fail(`There is no command "${name}". Run ${command(`${CLI} help`)} to see them.`);
 }
