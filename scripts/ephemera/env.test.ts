@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { describe, expect, it } from "vitest";
-import { ENV_EXAMPLE, localAccess, quote, withValues } from "./env.ts";
+import { ENV_EXAMPLE, effectiveEnv, localAccess, quote, withValues } from "./env.ts";
 
 describe("env file", () => {
   it("sets values where their lines stand and keeps every comment", () => {
@@ -35,6 +35,16 @@ describe("env file", () => {
     expect(() => withValues("", { EPHEMERA_UPSTREAM_API_KEY: "a$b" })).toThrow(
       "EPHEMERA_UPSTREAM_API_KEY",
     );
+  });
+
+  it("lets the file's values win, while an empty one leaves the shell's", () => {
+    const shell = { EPHEMERA_DATA_KEY: "from-shell", EPHEMERA_PORT: "8790", OTHER: "kept" };
+    const file = { EPHEMERA_DATA_KEY: "", EPHEMERA_PORT: "9000" };
+    expect(effectiveEnv(shell, file)).toEqual({
+      EPHEMERA_DATA_KEY: "from-shell",
+      EPHEMERA_PORT: "9000",
+      OTHER: "kept",
+    });
   });
 
   it("turns the gateway on only with a username, on its own origin", () => {

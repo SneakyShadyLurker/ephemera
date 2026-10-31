@@ -2620,7 +2620,8 @@ computer behind the local gateway, or behind the operator's own proxy. The
 launcher installs Bun when it is
 missing and the dependencies from `bun.lock` once; every command reads the
 root `.env` itself (Bun's automatic `.env` loading is off), with its values
-over the shell's.
+over the shell's; an empty one, which the server reads as unset, leaves the
+shell's.
 
 - `setup` writes `.env` from `.env.example`, atomically (a crash leaves the
   old file or the new one) and owner-only. It keeps a proxy key and data

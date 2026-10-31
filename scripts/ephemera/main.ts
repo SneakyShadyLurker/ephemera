@@ -102,7 +102,12 @@ async function buildIfOutdated(force = false): Promise<boolean> {
   return true;
 }
 
-async function start(options: { foreground: boolean; open: boolean }): Promise<void> {
+async function start(options: {
+  foreground: boolean;
+  open: boolean;
+  /** The caller has just installed a build, which outside Git cannot be told from an old one. */
+  built?: boolean;
+}): Promise<void> {
   const { access, config } = configured();
   const current = running();
   if (current !== undefined) {
@@ -110,7 +115,7 @@ async function start(options: { foreground: boolean; open: boolean }): Promise<v
     if (options.open && current.local) openBrowser(current.url);
     return;
   }
-  if (await buildIfOutdated()) installStagedBuild();
+  if (!options.built && (await buildIfOutdated())) installStagedBuild();
   const ports = [
     ...(access ? [[access.port, `pick another with ${command("./ephemera setup")}`] as const] : []),
     [config.port, "set another EPHEMERA_PORT in .env"] as const,
@@ -224,7 +229,7 @@ async function update(): Promise<void> {
   const wasRunning = running() !== undefined;
   if (wasRunning) await stop();
   installStagedBuild();
-  if (wasRunning) await start({ foreground: false, open: false });
+  if (wasRunning) await start({ foreground: false, open: false, built: true });
   log.success(`Updated to ${after.slice(0, 7)}.`);
 }
 
@@ -261,11 +266,15 @@ async function doctor(): Promise<boolean> {
       `Run ${command("./ephemera setup")}.`,
     );
   }
-  report(
-    !buildOutdated(),
-    "The app is built for this version",
-    `${command("./ephemera start")} builds it.`,
-  );
+  if (checkoutRevision() === undefined) {
+    log.info("Not a Git checkout: every start builds the app afresh.");
+  } else {
+    report(
+      !buildOutdated(),
+      "The app is built for this version",
+      `${command("./ephemera start")} builds it.`,
+    );
+  }
   if (env.EPHEMERA_UPSTREAM_BASE_URL) {
     const check = await checkModels(
       env.EPHEMERA_UPSTREAM_BASE_URL,
@@ -337,11 +346,12 @@ switch (name) {
       log.step("Restarting Ephemera so it uses the new settings");
       await stop();
       if (staged) installStagedBuild();
-      await start({ foreground: false, open: false });
+      await start({ foreground: false, open: false, built: staged });
     } else {
       if (staged) installStagedBuild();
-      if (startNow && !values["no-start"]) await start({ foreground: false, open: interactive });
-      else log.info(`Start it any time with ${command("./ephemera start")}.`);
+      if (startNow && !values["no-start"]) {
+        await start({ foreground: false, open: interactive, built: staged });
+      } else log.info(`Start it any time with ${command("./ephemera start")}.`);
     }
     outro("You're all set.");
     break;

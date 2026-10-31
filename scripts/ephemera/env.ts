@@ -37,10 +37,16 @@ export function readEnvFile(path = ENV_FILE): Record<string, string> | undefined
 
 /**
  * The environment the server runs with: the shell's, with `.env` on top, so
- * the file `./ephemera setup` wrote is what counts.
+ * the file `./ephemera setup` wrote is what counts. An empty value in the
+ * file is unset, as the server reads it, so it never hides the shell's.
  */
+export function effectiveEnv(shell: Env, file: Record<string, string> = {}): Env {
+  const set = Object.entries(file).filter(([, value]) => value !== "");
+  return { ...shell, ...Object.fromEntries(set) };
+}
+
 export function serverEnv(): Env {
-  return { ...process.env, ...readEnvFile() };
+  return effectiveEnv(process.env, readEnvFile());
 }
 
 export class EnvValueError extends Error {

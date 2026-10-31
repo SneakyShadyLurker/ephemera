@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
+import { parseEnv } from "node:util";
 import { confirm, log, note, password, select, text } from "@clack/prompts";
 import { ConfigError, DEFAULT_PORT, loadConfig } from "../../apps/server/src/config.ts";
 import { usernameSchema } from "../../apps/server/src/identity.ts";
@@ -17,6 +18,7 @@ import {
   ENV_FILE,
   type Env,
   EnvValueError,
+  effectiveEnv,
   LocalAccessError,
   localAccess,
   ROOT,
@@ -92,7 +94,14 @@ async function access(
   flags: SetupFlags,
   current: Record<string, string>,
 ): Promise<Record<string, string>> {
-  const wasLocal = localAccess(current);
+  // A local setup that no longer holds (say, a port edited by hand) is replaced, not refused.
+  let wasLocal: ReturnType<typeof localAccess>;
+  try {
+    wasLocal = localAccess(current);
+  } catch (error) {
+    if (!(error instanceof LocalAccessError)) throw error;
+    wasLocal = undefined;
+  }
   const serverPort = Number(current.EPHEMERA_PORT || DEFAULT_PORT);
   const wasProxy =
     wasLocal === undefined &&
@@ -286,7 +295,7 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
 
   let keys: Record<string, string>;
   try {
-    keys = missingKeys({ ...process.env, ...current });
+    keys = missingKeys(effectiveEnv(process.env, current));
   } catch (error) {
     if (error instanceof DataKeyMissingError) fail(`${error.message}.`);
     throw error;
@@ -299,13 +308,15 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
   const merged = { ...current, ...values };
   let config: ReturnType<typeof loadConfig>;
   try {
-    config = loadConfig(runEnv({ ...process.env, ...merged }));
-    writeEnvFile(
-      withValues(
-        fresh ? readFileSync(ENV_EXAMPLE, "utf8") : readFileSync(ENV_FILE, "utf8"),
-        values,
-      ),
+    const text = withValues(
+      fresh ? readFileSync(ENV_EXAMPLE, "utf8") : readFileSync(ENV_FILE, "utf8"),
+      values,
     );
+    // Checked as the server will read it: the written file over the shell.
+    config = loadConfig(
+      runEnv(effectiveEnv(process.env, parseEnv(text) as Record<string, string>)),
+    );
+    writeEnvFile(text);
   } catch (error) {
     if (
       error instanceof ConfigError ||
