@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PROXY_KEY_HEADER } from "../../apps/server/src/boundary.ts";
-import { type Env, localAccess, ROOT, STATE_DIR } from "./env.ts";
+import { DEFAULT_DATA_DIR, type Env, localAccess, ROOT, STATE_DIR } from "./env.ts";
 
 export const SERVER_ENTRY = join(ROOT, "apps/server/src/index.ts");
 export const SERVE_ENTRY = join(ROOT, "scripts/ephemera/serve.ts");
@@ -22,6 +22,10 @@ export const STAGING_DIR = join(STATE_DIR, "web-next");
 export const RUN_FILE = join(STATE_DIR, "server.json");
 /** How the last `serve.ts` ended: whether its server saved every library. */
 export const EXIT_FILE = join(STATE_DIR, "exit.json");
+/** A stop asked of the running `serve.ts`, naming its PID: signals do not reach it on Windows. */
+export const STOP_FILE = join(STATE_DIR, "stop.json");
+/** The commit an installed copy (not a Git checkout) was downloaded at. */
+export const REVISION_FILE = join(ROOT, "REVISION");
 const BUILD_FILE = join(STATE_DIR, "build.json");
 const STAGED_FILE = join(STATE_DIR, "build-next.json");
 
@@ -42,8 +46,12 @@ export function ensureStateDir(): void {
   mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
 }
 
-/** The checkout's commit; undefined outside Git, where every start builds afresh. */
+/**
+ * The code's commit: the checkout's, or the one an installed copy records.
+ * Undefined for any other copy, where every start builds afresh.
+ */
 export function checkoutRevision(): string | undefined {
+  if (existsSync(REVISION_FILE)) return readFileSync(REVISION_FILE, "utf8").trim() || undefined;
   const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" });
   return result.status === 0 ? result.stdout.trim() : undefined;
 }
@@ -105,21 +113,46 @@ export function runEnv(env: Env): Env {
   const revision = builtRevision();
   return {
     ...env,
+    EPHEMERA_DATA_DIR: env.EPHEMERA_DATA_DIR || DEFAULT_DATA_DIR,
     EPHEMERA_STATIC_DIR: STATIC_DIR,
     ...(revision !== undefined && { EPHEMERA_BUILD_REVISION: revision }),
     ...(access && { EPHEMERA_ORIGIN: access.origin, EPHEMERA_HOST: "127.0.0.1" }),
   };
 }
 
-function alive(pid: number): boolean {
+/** A process's command line, without the quotes Windows puts around paths with spaces. */
+function commandLine(pid: number): string | undefined {
+  const result =
+    process.platform === "win32"
+      ? spawnSync(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`,
+          ],
+          { encoding: "utf8", windowsHide: true },
+        )
+      : spawnSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
+  return result.status === 0 ? result.stdout.replaceAll('"', "").trim() : undefined;
+}
+
+/** PIDs already seen running serve.ts: Windows answers the command line slowly. */
+const confirmed = new Set<number>();
+
+export function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
   } catch {
+    confirmed.delete(pid);
     return false;
   }
+  if (confirmed.has(pid)) return true;
   // A recycled PID belongs to some other program: only serve.ts's own command line counts.
-  const command = spawnSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
-  return command.status === 0 && command.stdout.trim().endsWith(` --no-env-file ${SERVE_ENTRY}`);
+  const matches = commandLine(pid)?.endsWith(` --no-env-file ${SERVE_ENTRY}`) === true;
+  if (matches) confirmed.add(pid);
+  return matches;
 }
 
 /** The running server, if any; a record left by one that died is removed. */
@@ -195,11 +228,9 @@ export async function stopServer(state: RunState, timeoutMs = 30_000): Promise<S
     const exit = readJson<ExitState>(EXIT_FILE);
     return exit?.pid === state.pid && exit.code === 0 ? "saved" : "not-saved";
   };
-  try {
-    process.kill(state.pid, "SIGTERM");
-  } catch {
-    return outcome();
-  }
+  // A request file rather than a signal, which on Windows would end it at once.
+  writeFileSync(STOP_FILE, `${JSON.stringify({ pid: state.pid })}\n`);
+  if (!alive(state.pid)) return outcome();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!alive(state.pid)) return outcome();

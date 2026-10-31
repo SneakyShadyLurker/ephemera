@@ -28,9 +28,16 @@ export function activity(): Pick<ReturnType<typeof spinner>, "start" | "stop" | 
 /** "1 model", "12 models". */
 export const models = (count: number) => `${count} ${count === 1 ? "model" : "models"}`;
 
+/**
+ * Whether to wait for Enter before an error closes the window: a Windows
+ * shortcut's console disappears with the command, and the message with it.
+ */
+export const session = { pauseOnError: false };
+
 /** Ends the command with an error message. */
 export function fail(message: string): never {
   log.error(message);
+  if (session.pauseOnError) prompt("Press Enter to close this window.");
   process.exit(1);
 }
 
@@ -72,12 +79,19 @@ export async function step(
   return false;
 }
 
-/** Opens a page in the default browser, where the platform has a way to. */
+/** Opens a page in the default browser. */
 export function openBrowser(url: string): boolean {
-  const opener =
-    process.platform === "darwin" ? "open" : process.platform === "linux" ? "xdg-open" : undefined;
-  if (opener === undefined) return false;
-  return spawnSync(opener, [url], { stdio: "ignore" }).status === 0;
+  const [opener, ...args] =
+    process.platform === "win32"
+      ? ["cmd.exe", "/c", "start", '""', url]
+      : [process.platform === "darwin" ? "open" : "xdg-open", url];
+  return (
+    spawnSync(opener as string, args, {
+      stdio: "ignore",
+      windowsHide: true,
+      windowsVerbatimArguments: true,
+    }).status === 0
+  );
 }
 
 /** "3 minutes ago" for a moment in the past. */
