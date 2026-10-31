@@ -44,6 +44,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Persisted user data: characters, personas, presets, avatars
 /data/
+# ./ephemera's run state: the running server and the build it serves
+/.ephemera/
 *.sqlite
 *.sqlite-*
 *.db

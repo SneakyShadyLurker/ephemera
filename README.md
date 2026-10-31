@@ -123,38 +123,84 @@ request logging off.
 
 Settings > What is kept lists the same split inside the app.
 
-## Quick start
+## Get started
 
-Requirements: [Bun](https://bun.sh) (or Docker), an OpenAI-compatible model
-upstream, a trusted authentication proxy that injects `Remote-User` and the
-proxy key (for example SWAG with Authelia), and a current Chromium-based
-browser on desktop or Android. ComfyUI or Atelier is optional.
+You need macOS or Linux (on Windows, use WSL), a model provider with an
+OpenAI-compatible API (a hosted one such as OpenRouter, or a local server
+such as Ollama) and a current Chromium-based browser. Everything else is
+installed for you.
 
-```sh
-bun install
-cp .env.example .env   # set the upstream, the proxy key and the data key
-bun run dev            # http://localhost:5173
+### With your AI assistant
+
+Paste this into Claude Code, Codex or any assistant that can run commands:
+
+```text
+Install Ephemera on this computer from https://github.com/SneakyShadyLurker/ephemera.
+Clone it and work in the clone. Ask me which model provider I use and for its API key
+(base URLs are in the README's "Model providers" table; local servers need no key). Then run
+EPHEMERA_UPSTREAM_API_KEY='<key>' ./ephemera setup --yes --upstream '<base URL>'
+and fix whatever it reports until it succeeds. Never print .env. Finish with
+./ephemera doctor, give me the address it serves, and remind me to back up
+EPHEMERA_DATA_KEY from .env.
 ```
 
-Each new library starts with the example character; delete her like any card,
-or set `EPHEMERA_STARTER_CHARACTER=off` to start new libraries empty.
+### By hand
 
-`bun run check` runs typecheck, lint, unit tests and the persistence audit;
-`bun run test:e2e` runs the Playwright flows and retention scans. The hardened
+```sh
+git clone https://github.com/SneakyShadyLurker/ephemera.git
+cd ephemera
+./ephemera setup
+```
+
+Setup installs Bun if it is missing, asks for your model provider and key,
+checks that they work, builds the app and opens it at
+`http://localhost:8780`. From then on:
+
+| Command | Does |
+|---|---|
+| `./ephemera start` | Starts in the background and opens your browser |
+| `./ephemera stop` | Stops, saving your library first |
+| `./ephemera status` | Shows whether it runs, where and since when |
+| `./ephemera update` | Pulls the latest version, rebuilds and restarts |
+| `./ephemera doctor` | Checks the setup and says what to fix |
+
+`./ephemera help` lists the rest. Each new library starts with the example
+character; delete her like any card, or set `EPHEMERA_STARTER_CHARACTER=off`
+in `.env` to start new libraries empty.
+
+> [!IMPORTANT]
+> Your library is encrypted under `EPHEMERA_DATA_KEY` in `.env`. Copy it
+> into your password manager: without it, nothing can open your library
+> again.
+
+### For several people
+
+To share one server, or reach it from other devices, run `./ephemera
+setup` and choose "Several people, or from other devices". Ephemera then
+waits behind a trusted authentication proxy of yours that signs people in
+and passes their username (for example SWAG with Authelia). The hardened
 container and its deploy checklist are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) § Deployment.
+
+### Development
+
+`bun run dev` serves the app with live reload at `http://localhost:5173`
+from the same `.env`. `bun run check` runs typecheck, lint, unit tests and
+the persistence audit; `bun run test:e2e` runs the Playwright flows and
+retention scans.
 
 ## Model providers
 
 Ephemera talks to one OpenAI-compatible upstream, set for the whole server in
-`.env` (or `infra/docker/.env` for the container):
+`.env` (or `infra/docker/.env` for the container). `./ephemera setup` offers
+these and writes it for you:
 
 ```sh
 EPHEMERA_UPSTREAM_BASE_URL=https://openrouter.ai/api/v1
 EPHEMERA_UPSTREAM_API_KEY=your-key   # leave empty for a local server without one
 ```
 
-Restart the server after a change. The model list comes from the provider's
+Restart the server after a change (`./ephemera restart`). The model list comes from the provider's
 `/models`, and every model picker also takes a model ID typed in full. Where the
 provider reports a model's context window, reasoning levels or image input,
 Ephemera uses them; where it does not, set the window in Settings > Model setup,
