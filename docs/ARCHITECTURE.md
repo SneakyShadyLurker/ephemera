@@ -1065,7 +1065,9 @@ keeper request and answer are chat content.
    system prompt. A preset without a history sends it after the memory
    blocks. A scene picture's source carries the present entries' looks,
    outfit and clothing state, and how they stand as `<people>`
-   (`castPeopleNotes`). When the source is too
+   (`castPeopleNotes`). The scene metaprompt sizes a covered chest as its
+   clothing shapes it, a binder or push-up included, and the anchor's true
+   size only where the excerpt bares it. When the source is too
    long, static card notes are cut first, then present people's notes;
    the excerpt keeps priority.
 9. **The inspector.** The Cast block and the "Cast state, depth 1" line

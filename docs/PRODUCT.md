@@ -600,7 +600,9 @@ Version 1.0 holds everything below.
 - The cast panel lists introduced women, with only their discovered or
   owner-corrected details visible; hidden canonical anatomy, personality and
   preferences stay out until play reveals them, and later discoveries can refine
-  an approximation. Under the portrait, up
+  an approximation. While she stays dressed, her figure shows as her clothes
+  suggest it, which a binder or padded bra can make misleading, until undressing
+  reveals it. Under the portrait, up
   to five present, each with what she is doing and how she seems to feel where
   the column has room, then the rest and those away behind disclosures;
   across the phone's band, their names and ages over at most two lines,

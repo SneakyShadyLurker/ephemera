@@ -104,6 +104,16 @@ describe("the keeper prompt", () => {
     expect(keeperInstructions()).toContain("Intimate anatomy requires actual exposure");
   });
 
+  it("records a clothed figure as what the clothes suggest, and garments that shape it", () => {
+    const instructions = keeperInstructions();
+    expect(instructions).toContain(
+      'Before exposure, a discovered "build" holds the figure as the clothes show it, chest, hips and ass included',
+    );
+    expect(instructions).toContain("which may be false");
+    expect(instructions).toContain('refine "build" without the clothed guess');
+    expect(instructions).toContain('how it shapes the body, such as "padded push-up bra"');
+  });
+
   it("builds canon from the card's fields with the names filled, null when blank", () => {
     const card = { ...blankCard("Mara"), description: "{{char}} meets {{user}}." };
     expect(castCanon(card, names)).toBe("Description:\nMara meets Ash.");

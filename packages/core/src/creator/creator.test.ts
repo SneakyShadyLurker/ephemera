@@ -375,6 +375,23 @@ describe("creator requests and events", () => {
       "the phenotype the excerpt or the notes give",
     );
     expect(SCENE_METAPROMPTS.krea2.subject).toContain("age as given in the notes");
+    // A covered chest looks as its clothing shapes it; the true size shows only once bared.
+    for (const kind of ["subject", "group", "scenario"] as const) {
+      expect(SCENE_METAPROMPTS.krea2[kind]).toContain(
+        "names the size the clothing gives them, not the cup size",
+      );
+      // The shared figure rule must not override it with an unconditional cup-size word.
+      expect(SCENE_METAPROMPTS.krea2[kind]).not.toContain(
+        'one size word placed directly before "breasts", from the EU cup size:',
+      );
+      expect(SCENE_METAPROMPTS.krea2[kind]).toContain(
+        "from the EU cup size where they are bare and, while clothing covers them, the size the clothing gives them",
+      );
+    }
+    expect(ART_METAPROMPTS.krea2.subject).toContain(
+      'one size word placed directly before "breasts", from the EU cup size:',
+    );
+    expect(SCENE_METAPROMPTS.krea2.subject).toContain("over the portrait and the notes");
   });
 
   it("defaults to one Subject in one frame and offers an explicit front/rear diptych for both models", () => {

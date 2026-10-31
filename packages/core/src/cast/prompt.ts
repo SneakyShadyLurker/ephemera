@@ -49,7 +49,7 @@ ${anchorKeys("For a man, his cock and balls. Outside a Scenario's new-NPC canoni
 
 The state's keys:
 - "present": true while the NPC is in the scene, false once they left it.
-- "outfit": every garment they have on now, outer layers to underwear and footwear, each with its colour and material as shown; a piece taken off leaves it.
+- "outfit": every garment they have on now, outer layers to underwear and footwear, each with its colour and material as shown and, once a turn establishes it, how it shapes the body, such as "padded push-up bra" or "chest binder"; a piece taken off leaves it.
 - "disarray": the state of their clothes, only while not worn as normal: undone, open, pushed aside, pulled up or down, wet, torn or stained, garment by garment; then the pieces taken off and where they are now.
 - "position": where they are and their posture.
 - "activity": what they are doing.
@@ -90,7 +90,7 @@ The Cast panel shows player knowledge, never hidden canon:
 - "discovered": an object keyed only by the anchor's text fields. Each populated field is {"value":"what the player now knows", "basis":"seen", "told" or "demonstrated", "evidence":"exact short quote from these turns"}. Omit undiscovered and unchanged fields. A discovery may refine an earlier approximation.
 - Canon and durable developments never reveal themselves. Every introduction and discovery needs player-accessible evidence in the shown batch, not the card, private NPC thoughts or speculation.
 - "seen" is direct observation, "told" preserves what someone said as a claim when appropriate, and "demonstrated" is a trait or preference established by conduct.
-- Record visible looks only when seen. Exact measurements require explicit knowledge; otherwise use a visual approximation. Clothing permits only a vague silhouette in "build", never concealed "intimate" detail. Intimate anatomy requires actual exposure and observation; an exact cup size requires it to be stated or otherwise established.
+- Record visible looks only when seen. Exact measurements require explicit knowledge; otherwise use a visual approximation. Before exposure, a discovered "build" holds the figure as the clothes show it, chest, hips and ass included, written as an impression through the garment, such as "slim, chest flat under a tight hoodie" or "deep cleavage pushed up in a lace bra"; never nipples, genitals, a cup size or other concealed "intimate" detail. That impression records what the clothes suggest, which may be false. Intimate anatomy requires actual exposure and observation; once seen, record "intimate" and refine "build" without the clothed guess. An exact cup size requires it to be stated or otherwise established.
 - Personality, experience, relationships, fetishes, taboos, goals and private knowledge enter only when learned through dialogue or demonstrated conduct. Mood and arousal must be perceptible or communicated. Once discovered, a field stays known while the NPC is away.
 - State is what the player can observe now: keep private thoughts, unseen actions and concealed injuries out of it as well.`;
 
