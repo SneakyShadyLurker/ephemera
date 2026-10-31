@@ -9,7 +9,9 @@ are kept; conversations never are.
 ## Access
 
 Its users reach it at a hostname behind a trusted authentication proxy
-(for example SWAG with Authelia). Every user the proxy's access rule admits
+(for example SWAG with Authelia). For one person on one computer,
+`./ephemera setup` puts a local gateway in the proxy's place, which admits
+that one user from the same computer only. Every user the proxy's access rule admits
 gets a separate instance, created on their first visit: their own
 characters, personas, presets, lorebooks, events, memories, portraits, imported workflows and settings, which no other user can see,
 list or change. A new library starts with one example character, Friday

@@ -17,6 +17,10 @@
       "persistsByDefault": false,
       "note": "Development tool; never shipped."
     },
+    "@clack/prompts": {
+      "persistsByDefault": false,
+      "note": "Development tool; terminal prompts for ./ephemera, never shipped. Keeps answers in memory only."
+    },
     "@fontsource-variable/atkinson-hyperlegible-next": {
       "persistsByDefault": false,
       "note": "Font files and CSS for the character's prose, bundled as same-origin assets."

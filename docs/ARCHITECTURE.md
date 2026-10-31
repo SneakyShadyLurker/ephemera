@@ -19,6 +19,16 @@ Atelier's server, optional, for image-born cards only
   -> Ephemera's published port, with its own integration key
 ```
 
+For one person on one computer, `./ephemera` runs the same server with the
+local gateway in the proxy's place (§ Local gateway):
+
+```
+Browser on the same computer (http://localhost:8780)
+  -> local gateway on 127.0.0.1 (identity, proxy key)
+  -> Ephemera server on 127.0.0.1:8790
+  -> OpenAI-compatible upstream
+```
+
 [Atelier](https://github.com/SneakyShadyLurker/atelier-studio) is an optional, separately deployed image service that Ephemera
 supports: its hardened ComfyUI worker speaks a private worker protocol
 (§ AI card creation and rework), and its server may ask for image-born
@@ -36,6 +46,7 @@ Bun workspace, strict TypeScript, ESM.
 | `infra/docker` | The `@ephemera/infra` workspace: Dockerfile, Compose file, healthcheck and the container contract check |
 | `e2e` | Playwright flows and the retention matrix, against a synthetic mock upstream and a mock ComfyUI |
 | `scripts` | Workspace checks, dependency persistence audit and in-memory native card checks |
+| `scripts/ephemera` | The `./ephemera` command: setup wizard, server management and the local gateway |
 | `packages/core/test-fixtures/imports` | Synthetic foreign card import corpus |
 | `packages/core/test-fixtures/workflows` | ComfyUI workflow exports in both formats from a stock frontend, with their node definitions and expected outcomes |
 | `docs` | Product, principles and architecture |
@@ -2600,6 +2611,75 @@ the health probes.
 
 **Bump Bun.** `docker buildx imagetools inspect oven/bun:<version>-alpine`,
 then update `BUN_VERSION` and `BUN_DIGEST` together with `@types/bun`.
+
+### Local gateway
+
+`./ephemera` (the launcher at the repository root, then `scripts/ephemera`)
+sets up and runs the server without the container: for one person on this
+computer behind the local gateway, or behind the operator's own proxy. The
+launcher installs Bun when it is
+missing and the dependencies from `bun.lock` once; every command reads the
+root `.env` itself (Bun's automatic `.env` loading is off), with its values
+over the shell's, an empty one included.
+
+- `setup` writes `.env` from `.env.example`, atomically (a crash leaves the
+  old file or the new one) and owner-only. It keeps a proxy key and data
+  key that exist in `.env`, writes one the shell supplies into `.env` and
+  makes the others, refusing to make a data key while a `users/` tree
+  exists. It asks
+  who uses Ephemera (just me, or behind a sign-in proxy), the username and
+  port, and the model provider (the list in `scripts/ephemera/providers.ts`,
+  kept equal to README § Model providers by a unit test), checks the
+  provider's `/models` with the key, validates the whole configuration with
+  the server's `loadConfig`, builds and restarts a running server. A saved
+  API key is reused only for the base URL it was saved with. A value Bun's
+  loader would read otherwise (`$`, a quote, a backslash, a newline) is
+  refused. Without a terminal, or with `--yes`, it takes flags and
+  `EPHEMERA_UPSTREAM_API_KEY` instead, keeps the current access mode unless
+  a flag names one, and fails rather than asks.
+- The served build lives in `.ephemera/web`, apart from `apps/web/dist`,
+  which `bun run build` and e2e rewrite. A build is made in
+  `.ephemera/web-next` with the checkout's commit (outside Git, a fresh
+  name, every start) as `EPHEMERA_BUILD_REVISION`, and swapped in only
+  while the server is stopped, so `update` builds while the old version
+  still serves. The server runs with the served build's revision, so an
+  open tab offers a reload after an update.
+- `start` checks the ports, then runs `scripts/ephemera/serve.ts` in its own
+  session with its output discarded, as the container's logging driver
+  `none` does; `--foreground` keeps it attached with the operational log on
+  the terminal. `serve.ts` takes `.ephemera/server.json` exclusively (its
+  PID and address), so a second start ends before anything listens, then
+  runs the gateway and the server in a process group of its own, so a
+  terminal's hangup or Ctrl-C reaches `serve.ts` alone, which turns it into
+  the server's SIGTERM and orderly shutdown and waits for it. It records the
+  server's exit status in `.ephemera/exit.json` once the gateway has handed
+  over the last replies (5 s at most); `stop` reports saved only on that
+  record. `stop`, `restart`, `status`, `open`, `update`
+  (`git pull --ff-only`, install, build, restart when it ran) and `doctor`
+  work from that record, matching the process by its exact command line.
+  `.ephemera/` is Git-ignored and holds no content.
+- `EPHEMERA_LOCAL_USER` turns the gateway on. The gateway listens on
+  `127.0.0.1` at `EPHEMERA_LOCAL_PORT` (8780 unless set, never the server's
+  own port); the server then listens on `127.0.0.1` too, and
+  `http://localhost:<port>` replaces `EPHEMERA_ORIGIN`, so the root `.env`
+  still serves `bun run dev`. Unset, `./ephemera` runs the server alone for
+  a trusted authentication proxy of the operator's, which must meet
+  § Deployment's prerequisites.
+- The gateway (`scripts/ephemera/gateway.ts`) is that proxy for one user
+  on this computer: a request whose `Host` is not the gateway's origin is
+  refused with 421 before anything is forwarded (a page elsewhere can point
+  its own name at 127.0.0.1); a GET or HEAD to `127.0.0.1:<port>` is
+  redirected there with 308. It clears inbound `Remote-User` and proxy key
+  headers, injects the proxy key and `EPHEMERA_LOCAL_USER`, passes the
+  tab's `X-Ephemera-User`, `Origin` and everything else unchanged, never
+  through the shell's `HTTP_PROXY`, never follows redirects, lifts its own
+  idle limit for every request (the server bounds each one and keeps its
+  streams alive) and aborts the server's request when the browser
+  disconnects. A stop lets in-flight replies finish within the server's
+  drain. It buffers, caches and logs nothing.
+- Any program or account on the computer can reach loopback, so the
+  gateway admits whoever uses the computer. It is not the hardened
+  container: no read-only root, tmpfs or dropped capabilities.
 
 ## Browser baseline
 

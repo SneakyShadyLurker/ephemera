@@ -1,0 +1,70 @@
+#!/bin/sh
+# Ephemera's one command for running your own server: `./ephemera help` lists
+# what it does. This launcher makes sure Bun and the dependencies are there,
+# then hands over to scripts/ephemera/main.ts.
+set -eu
+
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
+cd "$ROOT"
+
+# The oldest Bun this checkout runs on; the container pins the exact version.
+MIN_BUN_MAJOR=1
+MIN_BUN_MINOR=4
+
+say() { printf '  %s\n' "$*"; }
+
+find_bun() {
+  if command -v bun >/dev/null 2>&1; then
+    command -v bun
+  elif [ -x "${BUN_INSTALL:-$HOME/.bun}/bin/bun" ]; then
+    printf '%s\n' "${BUN_INSTALL:-$HOME/.bun}/bin/bun"
+  fi
+}
+
+BUN=$(find_bun)
+
+if [ -z "$BUN" ]; then
+  say "Ephemera runs on Bun (https://bun.com), which is not installed yet."
+  if [ -t 0 ]; then
+    printf '  Install it now with the official installer? [Y/n] '
+    read -r answer
+    case "$answer" in
+      "" | [Yy]*) ;;
+      *)
+        say "Install Bun, then run ./ephemera again."
+        exit 1
+        ;;
+    esac
+  else
+    say "Installing it with the official installer."
+  fi
+  curl -fsSL https://bun.com/install | bash
+  BUN=$(find_bun)
+  if [ -z "$BUN" ]; then
+    say "Bun did not install. See https://bun.com/docs/installation."
+    exit 1
+  fi
+fi
+
+version=$("$BUN" --version)
+major=${version%%.*}
+rest=${version#*.}
+minor=${rest%%.*}
+if [ "$major" -lt "$MIN_BUN_MAJOR" ] ||
+  { [ "$major" -eq "$MIN_BUN_MAJOR" ] && [ "$minor" -lt "$MIN_BUN_MINOR" ]; }; then
+  say "Ephemera needs Bun $MIN_BUN_MAJOR.$MIN_BUN_MINOR or newer; this is Bun $version."
+  say "Run \`bun upgrade\`, then ./ephemera again."
+  exit 1
+fi
+
+# The command's own dependencies; a fresh clone installs everything from bun.lock once.
+if [ ! -d node_modules/@clack/prompts ]; then
+  say "Installing dependencies, once..."
+  if ! "$BUN" install --frozen-lockfile --silent; then
+    say "Installing dependencies failed; run \`bun install --frozen-lockfile\` to see why."
+    exit 1
+  fi
+fi
+
+# --no-env-file: the command reads .env itself, so a value it just wrote is the one used.
+exec "$BUN" --no-env-file scripts/ephemera/main.ts "$@"
