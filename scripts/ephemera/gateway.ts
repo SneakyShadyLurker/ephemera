@@ -87,7 +87,7 @@ export function gatewayHandler(options: GatewayOptions) {
         signal: request.signal,
       });
     } catch {
-      return plain(502, "Ephemera is not answering. Run ./ephemera status to see why.");
+      return plain(502, "Ephemera is not answering. Run ephemera status to see why.");
     }
     const answer = new Headers(response.headers);
     for (const name of RESPONSE_DROPPED) answer.delete(name);

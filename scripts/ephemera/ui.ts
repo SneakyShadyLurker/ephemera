@@ -2,12 +2,19 @@
 import { spawnSync } from "node:child_process";
 import { styleText } from "node:util";
 import { cancel, isCancel, log, spinner } from "@clack/prompts";
-import { ROOT } from "./env.ts";
+import { HOME_DIR, ROOT } from "./env.ts";
 
 export const accent = (text: string) => styleText("yellow", text);
 export const dim = (text: string) => styleText("dim", text);
 export const bold = (text: string) => styleText("bold", text);
 export const command = (text: string) => styleText("cyan", text);
+
+/**
+ * How the user types this command: `ephemera` from an installed copy, which
+ * is on the user's Path; `.\ephemera` in a Windows checkout; `./ephemera` elsewhere.
+ */
+export const CLI =
+  HOME_DIR !== ROOT ? "ephemera" : process.platform === "win32" ? ".\\ephemera" : "./ephemera";
 
 /** The heading every command opens with: the crescent and its lamp. */
 export const TITLE = `${accent("☾")} ${bold("Ephemera")}`;

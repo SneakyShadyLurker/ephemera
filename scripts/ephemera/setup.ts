@@ -28,7 +28,7 @@ import {
 } from "./env.ts";
 import { checkModels, type ModelsCheck, PROVIDERS } from "./providers.ts";
 import { runEnv } from "./service.ts";
-import { activity, answered, bold, command, dim, fail, models } from "./ui.ts";
+import { activity, answered, bold, CLI, command, dim, fail, models } from "./ui.ts";
 
 export interface SetupFlags {
   interactive: boolean;
@@ -360,7 +360,7 @@ export async function setup(flags: SetupFlags): Promise<boolean> {
   if (local === undefined) {
     note(
       [
-        `Run ${command("./ephemera start")}; it listens on ${config.host}:${config.port}.`,
+        `Run ${command(`${CLI} start`)}; it listens on ${config.host}:${config.port}.`,
         "Point your sign-in proxy there. It must clear inbound identity",
         "headers and send Remote-User and X-Ephemera-Proxy-Key, the",
         "EPHEMERA_PROXY_KEY in .env (docs/ARCHITECTURE.md § Deployment).",
