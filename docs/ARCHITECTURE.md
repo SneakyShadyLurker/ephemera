@@ -968,7 +968,7 @@ keeper request and answer are chat content.
    matches the card and it names someone; an empty sheet, as a Scenario
    card's, sends canon. The answer is changes only (`castChangesSchema`: by
    full name, fields to set, a `was` for a fuller name; `absent` names),
-   clamped to the limits (`clampCastChanges`) before it is validated. Its
+   clamped to the limits (`clampCastChanges`) before it is validated; an introduction or discovery item it cannot use is dropped without losing the rest of the change. Its
    cache key is the instance's `cast:<characterId>`. Development, continuity,
    introduction and discovery fields each require a nonempty value and a literal
    short quote found in a shown turn (`groundedCastChanges`). This grounds the

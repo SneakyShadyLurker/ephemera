@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  applyCastChanges,
   blankCard,
   CAST_LIMITS,
   type CastEntry,
@@ -130,6 +131,69 @@ const noCanary = (lines: string[]) => {
 };
 
 describe("cast keeper", () => {
+  it("keeps a Scenario NPC when one discovery lacks its basis", async () => {
+    const text = "Ilse Brandt sets a glass on the bar. Her cropped black hair catches the light.";
+    const keeperAnswer = {
+      cast: {
+        "Ilse Brandt": {
+          role: "minor",
+          gender: "female",
+          anchor: {
+            age: "29",
+            ethnicity: "German",
+            skin: "fair skin",
+            face: "oval face, straight nose, full lips",
+            relationship: "single",
+            height: "168cm",
+            weight: "60kg",
+            build: "slim build",
+            hair: "cropped black hair",
+            eyes: "grey almond-shaped eyes",
+            personality: "observant, patient, direct",
+          },
+          state: { present: true, outfit: "white cotton shirt", activity: "serving a drink" },
+          introduce: { evidence: "Ilse Brandt sets a glass on the bar." },
+          discovered: {
+            hair: { value: "cropped black hair", basis: "seen", evidence: "cropped black hair" },
+            age: { value: "late twenties", evidence: "Ilse Brandt sets a glass" },
+          },
+        },
+      },
+      absent: [],
+    };
+    // Repeating a plausible answer must not lose the valid NPC to one malformed discovery.
+    const { app, stores, upstream, calls } = setup([answer(keeperAnswer), answer(keeperAnswer)]);
+    const scenario = { ...card, name: "Harbour", tags: ["Scenario"] };
+    const characterId = stores.characters.create(scenario);
+    const fingerprint = fingerprintOf(scenario);
+    stores.castSheets.put(characterId, { fingerprint, entries: [] });
+    const response = await postUpdate(
+      app,
+      update(characterId, {
+        register: { entries: [] },
+        sheetFingerprint: fingerprint,
+        turns: [{ role: "assistant", content: text }],
+      }),
+    );
+    const body = await response.json();
+    expect(body).toHaveProperty("changes");
+    const { changes } = castUpdateResponseSchema.parse(body);
+    const register = applyCastChanges({ entries: [] }, changes, {
+      player: null,
+      newId: () => crypto.randomUUID(),
+      shown: [text],
+    });
+    expect(register.entries).toHaveLength(1);
+    expect(register.entries[0]).toMatchObject({
+      introduced: true,
+      anchor: { name: "Ilse Brandt", gender: "female", age: "29" },
+      discovered: { hair: keeperAnswer.cast["Ilse Brandt"].discovered.hair },
+    });
+    expect(register.entries[0]?.discovered).not.toHaveProperty("age");
+    expect(sent(upstream, 0).user).toContain(CANON_CANARY);
+    expect(calls()).toBe(1);
+  });
+
   it("negotiates every repair attempt at settlement and sizes the actual repair conversation", async () => {
     const { app, upstream, characterId } = setup([unusable, answer(FAKE_KEEPER_CHANGES)], {
       catalog: [{ ...catalogEntry("small"), context_window: 24_000 }],
@@ -246,6 +310,59 @@ describe("cast keeper", () => {
     expect(user).toContain("Kind: Scenario");
     expect(system).toContain("For a new NPC in a Scenario");
     expect(system).toContain("Invented canon is not player discovery");
+  });
+
+  it("clamps a large new Scenario anchor and extra keys before strict validation", async () => {
+    const long = "a detailed canonical fact ".repeat(50);
+    const anchor = Object.fromEntries(
+      Object.keys(emptyCastAnchor("Ilse Brandt", "female"))
+        .filter((key) => key !== "name" && key !== "gender")
+        .map((key) => [key, long]),
+    );
+    const text = "Ilse Brandt greets you.";
+    const reply = {
+      cast: {
+        "Ilse Brandt": {
+          role: "minor",
+          gender: "female",
+          anchor: { ...anchor, extra: true },
+          introduce: { evidence: text, extra: true },
+          extra: true,
+        },
+      },
+      absent: [],
+      extra: true,
+    };
+    const { app, stores, upstream, calls } = setup([answer(reply)]);
+    const characterId = stores.characters.create({ ...card, tags: ["Scenario"] });
+    const response = await postUpdate(
+      app,
+      update(characterId, {
+        register: { entries: [] },
+        turns: [{ role: "assistant", content: text }],
+      }),
+    );
+    const { changes } = castUpdateResponseSchema.parse(await response.json());
+    expect(changes.cast["Ilse Brandt"]?.introduce).toEqual({ evidence: text });
+    const values = Object.values(changes.cast["Ilse Brandt"]?.anchor ?? {});
+    expect(values.length).toBeGreaterThan(0);
+    for (const value of values) {
+      expect(value?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+      expect(value).not.toBe("");
+    }
+    expect(changes.cast["Ilse Brandt"]).not.toHaveProperty("extra");
+    expect(sent(upstream, 0).body.max_tokens).toBeGreaterThan(0);
+    expect(calls()).toBe(1);
+  });
+
+  it("keeps the NPC but drops a boolean introduction, inventing no player evidence", async () => {
+    const reply = { cast: { Ilse: { gender: "female", introduce: true } }, absent: [] };
+    const { app, stores, calls } = setup([answer(reply)]);
+    const characterId = stores.characters.create({ ...card, tags: ["Scenario"] });
+    const response = await postUpdate(app, update(characterId, { register: { entries: [] } }));
+    const { changes } = castUpdateResponseSchema.parse(await response.json());
+    expect(changes.cast.Ilse).toEqual({ gender: "female" });
+    expect(calls()).toBe(1);
   });
 
   it("answers the changes and the usage, unknown figures left out, logging no content", async () => {

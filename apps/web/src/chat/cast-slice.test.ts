@@ -1433,6 +1433,39 @@ describe("cast snapshots", () => {
     expect(chat.keeper[1]?.request.turns).toEqual([{ role: "assistant", content: "Hello again" }]);
   });
 
+  it("seeds and keeps a Scenario with no sheet people after notebook readiness", async () => {
+    const chat = castChat(async () => undefined);
+    const greeting = "Ilse Brandt sets a glass on the bar.";
+    chat.state().setGreetings([greeting]);
+    await chat.sheet([]);
+    expect(chat.keeper).toHaveLength(1);
+    expect(chat.keeper[0]?.request).toMatchObject({
+      mode: "seed",
+      sheetFingerprint: FINGERPRINT,
+      register: { entries: [] },
+      turns: [{ role: "assistant", content: greeting }],
+    });
+    await chat.answer({
+      cast: {
+        "Ilse Brandt": {
+          gender: "female",
+          role: "minor",
+          introduce: { evidence: greeting },
+          state: { present: true, activity: "serving a drink" },
+        },
+      },
+      absent: [],
+    });
+    expect(entry(chat.state(), "Ilse Brandt")?.introduced).toBe(true);
+    await chat.say("Hello Ilse");
+    expect(chat.generated[0]?.cast?.entries[0]?.anchor.name).toBe("Ilse Brandt");
+    expect(chat.keeper).toHaveLength(2);
+    expect(chat.keeper[1]?.request.mode).toBe("update");
+    await chat.answer({ cast: {}, absent: [] });
+    expect(chat.state().cast).toMatchObject({ status: "idle", failure: null });
+    expect(names(chat.state())).toEqual(["Ilse Brandt"]);
+  });
+
   it("keep the greeting's snapshot through a refill to the same text (the chat shown again)", async () => {
     const chat = castChat();
     chat.state().setGreetings(["Hello there"]);
