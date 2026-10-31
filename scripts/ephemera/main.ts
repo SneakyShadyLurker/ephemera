@@ -228,8 +228,18 @@ async function updateInstalledCopy(): Promise<void> {
       `${error instanceof Error ? error.message : "Checking for updates failed"}. Try again later.`,
     );
   }
-  if (latest === current && !buildOutdated()) {
-    log.success("Already up to date.");
+  if (latest === current) {
+    if (!buildOutdated()) {
+      log.success("Already up to date.");
+      return;
+    }
+    // The code is current and only its build is missing: built from it, beside the served one.
+    await buildIfOutdated(true);
+    const wasRunning = running() !== undefined;
+    if (wasRunning) await stop();
+    installStagedBuild();
+    if (wasRunning) await start({ foreground: false, open: false, built: true });
+    log.success("Rebuilt the app.");
     return;
   }
   const fetching = activity();

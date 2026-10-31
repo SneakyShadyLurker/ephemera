@@ -13,7 +13,6 @@ import { confirm, log, note, password, select, text } from "@clack/prompts";
 import { ConfigError, DEFAULT_PORT, loadConfig } from "../../apps/server/src/config.ts";
 import { usernameSchema } from "../../apps/server/src/identity.ts";
 import {
-  DEFAULT_DATA_DIR,
   DEFAULT_LOCAL_PORT,
   ENV_EXAMPLE,
   ENV_FILE,
@@ -27,7 +26,7 @@ import {
   writeEnvFile,
 } from "./env.ts";
 import { checkModels, type ModelsCheck, PROVIDERS } from "./providers.ts";
-import { runEnv } from "./service.ts";
+import { dataDir, runEnv } from "./service.ts";
 import { activity, answered, bold, CLI, command, dim, fail, models } from "./ui.ts";
 
 export interface SetupFlags {
@@ -43,7 +42,7 @@ const key = () => randomBytes(32).toString("hex");
 
 /** Whether any library exists under the data directory, which only the current data key opens. */
 function librariesExist(env: Env): boolean {
-  const users = join(env.EPHEMERA_DATA_DIR || DEFAULT_DATA_DIR, "users");
+  const users = join(dataDir(env), "users");
   return existsSync(users) && readdirSync(users).length > 0;
 }
 

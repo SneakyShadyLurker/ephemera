@@ -46,6 +46,8 @@ try {
   process.stderr.write("Ephemera is already starting.\n");
   process.exit(1);
 }
+// A request left for an earlier process with this PID is not for this one.
+rmSync(STOP_FILE, { force: true });
 
 function finish(code: number): never {
   if (readJson<RunState>(RUN_FILE)?.pid === process.pid) rmSync(RUN_FILE, { force: true });
