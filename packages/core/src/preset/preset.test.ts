@@ -6,6 +6,7 @@ import {
   DEFAULT_MAIN_PROMPT,
   DEFAULT_NOTE_PROMPT,
   DEFAULT_NPC_PROMPT,
+  DEFAULT_WORLD_PROMPT,
 } from "./defaults.ts";
 import { withoutHighlights } from "./highlight.ts";
 import {
@@ -253,6 +254,17 @@ describe("default prompt preset highlights", () => {
       "The cast register is every NPC's record: <cast> holds their fixed details and the Cast now line their current state.",
     );
     expect(DEFAULT_NPC_PROMPT).not.toContain("present block");
+  });
+
+  it("show a dressed body through its clothes, which may mislead until undressing", () => {
+    expect(DEFAULT_MAIN_PROMPT).toContain("a dressed body shows only what its clothes let through");
+    expect(DEFAULT_WORLD_PROMPT).toContain("Dressed, a body is what its outfit makes of it.");
+    expect(DEFAULT_WORLD_PROMPT).toContain("Clothes can lie");
+    expect(DEFAULT_WORLD_PROMPT).toContain("let undressing confirm or overturn the guess");
+    expect(DEFAULT_WORLD_PROMPT).toContain("unless a bra, binder or tight top holds them");
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "how they dress their figure (what they hide, flatter or fake)",
+    );
   });
 });
 
