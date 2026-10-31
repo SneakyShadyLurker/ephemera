@@ -35,6 +35,7 @@ import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
 import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
+  busyOf,
   CAST_TEXT_FIELDS,
   type CastChange,
   type CastRemoval,
@@ -190,9 +191,6 @@ const useMountedAt = (): number => useState(() => Date.now())[0];
 
 // ---------------------------------------------------------------------------
 // Status.
-
-const busyOf = (state: ChatState) =>
-  state.cast.status === "updating" || state.cast.status === "seeding";
 
 /** The status line's words; "" when there is nothing to say. An update says so beside "Cast". */
 function castStatusText(state: ChatState): string {

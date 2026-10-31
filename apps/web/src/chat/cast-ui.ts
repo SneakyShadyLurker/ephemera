@@ -7,7 +7,7 @@ import {
 } from "@ephemera/core";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { baseBefore, type ChatCast, currentRegister } from "./cast-slice.ts";
+import { baseBefore, type ChatCast, currentRegister, keeperTargetUncovered } from "./cast-slice.ts";
 import { chatStore, useChat } from "./session.ts";
 import { type ChatState, shownReply } from "./store.ts";
 
@@ -233,17 +233,25 @@ export const sheetWaiting = (state: ChatState): boolean =>
 /**
  * The panel shows with at least one introduced woman, present or away,
  * and, with nobody in it yet, while the first sheet waits for a model, is
- * read, or could not be.
+ * read, or could not be, or the keeper could not update the shown target
+ * and, after such a failure, while it tries again.
  */
 const castVisible = (state: ChatState): boolean => {
   const register = discoveredRegister(state);
+  const { cast } = state;
   return (
     listedEntries(register).length > 0 ||
-    (state.cast.sheetStatus === "loading" && register.entries.length === 0) ||
+    (cast.sheetStatus === "loading" && register.entries.length === 0) ||
     sheetWaiting(state) ||
-    sheetUnread(state)
+    sheetUnread(state) ||
+    ((cast.status === "failed" || (busyOf(state) && cast.failures > 0)) &&
+      keeperTargetUncovered(state))
   );
 };
+
+/** The keeper is at work: seeding the greeting or updating after a reply. */
+export const busyOf = (state: ChatState): boolean =>
+  state.cast.status === "updating" || state.cast.status === "seeding";
 
 /** Shown as `castVisible` says, and while a removal's line stands, the last woman's included. */
 export function useCastVisible(): boolean {

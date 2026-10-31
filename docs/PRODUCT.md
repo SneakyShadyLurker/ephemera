@@ -625,8 +625,8 @@ Version 1.0 holds everything below.
   painting scene's frame, and the record surface's header carries both. On
   phones the band shows only the light, so its names hold still, and the
   header's cast control breathes. Under reduced motion the words alone say
-  it, the band's included. A failure says so, with Try again, and the
-  fields the newest update changed wash briefly.
+  it, the band's included. A failure says so, with Try again, even before
+  anyone is listed, and the fields the newest update changed wash briefly.
 - The register, its snapshots and the corrections are chat content:
   Clear, a reload or leaving the page drops them with the chat.
 

@@ -215,8 +215,8 @@ function clampChange(value: unknown): unknown {
     continuity: (fields) =>
       clampKeys(fields, groundedClamps(Object.keys(castContinuitySchema.shape))),
     introduce: (item) => clampKeys(item, { evidence: (text) => clampText(text, L.field) }),
-    discovered: (fields) =>
-      clampKeys(
+    discovered: (fields) => {
+      const clamped = clampKeys(
         fields,
         Object.fromEntries(
           CAST_ANCHOR_FIELDS.map((key) => [
@@ -229,17 +229,31 @@ function clampChange(value: unknown): unknown {
               }),
           ]),
         ),
-      ),
+      );
+      if (!isRecord(clamped)) return clamped;
+      // An unusable discovery cannot establish player knowledge, but must not discard
+      // the NPC's valid anchor, introduction, state or other discoveries.
+      return Object.fromEntries(
+        Object.entries(clamped).filter(([, item]) => discoveryValue.safeParse(item).success),
+      );
+    },
   });
   if (isRecord(clamped) && clamped.was === "") delete clamped.was;
+  // An introduction without evidence cannot introduce anyone, but must not discard the NPC.
+  if (
+    isRecord(clamped) &&
+    "introduce" in clamped &&
+    !introduction.safeParse(clamped.introduce).success
+  )
+    delete clamped.introduce;
   return clamped;
 }
 
 /**
  * The keeper's answer, parsed from JSON, brought within `CAST_LIMITS` before
  * `castChangesSchema` reads it: strings cut, keys the schema does not name
- * dropped, blank names dropped, `cast` capped at `entries`. What it cannot
- * mend (a value of another type) still fails the schema.
+ * dropped, blank names and unusable introductions and discovery items dropped, `cast` capped
+ * at `entries`. Other values it cannot mend still fail the schema.
  */
 export const clampCastChanges = (value: unknown): unknown =>
   clampKeys(value, {

@@ -357,6 +357,42 @@ describe("the status line", () => {
     expect(status(panel())).toBe("Cast couldn&#x27;t update: the cast model is busy.");
   });
 
+  it.each(["float", "band"] as const)(
+    "shows the keeper failure and existing retry in the empty %s panel",
+    (placement) => {
+      chatStore.setState({
+        messages: [reply("m1", "r1")],
+        cast: {
+          ...EMPTY_CAST,
+          sheet: { fingerprint: "f".repeat(64), entries: [] },
+          status: "failed",
+          failure: "cast_failed",
+          failures: 1,
+        },
+      });
+      const out = inApp(<CastPanel placement={placement} />);
+      expect(status(out)).toBe("Cast couldn&#x27;t update.");
+      expect(out).toContain('aria-label="Try again to update the cast"');
+      expect(out).not.toContain("data-cast-entry");
+
+      // Try again keeps the panel up, so its progress shows where the button was.
+      chatStore.setState((state) => ({ cast: { ...state.cast, status: "updating" } }));
+      const retrying = inApp(<CastPanel placement={placement} />);
+      expect(retrying).toContain("Updating…");
+      expect(retrying).not.toContain("data-cast-entry");
+      chatStore.setState((state) => ({ cast: { ...state.cast, status: "failed" } }));
+
+      // A covered target must not resurrect a failure from a hidden reply.
+      chatStore.setState((state) => ({
+        cast: {
+          ...state.cast,
+          snapshots: { r1: { register: { entries: [] }, usage: null, at: 1 } },
+        },
+      }));
+      expect(inApp(<CastPanel placement={placement} />)).toBe("");
+    },
+  );
+
   it.each([
     ["complete", "length", "Partial"],
     ["complete", "content-filter", "Partial"],

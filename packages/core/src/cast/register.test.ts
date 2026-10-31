@@ -45,6 +45,47 @@ describe("clamping an owner's correction", () => {
 });
 
 describe("clamping the keeper's answer", () => {
+  it.each([
+    { value: "late twenties", evidence: "Ilse smiles" },
+    { value: "late twenties", basis: "inferred", evidence: "Ilse smiles" },
+    { value: "late twenties", basis: "seen", evidence: " " },
+    { value: 29, basis: "told", evidence: "Ilse smiles" },
+    null,
+  ])("drops an unusable discovery without losing the NPC: %j", (age) => {
+    const introduce = { evidence: "Ilse smiles" };
+    const hair = { value: "black hair", basis: "seen", evidence: "black hair" };
+    const parsed = castChangesSchema.parse(
+      clampCastChanges({
+        cast: {
+          Ilse: {
+            gender: "female",
+            anchor: { age: "29" },
+            introduce,
+            discovered: { age, hair },
+          },
+        },
+      }),
+    );
+    expect(parsed.cast.Ilse).toEqual({
+      gender: "female",
+      anchor: { age: "29" },
+      introduce,
+      discovered: { hair },
+    });
+  });
+
+  it.each([true, "Ilse smiles", { evidence: " " }, {}])(
+    "drops an unusable introduction without losing the NPC: %j",
+    (introduce) => {
+      const parsed = castChangesSchema.parse(
+        clampCastChanges({
+          cast: { Ilse: { gender: "female", anchor: { age: "29" }, introduce } },
+        }),
+      );
+      expect(parsed.cast.Ilse).toEqual({ gender: "female", anchor: { age: "29" } });
+    },
+  );
+
   it("keeps an answer with one overlong field and one unknown key", () => {
     const long = "word ".repeat(100);
     const answer = {
