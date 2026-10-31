@@ -18,11 +18,20 @@ import { parseEnv } from "node:util";
 import { DEFAULT_PORT } from "../../apps/server/src/config.ts";
 import { type Username, usernameSchema } from "../../apps/server/src/identity.ts";
 
+/** The code: a Git checkout, or one version of an installed copy. */
 export const ROOT = fileURLToPath(new URL("../..", import.meta.url));
-export const ENV_FILE = join(ROOT, ".env");
+/**
+ * Where this install keeps what is its own: `.env`, the data directory and
+ * the run state. The checkout itself unless `EPHEMERA_HOME` names a folder,
+ * as the Windows installer's does, so an update can replace the code alone.
+ */
+export const HOME_DIR = process.env.EPHEMERA_HOME || ROOT;
+export const ENV_FILE = join(HOME_DIR, ".env");
 export const ENV_EXAMPLE = join(ROOT, ".env.example");
 /** Run state of `./ephemera`: the running server and the build it serves. Git-ignored. */
-export const STATE_DIR = join(ROOT, ".ephemera");
+export const STATE_DIR = join(HOME_DIR, ".ephemera");
+/** The data directory unless `EPHEMERA_DATA_DIR` names another; the server's own default in a checkout. */
+export const DEFAULT_DATA_DIR = join(HOME_DIR, "data");
 
 /** The gateway's port unless `EPHEMERA_LOCAL_PORT` says otherwise. */
 export const DEFAULT_LOCAL_PORT = 8780;
@@ -111,6 +120,8 @@ export function writeEnvFile(text: string, path = ENV_FILE): void {
     closeSync(file);
   }
   renameSync(next, path);
+  // Windows cannot open a directory to sync it; NTFS journals the rename itself.
+  if (process.platform === "win32") return;
   const dir = openSync(dirname(path), "r");
   try {
     fsyncSync(dir);

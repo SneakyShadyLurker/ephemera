@@ -13,6 +13,7 @@ import { confirm, log, note, password, select, text } from "@clack/prompts";
 import { ConfigError, DEFAULT_PORT, loadConfig } from "../../apps/server/src/config.ts";
 import { usernameSchema } from "../../apps/server/src/identity.ts";
 import {
+  DEFAULT_DATA_DIR,
   DEFAULT_LOCAL_PORT,
   ENV_EXAMPLE,
   ENV_FILE,
@@ -21,7 +22,6 @@ import {
   effectiveEnv,
   LocalAccessError,
   localAccess,
-  ROOT,
   readEnvFile,
   withValues,
   writeEnvFile,
@@ -43,7 +43,7 @@ const key = () => randomBytes(32).toString("hex");
 
 /** Whether any library exists under the data directory, which only the current data key opens. */
 function librariesExist(env: Env): boolean {
-  const users = join(env.EPHEMERA_DATA_DIR || join(ROOT, "data"), "users");
+  const users = join(env.EPHEMERA_DATA_DIR || DEFAULT_DATA_DIR, "users");
   return existsSync(users) && readdirSync(users).length > 0;
 }
 

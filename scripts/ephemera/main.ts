@@ -4,11 +4,19 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { intro, log, note, outro } from "@clack/prompts";
 import { ConfigError, loadConfig } from "../../apps/server/src/config.ts";
 import { ENV_FILE, LocalAccessError, localAccess, ROOT, serverEnv } from "./env.ts";
 import { checkModels } from "./providers.ts";
+import {
+  downloadVersion,
+  installedCopy,
+  latestRevision,
+  removeOldVersions,
+  switchTo,
+} from "./release.ts";
 import {
   buildCommand,
   buildOutdated,
@@ -37,6 +45,7 @@ import {
   fail,
   models,
   openBrowser,
+  session,
   since,
   step,
   TITLE,
@@ -140,6 +149,7 @@ async function start(options: {
   const child = spawn(argv[0] as string, argv.slice(1), {
     cwd: ROOT,
     detached: true,
+    windowsHide: true,
     stdio: "ignore",
   });
   child.unref();
@@ -202,9 +212,78 @@ async function status(): Promise<void> {
   );
 }
 
+/**
+ * Updates an installed copy: the next version is downloaded, installed and
+ * built beside the running one, then made current while the server is
+ * stopped, and started from its own code.
+ */
+async function updateInstalledCopy(): Promise<void> {
+  const current = checkoutRevision();
+  let latest: string;
+  try {
+    latest = await latestRevision();
+  } catch (error) {
+    fail(
+      `${error instanceof Error ? error.message : "Checking for updates failed"}. Try again later.`,
+    );
+  }
+  if (latest === current && !buildOutdated()) {
+    log.success("Already up to date.");
+    return;
+  }
+  const fetching = activity();
+  fetching.start("Downloading the latest version");
+  let dir: string;
+  try {
+    dir = await downloadVersion(latest);
+  } catch (error) {
+    fetching.error(error instanceof Error ? error.message : "The download failed");
+    fail("Updating stopped; your copy is as it was.");
+  }
+  fetching.stop("Downloaded the latest version");
+  const installed = await step(
+    "Installing dependencies",
+    "Dependencies installed",
+    [process.execPath, "install", "--frozen-lockfile"],
+    process.env,
+    dir,
+  );
+  if (!installed) fail("Installing dependencies failed; your copy is as it was.");
+  const built = await step(
+    "Building the app",
+    "Built the app",
+    buildCommand(),
+    { ...process.env, EPHEMERA_BUILD_REVISION: latest },
+    join(dir, "apps", "web"),
+  );
+  if (!built) fail("The build failed; your copy is as it was.");
+  stageBuild(latest);
+  const wasRunning = running() !== undefined;
+  if (wasRunning) await stop();
+  installStagedBuild();
+  switchTo(dir);
+  removeOldVersions(dir);
+  log.success(`Updated to ${latest.slice(0, 7)}.`);
+  if (wasRunning) {
+    // Started by the new version's own code.
+    const restarted = Bun.spawn(
+      [
+        process.execPath,
+        "--no-env-file",
+        join(dir, "scripts", "ephemera", "main.ts"),
+        "start",
+        "--no-open",
+      ],
+      { stdio: ["inherit", "inherit", "inherit"] },
+    );
+    if ((await restarted.exited) !== 0) process.exit(1);
+  }
+}
+
 async function update(): Promise<void> {
   configured();
-  if (!existsSync(`${ROOT}/.git`))
+  if (installedCopy()) return updateInstalledCopy();
+  if (!existsSync(join(ROOT, ".git")))
     fail("This copy is not a Git checkout, so it cannot update itself.");
   const before = checkoutRevision() ?? "";
   const pulled = await step("Fetching the latest version", "Fetched the latest version", [
@@ -247,11 +326,14 @@ async function doctor(): Promise<boolean> {
     report(false, "No .env yet", `Run ${command("./ephemera setup")}.`);
     return false;
   }
-  report(
-    (statSync(ENV_FILE).mode & 0o077) === 0,
-    ".env is readable by you alone",
-    "It holds your keys: chmod 600 .env",
-  );
+  // Windows has no mode bits; .env sits in the user's own profile there.
+  if (process.platform !== "win32") {
+    report(
+      (statSync(ENV_FILE).mode & 0o077) === 0,
+      ".env is readable by you alone",
+      "It holds your keys: chmod 600 .env",
+    );
+  }
   const env = runEnv(serverEnv());
   let config: ReturnType<typeof loadConfig> | undefined;
   let access: ReturnType<typeof localAccess>;
@@ -319,10 +401,14 @@ const { positionals, values } = parseArgs({
     "no-start": { type: "boolean", default: false },
     foreground: { type: "boolean", default: false },
     "no-open": { type: "boolean", default: false },
+    // Windows shortcuts: keep the window open on an error, so it can be read.
+    pause: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
 });
 const [name = "help"] = positionals;
+
+session.pauseOnError = values.pause;
 
 if (values.help || name === "help") {
   process.stdout.write(HELP);

@@ -164,3 +164,7 @@ async function stop() {
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => void stop());
 }
+// `./ephemera` asks for the same stop over its IPC channel: Windows has no SIGTERM.
+process.on("message", (message) => {
+  if (message === "stop") void stop();
+});
