@@ -40,6 +40,7 @@ import {
   accent,
   activity,
   bold,
+  CLI,
   command,
   dim,
   fail,
@@ -53,7 +54,7 @@ import {
 
 const HELP = `${TITLE} ${dim("· your own roleplay server")}
 
-${bold("Usage")}  ./ephemera ${dim("<command> [options]")}
+${bold("Usage")}  ${CLI} ${dim("<command> [options]")}
 
 ${bold("Commands")}
   ${command("setup")}     Choose your model provider and write .env, then build
@@ -80,13 +81,13 @@ ${bold("Options")}
 /** The settings, valid, or the command ends saying what to fix. */
 function configured() {
   if (!existsSync(ENV_FILE))
-    fail(`Ephemera is not set up yet. Run ${command("./ephemera setup")} first.`);
+    fail(`Ephemera is not set up yet. Run ${command(`${CLI} setup`)} first.`);
   const env = runEnv(serverEnv());
   try {
     return { env, access: localAccess(env), config: loadConfig(env) };
   } catch (error) {
     if (error instanceof ConfigError || error instanceof LocalAccessError) {
-      fail(`${error.message}. Run ${command("./ephemera setup")} or edit .env.`);
+      fail(`${error.message}. Run ${command(`${CLI} setup`)} or edit .env.`);
     }
     throw error;
   }
@@ -126,7 +127,7 @@ async function start(options: {
   }
   if (!options.built && (await buildIfOutdated())) installStagedBuild();
   const ports = [
-    ...(access ? [[access.port, `pick another with ${command("./ephemera setup")}`] as const] : []),
+    ...(access ? [[access.port, `pick another with ${command(`${CLI} setup`)}`] as const] : []),
     [config.port, "set another EPHEMERA_PORT in .env"] as const,
   ];
   for (const [port, fix] of ports) {
@@ -159,7 +160,7 @@ async function start(options: {
     child.pid === undefined ? undefined : await waitUntilReady(child.pid, config.proxyKey);
   if (state === undefined) {
     progress.error("Ephemera did not start");
-    fail(`Run ${command("./ephemera start --foreground")} to see why.`);
+    fail(`Run ${command(`${CLI} start --foreground`)} to see why.`);
   }
   progress.stop(`Ephemera is running at ${accent(state.url)}`);
   if (state.local) {
@@ -180,11 +181,11 @@ async function stop(): Promise<boolean> {
   const outcome = await stopServer(state);
   if (outcome === "still-running") {
     progress.error("Ephemera is still saving");
-    fail(`Give it a moment, then run ${command("./ephemera status")}.`);
+    fail(`Give it a moment, then run ${command(`${CLI} status`)}.`);
   }
   if (outcome === "not-saved") {
     progress.error("Ephemera stopped, but it could not confirm every library was saved");
-    fail(`Run ${command("./ephemera start --foreground")} and stop it with Ctrl-C to see why.`);
+    fail(`Run ${command(`${CLI} start --foreground`)} and stop it with Ctrl-C to see why.`);
   }
   progress.stop("Stopped, every library saved");
   return true;
@@ -194,7 +195,7 @@ async function status(): Promise<void> {
   const { env, access, config } = configured();
   const state = running();
   if (state === undefined) {
-    log.warn(`Stopped. Start it with ${command("./ephemera start")}.`);
+    log.warn(`Stopped. Start it with ${command(`${CLI} start`)}.`);
     return;
   }
   const ok = await healthy(state, config.proxyKey);
@@ -323,7 +324,7 @@ async function doctor(): Promise<boolean> {
   };
   report(true, `Bun ${Bun.version}`);
   if (!existsSync(ENV_FILE)) {
-    report(false, "No .env yet", `Run ${command("./ephemera setup")}.`);
+    report(false, "No .env yet", `Run ${command(`${CLI} setup`)}.`);
     return false;
   }
   // Windows has no mode bits; .env sits in the user's own profile there.
@@ -345,7 +346,7 @@ async function doctor(): Promise<boolean> {
     report(
       false,
       error instanceof Error ? error.message : "Settings are invalid",
-      `Run ${command("./ephemera setup")}.`,
+      `Run ${command(`${CLI} setup`)}.`,
     );
   }
   if (checkoutRevision() === undefined) {
@@ -354,7 +355,7 @@ async function doctor(): Promise<boolean> {
     report(
       !buildOutdated(),
       "The app is built for this version",
-      `${command("./ephemera start")} builds it.`,
+      `${command(`${CLI} start`)} builds it.`,
     );
   }
   if (env.EPHEMERA_UPSTREAM_BASE_URL) {
@@ -375,7 +376,7 @@ async function doctor(): Promise<boolean> {
     report(
       await healthy(state, config.proxyKey),
       `Running at ${state.url}`,
-      `Try ${command("./ephemera restart")}.`,
+      `Try ${command(`${CLI} restart`)}.`,
     );
   } else if (config) {
     for (const port of [...(access ? [access.port] : []), config.port]) {
@@ -437,16 +438,14 @@ switch (name) {
       if (staged) installStagedBuild();
       if (startNow && !values["no-start"]) {
         await start({ foreground: false, open: interactive, built: staged });
-      } else log.info(`Start it any time with ${command("./ephemera start")}.`);
+      } else log.info(`Start it any time with ${command(`${CLI} start`)}.`);
     }
     outro("You're all set.");
     break;
   }
   case "start":
     await start({ foreground: values.foreground, open: !values["no-open"] });
-    outro(
-      `${command("./ephemera stop")} stops it; ${command("./ephemera status")} shows how it is.`,
-    );
+    outro(`${command(`${CLI} stop`)} stops it; ${command(`${CLI} status`)} shows how it is.`);
     break;
   case "stop":
     await stop();
@@ -464,7 +463,7 @@ switch (name) {
   case "open": {
     const state = running();
     if (state === undefined)
-      fail(`Ephemera is not running. Start it with ${command("./ephemera start")}.`);
+      fail(`Ephemera is not running. Start it with ${command(`${CLI} start`)}.`);
     if (!openBrowser(state.url)) log.info(`Open ${accent(state.url)} in your browser.`);
     outro("");
     break;
@@ -480,5 +479,5 @@ switch (name) {
     break;
   }
   default:
-    fail(`There is no command "${name}". Run ${command("./ephemera help")} to see them.`);
+    fail(`There is no command "${name}". Run ${command(`${CLI} help`)} to see them.`);
 }
