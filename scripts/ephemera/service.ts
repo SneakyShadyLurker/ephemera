@@ -5,9 +5,9 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PROXY_KEY_HEADER } from "../../apps/server/src/boundary.ts";
-import { DEFAULT_DATA_DIR, type Env, localAccess, ROOT, STATE_DIR } from "./env.ts";
+import { DEFAULT_DATA_DIR, type Env, HOME_DIR, localAccess, ROOT, STATE_DIR } from "./env.ts";
 
 export const SERVER_ENTRY = join(ROOT, "apps/server/src/index.ts");
 export const SERVE_ENTRY = join(ROOT, "scripts/ephemera/serve.ts");
@@ -104,6 +104,14 @@ export function installStagedBuild(): void {
 }
 
 /**
+ * The data directory, a relative one read from the install's home: the
+ * server's working directory is a version folder an update removes.
+ */
+export function dataDir(env: Env): string {
+  return env.EPHEMERA_DATA_DIR ? resolve(HOME_DIR, env.EPHEMERA_DATA_DIR) : DEFAULT_DATA_DIR;
+}
+
+/**
  * The server's environment under `./ephemera`: the built app, the build's
  * revision (so an open tab offers a reload after an update) and, for a local
  * install, the gateway's origin and a loopback-only server behind it.
@@ -113,7 +121,7 @@ export function runEnv(env: Env): Env {
   const revision = builtRevision();
   return {
     ...env,
-    EPHEMERA_DATA_DIR: env.EPHEMERA_DATA_DIR || DEFAULT_DATA_DIR,
+    EPHEMERA_DATA_DIR: dataDir(env),
     EPHEMERA_STATIC_DIR: STATIC_DIR,
     ...(revision !== undefined && { EPHEMERA_BUILD_REVISION: revision }),
     ...(access && { EPHEMERA_ORIGIN: access.origin, EPHEMERA_HOST: "127.0.0.1" }),
@@ -130,12 +138,14 @@ function commandLine(pid: number): string | undefined {
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`,
+            // UTF-8, so a profile path such as C:\Users\Jürgen reads back as written.
+            `[Console]::OutputEncoding = [Text.Encoding]::UTF8; (Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`,
           ],
           { encoding: "utf8", windowsHide: true },
         )
       : spawnSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
-  return result.status === 0 ? result.stdout.replaceAll('"', "").trim() : undefined;
+  if (result.status !== 0) return undefined;
+  return (process.platform === "win32" ? result.stdout.replaceAll('"', "") : result.stdout).trim();
 }
 
 /** PIDs already seen running serve.ts: Windows answers the command line slowly. */
@@ -228,8 +238,16 @@ export async function stopServer(state: RunState, timeoutMs = 30_000): Promise<S
     const exit = readJson<ExitState>(EXIT_FILE);
     return exit?.pid === state.pid && exit.code === 0 ? "saved" : "not-saved";
   };
-  // A request file rather than a signal, which on Windows would end it at once.
+  // A request file, since a signal would end it at once on Windows; elsewhere
+  // SIGTERM too, which a serve.ts from before the request file also heeds.
   writeFileSync(STOP_FILE, `${JSON.stringify({ pid: state.pid })}\n`);
+  if (process.platform !== "win32") {
+    try {
+      process.kill(state.pid, "SIGTERM");
+    } catch {
+      return outcome();
+    }
+  }
   if (!alive(state.pid)) return outcome();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

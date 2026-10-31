@@ -2626,9 +2626,10 @@ behind the local gateway, or behind the operator's own proxy. The launcher
 installs Bun when it is missing and the dependencies from `bun.lock` once;
 every command reads `.env` itself (Bun's automatic `.env` loading is off),
 with its values over the shell's, an empty one included. `.env`, the data
-directory (unless `EPHEMERA_DATA_DIR` names another) and the run state in
-`.ephemera/` live in the install's home: the checkout, or the folder
-`EPHEMERA_HOME` names.
+directory (unless `EPHEMERA_DATA_DIR` names another; a relative one is read
+from the home, never from a version folder an update removes) and the run
+state in `.ephemera/` live in the install's home: the checkout, or the
+folder `EPHEMERA_HOME` names.
 
 - `setup` writes `.env` from `.env.example`, atomically (a crash leaves the
   old file or the new one) and owner-only. It keeps a proxy key and data
@@ -2661,7 +2662,9 @@ directory (unless `EPHEMERA_DATA_DIR` names another) and the run state in
   terminal's hangup or Ctrl-C reaches `serve.ts` alone, which turns it into
   the server's orderly shutdown, asked over IPC, and waits for it. `stop`
   asks `serve.ts` through `.ephemera/stop.json`, naming its PID, which it
-  looks for every 300 ms, since a signal would end it at once on Windows.
+  looks for every 300 ms (a signal would end it at once on Windows), and
+  elsewhere sends SIGTERM as well; `serve.ts` clears a request left for an
+  earlier process when it starts.
   It records the
   server's exit status in `.ephemera/exit.json` once the gateway has handed
   over the last replies (5 s at most); `stop` reports saved only on that
@@ -2698,16 +2701,23 @@ directory (unless `EPHEMERA_DATA_DIR` names another) and the run state in
   Git), unpacks it into `app-<commit>` with the system's `tar.exe`, records
   the commit in its `REVISION` file and names the folder in `current`. A
   shim `ephemera.cmd` in the home sets `EPHEMERA_HOME` and runs the current
-  version's launcher; the home joins the user's `Path`. Start menu and
+  version's launcher; the home joins the user's `Path`, read and written
+  raw in the registry so entries such as `%USERPROFILE%\...` stay
+  expandable. Start menu and
   desktop shortcuts run `start --pause` (an error waits for Enter, so the
   window can be read), an optional Startup shortcut `start --no-open`; then
-  it runs `setup`. Run again, it updates (or finishes a setup that never
-  wrote `.env`). `update` in an installed copy (`scripts/ephemera/release.ts`)
+  it runs `setup`. Its steps throw rather than exit, so under `iex` the
+  user's window stays open. Run again, it makes the shim, `Path` entry and
+  shortcuts anew, so an interrupted install is repaired, then updates (or
+  finishes a setup that never wrote `.env`). `update` in an installed copy (`scripts/ephemera/release.ts`)
   asks GitHub for the newest commit, downloads and unpacks it beside the
   running version, installs its dependencies and builds it from its own
   code, then stops the server, swaps the build in, names the new folder in
-  `current`, removes versions but the new and the previous one, and starts
-  again from the new code, so no folder a running program holds is renamed.
+  `current`, removes versions but the new and the previous one (only
+  `app-<commit>` folders and their partial downloads), and starts again from
+  the new code, so no folder a running program holds is renamed. When the
+  newest commit is the running one and only its build is missing, it
+  rebuilds from that code instead.
   `EPHEMERA_REF` names another branch for testing. Windows has no mode
   bits: the home lies in the user's own profile, which other accounts
   cannot read by default, and `doctor` skips the `.env` mode check.

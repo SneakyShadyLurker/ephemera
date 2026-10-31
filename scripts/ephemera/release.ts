@@ -7,14 +7,17 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { HOME_DIR, ROOT } from "./env.ts";
 import { REVISION_FILE } from "./service.ts";
 
 export const REPOSITORY = "SneakyShadyLurker/ephemera";
 export const CURRENT_FILE = join(HOME_DIR, "current");
-const VERSION_PREFIX = "app-";
 const COMMIT = /^[0-9a-f]{40}$/;
+/** A folder the installer or an update made, and nothing else in the home. */
+const VERSION_FOLDER = /^app-[0-9a-f]{40}(\.partial(\.tar\.gz)?)?$/;
+
+export const isVersionFolder = (name: string) => VERSION_FOLDER.test(name);
 
 /** Whether this code is a version of an installed copy rather than a Git checkout. */
 export function installedCopy(): boolean {
@@ -47,7 +50,9 @@ function tar(): string {
 
 /** Downloads and unpacks a version beside the others; returns its folder. */
 export async function downloadVersion(revision: string): Promise<string> {
-  const dir = join(HOME_DIR, `${VERSION_PREFIX}${revision}`);
+  const dir = join(HOME_DIR, `app-${revision}`);
+  // The running version is never replaced in place.
+  if (resolve(dir) === resolve(ROOT)) throw new Error("That version is the one running");
   const partial = `${dir}.partial`;
   const archive = `${partial}.tar.gz`;
   rmSync(partial, { recursive: true, force: true });
@@ -83,7 +88,7 @@ export function switchTo(dir: string): void {
 export function removeOldVersions(current: string): void {
   const keep = new Set([basename(current), basename(ROOT)]);
   for (const name of readdirSync(HOME_DIR)) {
-    if (!name.startsWith(VERSION_PREFIX) || keep.has(name)) continue;
+    if (!isVersionFolder(name) || keep.has(name)) continue;
     try {
       rmSync(join(HOME_DIR, name), { recursive: true, force: true, maxRetries: 2 });
     } catch {
