@@ -285,7 +285,8 @@ Version 1.0 holds everything below.
   they are all it holds. A set outfit or list of garments in a
   character's lasting text (description, personality, overrides, the
   Character's Note and lorebook entries) becomes the general style or
-  habit of dress it shows, its lorebook keywords kept, while what someone
+  habit of dress it shows, an entry keyword naming the outfit following it
+  (one the card cannot change keeps it, and the summary says so), while what someone
   wears in an opening's scene stays; an attached portrait's clothing never
   enters the card. A single subject
   is called `{{char}}` in the card's text, everyone else by name. Speech
