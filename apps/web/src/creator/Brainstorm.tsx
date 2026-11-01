@@ -16,6 +16,8 @@ import {
   useState,
 } from "react";
 import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
+import { PANEL_OUT } from "@/app/motion.tsx";
+import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { CheckIcon, IdeasIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { ideasAlert, ideasStatus, RETRY_NOTE } from "./brainstorm-notes.ts";
+import { FrameDrift } from "./CardLayout.tsx";
 import { COLUMN, KINDS, leaveBrainstorm } from "./Choose.tsx";
 import { useModelChoice } from "./Describe.tsx";
 import { ReasoningSelect, useEffortChoice } from "./ReasoningSelect.tsx";
@@ -56,7 +59,9 @@ const same = (a: BrainstormOption | undefined, b: BrainstormOption | undefined) 
  * The rows on show: the first `shown` ideas of `fresh` (the round being
  * written, or the list once settled), then the previous list `before`
  * dimmed where it still stands, then ghosts up to ten while a round runs.
- * A row keeps its key, its pitch's, from the dimmed list through the result.
+ * A row's key is its place and its pitch: a kept idea keeps its row from the
+ * dimmed list through the result, and any other idea arrives in its place,
+ * even one the model moved there from another.
  */
 export function ideaRows({
   before,
@@ -70,13 +75,6 @@ export function ideaRows({
   running: boolean;
 }): IdeaRow[] {
   const count = running ? Math.max(CREATOR_LIMITS.brainstormOptions, fresh.length) : fresh.length;
-  const used = new Set<string>();
-  // A pitch moved to another place would give two rows its key for a moment.
-  const unique = (key: string, index: number) => {
-    const free = used.has(key) ? `${key}~${index}` : key;
-    used.add(free);
-    return free;
-  };
   return Array.from({ length: count }, (_, index): IdeaRow => {
     const n = index + 1;
     const old = before[index];
@@ -84,7 +82,7 @@ export function ideaRows({
     if (now !== undefined) {
       const kept = same(old, now);
       return {
-        key: unique(pitchKey(now.pitch), index),
+        key: `${index}:${pitchKey(now.pitch)}`,
         n,
         state: kept ? "kept" : "new",
         pitch: now.pitch,
@@ -93,7 +91,7 @@ export function ideaRows({
     }
     if (old !== undefined) {
       return {
-        key: unique(pitchKey(old.pitch), index),
+        key: `${index}:${pitchKey(old.pitch)}`,
         n,
         state: "dim",
         pitch: old.pitch,
@@ -135,9 +133,17 @@ export function focusAfterRound({
 }
 
 /**
+ * How long the last row takes to land, its rise and the old idea's fade
+ * under it, before the rows turn into buttons and could cut either short.
+ */
+const LAND_MS = PANEL_OUT * 1000;
+
+/**
  * Reveals the list row by row, at least `REVEAL_GAP_MS` apart, from the
  * round's start to its last idea, past the result if the lines came in a
- * burst. The list on show when a round starts is the one it dims.
+ * burst, then lets the last row land. The list on show when a round starts
+ * is the one it dims. `edge` is the row the next idea arrives in while the
+ * round runs.
  */
 function useReveal(options: BrainstormOption[], incoming: BrainstormOption[], running: boolean) {
   const fresh = running ? incoming : options;
@@ -145,18 +151,21 @@ function useReveal(options: BrainstormOption[], incoming: BrainstormOption[], ru
     running,
     before: options,
     shown: running ? 0 : options.length,
+    landed: !running,
   }));
   let current = reveal;
   if (reveal.running !== running || reveal.shown > fresh.length) {
     // A round starting dims the list on show; a retry starts its list again.
+    const starting = running && !reveal.running;
     current = {
       running,
-      before: running && !reveal.running ? options : reveal.before,
-      shown: running && !reveal.running ? 0 : Math.min(reveal.shown, fresh.length),
+      before: starting ? options : reveal.before,
+      shown: starting ? 0 : Math.min(reveal.shown, fresh.length),
+      landed: !starting && reveal.landed,
     };
     setReveal(current);
   }
-  const { before, shown } = current;
+  const { before, shown, landed } = current;
 
   useEffect(() => {
     if (shown >= fresh.length) return;
@@ -168,11 +177,23 @@ function useReveal(options: BrainstormOption[], incoming: BrainstormOption[], ru
     return () => clearTimeout(timer);
   }, [shown, fresh]);
 
+  const landing = !running && shown >= fresh.length && !landed;
+  useEffect(() => {
+    if (!landing) return;
+    const timer = setTimeout(() => setReveal((state) => ({ ...state, landed: true })), LAND_MS);
+    return () => clearTimeout(timer);
+  }, [landing]);
+
+  const rows = ideaRows({ before, fresh, shown, running });
   return {
-    rows: ideaRows({ before, fresh, shown, running }),
-    busy: running || shown < fresh.length,
+    rows,
+    busy: running || shown < fresh.length || !landed,
+    edge: running && shown < rows.length ? shown : null,
   };
 }
+
+/** Room above the list when a round brings it into view: its status line. */
+const LIST_HEADROOM = 48;
 
 /** Placeholder bar widths, varied by row so the column reads as ideas to come, not a form. */
 const GHOST_WIDTHS = [
@@ -181,23 +202,28 @@ const GHOST_WIDTHS = [
   ["88%", "66%"],
 ] as const;
 
-/** A row's number and pitch, on one grid line; the pitch wraps. */
-const ROW = "-mx-2 grid grid-cols-[2rem_minmax(0,1fr)_1rem] gap-x-3 rounded-md px-2 py-3";
+/** A row's number and pitch, on one grid line, over the row's wash; the pitch wraps. */
+const ROW = "relative -mx-2 grid grid-cols-[2rem_minmax(0,1fr)_1rem] gap-x-3 rounded-md px-2 py-3";
 
 /**
  * The ten ideas, numbered as feedback refers to them. While a round runs a
  * row is text; once settled it is a button that opens the idea in Describe,
- * the picked one marked.
+ * the picked one marked. The row the next idea arrives in (`edge`) carries
+ * the lamp's light along its lower edge; an idea that replaced an earlier
+ * one arrives on the dusk wash an AI rewrite leaves (styles.css `settle`),
+ * where a kept one only brightens.
  */
 export function IdeaList({
   rows,
   busy,
+  edge = null,
   picked,
   onPick,
   listRef,
 }: {
   rows: IdeaRow[];
   busy: boolean;
+  edge?: number | null;
   picked: number | null;
   onPick: (index: number) => void;
   listRef?: RefObject<HTMLOListElement | null>;
@@ -209,6 +235,13 @@ export function IdeaList({
           key={row.key}
           className={cn("relative border-rush border-t", row.state === "new" && "arrive")}
         >
+          {row.state === "new" && row.gone !== null && (
+            <span
+              aria-hidden="true"
+              data-rework-wash=""
+              className="pointer-events-none absolute -inset-x-2 inset-y-0 animate-[settle_var(--duration-settle)_var(--ease-fade)_both] rounded-md bg-(--dusk-wash)"
+            />
+          )}
           {row.state === "ghost" ? (
             <div aria-hidden="true" className={cn(ROW, "min-h-[calc(2*1.75rem+1.5rem)]")}>
               <RowNumber n={row.n} />
@@ -246,6 +279,7 @@ export function IdeaList({
               {picked === index && <CheckIcon size={16} className="mt-1.5 text-ink" />}
             </button>
           )}
+          {edge === index && <FrameDrift />}
         </li>
       ))}
     </ol>
@@ -279,7 +313,8 @@ function Pitch({
       <span
         className={cn(
           "block text-pretty text-story-phone transition-[color,opacity] duration-(--duration-quick) ease-fade",
-          dim ? "text-reed opacity-70" : "text-ink",
+          // A list being replaced fades to dim as the round starts.
+          dim ? "text-reed opacity-70 starting:text-ink starting:opacity-100" : "text-ink",
         )}
       >
         {children}
@@ -469,12 +504,14 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
     session;
   const asking = status === "idle";
   const running = status === "classifying" || status === "writing" || status === "waiting";
-  const { rows, busy } = useReveal(options, incoming, running);
+  const { rows, busy, edge } = useReveal(options, incoming, running);
   const alert = status === "failed" ? ideasAlert(failure) : null;
+  const statusLine = ideasStatus(session);
   const list = useRef<HTMLOListElement>(null);
   const alertRef = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
   const feedbackId = useId();
+  const still = useReducedMotion();
 
   // Back from Describe, the list is where it was and focus on the idea that was picked.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only on arrival.
@@ -485,6 +522,17 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
       ?.querySelector<HTMLElement>('[aria-current="true"]')
       ?.focus({ preventScroll: true });
   }, []);
+
+  // A round sent from below the list, as feedback is, brings the list's top and its status line
+  // into view, so every row is seen changing; a list already in view stays where it is.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only as a round starts.
+  useEffect(() => {
+    const view = scroller.current;
+    const top = list.current?.getBoundingClientRect().top;
+    if (!running || view === null || top === undefined) return;
+    const above = top - view.getBoundingClientRect().top - LIST_HEADROOM;
+    if (above < 0) view.scrollBy({ top: above, behavior: still ? "instant" : "smooth" });
+  }, [running]);
 
   // A round that settled while focus was lost with the Stop bar hands it to the list, or the alert.
   const wasBusy = useRef(busy);
@@ -580,7 +628,15 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
         role="status"
         className={asking ? "sr-only" : "-mb-2 text-note text-reed empty:-mt-5 empty:mb-0"}
       >
-        {ideasStatus(session)}
+        {/* Each new line fades in; none at all keeps the paragraph :empty. */}
+        {statusLine !== "" && (
+          <span
+            key={statusLine}
+            className="transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+          >
+            {statusLine}
+          </span>
+        )}
       </p>
       {!asking && retried && running && (
         <p className="-mt-3 text-note text-reed arrive">{RETRY_NOTE}</p>
@@ -600,6 +656,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
           listRef={list}
           rows={rows}
           busy={busy}
+          edge={status === "waiting" ? null : edge}
           picked={picked}
           onPick={(index) => inTransition(() => pickIdea(index, scroller.current?.scrollTop ?? 0))}
         />
