@@ -136,6 +136,18 @@ Version 1.0 holds everything below.
     fewest tokens: fragments and `label: value` lines, no filler, word
     limits as ceilings. Only the opening, the pitch, quoted speech and the
     `<Tone>` sample are full sentences.
+- Brainstorm, a fourth tile beside the kinds, turns a mood or a few words
+  into ideas: the model reads the request as one of the three kinds and
+  writes ten ideas of it, each a one-line pitch with a brief behind it,
+  filling in row by row as they arrive. Stop keeps what arrived. Another
+  kind brings ten of that kind; feedback such as "keep 3 and 7, make the
+  rest darker" brings a fresh ten that repeats the ideas it keeps, with
+  the last three lists and what was said about each as context. Picking
+  an idea opens Describe of its kind with the brief as the description,
+  editable; Back to ideas returns to the list and remembers the edit. A
+  short list, a failure or a request of no clear kind says so, and a
+  failed round leaves the list before it. Going back to the tiles keeps
+  the session, unsent text included.
 - The card fills in as the model writes, and Stop ends it. A finished card
   also has an opening (a `> Location:` line, an empty line and one
   sentence, set in that shape even when the model strays): on a Subject
@@ -230,7 +242,11 @@ Version 1.0 holds everything below.
   portrait after it. The description, the card, a direction for new art,
   the image prompt and the four portraits live in the open tab, and in the server for one request.
   The description survives Discard and a visit to Settings; a reload,
-  closing the tab or Keep clears it.
+  closing the tab or Keep clears it. A brainstorm's request, the feedback
+  on its ideas and the ideas themselves, unsent text included, live the
+  same way: Discard keeps them, while leaving the screen, a reload or
+  closing the tab drops them for good. A picked idea's brief becomes the
+  description and follows its rule.
 - From [Atelier](https://github.com/SneakyShadyLurker/atelier-studio), an optional image generation service Ephemera supports, a
   generated image can be turned into a Subject, Multiple
   Subjects or Scenario card in one click (Subject unless Atelier asks for

@@ -1,6 +1,6 @@
 import { ART_STREAM_TYPE, creatorCardEventSchema, encodeArtFrame } from "@ephemera/core";
-import { describe, expect, it } from "vitest";
-import { artEvents, CreatorStreamError, readEvents } from "./stream.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { artEvents, CreatorStreamError, readEvents, streamBrainstorm } from "./stream.ts";
 
 /** A body that arrives in exactly these pieces. */
 function body(...pieces: string[]): ReadableStream<Uint8Array> {
@@ -140,5 +140,62 @@ describe("readEvents", () => {
   it("fails on a line that is not JSON and on a body cut mid-line", async () => {
     await expect(read(body("not json\n"))).rejects.toBeInstanceOf(CreatorStreamError);
     await expect(read(body('{"type":"delta","te'))).rejects.toBeInstanceOf(CreatorStreamError);
+  });
+});
+
+describe("streamBrainstorm", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("posts the round and decodes its events", async () => {
+    const sent: { url: string; method: string; body: unknown }[] = [];
+    const option = { pitch: "A night porter.", brief: "A placeholder brief." };
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(new URL(String(input), "http://ephemera.test"), init);
+      sent.push({ url: request.url, method: request.method, body: await request.json() });
+      return new Response(
+        [
+          '{"type":"kind","kind":"scenario"}',
+          '{"type":"thinking"}',
+          JSON.stringify({ type: "option", index: 0, option }),
+          '{"type":"retry"}',
+          JSON.stringify({ type: "result", options: [option] }),
+          "",
+        ].join("\n"),
+        { headers: { "Content-Type": "application/x-ndjson" } },
+      );
+    });
+    const request = { description: "A mood", rounds: [], model: "model-a" };
+    const seen = [];
+    for await (const event of await streamBrainstorm(request, new AbortController().signal))
+      seen.push(event);
+    expect(sent).toHaveLength(1);
+    expect(new URL(sent[0]?.url ?? "").pathname).toBe("/api/creator/brainstorm");
+    expect(sent[0]).toMatchObject({ method: "POST", body: request });
+    expect(seen).toEqual([
+      { type: "kind", kind: "scenario" },
+      { type: "thinking" },
+      { type: "option", index: 0, option },
+      { type: "retry" },
+      { type: "result", options: [option] },
+    ]);
+  });
+
+  it("refuses an option event past the tenth place", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(
+          `${JSON.stringify({ type: "option", index: 10, option: { pitch: "p", brief: "b" } })}\n`,
+        ),
+    );
+    const read = async () => {
+      for await (const _ of await streamBrainstorm(
+        { description: "A mood", rounds: [], model: "model-a" },
+        new AbortController().signal,
+      )) {
+        /* consume */
+      }
+    };
+    await expect(read()).rejects.toBeInstanceOf(CreatorStreamError);
   });
 });

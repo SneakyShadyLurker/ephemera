@@ -49,7 +49,7 @@ export interface MockRecord extends UpstreamRecord {
   /** The first image part's data URL (the image as the server re-encoded it); null without one. */
   imageData: string | null;
   /**
-   * The card text a card call has flushed to the socket so far, or the whole
+   * The text a card or brainstorm call has flushed to the socket so far, or the whole
    * answer a memory, chapter, opening, cast or cast sheet call was given;
    * null for other calls.
    */

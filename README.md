@@ -50,9 +50,10 @@ chats are with the bundled example character, Friday Abbams.
 ## Highlights
 
 ### ✦ Create with AI
-Describe a character, a group or a whole scenario in a few words. The model
-writes a complete card, consistent with the persona you play, and paints
-portrait candidates when an image backend is connected.
+Describe a character, a group or a whole scenario in a few words, or let it
+brainstorm ten ideas from a mood and pick one. The model writes a complete
+card, consistent with the persona you play, and paints portrait candidates
+when an image backend is connected.
 
 <p align="center">
   <img src="docs/images/create-with-ai.png" alt="Create with AI: a new card for Lenore Hetch, written from two sentences, with a summary, an opening scene and sections for background, appearance, personality and voice">

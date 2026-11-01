@@ -42,6 +42,44 @@ export const creatorCardRequestSchema = z.strictObject({
 });
 export type CreatorCardRequest = z.infer<typeof creatorCardRequestSchema>;
 
+/*
+ * A brainstorm's request, the feedback on its ideas and the ideas themselves
+ * are creation drafts too: the tab's memory and one server request. A pitch,
+ * a brief and the feedback share the description's bound, since a brief
+ * becomes a card request's description; past it a value is invalid, never cut.
+ */
+
+/** One idea: the pitch the player reads to choose, and the brief Describe is prefilled with. */
+export const brainstormOptionSchema = z.strictObject({
+  pitch: z.string().trim().min(1).max(C.descriptionLength),
+  brief: z.string().trim().min(1).max(C.descriptionLength),
+});
+export type BrainstormOption = z.infer<typeof brainstormOptionSchema>;
+
+/** One earlier list and what the player said after it; no feedback for a kind switch or a plain "new ideas". */
+export const brainstormRoundSchema = z.strictObject({
+  kind: creatorKindSchema,
+  options: z.array(brainstormOptionSchema).min(1).max(C.brainstormOptions),
+  feedback: z.string().trim().min(1).max(C.descriptionLength).optional(),
+});
+export type BrainstormRound = z.infer<typeof brainstormRoundSchema>;
+
+/** `POST /api/creator/brainstorm`: ten ideas for the request; the kind is classified first when absent. */
+export const creatorBrainstormRequestSchema = z
+  .strictObject({
+    description: z.string().trim().min(1).max(C.descriptionLength),
+    /** The kind to brainstorm; absent, the server classifies the request first. Required with rounds. */
+    kind: creatorKindSchema.optional(),
+    /** Earlier real lists, oldest first, each with what followed it. */
+    rounds: z.array(brainstormRoundSchema).max(C.brainstormRounds),
+    model: modelIdSchema,
+    reasoning: creatorReasoningSchema,
+  })
+  .refine((request) => request.kind !== undefined || request.rounds.length === 0, {
+    path: ["kind"],
+  });
+export type CreatorBrainstormRequest = z.infer<typeof creatorBrainstormRequestSchema>;
+
 /** `POST /api/creator/art`: write an image prompt from the art source, then paint it. */
 export const creatorArtRequestSchema = z.strictObject({
   kind: creatorKindSchema,
@@ -230,6 +268,50 @@ export const creatorCardEventSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type CreatorCardEvent = z.infer<typeof creatorCardEventSchema>;
+
+/** Why a brainstorm stopped; content-free, the web app explains each one. */
+const creatorBrainstormErrorCodeSchema = z.enum([
+  ...creatorCardErrorCodeSchema.options,
+  /** The classifier named none of the three kinds. */
+  "kind_unclear",
+  /** No usable idea after the one retry. */
+  "unusable",
+]);
+export type CreatorBrainstormErrorCode = z.infer<typeof creatorBrainstormErrorCodeSchema>;
+
+/**
+ * One event of the brainstorm stream: the kind a classified request was read
+ * as, ideas as their lines complete, then one result, or an error.
+ * `thinking` carries nothing of the reasoning. `retry` says the first answer
+ * held fewer than ten usable ideas: the list is written again from the start.
+ */
+export const creatorBrainstormEventSchema = z.discriminatedUnion("type", [
+  /** The kind the request was read as (classified rounds only). */
+  z.strictObject({ type: z.literal("kind"), kind: creatorKindSchema }),
+  z.strictObject({ type: z.literal("thinking") }),
+  /** One idea as its line completed; `index` is its place in the list being written. */
+  z.strictObject({
+    type: z.literal("option"),
+    index: z
+      .int()
+      .min(0)
+      .max(C.brainstormOptions - 1),
+    option: brainstormOptionSchema,
+  }),
+  z.strictObject({ type: z.literal("retry") }),
+  /** The list as validated: ten, or the best attempt's fewer. */
+  z.strictObject({
+    type: z.literal("result"),
+    options: z.array(brainstormOptionSchema).min(1).max(C.brainstormOptions),
+  }),
+  z.strictObject({
+    type: z.literal("error"),
+    code: creatorBrainstormErrorCodeSchema,
+    /** With `upstream_busy`, when the provider said how long to wait. */
+    retryAfterS: retryAfterSchema.exactOptional(),
+  }),
+]);
+export type CreatorBrainstormEvent = z.infer<typeof creatorBrainstormEventSchema>;
 
 /** Why an image card request stopped; content-free, the caller maps each one. */
 const creatorImageCardErrorCodeSchema = z.enum([

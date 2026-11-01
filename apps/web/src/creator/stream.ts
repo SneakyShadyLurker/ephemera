@@ -3,10 +3,13 @@ import {
   type ComfyuiWorkflowOption,
   type CreatorArtRequest,
   type CreatorArtStatus,
+  type CreatorBrainstormEvent,
+  type CreatorBrainstormRequest,
   type CreatorCardEvent,
   type CreatorCardRequest,
   creatorArtStatusSchema,
   creatorArtWorkflowsSchema,
+  creatorBrainstormEventSchema,
   creatorCardEventSchema,
   decodeArtFrames,
 } from "@ephemera/core";
@@ -14,8 +17,9 @@ import type { z } from "zod";
 import { api } from "../api.ts";
 
 /*
- * The creator's card and art streams (PRINCIPLES.md 1): the description goes
- * out, the card and the portraits come back, and nothing here keeps either.
+ * The creator's card, brainstorm and art streams (PRINCIPLES.md 1): the
+ * description or the brainstorm request goes out, the card, the ideas and the
+ * portraits come back, and nothing here keeps any of them.
  * Every request goes through the API client's one fetch owner, which throws
  * `SignedOut` when the sign-in redirect answers instead of Ephemera.
  */
@@ -94,6 +98,15 @@ export async function streamCard(
 ): Promise<AsyncGenerator<CreatorCardEvent>> {
   const response = await api.creator.card.$post({ json: request }, { init: { signal } });
   return events(response, creatorCardEventSchema);
+}
+
+/** Brainstorms ten ideas for the request: the kind when classified, the ideas as written, then one result or error. */
+export async function streamBrainstorm(
+  request: CreatorBrainstormRequest,
+  signal: AbortSignal,
+): Promise<AsyncGenerator<CreatorBrainstormEvent>> {
+  const response = await api.creator.brainstorm.$post({ json: request }, { init: { signal } });
+  return events(response, creatorBrainstormEventSchema);
 }
 
 /** Paints the card's four portraits: progress, the images, then done; or one error. */

@@ -4,11 +4,16 @@ import {
   type ArtStreamEvent,
   artMetaprompt,
   artPrompt,
+  BRAINSTORM_CLASSIFY_PROMPT,
+  BRAINSTORM_PROMPTS,
+  type BrainstormOption,
   blankCard,
+  brainstormRetryPrompt,
   CARD_LIMITS,
   CARD_SYSTEM_PROMPTS,
   CREATOR_ART,
   CREATOR_LIMITS,
+  type CreatorBrainstormEvent,
   type CreatorCardEvent,
   type CreatorImageCardEvent,
   type CreatorKind,
@@ -16,6 +21,7 @@ import {
   cardRetryPrompt,
   creatorArtStatusSchema,
   creatorArtWorkflowsSchema,
+  creatorBrainstormEventSchema,
   creatorCardEventSchema,
   creatorImageCardEventSchema,
   decodeArtFrames,
@@ -619,6 +625,329 @@ describe("POST /api/creator/card", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/** A brainstorm idea; every pitch and brief carries the canary, so a log holding one fails. */
+const IDEA_CANARY = "canary-brainstorm-idea-3f9a";
+const idea = (n: number, round = 1): BrainstormOption => ({
+  pitch: `Idea ${n} of round ${round}, ${IDEA_CANARY}.`,
+  brief: `A placeholder brief for idea ${n} of round ${round}, ${IDEA_CANARY}.`,
+});
+const ideas = (count: number, round = 1) =>
+  Array.from({ length: count }, (_, i) => idea(i + 1, round));
+/** An answer as the prompt asks for it: one object per line. */
+const ideaLines = (options: BrainstormOption[]) =>
+  options.map((option) => `${JSON.stringify(option)}\n`).join("");
+const FEEDBACK = "canary-brainstorm-feedback-81c4 keep 3 and 7";
+
+const brainstormRequest = (extra: object = {}) => ({
+  description: DESCRIPTION,
+  rounds: [],
+  model: "fake-model",
+  ...extra,
+});
+const brainstormEvents = (response: Response): Promise<CreatorBrainstormEvent[]> =>
+  events(response, (value) => creatorBrainstormEventSchema.parse(value));
+const optionEvents = (all: CreatorBrainstormEvent[]) =>
+  all.filter((event) => event.type === "option");
+type Sent = { messages: { role: string; content: string }[]; max_tokens?: number };
+const sentOf = (upstream: ReturnType<typeof fakeUpstream>, call: number) =>
+  upstream.records[call]?.body as Sent;
+
+describe("POST /api/creator/brainstorm", () => {
+  it("classifies a request without a kind, then streams ten ideas as their lines complete", async () => {
+    const written = ideaLines(ideas(10));
+    const { app, lines, upstream } = setup({
+      upstream: { turns: [{ chunks: ["scenario\n"] }, { chunks: pieces(written, 37) }] },
+    });
+    const response = await app.request("/api/creator/brainstorm", postJson(brainstormRequest()));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/x-ndjson");
+    const all = await brainstormEvents(response);
+
+    expect(all[0]).toEqual({ type: "kind", kind: "scenario" });
+    expect(optionEvents(all)).toEqual(
+      ideas(10).map((option, index) => ({ type: "option", index, option })),
+    );
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10) });
+    expect(all).toHaveLength(12);
+
+    expect(upstream.records).toHaveLength(2);
+    expect(sentOf(upstream, 0).messages).toEqual([
+      { role: "system", content: BRAINSTORM_CLASSIFY_PROMPT },
+      { role: "user", content: DESCRIPTION },
+    ]);
+    expect(sentOf(upstream, 1).messages).toEqual([
+      { role: "system", content: BRAINSTORM_PROMPTS.scenario },
+      { role: "user", content: DESCRIPTION },
+    ]);
+    // One cache key for the request's calls.
+    expect(new Set(cacheKeys(upstream)).size).toBe(1);
+    expect(lines.some((line) => line.includes('"event":"creator.brainstorm.classify.end"'))).toBe(
+      true,
+    );
+    expect(lines.some((line) => line.includes('"event":"creator.brainstorm.end"'))).toBe(true);
+    expectContentFree(lines, [IDEA_CANARY]);
+  });
+
+  it("rebuilds the conversation from the rounds, with no classifier call", async () => {
+    const { app, lines, upstream } = setup({ upstream: { chunks: [ideaLines(ideas(10, 3))] } });
+    const rounds = [
+      { kind: "scenario", options: ideas(10, 1), feedback: FEEDBACK },
+      { kind: "scenario", options: ideas(2, 2) },
+    ];
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject", rounds, reasoning: "high" })),
+      ),
+    );
+    expect(all.some((event) => event.type === "kind")).toBe(false);
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10, 3) });
+
+    expect(upstream.records).toHaveLength(1);
+    const sent = sentOf(upstream, 0);
+    const listOf = (options: BrainstormOption[]) =>
+      options.map(({ pitch, brief }) => `{"pitch":"${pitch}","brief":"${brief}"}`).join("\n");
+    expect(sent.messages).toEqual([
+      { role: "system", content: BRAINSTORM_PROMPTS.subject },
+      { role: "user", content: DESCRIPTION },
+      { role: "assistant", content: listOf(ideas(10, 1)) },
+      { role: "user", content: FEEDBACK },
+      { role: "assistant", content: listOf(ideas(2, 2)) },
+      {
+        role: "user",
+        content:
+          "Same request, as ideas for a Subject card: one person to meet instead: ten new ideas.",
+      },
+    ]);
+    expect(sent.max_tokens).toBe(CREATOR_LIMITS.maxOutputTokens);
+    expect(upstream.records[0]?.body).toMatchObject({ reasoning_effort: "high" });
+    expectContentFree(lines, [IDEA_CANARY, FEEDBACK]);
+  });
+
+  it("asks for no more output than the catalog says the model can write", async () => {
+    const { app, upstream } = setup({
+      upstream: {
+        turns: [{ chunks: ["subject"] }, { chunks: [ideaLines(ideas(10))] }],
+        catalog: [{ ...catalogEntry("fake-model"), max_completion_tokens: 32_000 }],
+      },
+    });
+    await brainstormEvents(
+      await app.request("/api/creator/brainstorm", postJson(brainstormRequest())),
+    );
+    expect(upstream.records.map((record) => record.body)).toMatchObject([
+      { max_tokens: 32_000 },
+      { max_tokens: 32_000 },
+    ]);
+  });
+
+  it("writes a short list again once, with the answer and how many it held, and keeps a full second", async () => {
+    const short = ideaLines(ideas(9));
+    const { app, lines, upstream } = setup({
+      upstream: { turns: [{ chunks: pieces(short) }, { chunks: pieces(ideaLines(ideas(10, 2))) }] },
+    });
+    const all = await brainstormEvents(
+      await app.request("/api/creator/brainstorm", postJson(brainstormRequest({ kind: "group" }))),
+    );
+    const retry = all.findIndex((event) => event.type === "retry");
+    expect(retry).toBe(9);
+    expect(optionEvents(all.slice(0, retry)).map((event) => event.index)).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8,
+    ]);
+    expect(optionEvents(all.slice(retry + 1))).toEqual(
+      ideas(10, 2).map((option, index) => ({ type: "option", index, option })),
+    );
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10, 2) });
+
+    expect(upstream.records).toHaveLength(2);
+    expect(sentOf(upstream, 1).messages).toEqual([
+      { role: "system", content: BRAINSTORM_PROMPTS.group },
+      { role: "user", content: DESCRIPTION },
+      { role: "assistant", content: short },
+      { role: "user", content: brainstormRetryPrompt(9) },
+    ]);
+    expect(lines.some((line) => line.includes('"attempt":2'))).toBe(true);
+    expectContentFree(lines, [IDEA_CANARY]);
+  });
+
+  it("reads a compact array with one element per line as its ten, without a retry", async () => {
+    const compact = `[${ideas(10)
+      .map((option) => JSON.stringify(option))
+      .join(",\n")}]`;
+    const { app, upstream } = setup({ upstream: { chunks: pieces(compact) } });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(all.some((event) => event.type === "retry")).toBe(false);
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10) });
+    // The rows streamed are the rows kept: no idea arrives late and renumbers the list.
+    expect(all.flatMap((event) => (event.type === "option" ? [event.option] : []))).toEqual(
+      ideas(10),
+    );
+    expect(upstream.records).toHaveLength(1);
+  });
+
+  it("keeps the better attempt: nine, then eight, ends with the nine", async () => {
+    const { app } = setup({
+      upstream: {
+        turns: [{ chunks: [ideaLines(ideas(9))] }, { chunks: [ideaLines(ideas(8, 2))] }],
+      },
+    });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(9) });
+  });
+
+  it("keeps the first nine when the second call fails", async () => {
+    muteConsole();
+    const { app, lines } = setup({
+      upstream: {
+        turns: [
+          { chunks: [ideaLines(ideas(9))] },
+          {
+            failWith: { status: 400, body: JSON.stringify({ error: { message: UPSTREAM_TEXT } }) },
+          },
+        ],
+      },
+    });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(9) });
+    expectContentFree(lines, [IDEA_CANARY, UPSTREAM_TEXT]);
+  });
+
+  it("ends as unusable when neither attempt held an idea", async () => {
+    const { app, lines, upstream } = setup({
+      upstream: { chunks: ["canary-brainstorm-prose-5e0d I cannot think of any."] },
+    });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(all).toEqual([{ type: "retry" }, { type: "error", code: "unusable" }]);
+    expect(upstream.records).toHaveLength(2);
+    expectContentFree(lines, ["canary-brainstorm-prose-5e0d"]);
+  });
+
+  it("sends a duplicate pitch neither live nor in the result", async () => {
+    const twice = [...ideas(5), { ...idea(3), brief: "Another brief." }, ...ideas(10).slice(5)];
+    const { app } = setup({ upstream: { chunks: pieces(ideaLines(twice)) } });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(optionEvents(all).map((event) => event.option)).toEqual(ideas(10));
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10) });
+  });
+
+  it("reads the tenth line without a trailing newline, live and in the result", async () => {
+    const { app, upstream } = setup({ upstream: { chunks: [ideaLines(ideas(10)).trimEnd()] } });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(optionEvents(all)).toHaveLength(10);
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10) });
+    expect(upstream.records).toHaveLength(1);
+  });
+
+  it("reads a fenced, numbered answer as ten", async () => {
+    const fenced = ["```json", ...ideas(10).map((o, i) => `${i + 1}. ${JSON.stringify(o)}`), "```"];
+    const { app, upstream } = setup({ upstream: { chunks: pieces(fenced.join("\n")) } });
+    const all = await brainstormEvents(
+      await app.request(
+        "/api/creator/brainstorm",
+        postJson(brainstormRequest({ kind: "subject" })),
+      ),
+    );
+    expect(all.at(-1)).toEqual({ type: "result", options: ideas(10) });
+    expect(upstream.records).toHaveLength(1);
+  });
+
+  it("ends as kind_unclear when the classifier names no kind, after one call", async () => {
+    const { app, upstream } = setup({ upstream: { chunks: ["maybe a person"] } });
+    const all = await brainstormEvents(
+      await app.request("/api/creator/brainstorm", postJson(brainstormRequest())),
+    );
+    expect(all).toEqual([{ type: "error", code: "kind_unclear" }]);
+    expect(upstream.records).toHaveLength(1);
+  });
+
+  it("refuses a request that cannot fit a known window before any upstream call", async () => {
+    const { app, lines, upstream } = setup({
+      upstream: {
+        chunks: ["subject"],
+        catalog: [{ ...catalogEntry("fake-model"), context_window: 64 }],
+      },
+    });
+    for (const request of [brainstormRequest(), brainstormRequest({ kind: "subject" })]) {
+      const all = await brainstormEvents(
+        await app.request("/api/creator/brainstorm", postJson(request)),
+      );
+      expect(all).toEqual([{ type: "error", code: "too_large" }]);
+    }
+    expect(upstream.records).toEqual([]);
+    expect(lines.some((line) => line.includes('"errorClass":"PromptTooLarge"'))).toBe(true);
+    expectContentFree(lines);
+  });
+
+  it("refuses rounds without a kind before any upstream call", async () => {
+    const { app, upstream } = setup();
+    const response = await app.request(
+      "/api/creator/brainstorm",
+      postJson(brainstormRequest({ rounds: [{ kind: "subject", options: ideas(1) }] })),
+    );
+    expect(response.status).toBe(400);
+    expect(upstream.records).toEqual([]);
+  });
+
+  it("ends a failed classifier call with its code", async () => {
+    const { app } = setup({ upstream: stillBusy(503) });
+    const all = await brainstormEvents(
+      await app.request("/api/creator/brainstorm", postJson(brainstormRequest())),
+    );
+    expect(all).toEqual([{ type: "error", code: "upstream_busy", retryAfterS: 0 }]);
+  });
+
+  it("stops the upstream call when the client disconnects mid-stream, sending no result", async () => {
+    const { app, upstream } = setup({
+      upstream: {
+        chunks: ideaLines(ideas(10))
+          .split("\n")
+          .map((line) => `${line}\n`),
+        delayMs: 30,
+      },
+    });
+    const client = new AbortController();
+    const response = await app.request(
+      "/api/creator/brainstorm",
+      postJson(brainstormRequest({ kind: "subject" }), { signal: client.signal }),
+    );
+    const reader = response.body?.pipeThrough(new TextDecoderStream()).getReader();
+    const first = await reader?.read();
+    client.abort();
+    await until(() => upstream.records[0]?.aborted === true);
+    expect(upstream.records[0]?.completed).toBe(false);
+    expect(first?.value ?? "").not.toContain('"type":"result"');
   });
 });
 

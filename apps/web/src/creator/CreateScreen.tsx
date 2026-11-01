@@ -7,6 +7,8 @@ import { AlertDialog, AlertDialogClose, AlertDialogContent } from "@/components/
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { identity } from "../signin/identity.ts";
+import { Brainstorm } from "./Brainstorm.tsx";
+import { BrainstormBar } from "./BrainstormBar.tsx";
 import { CREATOR_FRAME } from "./CardLayout.tsx";
 import { Choose, COLUMN } from "./Choose.tsx";
 import { Describe } from "./Describe.tsx";
@@ -18,11 +20,11 @@ import { Writing } from "./Writing.tsx";
 import { setCreatorWriting } from "./writing.ts";
 
 /**
- * Create with AI: one screen that changes state (choose, describe, the card
- * being written, the showcase), joined by view transitions. Leaving it drops
- * the card and its portraits and keeps the description for a visit to
- * Settings; an unkept card asks first, and a card being kept holds the way
- * out until its Keep settles.
+ * Create with AI: one screen that changes state (choose, brainstorm,
+ * describe, the card being written, the showcase), joined by view
+ * transitions. Leaving it drops the brainstorm, the card and its portraits
+ * and keeps the description for a visit to Settings; an unkept card asks
+ * first, and a card being kept holds the way out until its Keep settles.
  */
 export function CreateScreen() {
   const stage = useCreator((state) => state.stage);
@@ -30,10 +32,15 @@ export function CreateScreen() {
   // Only a finished card, which no longer changes as text streams in.
   const complete = useCreator((state) => (state.card?.status === "complete" ? state.card : null));
   const developing = useCreator((state) => state.art?.status === "running");
+  const ideas = useCreator(
+    (state) =>
+      state.stage === "brainstorm" &&
+      (state.brainstorm.status === "classifying" || state.brainstorm.status === "writing"),
+  );
   const scroller = useRef<HTMLDivElement>(null);
   // The lamp glow breathes behind the frame, and the navigation lamp at the
-  // same pace, while the card or its art is in progress.
-  const busy = status === "writing" || developing;
+  // same pace, while ideas, the card or its art are in progress.
+  const busy = status === "writing" || developing || ideas;
 
   useEffect(() => {
     setCreatorWriting(busy);
@@ -43,7 +50,7 @@ export function CreateScreen() {
     keptStore.setState({ kept: null });
     return () => {
       setCreatorWriting(false);
-      creatorStore.getState().returnToDescription();
+      creatorStore.getState().leave();
     };
   }, []);
 
@@ -58,7 +65,9 @@ export function CreateScreen() {
         title="Create with AI"
         gutters={SCROLL_GUTTERS}
         frame={
-          stage === "choose" || stage === "describe" || status === null ? COLUMN : CREATOR_FRAME
+          stage === "choose" || stage === "brainstorm" || stage === "describe" || status === null
+            ? COLUMN
+            : CREATOR_FRAME
         }
       />
       <div
@@ -72,6 +81,8 @@ export function CreateScreen() {
       >
         {stage === "choose" ? (
           <Choose />
+        ) : stage === "brainstorm" ? (
+          <Brainstorm scroller={scroller} />
         ) : stage === "describe" || status === null ? (
           <Describe />
         ) : complete !== null ? (
@@ -80,6 +91,7 @@ export function CreateScreen() {
           <Writing scroller={scroller} />
         )}
       </div>
+      {ideas && <BrainstormBar />}
       {complete !== null && <KeepBar kind={complete.kind} />}
       <LeaveGuard />
     </main>

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import { SignedOut } from "../signin/signin.ts";
 import { ART_EMPTY, type ArtSliceState, createArtSlice, type StreamArt } from "./art-slice.ts";
+import type { StreamBrainstorm } from "./brainstorm-slice.ts";
 import { createCreatorStore } from "./store.ts";
 
 const ANSWER = [
@@ -13,6 +14,9 @@ const ANSWER = [
   "<firstMessage>Ada looks up.</firstMessage>",
   "<creatorNotes>A placeholder pitch.</creatorNotes>",
 ].join("\n");
+
+/** The brainstorm these tests never start. */
+const noIdeas: StreamBrainstorm = async () => (async function* () {})();
 
 describe("the creator's art slice", () => {
   it.each(["subject", "group", "scenario"] as const)(
@@ -95,6 +99,7 @@ describe("the creator's art slice", () => {
       throw new Error("Nothing is painted here");
     });
     const store = createCreatorStore({
+      streamBrainstorm: noIdeas,
       streamCard: async () =>
         (async function* (): AsyncGenerator<CreatorCardEvent> {
           yield { type: "delta", text: ANSWER };
