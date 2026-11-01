@@ -426,10 +426,26 @@ describe("creator requests and events", () => {
 
   it("keeps where play begins out of Subject and Group descriptions, in the opening alone", () => {
     for (const prompt of [CARD_SYSTEM_PROMPTS.subject, CARD_SYSTEM_PROMPTS.group]) {
-      expect(prompt).toContain("no current place, time of day or scene");
+      expect(prompt).toContain("no current place, time of day, outfit or scene");
       expect(prompt).toContain("The first message alone sets where and when play begins");
     }
     expect(CARD_SYSTEM_PROMPTS.scenario).not.toContain("The first message alone sets");
+  });
+
+  it("describes how Subject and Group people dress as a style or habit, never one outfit", () => {
+    for (const prompt of [CARD_SYSTEM_PROMPTS.subject, CARD_SYSTEM_PROMPTS.group]) {
+      expect(prompt).toContain(
+        "How they dress, as a general style or habit, such as practical workwear, muted layers or always a leather jacket, never one outfit or a list of garments.",
+      );
+      expect(prompt).not.toContain("Usual clothing.");
+    }
+    // A picture shows one outfit; the card takes only the style it suggests.
+    expect(imageCardPrompt("subject", null, null)).toContain(
+      "Their clothing in it is one outfit: the description takes from it only the general style it suggests, never the outfit itself.",
+    );
+    expect(imageCardPrompt("group", null, null)).toContain(
+      "Each person's clothing in it is one outfit: the description takes from it only the general style it suggests, never the outfit itself.",
+    );
   });
 
   it("keeps Subject and Group blocks to what shapes play, with no word quotas or invented secrets", () => {
@@ -1234,7 +1250,8 @@ describe("image card", () => {
     expect(imageCardPrompt("subject", null, null)).toBe(
       [
         "Create the subject shown in the attached image. The image is the player's description.",
-        "Read the person's apparent age, apparent ethnicity and phenotype, build, skin, face, eyes, hair and hairstyle, expression, clothing, visible marks, posture, setting and mood from it, and keep everything you write about their appearance consistent with what the image shows.",
+        "Read the person's apparent age, apparent ethnicity and phenotype, build, skin, face, eyes, hair and hairstyle, expression, visible marks, posture, setting and mood from it, and keep everything you write about their appearance consistent with what the image shows.",
+        "Their clothing in it is one outfit: the description takes from it only the general style it suggests, never the outfit itself.",
         "Fill in everything the image cannot show, such as name, origin, history, personality, sexuality and way of speaking, with specific, coherent choices that fit the person in the image.",
       ].join(" "),
     );
