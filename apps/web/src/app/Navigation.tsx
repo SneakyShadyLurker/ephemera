@@ -73,8 +73,7 @@ function Destinations({
               "press group relative flex items-center rounded-md font-medium text-reed hover:bg-surface-hover hover:text-ink data-[status=active]:bg-surface data-[status=active]:text-ink data-[status=active]:hover:bg-surface-hover",
               layout === "rail" && "h-11 gap-3 px-3 text-ui",
               layout === "sheet" && "h-13 gap-4 px-4 text-lead",
-              layout === "icons" &&
-                "h-14 flex-col justify-center gap-1 text-[0.6875rem] leading-none",
+              layout === "icons" && "h-14 flex-col justify-center gap-1 text-tag leading-none",
             )}
           >
             {({ isActive }) => (
@@ -122,11 +121,7 @@ export function Rail({ compact }: { compact: boolean }) {
             aria-label={compact ? "Ephemera" : undefined}
           />
         </span>
-        {!compact && (
-          <span className="font-display text-[1.1875rem] leading-none tracking-[0.04em]">
-            Ephemera
-          </span>
-        )}
+        {!compact && <span className="font-display text-wordmark tracking-[0.04em]">Ephemera</span>}
       </div>
       <div className={compact ? "mt-3" : "mt-6"}>
         <Destinations layout={compact ? "icons" : "rail"} />
@@ -150,9 +145,7 @@ export function NavSheet() {
         <DrawerHeader>
           <DrawerTitle className="flex items-center gap-2 pl-2 font-normal">
             <MarkIcon size={20} />
-            <span className="font-display text-[1.1875rem] leading-none tracking-[0.04em]">
-              Ephemera
-            </span>
+            <span className="font-display text-wordmark tracking-[0.04em]">Ephemera</span>
           </DrawerTitle>
           <DrawerCloseIcon label="Close navigation" />
         </DrawerHeader>

@@ -123,8 +123,8 @@ function ModeRow({
           </SelectContent>
         </Select>
         <Button
+          size="text"
           aria-label={`Remove post-processing for ${id}`}
-          className="h-8 px-2 text-note touch:h-11"
           onClick={() => onChange(null)}
         >
           Remove

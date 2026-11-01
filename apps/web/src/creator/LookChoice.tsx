@@ -67,7 +67,7 @@ function Swatch({ look, className }: { look: ArtLookChoice; className?: string }
       aria-hidden="true"
       style={fill(look)}
       className={cn(
-        "size-3.5 shrink-0 rounded-[4px] ring-1 ring-rush ring-inset in-data-disabled:opacity-50",
+        "size-3.5 shrink-0 rounded-xs ring-1 ring-rush ring-inset in-data-disabled:opacity-50",
         className,
       )}
     />

@@ -1,10 +1,11 @@
 import { type FeatureBundle, LazyMotion, MotionConfig } from "motion/react";
 import type { ReactNode } from "react";
+import { fadeEase, motionSeconds, type Token } from "./motion-tokens.ts";
 
 /*
  * Motion's contract for the app: one feature loader, one provider pair, and
- * the JS twins of the motion tokens in styles.css (`--duration-panel-in` on
- * the calm spring, `--ease-fade` for fades). Tune them with those tokens.
+ * Motion's transitions built from the motion tokens in styles.css, read as
+ * they apply (./motion-tokens.ts). Tune them with those tokens.
  */
 
 let loaded: FeatureBundle | undefined;
@@ -21,20 +22,20 @@ export const loadMotionFeatures = () =>
  */
 export const motionFeatures = () => loaded ?? loadMotionFeatures;
 
-/** `--duration-quick` in seconds: crossfades and quick fades. */
-export const QUICK = 0.12;
+/**
+ * The calm spring without overshoot (`--ease-spring`), over a duration
+ * token, `--duration-panel-in` unless another is named.
+ */
+export const spring = (duration: Token = "--duration-panel-in") =>
+  ({ type: "spring", bounce: 0, duration: motionSeconds(duration) }) as const;
 
-/** `--duration-panel-out` in seconds: what leaves goes quicker than it came. */
-export const PANEL_OUT = 0.18;
-
-/** The calm spring without overshoot, over `--duration-panel-in`. */
-export const SPRING = { type: "spring", bounce: 0, duration: 0.24 } as const;
-
-/** The fade curve, `--ease-fade`. */
-export const FADE_EASE = [0.2, 0, 0, 1] as const;
-
-/** A fade over `--duration-arrive` on the fade curve. */
-export const FADE = { duration: 0.18, ease: FADE_EASE } as const;
+/** A fade on `--ease-fade` over a duration token, `--duration-arrive` unless another is named. */
+export function fade(duration: Token = "--duration-arrive") {
+  const ease = fadeEase();
+  return ease === undefined
+    ? { duration: motionSeconds(duration) }
+    : { duration: motionSeconds(duration), ease };
+}
 
 /** Motion's features and the reduced-motion rule for what is inside. */
 export function MotionScope({ children }: { children: ReactNode }) {

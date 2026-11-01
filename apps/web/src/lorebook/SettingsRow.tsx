@@ -4,8 +4,7 @@ import { DisclosureChevron } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 
 /** A row's trigger: its tint on hover and its ring on focus, inside the panel's clip. */
-const TRIGGER =
-  "-mx-2 rounded-md px-2 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] touch:min-h-14";
+const TRIGGER = "-mx-2 rounded-md px-2 text-left row touch:min-h-14";
 
 /**
  * One of the entry editor's four questions: a full-width button named by the
@@ -68,11 +67,7 @@ export function SettingsRow({
           <DisclosureChevron className="mt-0.5 text-reed" />
         </Collapsible.Trigger>
       )}
-      <Collapsible.Panel
-        keepMounted
-        inert={!open}
-        className="-mx-1.5 h-(--collapsible-panel-height) overflow-hidden transition-[height,opacity] duration-(--duration-panel-in) ease-spring data-ending-style:h-0 data-starting-style:h-0 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-[opacity] motion-reduce:duration-(--duration-quick) motion-reduce:ease-fade [&[hidden]]:hidden"
-      >
+      <Collapsible.Panel keepMounted inert={!open} className="-mx-1.5 unfold">
         {/* The inset keeps focus rings inside the clipped panel. */}
         <div className="grid gap-4 px-1.5 pt-1 pb-6">{children}</div>
       </Collapsible.Panel>

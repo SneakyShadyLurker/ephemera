@@ -1,4 +1,5 @@
 import { effortFor, offeredEfforts, REASONING_EFFORTS, type ReasoningEffort } from "@ephemera/core";
+import { staggerStep } from "@/app/motion-tokens.ts";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { useModelInfo } from "../api.ts";
@@ -46,9 +47,9 @@ function EffortGauge({ effort }: { effort: ReasoningEffort }) {
           width={3}
           height={4 + bar * 2.8}
           rx={1}
-          style={{ transitionDelay: `${(bar < lit ? bar : 5 - bar) * 28}ms` }}
+          style={staggerStep(bar < lit ? bar : 5 - bar)}
           className={cn(
-            "transition-[fill,opacity] duration-(--duration-arrive) ease-fade motion-reduce:delay-0!",
+            "stagger transition-[fill,opacity] duration-(--duration-arrive) ease-fade",
             effort === "provider-default"
               ? "fill-reed opacity-35"
               : bar < lit

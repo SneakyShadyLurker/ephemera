@@ -29,8 +29,7 @@ export const NAME_TRANSITION = "lorebook-name";
 
 /** A row's hairline and its trailing actions beside the link, never inside it. */
 const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-rush border-b";
-const LINK =
-  "group grid min-h-16 min-w-0 items-center gap-x-6 gap-y-1 rounded-sm px-1 py-2.5 outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)]";
+const LINK = "group grid min-h-16 min-w-0 items-center gap-x-6 gap-y-1 rounded-sm px-1 py-2.5 row";
 const NAME =
   "truncate font-semibold text-ink text-ui decoration-control-edge underline-offset-4 group-hover:underline";
 

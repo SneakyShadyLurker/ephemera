@@ -47,7 +47,7 @@ export const ConversationScrollButton = ({
     <div
       className={cn(
         // Above the turns' sticky nameplates, which pass behind it while the story scrolls.
-        "absolute bottom-3 left-1/2 z-10 -translate-x-1/2 arrive",
+        "absolute bottom-3 left-1/2 z-(--z-raised) -translate-x-1/2 arrive",
         className,
       )}
     >

@@ -995,7 +995,7 @@ test("the chosen portrait opens larger and lays back in its place by Close or a 
   await page.keyboard.press("Shift+Tab");
   await expect(trigger).toBeFocused();
   await expect(trigger).toHaveCSS("outline-style", "solid");
-  await expect(trigger).toHaveCSS("outline-offset", "-4px");
+  await expect(trigger).toHaveCSS("outline-offset", "-2px");
   await page.keyboard.press("Enter");
   await expect(viewer).toBeVisible();
   await page.keyboard.press("Escape");

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { KeyHint } from "@/components/ui/key-hint";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { EDIT_FIELD } from "../sheet/fields.ts";
 import { COMPOSER } from "./Composer.tsx";
 import { chatStore, useChat } from "./session.ts";
 import type { EditTarget } from "./store.ts";
@@ -86,10 +87,7 @@ export function EditField({
           const end = event.target.value.length;
           event.target.setSelectionRange(end, end);
         }}
-        className={cn(
-          "max-h-[60dvh] w-full resize-none rounded-lg border border-control-edge bg-surface px-3.5 py-2.5 text-ink transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade [field-sizing:content] focus-visible:border-dusk-line focus-visible:shadow-focus focus-visible:outline-none",
-          story && "voice-story",
-        )}
+        className={cn(EDIT_FIELD, story && "voice-story")}
       />
       <div className="flex flex-wrap items-center gap-2">
         <p aria-live="polite" className="flex-1 text-meta text-reed">

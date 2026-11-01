@@ -45,7 +45,7 @@ function PopoverContent({
         side={side}
         anchor={anchor}
         collisionAvoidance={collisionAvoidance}
-        className="z-50"
+        className="z-(--z-overlay)"
       >
         <PopoverPrimitive.Popup
           initialFocus={initialFocus}

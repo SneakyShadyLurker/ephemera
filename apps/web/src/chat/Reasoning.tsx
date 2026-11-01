@@ -86,10 +86,11 @@ export function Reasoning({
             </p>
             {!thinking && editable && (
               <Button
+                size="text"
                 variant="quiet"
                 onClick={() => chatStore.getState().startEdit(messageId, "reasoning")}
                 // Out of sight while anything is written, by CSS: earlier turns stay untouched.
-                className="h-8 justify-self-start gap-1.5 px-2 text-note touch:h-11 [[aria-busy=true]_&]:invisible"
+                className="justify-self-start gap-1.5 [[aria-busy=true]_&]:invisible"
               >
                 <EditIcon size={16} />
                 Edit reasoning

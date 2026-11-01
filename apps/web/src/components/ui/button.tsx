@@ -25,8 +25,12 @@ const buttonVariants = cva(
       size: {
         default: "h-9 px-3.5 touch:h-11 touch:px-4",
         icon: "size-9 touch:size-11",
+        /** A compact text action beside a line it acts on (Dismiss, Undo, Show details): 32px, 44px on touch. */
+        text: "h-8 px-2 text-note touch:h-11",
       },
     },
+    /* An outline needs a little more room inside its edge. */
+    compoundVariants: [{ variant: "outline", size: "text", class: "px-2.5" }],
     defaultVariants: { variant: "quiet", size: "default" },
   },
 );

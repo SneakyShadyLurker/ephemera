@@ -16,7 +16,7 @@ import {
   useState,
 } from "react";
 import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
-import { PANEL_OUT } from "@/app/motion.tsx";
+import { motionMs } from "@/app/motion-tokens.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { CheckIcon, IdeasIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
@@ -25,17 +25,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { REQUEST_FIELD } from "../sheet/fields.ts";
 import { ideasAlert, ideasStatus, RETRY_NOTE } from "./brainstorm-notes.ts";
 import { FrameEdge } from "./CardLayout.tsx";
 import { COLUMN, KINDS, leaveBrainstorm } from "./Choose.tsx";
 import { useModelChoice } from "./Describe.tsx";
 import { ReasoningSelect, useEffortChoice } from "./ReasoningSelect.tsx";
-import { REQUEST_FIELD } from "./request-field.ts";
 import { useCreator } from "./session.ts";
 import { inTransition, kindTransition } from "./transition.ts";
-
-/** The least time between two rows arriving, so a burst of lines still reads as a fill. */
-const REVEAL_GAP_MS = 80;
 
 const KIND_LABEL = "Kind of ideas";
 const KIND_HINT = "Changing the kind brings ten new ideas.";
@@ -133,13 +130,8 @@ export function focusAfterRound({
 }
 
 /**
- * How long the last row takes to land, its rise and the old idea's fade
- * under it, before the rows turn into buttons and could cut either short.
- */
-const LAND_MS = PANEL_OUT * 1000;
-
-/**
- * Reveals the list row by row, at least `REVEAL_GAP_MS` apart, from the
+ * Reveals the list row by row, at least `--reveal-gap` apart (the least time
+ * between two rows arriving, so a burst of lines still reads as a fill), from the
  * round's start to its last idea, past the result if the lines came in a
  * burst, then lets the last row land. The list on show when a round starts
  * is the one it dims. `edge` is the row the next idea arrives in while the
@@ -172,7 +164,7 @@ function useReveal(options: BrainstormOption[], incoming: BrainstormOption[], ru
     const timer = setTimeout(
       () =>
         setReveal((state) => ({ ...state, shown: nextShown(state.shown, fresh, state.before) })),
-      REVEAL_GAP_MS,
+      motionMs("--reveal-gap"),
     );
     return () => clearTimeout(timer);
   }, [shown, fresh]);
@@ -180,7 +172,12 @@ function useReveal(options: BrainstormOption[], incoming: BrainstormOption[], ru
   const landing = !running && shown >= fresh.length && !landed;
   useEffect(() => {
     if (!landing) return;
-    const timer = setTimeout(() => setReveal((state) => ({ ...state, landed: true })), LAND_MS);
+    // The last row lands (its rise and the old idea's fade under it) over
+    // `--duration-panel-out` before the rows turn into buttons and could cut either short.
+    const timer = setTimeout(
+      () => setReveal((state) => ({ ...state, landed: true })),
+      motionMs("--duration-panel-out"),
+    );
     return () => clearTimeout(timer);
   }, [landing]);
 
@@ -564,7 +561,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
           Brainstorm
         </span>
         <Button
-          className="h-8 px-2 text-note touch:h-11"
+          size="text"
           aria-label="Change from Brainstorm"
           onClick={() => leaveBrainstorm(change)}
         >
@@ -597,16 +594,10 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
             </span>
           </button>
           <div className="-ml-2 flex flex-wrap gap-1">
-            <Button
-              className="h-8 px-2 text-note touch:h-11"
-              onClick={() => inTransition(editIdeasRequest)}
-            >
+            <Button size="text" onClick={() => inTransition(editIdeasRequest)}>
               Edit request
             </Button>
-            <Button
-              className="h-8 px-2 text-note touch:h-11"
-              onClick={() => inTransition(resetIdeas)}
-            >
+            <Button size="text" onClick={() => inTransition(resetIdeas)}>
               Start over
             </Button>
           </div>

@@ -170,7 +170,7 @@ export function TrackedText({
                 setOpened((ranges) => [...ranges, [start, end]]);
               }}
             >
-              <summary className="flex w-full cursor-pointer list-none items-center gap-2 rounded-md bg-surface-selected px-3 py-1.5 text-note text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink focus-visible:outline-2 focus-visible:outline-dusk-line focus-visible:outline-offset-2 touch:py-3 [&::-webkit-details-marker]:hidden">
+              <summary className="flex w-full cursor-pointer list-none items-center gap-2 rounded-md bg-surface-selected px-3 py-1.5 text-note text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink touch:py-3 [&::-webkit-details-marker]:hidden">
                 <ChevronDownIcon size={16} className="shrink-0" />
                 Show {countOf(segment.words, "unchanged word")}
               </summary>

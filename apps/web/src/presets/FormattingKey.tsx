@@ -1,6 +1,7 @@
 import { HIGHLIGHT_TONES, THOUGHT_MARK } from "@ephemera/core";
 import { cn } from "@/lib/cn";
 import { CardProse } from "../creator/CardLayout.tsx";
+import { HELP } from "../sheet/fields.ts";
 
 /*
  * The formatting key: each mark the chat draws in a character's reply,
@@ -20,7 +21,6 @@ const MARKS: string[] = [
   "> Quoted lines stand apart.",
 ];
 
-const HELP = "text-pretty text-note text-reed";
 /** A mark as written, selected whole with one click; in prose it stays on one line. */
 const MARK = "cursor-text select-all whitespace-nowrap font-mono text-meta";
 

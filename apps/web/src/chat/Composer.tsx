@@ -8,6 +8,7 @@ import { isComposing } from "@/lib/keys.ts";
 import { MODEL_BUSY } from "@/lib/text";
 import { useContextWindow } from "../api.ts";
 import { useSettings } from "../settings/settings.ts";
+import { FOCUS_WITHIN } from "../sheet/fields.ts";
 import { useSignedIn } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
@@ -195,7 +196,12 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
             The prompt inspector didn't load; a reload brings it back and ends the chat.
           </p>
         )}
-        <div className="flex min-w-0 items-end gap-1 rounded-xl border border-control-edge bg-surface py-1.5 pr-1.5 pl-1.5 transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-[0_0_0_2px_color-mix(in_oklab,var(--dusk)_12%,transparent)]">
+        <div
+          className={cn(
+            "flex min-w-0 items-end gap-1 rounded-xl border border-control-edge bg-surface py-1.5 pr-1.5 pl-1.5",
+            FOCUS_WITHIN,
+          )}
+        >
           {impersonating ? (
             // Read-only while the model writes it, with the caret every stream carries.
             <div

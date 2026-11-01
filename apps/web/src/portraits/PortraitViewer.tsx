@@ -38,7 +38,10 @@ export function PortraitViewer({
 
   // The name moves from the art in its place to the viewer's art and back
   // inside one view transition; a newer run keeps the name a skipped one
-  // would otherwise clear.
+  // would otherwise clear. Not React's <ViewTransition share>: that pairs a
+  // name leaving the tree with one entering it, and the art here stays
+  // mounted, holding its place, while the viewer is open; remounting it to
+  // make the pair would decode it again.
   const morph = (next: boolean) => {
     const source = trigger.current;
     if (source === null) {
@@ -80,11 +83,11 @@ export function PortraitViewer({
         }}
       >
         <DialogPrimitive.Portal>
-          <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-[color-mix(in_oklab,var(--canvas)_76%,transparent)] backdrop-blur-md transition-opacity duration-(--duration-arrive) ease-fade data-ending-style:opacity-0 data-starting-style:opacity-0" />
+          <DialogPrimitive.Backdrop className="fixed inset-0 z-(--z-overlay) bg-[color-mix(in_oklab,var(--canvas)_76%,transparent)] backdrop-blur-md transition-opacity duration-(--duration-arrive) ease-fade data-ending-style:opacity-0 data-starting-style:opacity-0" />
           {/* Clicks pass through the popup's empty space to the backdrop, which closes the viewer. */}
           <DialogPrimitive.Popup
             data-portrait-viewer=""
-            className="pointer-events-none fixed inset-0 z-50 grid place-items-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none tablet:p-10"
+            className="pointer-events-none fixed inset-0 z-(--z-overlay) grid place-items-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none tablet:p-10"
           >
             <DialogPrimitive.Title className="sr-only">{label}</DialogPrimitive.Title>
             {open && (
@@ -102,7 +105,7 @@ export function PortraitViewer({
                   aria-label="Close the portrait"
                   className={cn(
                     buttonVariants({ variant: "outline", size: "icon" }),
-                    "pointer-events-auto fixed top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-full bg-surface shadow-overlay transition-[opacity,scale,background-color] delay-(--duration-quick) duration-(--duration-arrive) ease-spring starting:scale-90 starting:opacity-0",
+                    "pointer-events-auto fixed top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-full bg-surface shadow-overlay transition-[opacity,scale,background-color] delay-(--duration-quick) duration-(--duration-arrive) ease-spring starting:scale-90 starting:opacity-0 motion-reduce:delay-0 motion-reduce:starting:scale-100",
                   )}
                 >
                   <CloseIcon size={20} />

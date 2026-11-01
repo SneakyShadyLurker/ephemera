@@ -23,9 +23,16 @@ import { useModelOptions } from "../api.ts";
 import { LEAF_EDGE, PORTRAIT_TRANSITION } from "../portraits/Portrait.tsx";
 import { PortraitViewer } from "../portraits/PortraitViewer.tsx";
 import { useSetting } from "../settings/settings.ts";
+import { REQUEST_FIELD } from "../sheet/fields.ts";
 import { ArtCanvas } from "./ArtCanvas.tsx";
 import { ART_TRANSITION, batchKey } from "./art.ts";
-import { useArtBatch, useArtFrame, useArtSession, useArtSessionHost } from "./art-session.tsx";
+import {
+  shownBefore,
+  useArtBatch,
+  useArtFrame,
+  useArtSession,
+  useArtSessionHost,
+} from "./art-session.tsx";
 import type { ArtRun } from "./art-slice.ts";
 import { CardFrame, NameLeaf } from "./CardLayout.tsx";
 import { CompositionChoice } from "./CompositionChoice.tsx";
@@ -33,7 +40,6 @@ import { stepOption } from "./choice.ts";
 import { LookChoice } from "./LookChoice.tsx";
 import { artProgress } from "./progress.ts";
 import { ReasoningSelect, useEffortChoice } from "./ReasoningSelect.tsx";
-import { REQUEST_FIELD } from "./request-field.ts";
 import { WorkflowSelect } from "./WorkflowSelect.tsx";
 
 /*
@@ -157,7 +163,7 @@ function Alternates({
           disabled={locked}
           onClick={(event) => onChoose(index, event.currentTarget)}
           className={cn(
-            "press relative aspect-[2/3] overflow-hidden rounded-[5px] transition-[box-shadow,filter] duration-(--duration-quick) ease-fade hover:brightness-[1.04] disabled:cursor-default",
+            "press relative aspect-[2/3] overflow-hidden rounded-xs transition-[box-shadow,filter] duration-(--duration-quick) ease-fade hover:brightness-[1.04] disabled:cursor-default",
             LEAF_EDGE,
             GLIDE,
             index === selected && "shadow-[0_0_0_2px_var(--canvas),0_0_0_4px_var(--dusk)]",
@@ -536,7 +542,7 @@ function NewArtFailure({ art, retry }: { art: ArtRun | null; retry: boolean }) {
       <p className="text-ember">New art failed. The current portraits are kept.</p>
       <Reason text={artReason(art, false)} />
       {retry && (
-        <Button className="-ml-2 h-8 px-2 text-note touch:h-11" onClick={requestArt}>
+        <Button size="text" className="-ml-2" onClick={requestArt}>
           Try again
         </Button>
       )}
@@ -599,7 +605,15 @@ export function ArtFrame({
   const frameRef = useArtFrame();
   const showing = useArtShowing();
   const progress = artProgress(art);
-  const busy = art?.status === "running";
+  // A first batch can complete while the card's light is still closing, before this frame
+  // mounts: the frame then starts busy and settles at once, so its light still closes on it.
+  const [owed, setOwed] = useState(
+    () => art?.status === "complete" && images.length > 0 && !shownBefore(images),
+  );
+  useEffect(() => {
+    if (owed) setOwed(false);
+  }, [owed]);
+  const busy = art?.status === "running" || owed;
   const settled = art?.status === "complete";
 
   if (showing !== "batch") {
@@ -622,8 +636,8 @@ export function ArtFrame({
           label={label}
           art={bitmap !== undefined && <ArtCanvas bitmap={bitmap} label={label} />}
           disabled={bitmap === undefined}
-          // Inset focus: the frame clips everything outside it.
-          className="absolute inset-0 rounded-[inherit] outline-offset-[-4px]"
+          // Focus drawn inside: the frame clips everything outside it.
+          className="absolute inset-0 rounded-[inherit] focus-ring-inset"
         >
           <div
             ref={frameRef}
@@ -663,7 +677,10 @@ export function ArtAlternates({
 
   // The chosen alternate morphs into the frame: it carries the name into the
   // transition, the frame takes it in the new state. A new choice skips a
-  // running morph to its end and starts from there.
+  // running morph to its end and starts from there. Not React's
+  // <ViewTransition share>: both images stay mounted, and the choice lives
+  // in the art session's external store, whose updates are never a
+  // transition React animates.
   const choose = (index: number, option: HTMLElement) => {
     const main = frameRef.current;
     if (index === selected) return;

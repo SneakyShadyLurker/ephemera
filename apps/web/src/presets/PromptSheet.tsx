@@ -24,6 +24,7 @@ import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { ChatIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Unfold } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { NumberField } from "@/components/ui/number-field";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -34,7 +35,7 @@ import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, SHEET_GRID } from "../sheet/fields.ts";
+import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { CloseRow, Glides, MoveButtons, OpenRow, useGlide } from "../sheet/ordering.tsx";
 import {
   NameField,
@@ -72,9 +73,7 @@ import { NoteEditor } from "./NoteEditor.tsx";
 import { PRESETS_BACK, PresetActions } from "./PresetFrame.tsx";
 import { presetArrivals, presetQuery, savePromptPreset } from "./queries.ts";
 
-const LABEL =
-  "mb-2 block font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2.5 tablet:text-right";
-const HELP = "text-pretty text-note text-reed";
+const LABEL = sheetLabel();
 
 const ROLES = Object.entries(ROLE_NAMES) as [PromptRole, string][];
 
@@ -440,7 +439,8 @@ function PromptPresetEditor({
                   </span>
                 ) : (
                   <Button
-                    className="h-8 px-2 text-ink text-note touch:h-11"
+                    size="text"
+                    className="text-ink"
                     onClick={() => {
                       setBlocks(restoreBlock(fields.blocks, removed));
                       setOpen(removed.block.id);
@@ -817,15 +817,10 @@ function BlockRow(props: RowProps) {
     );
   return (
     <Glides>
-      <m.div
-        data-block={block.id}
-        className={open ? "grid gap-3 py-3 pl-1" : "flex items-center gap-3 pl-1"}
-        {...glide}
-      >
-        {open ? (
-          <OpenBlock {...props} toggle={toggle} name={name} />
-        ) : (
-          <>
+      <m.div data-block={block.id} {...glide}>
+        {/* Opening a block folds its row away as the block unfolds, so the height eases. */}
+        <Unfold show={!open}>
+          <div className="flex items-center gap-3 pl-1">
             {toggle}
             <OpenRow
               label={`${name}: ${enabled ? meta : `off. ${meta}`}`}
@@ -854,8 +849,14 @@ function BlockRow(props: RowProps) {
               </span>
             </OpenRow>
             {inside && <span className="sr-only">Inside the chat</span>}
-          </>
-        )}
+          </div>
+        </Unfold>
+        <Unfold show={open}>
+          {/* Padded inside, so the folding box reaches no height at all. */}
+          <div className="py-3 pl-1">
+            <OpenBlock {...props} toggle={toggle} name={name} />
+          </div>
+        </Unfold>
       </m.div>
     </Glides>
   );
@@ -889,7 +890,7 @@ function OpenBlock({
   const templateValid =
     block.kind !== "source" || sourceTemplateSchema.safeParse(block.template ?? "").success;
   return (
-    <div className="grid gap-3 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
+    <div className="grid gap-3">
       <div className="flex items-center gap-3">
         {toggle}
         {movingBefore ? (

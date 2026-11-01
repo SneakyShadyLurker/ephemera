@@ -1,7 +1,6 @@
 import type { CallPurpose } from "@ephemera/core";
-import { useState } from "react";
-import { ChevronDownIcon } from "@/components/icons";
-import { cn } from "@/lib/cn";
+import { useId, useState } from "react";
+import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import { countOf, formatCount } from "@/lib/text";
 import { type LedgerCall, sumUsage, type UsageLedger, type UsageRequest } from "./usage.ts";
 
@@ -96,6 +95,7 @@ export function UsageDisclosure({
   session?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const cached = calls.some(({ record }) => record.usage.cachedTokens !== undefined);
   const sums = sumUsage(calls);
   const total = calls.length + running.length;
@@ -111,8 +111,9 @@ export function UsageDisclosure({
       <button
         type="button"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="press flex min-h-12 w-full items-center gap-3 rounded-md px-1 text-left hover:bg-surface-hover touch:min-h-14"
+        className="row flex min-h-12 w-full items-center gap-3 rounded-md px-1 text-left touch:min-h-14"
       >
         <span className="grid min-w-0 flex-1">
           <span className="font-medium text-ink text-ui">{label}</span>
@@ -120,21 +121,9 @@ export function UsageDisclosure({
             {usageSummary(calls, running.length)}
           </span>
         </span>
-        <ChevronDownIcon
-          size={16}
-          className={cn(
-            "text-reed transition-[rotate] duration-(--duration-arrive) ease-spring motion-reduce:transition-none",
-            open && "rotate-180",
-          )}
-        />
+        <DisclosureChevron className="text-reed" />
       </button>
-      <div
-        inert={!open}
-        className={cn(
-          "overflow-hidden transition-[height,opacity] duration-(--duration-panel-in) ease-spring [interpolate-size:allow-keywords] motion-reduce:transition-opacity motion-reduce:duration-(--duration-quick)",
-          open ? "h-auto opacity-100" : "h-0 opacity-0",
-        )}
-      >
+      <Unfold show={open} id={panelId} keepMounted>
         <table
           aria-label={`${label} usage`}
           className="w-full table-fixed text-left text-meta tabular-nums"
@@ -297,7 +286,7 @@ export function UsageDisclosure({
             </>
           )}
         </div>
-      </div>
+      </Unfold>
     </div>
   );
 }

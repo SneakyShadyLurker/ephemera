@@ -34,7 +34,7 @@ export function Leaves({
           key={character.id}
           title={character.name}
           className={cn(
-            "relative block rounded-[6px] ring-2 ring-canvas",
+            "relative block rounded-xs ring-2 ring-canvas",
             small ? "w-4" : "w-5",
             settled && "arrive",
           )}

@@ -127,6 +127,18 @@ describe("the showcase's art regions", () => {
     expect(out).toContain("Portraits ready.");
   });
 
+  it("lights the frame's rim for a first batch that completed before the frame mounted, so its light still closes on it", () => {
+    // The batch landed while the card's light was closing: the showcase mounts on it complete.
+    decode.status = "decoding";
+    expect(render(session({ status: "complete" }, CREATOR_ART.count))).toContain(
+      'data-lamplight="busy"',
+    );
+    // Without a batch to close on, nothing is owed.
+    expect(render(session({ status: "failed", code: "not_found" }))).not.toContain(
+      "data-lamplight",
+    );
+  });
+
   it("says Portraits ready once the batch is decoded, not when its stream completes", () => {
     decode.status = "decoding";
     const out = render(session({ status: "complete" }, CREATOR_ART.count));

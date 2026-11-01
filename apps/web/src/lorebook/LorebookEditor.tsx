@@ -375,7 +375,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
   const undoLine = removed !== null && (
     <p role="status" className="flex items-center gap-2 text-note text-reed arrive">
       <span className="min-w-0 truncate">{entryTitle(removed.entry, removed.index)} removed.</span>
-      <Button className="h-8 px-2 text-ink text-note touch:h-11" onClick={undo}>
+      <Button size="text" className="text-ink" onClick={undo}>
         Undo
       </Button>
     </p>

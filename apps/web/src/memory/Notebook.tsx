@@ -22,7 +22,7 @@ import { CAST_FIELD_LABELS } from "../chat/cast-ui.ts";
 import { chatStore } from "../chat/session.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
-import { FIELD, NOTEBOOK_GRID } from "../sheet/fields.ts";
+import { FIELD, HELP, NOTEBOOK_GRID, sheetLabel } from "../sheet/fields.ts";
 import {
   CAST_GENDERS,
   type CastLinePerson,
@@ -166,8 +166,7 @@ export function useNotebook(characterId: string, state: MemoryState, onSeen: (n:
 const PROSE_FIELD =
   "w-full cursor-text resize-none rounded-md border border-transparent bg-transparent px-2 py-1 font-story text-reed text-turn [field-sizing:content] outline-none transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade placeholder:text-reed hover:border-rush hover:bg-surface-hover hover:text-ink focus:border-dusk-line focus:bg-surface focus:text-ink focus:shadow-focus read-only:cursor-default read-only:hover:border-transparent read-only:hover:bg-transparent read-only:hover:text-reed";
 
-const MARGIN_LABEL =
-  "mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-1.5 tablet:text-right";
+const MARGIN_LABEL = sheetLabel("line");
 
 /** Line breaks of any kind: a relationship, a fact, a thread or a cast line is one line. */
 const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;
@@ -468,7 +467,7 @@ function OpeningField({
             </p>
           )}
         </div>
-        <p id={helpId} className="text-pretty text-note text-reed">
+        <p id={helpId} className={HELP}>
           Where the next chat begins. Empty, the card's own greeting opens it.
         </p>
       </div>
@@ -749,12 +748,12 @@ function CastLines({
                           keep(at, person);
                           setFocusAt(at);
                         }}
-                        className="-ml-2 grid min-w-0 flex-1 gap-0.5 rounded-md px-2 py-1 text-left outline-none transition-colors duration-(--duration-quick) ease-fade hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)]"
+                        className="-ml-2 grid min-w-0 flex-1 gap-0.5 rounded-md px-2 py-1 text-left row"
                       >
                         <span className="font-story text-ink text-turn">
                           {person.name?.trim() || "Unnamed"}
                         </span>
-                        <span className="text-pretty text-note text-reed">
+                        <span className={HELP}>
                           {[
                             person.gender?.trim() &&
                               `${person.gender.charAt(0).toUpperCase()}${person.gender.slice(1)}`,
@@ -789,7 +788,7 @@ function CastLines({
           <PlusIcon size={16} />
           {full ? `${MEMORY_LIMITS.cast} people is the most a notebook keeps` : "Add a person"}
         </Button>
-        <p id={helpId} className="text-pretty text-note text-reed">
+        <p id={helpId} className={HELP}>
           People the story invented and keeps meeting: a name, a gender and only details that stay
           fixed, never what they are doing. A person without a name is not kept. A line that does
           not read as a person stays as written and brings no one into a new chat.

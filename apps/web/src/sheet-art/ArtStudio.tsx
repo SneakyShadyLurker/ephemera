@@ -136,7 +136,7 @@ function MatchSwitch({
       <PortraitViewer
         label={label}
         art={<FullPortrait id={characterId} version={portrait} shown="thumb" />}
-        className="shrink-0 rounded-[5px]"
+        className="shrink-0 rounded-xs"
       >
         <Leaf id={characterId} version={portrait} className="w-9 touch:w-11" />
       </PortraitViewer>

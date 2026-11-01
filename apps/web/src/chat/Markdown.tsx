@@ -8,7 +8,7 @@ import {
   defaultRemarkPlugins,
   Streamdown,
 } from "streamdown";
-import { QUICK } from "@/app/motion.tsx";
+import { motionMs } from "@/app/motion-tokens.ts";
 import { highlightRemarkPlugins, streamingFrom, withHighlights } from "./highlight.ts";
 import { rehypeInert } from "./inert.ts";
 import { CLOSERS, type Quote, rehypeVoices } from "./voices.ts";
@@ -103,16 +103,19 @@ const remarkPlugins = [
 const rehypePlugins = [withHighlights(defaultRehypePlugins.sanitize), rehypeInert, rehypeVoices];
 /**
  * Words that stream in fade in briefly, all at once, never queued behind
- * each other (styles.css `[data-sd-animate]`, which owns the curve as
- * `--ease-fade`); one object, so Streamdown's memo holds.
+ * each other, over `--duration-quick` (styles.css `[data-sd-animate]`, which
+ * owns the curve as `--ease-fade`); read on first use and kept as one
+ * object, so Streamdown's memo holds.
  */
-const ANIMATED: AnimateOptions = {
-  animation: "fadeIn",
-  duration: QUICK * 1000,
-  sep: "word",
-  stagger: 0,
-  maxBacklogMs: QUICK * 1000,
-};
+let animated: AnimateOptions | undefined;
+const animatedOptions = (): AnimateOptions =>
+  (animated ??= {
+    animation: "fadeIn",
+    duration: motionMs("--duration-quick"),
+    sep: "word",
+    stagger: 0,
+    maxBacklogMs: motionMs("--duration-quick"),
+  });
 /** More characters than this in one update and the rest of a reply appears without fading in. */
 const FADE_BURST_LIMIT = 5_000;
 
@@ -142,7 +145,7 @@ export function Markdown({ children, streaming }: { children: string; streaming:
       className={streaming ? "caret-after" : ""}
       mode={streaming ? "streaming" : "static"}
       isAnimating={streaming}
-      animated={streaming && fresh && ANIMATED}
+      animated={streaming && fresh && animatedOptions()}
       controls={false}
       remend={remend}
       linkSafety={{ enabled: false }}

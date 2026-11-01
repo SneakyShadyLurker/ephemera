@@ -3,7 +3,7 @@ import * as m from "motion/react-m";
 import type { ReactNode } from "react";
 import { create } from "zustand";
 import { useCoarsePointer } from "@/app/form-factor.ts";
-import { QUICK, SPRING } from "@/app/motion.tsx";
+import { fade, spring } from "@/app/motion.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { chatStore } from "./session.ts";
 
@@ -36,7 +36,11 @@ interface Travel {
   far: boolean;
   still: boolean;
 }
-const distance = ({ direction, far, still }: Travel) => (still ? 0 : direction * (far ? 64 : 12));
+/** A swipe from the arrows or keys travels a nudge; one a drag carried follows the finger further. */
+const NEAR_TRAVEL = 12;
+const FAR_TRAVEL = 64;
+const distance = ({ direction, far, still }: Travel) =>
+  still ? 0 : direction * (far ? FAR_TRAVEL : NEAR_TRAVEL);
 
 const variants = {
   enter: (travel: Travel) => ({ x: distance(travel), opacity: 0 }),
@@ -44,10 +48,8 @@ const variants = {
   exit: (travel: Travel) => ({ x: -distance(travel), opacity: 0 }),
 };
 
-const transition = {
-  x: SPRING,
-  opacity: { duration: QUICK },
-} as const;
+/** The slide on the calm spring, the crossfade quick; read when a slide starts. */
+const transition = () => ({ x: spring(), opacity: fade("--duration-quick") });
 
 /**
  * The shown alternate of a reply; `swipeable` on the last reply only, and
@@ -81,7 +83,7 @@ export function SwipeFrame({
         initial="enter"
         animate="center"
         exit="exit"
-        transition={transition}
+        transition={transition()}
         drag={drag ? "x" : false}
         dragDirectionLock
         dragSnapToOrigin

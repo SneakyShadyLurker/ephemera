@@ -20,7 +20,7 @@ import { isNotFound, useModelInfo, useModelOptions } from "../api.ts";
 import { useSetting } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { SHEET_GRID } from "../sheet/fields.ts";
+import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import {
   NameField,
   SheetBody,
@@ -34,8 +34,7 @@ import {
 import { PRESETS_BACK, PresetActions } from "./PresetFrame.tsx";
 import { presetArrivals, presetQuery, REASONING_LABELS, saveSamplerPreset } from "./queries.ts";
 
-const LABEL = "mb-2 block font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2 tablet:text-right";
-const HELP = "text-pretty text-note text-reed";
+const LABEL = sheetLabel("control");
 const CHAT_MODEL = "chat-model";
 
 export function SamplerPresetScreen({ id }: { id: string }) {
@@ -362,9 +361,9 @@ function ValueRow({
           <span className="flex items-center gap-2">
             <span className="text-note text-reed">{unset}</span>
             <Button
+              size="text"
               variant="outline"
               aria-label={`Set ${label}`}
-              className="h-8 px-2.5 text-note touch:h-11"
               onClick={() => {
                 onChange(start ? start() : range.start);
                 focus(
@@ -397,8 +396,8 @@ function ValueRow({
             />
             {unit && <span className="text-note text-reed">{unit}</span>}
             <Button
+              size="text"
               aria-label={`Reset ${label} to ${unset.toLowerCase()}`}
-              className="h-8 px-2 text-note touch:h-11"
               onClick={() => {
                 onChange(null);
                 focus(`button[aria-label="Set ${label}"]`);

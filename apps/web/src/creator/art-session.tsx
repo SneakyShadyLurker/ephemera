@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
+import { motionMs } from "@/app/motion-tokens.ts";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { useScheme } from "@/app/theme.tsx";
 import { applyAtmosphere, tintFromPixels } from "../portraits/atmosphere.ts";
@@ -64,9 +65,12 @@ const ArtSessionContext = createContext<ArtSession | null>(null);
 /** Batches revealed in this tab, so a remounted session shows them without the reveal. */
 const revealedBatches = new WeakSet<ArtImage[]>();
 
+/** Whether a batch has been on show before, under any mount, in this tab. */
+export const shownBefore = (images: ArtImage[]): boolean => revealedBatches.has(images);
+
 /**
  * The room leans toward the chosen portrait's hue, within the atmosphere's
- * caps and with its grey fallback: from 120 ms into a reveal, at once when
+ * caps and with its grey fallback: `--delay-follow` into a reveal, at once when
  * the choice changes, and not at all once the session is left.
  */
 function useHueLean(batch: DecodedBatch, selected: number) {
@@ -86,7 +90,7 @@ function useHueLean(batch: DecodedBatch, selected: number) {
       return;
     }
     revealed.current = batch;
-    const timer = setTimeout(() => applyAtmosphere(tint), 120);
+    const timer = setTimeout(() => applyAtmosphere(tint), motionMs("--delay-follow"));
     return () => clearTimeout(timer);
   }, [batch, pixels, scheme, reduced]);
   useEffect(() => () => applyAtmosphere(null), []);

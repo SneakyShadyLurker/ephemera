@@ -15,6 +15,7 @@ import { SearchField } from "@/components/ui/search-field";
 import { Switch, SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { countOf, formatCount } from "@/lib/text";
+import { HELP } from "../sheet/fields.ts";
 import {
   bookSettings,
   entriesToFix,
@@ -27,7 +28,6 @@ import {
 import { entryCues, percent, poolsText, SHARED_BUDGET } from "./copy.ts";
 import { ActivationMark } from "./marks.tsx";
 
-const HELP = "text-pretty text-note text-reed";
 /** Keywords a row shows before "and N more"; the line truncates anyway. */
 const ROW_KEYS = 6;
 
@@ -258,7 +258,12 @@ export function EntryList(props: ListProps) {
   return (
     <div className="grid pb-10">
       <BookSettings book={book} onBook={props.onBook} />
-      <div className={cn(LIST_X, "sticky top-0 z-10 flex items-center gap-2 bg-canvas pt-2 pb-3")}>
+      <div
+        className={cn(
+          LIST_X,
+          "sticky top-0 z-(--z-raised) flex items-center gap-2 bg-canvas pt-2 pb-3",
+        )}
+      >
         <SearchField
           label="Find entries"
           value={find.query}
@@ -353,7 +358,7 @@ function CharacterBand({ id, name }: { id: string; name: string }) {
         to="/characters/$id"
         params={{ id }}
         tabIndex={-1}
-        className="block py-2.5 pl-4 before:absolute before:top-2.5 before:bottom-2.5 before:left-0 before:w-0.5 before:rounded-full before:bg-control-edge hover:bg-surface-hover"
+        className="block py-2.5 pl-4 before:absolute before:top-2.5 before:bottom-2.5 before:left-0 before:w-0.5 before:rounded-full before:bg-control-edge row"
       >
         <span className="block truncate font-medium text-ink text-ui italic">{name}</span>
         <span className="block text-meta text-reed">Description, personality and scenario</span>
@@ -422,7 +427,7 @@ function Row({
         aria-current={open ? "true" : undefined}
         onFocus={() => onFocus(index)}
         onClick={() => onOpen(index)}
-        className="grid min-h-14 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-2 rounded-sm py-2 pl-3 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] tablet:pl-4"
+        className="grid min-h-14 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-2 rounded-sm py-2 pl-3 text-left row tablet:pl-4"
       >
         <span className="self-baseline pt-px text-right text-meta text-reed tabular-nums">
           {entry.insertionOrder}

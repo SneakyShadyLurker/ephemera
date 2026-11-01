@@ -3,7 +3,8 @@ import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import { type MouseEvent, use, useState } from "react";
 import { flushSync } from "react-dom";
-import { PANEL_OUT, QUICK, SPRING } from "@/app/motion.tsx";
+import { fade, spring } from "@/app/motion.tsx";
+import { motionPx } from "@/app/motion-tokens.ts";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -54,12 +55,15 @@ function latestTurns(state: ChatState): number {
 }
 
 /** The thread's entrance: a short rise on the spring and a fade; reduced motion keeps the fade. */
-const ENTRANCE = {
-  initial: { opacity: 0, y: 4 },
+const entrance = () => ({
+  initial: { opacity: 0, y: motionPx("--rise") },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 4 },
-  transition: { y: { ...SPRING, duration: PANEL_OUT }, opacity: { duration: PANEL_OUT } },
-} as const;
+  exit: { opacity: 0, y: motionPx("--rise") },
+  transition: {
+    y: spring("--duration-panel-out"),
+    opacity: fade("--duration-panel-out"),
+  },
+});
 
 const turns = (count: number) => countOf(count, "turn");
 
@@ -134,7 +138,7 @@ export function MemorySeam() {
     <m.li
       data-memory-seam=""
       data-status={status}
-      {...ENTRANCE}
+      {...entrance()}
       className="group/seam grid justify-items-center gap-1.5 py-1 text-center"
     >
       <div className="flex w-full items-center gap-4">
@@ -143,7 +147,7 @@ export function MemorySeam() {
           {status === "remembering" && <span className="lamplight-edge" />}
         </span>
         {title !== "" && (
-          <p className="min-w-0 max-w-[80%] text-balance font-semibold font-story text-[1.125rem] text-ink leading-6 [overflow-wrap:anywhere]">
+          <p className="min-w-0 max-w-[80%] text-balance font-semibold font-story text-ink text-name [overflow-wrap:anywhere]">
             {title}
           </p>
         )}
@@ -186,7 +190,7 @@ export function MemorySeam() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: QUICK }}
+                  transition={fade("--duration-quick")}
                 >
                   {shown ? "Hide the folded turns" : "Show the folded turns"}
                 </m.span>

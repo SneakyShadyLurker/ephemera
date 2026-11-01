@@ -1,12 +1,11 @@
 import type { StoredEpisode } from "@ephemera/core";
 import { useId, useState } from "react";
 import { EmptyState } from "@/app/EmptyState.tsx";
-import { ChevronDownIcon } from "@/components/icons";
+import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
 import type { OpenEpisode } from "./EpisodeEditor.tsx";
 import { type BookRow, bookRows } from "./memory.ts";
-import { Unfold } from "./Unfold.tsx";
 
 /** Said where the book is empty: memories come by themselves. */
 export const NOTHING_REMEMBERED = {
@@ -90,13 +89,7 @@ function BookEntry({
             onClick={() => setOpen((current) => !current)}
             className="press flex min-h-8 w-fit items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:min-h-11"
           >
-            <ChevronDownIcon
-              size={16}
-              className={cn(
-                "transition-[rotate] duration-(--duration-panel-in) ease-spring",
-                open && "rotate-180",
-              )}
-            />
+            <DisclosureChevron />
             {open
               ? "Hide the memories it gathers"
               : `Show the ${countOf(count, "memory", "memories")} it gathers`}
@@ -137,9 +130,7 @@ function EpisodeRow({
       onClick={() => onOpen(episode.id, members)}
       className="press -mx-3 grid w-[calc(100%+1.5rem)] min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 rounded-lg px-3 py-4 text-left transition-colors duration-(--duration-quick) ease-fade [overflow-wrap:anywhere] hover:bg-surface-hover"
     >
-      <span className="font-semibold font-story text-[1.125rem] text-ink leading-6">
-        {episode.title}
-      </span>
+      <span className="font-semibold font-story text-ink text-name">{episode.title}</span>
       <span className="line-clamp-4 whitespace-pre-line font-story text-reed text-turn">
         {episode.summary}
       </span>
@@ -149,7 +140,7 @@ function EpisodeRow({
             // biome-ignore lint/suspicious/noArrayIndexKey: a model may repeat a cue; the list never reorders.
             key={`${at}:${cue}`}
             // The row's one column holds it: a long cue truncates at the row's width instead of widening it.
-            className="min-w-0 max-w-full truncate rounded-[4px] border border-rush px-1.5 text-meta text-reed"
+            className="min-w-0 max-w-full truncate rounded-xs border border-rush px-1.5 text-meta text-reed"
           >
             {cue}
           </span>

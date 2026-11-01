@@ -62,7 +62,7 @@ function SelectContent({
         sideOffset={6}
         collisionPadding={POPUP_EDGE}
         alignItemWithTrigger={false}
-        className={cn("z-50 w-(--anchor-width)", className)}
+        className={cn("z-(--z-overlay) w-(--anchor-width)", className)}
       >
         <SelectPrimitive.Popup className="pop max-h-[min(24rem,var(--available-height))] overflow-y-auto overscroll-contain rounded-lg border border-rush bg-surface p-1 shadow-overlay outline-none">
           <SelectPrimitive.List aria-label={label}>{children}</SelectPrimitive.List>

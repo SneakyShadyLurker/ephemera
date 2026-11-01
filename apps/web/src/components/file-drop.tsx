@@ -38,12 +38,25 @@ export function useFileDrop(onFiles: (files: File[]) => void) {
   return { dragging, dropTarget };
 }
 
-/** What a drop does, over the screen while files are dragged onto it. */
-export function DropOverlay({ title, hint }: { title: string; hint: string }) {
+/**
+ * What a drop does, over the screen while files are dragged onto it
+ * (`shown`). Kept mounted and hidden otherwise, so it fades in from its
+ * starting style and fades out before it hides.
+ */
+export function DropOverlay({
+  shown,
+  title,
+  hint,
+}: {
+  shown: boolean;
+  title: string;
+  hint: string;
+}) {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-3 z-30 grid place-items-center rounded-lg border border-control-edge bg-[color-mix(in_oklab,var(--canvas)_92%,transparent)] transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+      hidden={!shown}
+      className="pointer-events-none absolute inset-3 z-(--z-drop) grid place-items-center rounded-lg border border-control-edge bg-[color-mix(in_oklab,var(--canvas)_92%,transparent)] transition-[opacity,display] transition-discrete duration-(--duration-quick) ease-fade starting:opacity-0 [&[hidden]]:opacity-0"
     >
       <span className="grid justify-items-center gap-1 rounded-lg bg-canvas px-4 py-3 text-center">
         <span className="flex items-center gap-2 font-medium text-ink text-lead">

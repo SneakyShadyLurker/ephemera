@@ -95,6 +95,24 @@ for (const { name, width, height } of FORM_FACTORS) {
     await expect(session.getByRole("combobox", { name: "Model", exact: true })).toHaveText(
       "mock-fast",
     );
+    if (name === "desktop") {
+      // Closed, the docked panel leaves rather than vanishing: it stays a moment, inert and
+      // marked leaving while it slides back and fades, then goes.
+      const aside = page.locator("aside[aria-labelledby=session-title]");
+      const leaving = aside.evaluate(
+        (node) =>
+          new Promise<boolean>((resolve) => {
+            new MutationObserver(() => {
+              if (node.hasAttribute("data-leaving"))
+                resolve(node instanceof HTMLElement && node.inert);
+            }).observe(node, { attributes: true });
+          }),
+      );
+      await session.getByRole("button", { name: "Close Session" }).click();
+      expect(await leaving).toBe(true);
+      await expect(aside).toHaveCount(0);
+      await expect(toggle).toBeFocused();
+    }
   });
 }
 
@@ -398,6 +416,9 @@ test("reduced motion removes movement and keeps fades short", async ({ page }) =
       rise: root.getPropertyValue("--rise").trim(),
       panelShift: root.getPropertyValue("--panel-shift").trim(),
       pressScale: root.getPropertyValue("--press-scale").trim(),
+      // Siblings arrive together and what follows another arrival does not wait.
+      staggerStep: Number.parseFloat(root.getPropertyValue("--stagger-step")),
+      delayFollow: Number.parseFloat(root.getPropertyValue("--delay-follow")),
       caretAnimation: caret ? getComputedStyle(caret, "::after").animationName : "missing",
     };
   });
@@ -405,6 +426,8 @@ test("reduced motion removes movement and keeps fades short", async ({ page }) =
     rise: "0px",
     panelShift: "0px",
     pressScale: "1",
+    staggerStep: 0,
+    delayFollow: 0,
     caretAnimation: "none",
   });
   // Streamed words appear at once.

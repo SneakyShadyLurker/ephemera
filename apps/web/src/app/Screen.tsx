@@ -185,7 +185,7 @@ export function SkipToContent() {
   return (
     <button
       type="button"
-      className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:rounded-md focus-visible:bg-surface focus-visible:px-3 focus-visible:py-2 focus-visible:text-ink focus-visible:text-ui"
+      className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-(--z-overlay) focus-visible:rounded-md focus-visible:bg-surface focus-visible:px-3 focus-visible:py-2 focus-visible:text-ink focus-visible:text-ui"
       onClick={() => document.querySelector<HTMLElement>("[data-skip-target]")?.focus()}
     >
       Skip to content

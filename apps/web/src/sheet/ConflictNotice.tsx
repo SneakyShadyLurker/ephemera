@@ -67,7 +67,7 @@ export function ConflictNotice({
     );
   }
   return (
-    <div className={`${SHEET_GRID} sticky bottom-3 z-10 tablet:bottom-6`}>
+    <div className={`${SHEET_GRID} sticky bottom-3 z-(--z-raised) tablet:bottom-6`}>
       <div className="hidden tablet:block" />
       {card}
     </div>

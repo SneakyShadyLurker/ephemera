@@ -24,7 +24,7 @@ import {
 } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, SHEET_GRID } from "../sheet/fields.ts";
+import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
   NameField,
@@ -53,9 +53,7 @@ import {
 
 const BACK = { to: "/personas", label: "Personas" } as const;
 const LABELS: Record<keyof PersonaFields, string> = { name: "Name", description: "Description" };
-const LABEL =
-  "mb-2 block font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2.5 tablet:text-right";
-const HELP = "text-pretty text-note text-reed";
+const LABEL = sheetLabel();
 
 /** `/personas/$id`, where the id "new" opens an empty sheet. */
 export function PersonaSheetScreen({ id }: { id: string }) {
@@ -259,7 +257,7 @@ function UndoLine({ children, onUndo }: { children: ReactNode; onUndo: () => voi
   return (
     <p role="status" className="flex flex-wrap items-center gap-x-2 text-note text-reed arrive">
       {children}
-      <Button className="h-8 px-2 text-ink text-note touch:h-11" onClick={onUndo}>
+      <Button size="text" className="text-ink" onClick={onUndo}>
         Undo
       </Button>
     </p>
@@ -343,7 +341,7 @@ function GoesWith({ id }: { id: string }) {
 
   return (
     <section className={SHEET_GRID} aria-labelledby="persona-goes-with">
-      <h2 id="persona-goes-with" className={`${LABEL} tablet:pt-1.5`}>
+      <h2 id="persona-goes-with" className={sheetLabel("line")}>
         Goes with
       </h2>
       <div className="grid gap-3">

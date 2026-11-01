@@ -11,9 +11,8 @@ import { booksOf, LINKS_FULL_TEXT, linksFull } from "../lorebooks/library.ts";
 import { createLorebook, libraryQuery, type NewLorebook } from "../lorebooks/queries.ts";
 import { useLinks } from "../lorebooks/useLinks.ts";
 import { creations } from "../sheet/creation.ts";
+import { HELP } from "../sheet/fields.ts";
 import { entriesText } from "./marks.tsx";
-
-const HELP = "text-pretty text-note text-reed";
 
 const NEW_NAME = "New lorebook";
 

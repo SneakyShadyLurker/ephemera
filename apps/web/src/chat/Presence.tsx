@@ -91,7 +91,7 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
       {/* Level with the portrait's foot, above the button under it. */}
       <p
         className={cn(
-          "min-w-0 break-words font-story text-[1.5rem] text-narration leading-[1.75rem]",
+          "min-w-0 break-words font-story text-band text-narration",
           pictures && "mb-11 touch:mb-13",
         )}
       >
@@ -101,14 +101,10 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
   ) : pictures ? (
     <div className="flex items-center gap-4">
       {column}
-      <p className="min-w-0 break-words font-story text-[1.25rem] text-narration leading-[1.625rem]">
-        {name}
-      </p>
+      <p className="min-w-0 break-words font-story text-heading text-narration">{name}</p>
     </div>
   ) : (
-    <p className="break-words font-story text-[1.25rem] text-narration leading-[1.625rem]">
-      {name}
-    </p>
+    <p className="break-words font-story text-heading text-narration">{name}</p>
   );
   // The band's roster spans its whole width, under the portrait and the name.
   return (
@@ -149,7 +145,7 @@ export function HeaderPortrait() {
       data-presence-header=""
       className="presence-in relative isolate shrink-0"
     >
-      <Leaf id={character.id} version={character.portrait} className="w-8 rounded-[4px]" />
+      <Leaf id={character.id} version={character.portrait} className="w-8" />
     </span>
   );
 }

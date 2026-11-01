@@ -21,8 +21,12 @@ function opaqueRedirect(): Response {
   return response;
 }
 
+// A 204 carries no body: the Fetch standard refuses one.
 const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(status === 204 ? null : JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
 afterEach(() => {
   vi.unstubAllGlobals();

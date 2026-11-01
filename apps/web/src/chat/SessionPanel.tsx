@@ -1,7 +1,7 @@
 import { offeredEfforts } from "@ephemera/core";
 import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, type RefObject, useId, useState } from "react";
+import { type ReactNode, type RefObject, type TransitionEvent, useId, useState } from "react";
 import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
 import { CloseIcon } from "@/components/icons";
@@ -58,12 +58,31 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
   const formFactor = useFormFactor();
   const docked = useCanDock();
 
+  // Docked, the panel stays while it leaves, then goes; a sheet leaves on its own.
+  const [present, setPresent] = useState(open);
+  if (open !== present && (open || !docked)) setPresent(open);
+
   if (docked) {
+    const leaving = !open;
+    const left = (event: TransitionEvent<HTMLElement>) => {
+      if (leaving && event.target === event.currentTarget && event.propertyName === "opacity") {
+        setPresent(false);
+      }
+    };
+    // A cancel ends the exit only when nothing replaced it: closing during
+    // the entrance cancels the entrance, and the exit still runs after it.
+    const cancelled = (event: TransitionEvent<HTMLElement>) => {
+      if (event.currentTarget.getAnimations().length === 0) left(event);
+    };
     return (
-      open && (
+      present && (
         <aside
           aria-labelledby="session-title"
-          className="flex w-80 shrink-0 flex-col border-rush border-l transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-x-(--panel-shift) starting:opacity-0"
+          data-leaving={leaving ? "" : undefined}
+          inert={leaving}
+          onTransitionEnd={left}
+          onTransitionCancel={cancelled}
+          className="dock-side flex w-80 shrink-0 flex-col border-rush border-l"
         >
           <DrawerHeader>
             <h2 id="session-title" className={PANEL_TITLE}>

@@ -3,12 +3,13 @@ import { m } from "motion/react";
 import { useId, useRef, useState } from "react";
 import { MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Unfold } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
 import { ReviewField, useReview, useSettled } from "../rework/ReviewField.tsx";
 import { useReworkLocked } from "../rework/session.ts";
 import { TrackedText } from "../rework/TrackedText.tsx";
-import { FIELD, SHEET_GRID } from "../sheet/fields.ts";
+import { FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import {
   CloseRow,
   Glides,
@@ -118,10 +119,7 @@ export function Greetings({
 
   return (
     <section id="s-greetings" aria-labelledby={`${firstId}-heading`} className={SHEET_GRID}>
-      <h2
-        id={`${firstId}-heading`}
-        className="mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2.5 tablet:text-right"
-      >
+      <h2 id={`${firstId}-heading`} className={sheetLabel()}>
         Greetings
       </h2>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
@@ -209,89 +207,97 @@ export function Greetings({
                           label={label}
                         />
                       </div>
-                    ) : open === key ? (
-                      <div className="grid gap-2 py-3 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
-                        <div className="flex items-center gap-1">
-                          {moving === key ? (
-                            <MoveToPosition
-                              current={number}
-                              count={alternates.length}
-                              onMove={(position) => moveTo(index, position)}
-                              onCancel={() => setMoving(null)}
-                            />
-                          ) : (
-                            <>
-                              <CloseRow onClose={() => setOpen(null)}>{label}</CloseRow>
-                              <MoveButtons
-                                earlierLabel={`Move ${label} earlier`}
-                                laterLabel={`Move ${label} later`}
-                                canMoveEarlier={!locked && index > 0}
-                                canMoveLater={!locked && index < alternates.length - 1}
-                                onEarlier={() => move(index, index - 1)}
-                                onLater={() => move(index, index + 1)}
-                              />
-                              <Menu>
-                                <MenuTrigger
-                                  disabled={locked}
-                                  render={<Button size="icon" aria-label={`More for ${label}`} />}
-                                >
-                                  <MoreIcon />
-                                </MenuTrigger>
-                                <MenuContent label={`${label} actions`}>
-                                  <MenuItem onClick={() => makeFirst(index)}>
-                                    Use as first message
-                                  </MenuItem>
-                                  <MenuItem
-                                    disabled={alternates.length < 2}
-                                    onClick={() => setMoving(key)}
-                                  >
-                                    Move to position
-                                  </MenuItem>
-                                  <MenuSeparator />
-                                  <MenuItem danger onClick={() => remove(index)}>
-                                    Remove
-                                  </MenuItem>
-                                </MenuContent>
-                              </Menu>
-                            </>
-                          )}
-                        </div>
-                        <textarea
-                          id={`${firstId}-${key}`}
-                          aria-label={label}
-                          value={text}
-                          rows={2}
-                          maxLength={CARD_LIMITS.textLength}
-                          readOnly={locked}
-                          aria-readonly={locked || undefined}
-                          onChange={(event) =>
-                            onChange({
-                              alternateGreetings: alternates.map((item, i) =>
-                                i === index ? event.target.value : item,
-                              ),
-                            })
-                          }
-                          className={FIELD}
-                        />
-                      </div>
                     ) : (
-                      <OpenRow
-                        label={`${label}: ${text === "" ? "empty" : text.slice(0, 80)}`}
-                        onOpen={() => setOpen(key)}
-                        className="h-11 px-1 touch:h-12"
-                      >
-                        <span className="w-6 shrink-0 text-right text-meta text-reed tabular-nums">
-                          {number}
-                        </span>
-                        <span
-                          className={cn(
-                            "min-w-0 flex-1 truncate text-ui",
-                            text === "" ? "text-reed" : "text-narration",
-                          )}
-                        >
-                          {text === "" ? "Empty" : text}
-                        </span>
-                      </OpenRow>
+                      // Opening one folds its row away as its editor unfolds, so the height eases.
+                      <>
+                        <Unfold show={open !== key}>
+                          <OpenRow
+                            label={`${label}: ${text === "" ? "empty" : text.slice(0, 80)}`}
+                            onOpen={() => setOpen(key)}
+                            className="h-11 px-1 touch:h-12"
+                          >
+                            <span className="w-6 shrink-0 text-right text-meta text-reed tabular-nums">
+                              {number}
+                            </span>
+                            <span
+                              className={cn(
+                                "min-w-0 flex-1 truncate text-ui",
+                                text === "" ? "text-reed" : "text-narration",
+                              )}
+                            >
+                              {text === "" ? "Empty" : text}
+                            </span>
+                          </OpenRow>
+                        </Unfold>
+                        <Unfold show={open === key}>
+                          <div className="grid gap-2 py-3">
+                            <div className="flex items-center gap-1">
+                              {moving === key ? (
+                                <MoveToPosition
+                                  current={number}
+                                  count={alternates.length}
+                                  onMove={(position) => moveTo(index, position)}
+                                  onCancel={() => setMoving(null)}
+                                />
+                              ) : (
+                                <>
+                                  <CloseRow onClose={() => setOpen(null)}>{label}</CloseRow>
+                                  <MoveButtons
+                                    earlierLabel={`Move ${label} earlier`}
+                                    laterLabel={`Move ${label} later`}
+                                    canMoveEarlier={!locked && index > 0}
+                                    canMoveLater={!locked && index < alternates.length - 1}
+                                    onEarlier={() => move(index, index - 1)}
+                                    onLater={() => move(index, index + 1)}
+                                  />
+                                  <Menu>
+                                    <MenuTrigger
+                                      disabled={locked}
+                                      render={
+                                        <Button size="icon" aria-label={`More for ${label}`} />
+                                      }
+                                    >
+                                      <MoreIcon />
+                                    </MenuTrigger>
+                                    <MenuContent label={`${label} actions`}>
+                                      <MenuItem onClick={() => makeFirst(index)}>
+                                        Use as first message
+                                      </MenuItem>
+                                      <MenuItem
+                                        disabled={alternates.length < 2}
+                                        onClick={() => setMoving(key)}
+                                      >
+                                        Move to position
+                                      </MenuItem>
+                                      <MenuSeparator />
+                                      <MenuItem danger onClick={() => remove(index)}>
+                                        Remove
+                                      </MenuItem>
+                                    </MenuContent>
+                                  </Menu>
+                                </>
+                              )}
+                            </div>
+                            <textarea
+                              id={`${firstId}-${key}`}
+                              aria-label={label}
+                              value={text}
+                              rows={2}
+                              maxLength={CARD_LIMITS.textLength}
+                              readOnly={locked}
+                              aria-readonly={locked || undefined}
+                              onChange={(event) =>
+                                onChange({
+                                  alternateGreetings: alternates.map((item, i) =>
+                                    i === index ? event.target.value : item,
+                                  ),
+                                })
+                              }
+                              className={FIELD}
+                            />
+                          </div>
+                        </Unfold>
+                      </>
                     )}
                   </m.li>
                 );
@@ -323,11 +329,7 @@ export function Greetings({
         {removed !== null && (
           <p role="status" className="flex items-center gap-2 text-note text-reed arrive">
             Alternate {removed.index + 1} removed.
-            <Button
-              className="h-8 px-2 text-ink text-note touch:h-11"
-              disabled={locked}
-              onClick={undo}
-            >
+            <Button size="text" className="text-ink" disabled={locked} onClick={undo}>
               Undo
             </Button>
           </p>

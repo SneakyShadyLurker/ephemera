@@ -32,7 +32,7 @@ export function Infotip({
           className,
         )}
       >
-        <InfoIcon size={16} className="size-3.5" />
+        <InfoIcon size={14} />
       </PopoverTrigger>
       <PopoverContent title={label} className="p-3">
         <div className="grid gap-2 text-pretty text-note text-reed">{children}</div>

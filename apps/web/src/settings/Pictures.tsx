@@ -182,12 +182,11 @@ export function Pictures() {
           }}
         />
       )}
-      {dragging && (
-        <DropOverlay
-          title="Import this workflow"
-          hint="ComfyUI workflow, saved or exported as API"
-        />
-      )}
+      <DropOverlay
+        shown={dragging}
+        title="Import this workflow"
+        hint="ComfyUI workflow, saved or exported as API"
+      />
     </div>
   );
 }

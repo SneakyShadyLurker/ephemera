@@ -2,6 +2,7 @@ import { createCn } from "cn/config";
 
 /** The theme's `--text-*` sizes (styles.css); a unit test keeps the two in step. */
 export const TEXT_SIZES = [
+  "tag",
   "meta",
   "note",
   "ui",
@@ -10,9 +11,12 @@ export const TEXT_SIZES = [
   "line",
   "story-phone",
   "story",
+  "name",
   "heading",
+  "band",
   "title-phone",
   "title",
+  "wordmark",
 ];
 
 /**
