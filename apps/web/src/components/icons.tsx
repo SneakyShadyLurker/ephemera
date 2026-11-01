@@ -403,6 +403,16 @@ export const DoorwayIcon = icon(
   </>,
 );
 
+/** A lightbulb lit, a few short rays around it: ideas. Brainstorm. */
+export const IdeasIcon = icon(
+  "Ideas",
+  <>
+    <path d="M10 16.25c0-1.2-.4-2.2-1-3.1A4 4 0 1 1 15 13.15c-.6.9-1 1.9-1 3.1Z" />
+    <path d="M10 19h4M11 21.25h2" />
+    <path d="M12 2.25v1.25M6.17 4.67l.88.88M17.83 4.67l-.88.88M3.75 10.5H5M19 10.5h1.25" />
+  </>,
+);
+
 /** A lens over the page. */
 export const SearchIcon = icon(
   "Search",

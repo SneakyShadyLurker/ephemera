@@ -28,6 +28,88 @@ export const COPY = {
   },
 } as const satisfies Record<CreatorKind, { field: string; create: string; keep: string }>;
 
+/** The brainstorm's copy (the design spec's table), as the specs find its controls and notes. */
+export const BRAINSTORM_COPY = {
+  tile: "Brainstorm",
+  change: "Change from Brainstorm",
+  field: "What are you in the mood for?",
+  submit: "Brainstorm ideas",
+  requestPrefix: "Your request:",
+  editRequest: "Edit request",
+  startOver: "Start over",
+  kind: "Kind of ideas",
+  kindHint: "Changing the kind brings ten new ideas.",
+  kinds: { subject: "Subject", group: "Multiple Subjects", scenario: "Scenario" },
+  classifying: "Reading your request",
+  thinking: "Thinking",
+  writing: "Writing ideas",
+  complete: "Ten ideas.",
+  waiting: "Not sent yet: waiting for you to sign in.",
+  retry: "The first list was missing ideas, so it is being written again.",
+  short: (count: number) =>
+    `${count} ${count === 1 ? "idea" : "ideas"} instead of ten. New ideas tries for the full ten.`,
+  stoppedWith: (count: number) => `Stopped. ${count} ${count === 1 ? "idea" : "ideas"} so far.`,
+  stoppedWithout: "Stopped before any idea arrived.",
+  list: "Ideas",
+  row: (n: number, pitch: string) => `${n}. ${pitch}`,
+  feedback: "Adjust the ideas",
+  more: "New ideas",
+  stop: "Stop",
+  back: "Back to ideas",
+  alerts: {
+    upstream: "The model stopped before the ideas were done. New ideas to try again.",
+    cut: "The model ran out of room before the ten were done. New ideas to try again, or choose a lower reasoning effort.",
+    filtered:
+      "The provider's filter stopped the ideas. New ideas to try again, or choose another model.",
+    too_large:
+      "The request and the earlier lists are too long for this model's context window. Start over, or choose another model.",
+    kind_unclear: "This could be one person, several, or a place to go. Choose above.",
+    unusable:
+      "The ideas came back in a form the app cannot read. New ideas to try again, or choose another model.",
+  },
+} as const;
+
+/** From the gallery: Create with AI, the Brainstorm tile, the request, the model, then Brainstorm ideas. */
+export async function brainstorm(
+  page: Page,
+  { request, model }: { request: string; model: MockModel },
+) {
+  await page.goto("/characters");
+  await page.getByRole("button", { name: "Create with AI" }).first().click();
+  await page.locator('[data-stage="brainstorm"]').click();
+  const field = page.getByRole("textbox", { name: BRAINSTORM_COPY.field });
+  await field.fill(request);
+  await expect(field).toHaveValue(request);
+  await choose(page, "Model", model);
+  await page.getByRole("button", { name: BRAINSTORM_COPY.submit }).click();
+}
+
+/** The rows of the list on show, ghosts included while a round is written. */
+export const ideaRows = (page: Page) =>
+  page.getByRole("list", { name: BRAINSTORM_COPY.list }).getByRole("listitem");
+
+/**
+ * The kind control, whichever form the viewport gives it: a Select below the
+ * tablet width (45rem), a toggle group of the three kinds from it on.
+ */
+export function kindControl(page: Page) {
+  const narrow = (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) < 720;
+  const select = page.getByRole("combobox", { name: BRAINSTORM_COPY.kind, exact: true });
+  const group = page.getByRole("group", { name: BRAINSTORM_COPY.kind, exact: true });
+  const item = (kind: CreatorKind) =>
+    group.getByRole("button", { name: BRAINSTORM_COPY.kinds[kind], exact: true });
+  return {
+    choose: async (kind: CreatorKind) => {
+      if (narrow) await choose(page, BRAINSTORM_COPY.kind, BRAINSTORM_COPY.kinds[kind]);
+      else await item(kind).click();
+    },
+    expectSelected: async (kind: CreatorKind) => {
+      if (narrow) await expect(select).toContainText(BRAINSTORM_COPY.kinds[kind]);
+      else await expect(item(kind)).toHaveAttribute("aria-pressed", "true");
+    },
+  };
+}
+
 /** Keep's label while no portrait is on show, for either kind. */
 export const KEEP_WITHOUT_PORTRAIT = "Keep without portrait";
 

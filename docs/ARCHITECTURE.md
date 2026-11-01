@@ -1142,7 +1142,16 @@ content's path: the tab's memory and one request in the server.
   sentences of Setting and Tone, for era, place, genre and mood, and
   People whole, for the looks of the people a cover or scene shows), and `toSheetFields` maps a card onto card fields with
   the kind's one tag (`CREATOR_TAGS`: Subject, Multiple Subjects or
-  Scenario).
+  Scenario). For the brainstorm, `limits.ts` adds the ten ideas of a list
+  (`brainstormOptions`) and the three earlier lists a round carries
+  (`brainstormRounds`), the prompts a classifier prompt and one brainstorm
+  prompt per kind, the schemas its request and events, and `brainstorm.ts`
+  the readers: the classifier's one word (`parseBrainstormKind`) and one
+  idea per answer line (`brainstormReader`, which `parseBrainstormAnswer`
+  reuses so live and final lists agree), skipping a repeated pitch and
+  refusing, never cutting, a pitch or brief past `descriptionLength`.
+  `brainstormMessages` in `message.ts` rebuilds the conversation from the
+  request and the earlier lists with what followed each.
 - **`POST /api/creator/card`** (`apps/server/src/creator.ts`): a
   `streamText` call with the kind's system prompt and the description as
   the user message. When the catalog or the owner gives the model a context
@@ -1186,6 +1195,20 @@ content's path: the tab's memory and one request in the server.
   or the model's lower output limit (sent because a provider's default
   when it is omitted can be far lower);
   the request has chat's lifetime.
+- **`POST /api/creator/brainstorm`**: a request with no kind is classified
+  first, a call of its own with the classifier prompt and the request
+  alone; no kind word in the answer ends the run with `kind_unclear`, else
+  the stream says `kind`. The list call takes the kind's prompt and the
+  rebuilt conversation, refused first as `too_large` when it leaves too
+  little room in a known window, and streams NDJSON: `thinking`, each idea
+  as `option` once its line completes, then one `result`. An answer short
+  of ten is written once more in the same request (`retry`, the first
+  answer and `brainstormRetryPrompt` sent back) when that still fits; the
+  result is the better attempt, never fewer ideas than the first gave, and
+  no idea at all is `unusable`. Both calls share one cache key, the card's
+  `maxOutputTokens` and its error codes. The server keeps nothing between
+  rounds: the browser sends the request and the earlier lists each time,
+  and the log carries operational fields only.
 - **`POST /api/creator/art`**: the browser sends back the art source from
   the card it holds, the image prompt's model and reasoning effort (the
   card's unless others are chosen under New art, the model being the
@@ -1572,6 +1595,16 @@ content's path: the tab's memory and one request in the server.
   drawn on canvas, so the policy keeps `img-src 'self'` with no object URL
   and no `blob:` or `data:` source. Until a batch is on show, Keep reads "Keep without portrait". Card text renders as plain text or through the tightened renderer.
   A request an expired sign-in refused is sent once more after renewal.
+  The brainstorm slice (`brainstorm-slice.ts`) holds the request, the list
+  on show, the round being written, the earlier lists, the pick with the
+  player's edits per idea, and the unsent Ask and feedback text; each round
+  carries its own token beside the epoch, so a stopped or replaced round's
+  late events change nothing. A pick sets the kind and copies the brief
+  (or its remembered edit) into the description, which then follows the
+  description's lifetime. Change stops a running round and keeps the
+  session for the tile to reopen; Discard and Rewrite keep it too. Leaving
+  the route drops it, so it cannot reappear on return, and a reload,
+  `pagehide` or a closed tab empty it with the rest.
 - **Keep** has no route of its own: the existing `POST /api/characters`
   under a client-chosen id, then the existing portrait upload with the
   chosen PNG through the portrait pipeline. The card's fields and id come
@@ -2213,6 +2246,7 @@ each, one per test.
 | Creation drafts: upstream error | `crerr` | C | C | C | C | C | S | S | S | S | S |
 | Creation drafts: ComfyUI error | `crcomfy` | C | C | C | C | C | S | S | S | S | S |
 | Creation drafts: navigation away | `crnav` | C | C | C | C | C | S | S | S | S | S |
+| Creation drafts: brainstorm | `crbrain` | C | C | C | C | C | S | S | S | S | S |
 | Creation drafts: reload | `crreload` | C | C | n/a | C | C | S | S | S | S | S |
 | Creation drafts: server restart mid-generation | `crrst` | CR | CR | CR | CR | CR | CR | CR | CR | CR | S |
 | Rework drafts: review before Apply | `rwok` | W | W | W | W | W | S | S | S | S | S |

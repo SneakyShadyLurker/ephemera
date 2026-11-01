@@ -8,7 +8,13 @@ import {
   artMetaprompt,
   artPrompt,
   type BlockTokens,
+  BRAINSTORM_CLASSIFY_PROMPT,
+  BRAINSTORM_PROMPTS,
+  type BrainstormOption,
   blankCard,
+  brainstormMessages,
+  brainstormReader,
+  brainstormRetryPrompt,
   CARD_SYSTEM_PROMPTS,
   type CallPurpose,
   type CallSettings,
@@ -16,6 +22,7 @@ import {
   CREATOR_ART,
   CREATOR_LIMITS,
   type CreatorArtStatus,
+  type CreatorBrainstormEvent,
   type CreatorCardErrorCode,
   type CreatorCardEvent,
   type CreatorErrorCode,
@@ -27,6 +34,8 @@ import {
   creatorArtRequestSchema,
   creatorArtStatusQuerySchema,
   creatorArtStatusSchema,
+  creatorBrainstormEventSchema,
+  creatorBrainstormRequestSchema,
   creatorCardEventSchema,
   creatorCardRequestSchema,
   creatorImageCardEventSchema,
@@ -38,6 +47,8 @@ import {
   imageCardPrompt,
   incompleteForAutomaticKeep,
   type ModelInfo,
+  parseBrainstormAnswer,
+  parseBrainstormKind,
   parseReworkAnswer,
   REWORK_LIMITS,
   REWORK_SYSTEM_PROMPT,
@@ -106,7 +117,10 @@ import type { UserEnv } from "./user.ts";
  * description in the prompt, as it joins a chat's. A rework's request, the
  * card the browser sends, the stored portrait and the answer are drafts in
  * the same way. An image card's upload, notes and answer are drafts too;
- * only the card it keeps, with its portrait, is written.
+ * only the card it keeps, with its portrait, is written. A brainstorm's
+ * request, the earlier lists and feedback the browser sends back, and the
+ * ideas the model writes are drafts as well: the server rebuilds the
+ * conversation per request and holds nothing between rounds.
  */
 
 /** Largest accepted creator request body: a description or an art source, JSON-escaped. */
@@ -165,6 +179,7 @@ const CARD_ERROR = "creator.card.error";
 const REWORK_ERROR = "creator.rework.error";
 const ART_ERROR = "creator.art.error";
 const IMAGE_CARD_ERROR = "creator.image_card.error";
+const BRAINSTORM_ERROR = "creator.brainstorm.error";
 
 /** A streamed call's log events, by route. */
 const CARD_EVENTS: CallEvents = {
@@ -176,6 +191,17 @@ const IMAGE_CARD_EVENTS: CallEvents = {
   error: IMAGE_CARD_ERROR,
   end: "creator.image_card.end",
   abort: "creator.image_card.abort",
+};
+/** The brainstorm's classifier call and its list calls log apart. */
+const BRAINSTORM_CLASSIFY_EVENTS: CallEvents = {
+  error: BRAINSTORM_ERROR,
+  end: "creator.brainstorm.classify.end",
+  abort: "creator.brainstorm.classify.abort",
+};
+const BRAINSTORM_EVENTS: CallEvents = {
+  error: BRAINSTORM_ERROR,
+  end: "creator.brainstorm.end",
+  abort: "creator.brainstorm.abort",
 };
 const REWORK_EVENTS: CallEvents = {
   error: REWORK_ERROR,
@@ -564,6 +590,8 @@ function cardCallEnd(
  */
 async function writeCheckedCard<Checked extends { ok: boolean }>(options: {
   write: (messages: ModelMessage[], attempt: 1 | 2) => Promise<CardCall>;
+  /** Earlier turns sent before `user` in both attempts: a brainstorm's lists and what followed them. */
+  history?: ModelMessage[];
   /** The request's user turn: the description, or an image and its text. */
   user: ModelMessage;
   signal: AbortSignal;
@@ -575,8 +603,8 @@ async function writeCheckedCard<Checked extends { ok: boolean }>(options: {
   /** The retry is starting. */
   onRetry: (checked: Checked) => void;
 }): Promise<Ended | { end?: undefined; checked: Checked }> {
-  const { write, user, signal, check } = options;
-  const first = await write([user], 1);
+  const { write, user, signal, check, history = [] } = options;
+  const first = await write([...history, user], 1);
   const firstEnd = cardCallEnd(first, signal);
   if (firstEnd !== undefined) return firstEnd;
   const checked = check(first.answer);
@@ -589,8 +617,13 @@ async function writeCheckedCard<Checked extends { ok: boolean }>(options: {
   options.onRetry(checked);
   const second = await write(
     first.answer.trim() === ""
-      ? [user]
-      : [user, { role: "assistant", content: first.answer }, { role: "user", content: correction }],
+      ? [...history, user]
+      : [
+          ...history,
+          user,
+          { role: "assistant", content: first.answer },
+          { role: "user", content: correction },
+        ],
     2,
   );
   const secondEnd = cardCallEnd(second, signal);
@@ -771,6 +804,143 @@ export function createCreatorApi(deps: CreatorDeps) {
                     tokens: [],
                   },
             );
+          },
+        );
+      },
+    )
+    .post(
+      "/brainstorm",
+      requestLifetime(deps.requestTimeoutMs, deps.onStreamingRequest),
+      boundedBody(MAX_CREATOR_BODY_BYTES),
+      zValidator("json", creatorBrainstormRequestSchema, invalid),
+      (c) => {
+        const { description, rounds, model, reasoning, ...request } = c.req.valid("json");
+        // The run reads the requester's settings after the handler returned.
+        const { stores, calibration } = c.var.user;
+        const { settings } = stores;
+        return eventStream<CreatorBrainstormEvent>(
+          c,
+          creatorBrainstormEventSchema,
+          deps.stopping,
+          { log, event: BRAINSTORM_ERROR },
+          async (send, signal) => {
+            // An unknown window does not refuse, as for a card: Describe shares the model picker.
+            const resolved = await resolveModel(catalog, model, settings.get(), signal);
+            if (resolved === null) {
+              return send({ type: "error", code: timedOut(signal) ? "timeout" : "upstream" });
+            }
+            const { window, info } = resolved;
+            // One cache key for the request's calls: the classifier, the list and its retry.
+            const cacheKey = requestCacheKey();
+            const callSettings = effortSettings(info, reasoning);
+            const fits = (texts: string[]) =>
+              window === null ||
+              promptRoom(window.tokens, calibration.get(model) ?? 1, texts) !== null;
+            const tooLarge = () => {
+              log.warn({ event: BRAINSTORM_ERROR, model, errorClass: "PromptTooLarge" });
+              send({ type: "error", code: "too_large" });
+            };
+
+            // A first round reads the request as one of the three kinds; later ones name it.
+            let kind = request.kind;
+            if (kind === undefined) {
+              if (!fits([BRAINSTORM_CLASSIFY_PROMPT, description])) return tooLarge();
+              const call = await writeCard({
+                model,
+                instructions: BRAINSTORM_CLASSIFY_PROMPT,
+                messages: [{ role: "user", content: description }],
+                info,
+                settings: callSettings,
+                cacheKey,
+                signal,
+                events: BRAINSTORM_CLASSIFY_EVENTS,
+              });
+              const ended = cardCallEnd(call, signal);
+              if (ended !== undefined) {
+                return send({ type: "error", code: ended.end, ...waitOf(ended) });
+              }
+              const read = parseBrainstormKind(call.answer);
+              if (read === null) return send({ type: "error", code: "kind_unclear" });
+              kind = read;
+              send({ type: "kind", kind });
+            }
+
+            const instructions = BRAINSTORM_PROMPTS[kind];
+            const turns = brainstormMessages(description, rounds, kind);
+            const texts = [instructions, ...turns.map((turn) => turn.content)];
+            if (!fits(texts)) return tooLarge();
+            const history: ModelMessage[] = turns.slice(0, -1);
+            // The last turn is always the player's: the request, or what followed the last list.
+            const user: ModelMessage = {
+              role: "user",
+              content: turns.at(-1)?.content ?? description,
+            };
+
+            /*
+             * Each attempt reads its own answer as it streams, so an idea is
+             * sent as its line completes; its check reads the same text, so
+             * the live and the final lists agree. The first attempt's list is
+             * kept: a retry never ends with fewer ideas than it gave.
+             */
+            let reader = brainstormReader();
+            let attempt: 1 | 2 = 1;
+            let first: BrainstormOption[] = [];
+            const sendIdeas = (accepted: BrainstormOption[]) => {
+              const start = reader.options.length - accepted.length;
+              for (const [at, option] of accepted.entries()) {
+                send({ type: "option", index: start + at, option });
+              }
+            };
+            let thought = Number.NEGATIVE_INFINITY;
+            const run = await writeCheckedCard({
+              write: (messages, current) => {
+                reader = brainstormReader();
+                attempt = current;
+                return writeCard({
+                  model,
+                  instructions,
+                  messages,
+                  info,
+                  settings: callSettings,
+                  cacheKey,
+                  signal,
+                  attempt: current,
+                  events: BRAINSTORM_EVENTS,
+                  onText: (text) => sendIdeas(reader.push(text)),
+                  onReasoning: () => {
+                    // That the model thinks, never what: at most one event a second.
+                    const now = performance.now();
+                    if (now - thought >= THINKING_INTERVAL_MS) {
+                      thought = now;
+                      send({ type: "thinking" });
+                    }
+                  },
+                });
+              },
+              history,
+              user,
+              signal,
+              check: (answer) => {
+                // A last line without a newline completes here.
+                sendIdeas(reader.end());
+                const checked = parseBrainstormAnswer(answer);
+                if (attempt === 1) first = checked.options;
+                return checked;
+              },
+              correction: (checked) => brainstormRetryPrompt(checked.options.length),
+              // The retry carries the first answer back: it runs only when that still fits the window.
+              fits: (answer, correction) => fits([...texts, answer, correction]),
+              onRetry: () => send({ type: "retry" }),
+            });
+            if (run.end !== undefined) {
+              // A retry that failed still leaves the first attempt's ideas.
+              if (first.length > 0) return send({ type: "result", options: first });
+              return send({ type: "error", code: run.end, ...waitOf(run) });
+            }
+            const last = run.checked.options;
+            const best = last.length >= first.length ? last : first;
+            if (best.length === 0) return send({ type: "error", code: "unusable" });
+            send({ type: "result", options: best });
           },
         );
       },

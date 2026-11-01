@@ -11,13 +11,32 @@
  * retention canary; another base marks content that may persist. A
  * `<base>-keep` mark beside the description makes the card derive from that
  * base instead, so a canary description can yield a card that persists.
+ * A brainstorm request holds `<base>-ask`, its ideas' pitches `<base>-idea`,
+ * their briefs `<base>-brief` beside `<base>-desc` (so a picked brief writes
+ * the base's card), and the player's feedback `<base>-tune`.
  */
 
 import { pngChunk, pngWithNoise, pngWithText } from "../../apps/server/test/image-fixtures.ts";
-import { CREATOR_ART } from "../../packages/core/src/creator/limits.ts";
-import type { CreatorKind } from "../../packages/core/src/creator/schema.ts";
+import { brainstormAnswerLines } from "../../packages/core/src/creator/brainstorm.ts";
+import { CREATOR_ART, CREATOR_LIMITS } from "../../packages/core/src/creator/limits.ts";
+import {
+  type BrainstormOption,
+  type CreatorKind,
+  creatorKindSchema,
+} from "../../packages/core/src/creator/schema.ts";
 
-export type Mark = "desc" | "keep" | "card" | "draft" | "prompt" | "steer" | `img${number}`;
+export type Mark =
+  | "desc"
+  | "keep"
+  | "card"
+  | "draft"
+  | "prompt"
+  | "steer"
+  | "ask"
+  | "idea"
+  | "brief"
+  | "tune"
+  | `img${number}`;
 
 export const mark = (base: string, what: Mark) => `${base}-${what}`;
 
@@ -142,6 +161,63 @@ function withMarker(png: Buffer, marker: string): Buffer {
   const text = pngChunk("tEXt", Buffer.from(`Comment\0${marker}`, "latin1"));
   // The signature and the IHDR chunk take the first 33 bytes.
   return Buffer.concat([png.subarray(0, 33), text, png.subarray(33)]);
+}
+
+/**
+ * How the mock upstream answers a brainstorm whose request names it: the
+ * classifier reads the kind `mock-brainstorm-<kind>` names (Subject without
+ * one); `mock-ideas-unclear` gets an answer naming no kind, and
+ * `mock-ideas-short` a list of seven ideas, then eight when asked again.
+ */
+export interface BrainstormScript {
+  kind?: CreatorKind;
+  script?: "short" | "unclear";
+}
+
+const BRAINSTORM_KIND = /\bmock-brainstorm-(subject|group|scenario)\b/;
+const BRAINSTORM_SCRIPT = /\bmock-ideas-(short|unclear)\b/;
+
+/** The script a brainstorm request names. */
+export function brainstormScriptOf(text: string): BrainstormScript {
+  const kind = creatorKindSchema.safeParse(BRAINSTORM_KIND.exec(text)?.[1]);
+  const script = BRAINSTORM_SCRIPT.exec(text)?.[1] as BrainstormScript["script"];
+  return {
+    ...(kind.success ? { kind: kind.data } : {}),
+    ...(script === undefined ? {} : { script }),
+  };
+}
+
+/** The player's brainstorm request: neutral placeholder prose with its mark, and a script for the mock. */
+export const brainstormRequest = (base: string, { kind, script }: BrainstormScript = {}) =>
+  `Something slow and tense in a snowed-in placeholder hotel. ${mark(base, "ask")}${kind === undefined ? "" : ` mock-brainstorm-${kind}`}${script === undefined ? "" : ` mock-ideas-${script}`}`;
+
+/** Idea `n` (from 1) of brainstorm round `round` (from 1) for `kind`. */
+export const brainstormIdea = (
+  kind: CreatorKind,
+  base: string,
+  round: number,
+  n: number,
+): BrainstormOption => ({
+  pitch: `Idea ${n} for ${kind}, round ${round} ${mark(base, "idea")}`,
+  brief: `A placeholder brief for idea ${n}. ${mark(base, "desc")} ${mark(base, "brief")}`,
+});
+
+/**
+ * The model's answer for brainstorm round `round`: ten lines, one JSON object
+ * each, but for the ideas `kept` (by number, from 1), repeated word for word.
+ */
+export function brainstormAnswer(
+  kind: CreatorKind,
+  base: string,
+  round: number,
+  kept: ReadonlyMap<number, BrainstormOption> = new Map(),
+): string {
+  return brainstormAnswerLines(
+    Array.from(
+      { length: CREATOR_LIMITS.brainstormOptions },
+      (_, i) => kept.get(i + 1) ?? brainstormIdea(kind, base, round, i + 1),
+    ),
+  );
 }
 
 /** A base for marks that may persist: a kept card's text, never a canary. */

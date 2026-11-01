@@ -4,15 +4,24 @@ import type { Page } from "@playwright/test";
 import { expectUpstreamAborted, upstreamRecords } from "./support/chat.ts";
 import {
   ART_TIMEOUT,
+  BRAINSTORM_COPY,
+  brainstorm,
   type ComfyScope,
   comfyScope,
   createCard,
   expectBatch,
+  ideaRows,
   portraits,
   recordArt,
   showcaseAction,
 } from "./support/creator.ts";
-import { cardName, mark, ownerDescription } from "./support/creator-fixtures.ts";
+import {
+  brainstormIdea,
+  brainstormRequest,
+  cardName,
+  mark,
+  ownerDescription,
+} from "./support/creator-fixtures.ts";
 import { patchSettings } from "./support/entities.ts";
 import { CANARY_MARKER, CREATOR_RESTART, canary } from "./support/env.ts";
 import { startServer, stopServer } from "./support/own-server.ts";
@@ -34,8 +43,9 @@ import { expect, test } from "./support/test.ts";
 
 /*
  * Retention matrix, creation drafts (docs/ARCHITECTURE.md § Retention
- * matrix): the owner's description, the card before Keep, the image prompt
- * and the candidate portraits, along each path a creation can take. Every
+ * matrix): the owner's description, the card before Keep, the image prompt,
+ * the candidate portraits and a brainstorm's request, feedback and ideas,
+ * along each path a creation can take. Every
  * mark of a row derives from one canary of its label
  * (e2e/support/creator-fixtures.ts), so the server cells in
  * e2e/server-writes.check.ts find any of them, the portraits' base64 forms
@@ -246,6 +256,48 @@ matrixRow(
     // Leaving aborted the art request: ComfyUI interrupted the run and holds nothing of it.
     await scope.expectClean();
     expect((await scope.state()).interrupted).toBe(1);
+  },
+  CREATOR,
+);
+
+matrixRow(
+  "crbrain",
+  async ({ page }) => {
+    const base = canary("crbrain");
+    const request = brainstormRequest(base, { kind: "scenario" });
+    const rows = ideaRows(page);
+    const feedback = page.getByRole("textbox", { name: BRAINSTORM_COPY.feedback });
+    const complete = page.getByRole("status").filter({ hasText: BRAINSTORM_COPY.complete });
+    await brainstorm(page, { request, model: "mock-fast" });
+    await expect(rows).toHaveCount(10);
+    await expect(rows.first()).toContainText(mark(base, "idea"));
+    // The classifier and the list each got the request.
+    expect(await upstreamRecords(mark(base, "ask"))).toHaveLength(2);
+    await feedback.fill(`Make them darker. ${mark(base, "tune")}`);
+    await page.getByRole("button", { name: BRAINSTORM_COPY.more }).click();
+    await expect(rows.first()).toContainText(brainstormIdea("scenario", base, 2, 1).pitch);
+    await expect(complete).toBeVisible();
+    // A brainstorm call is recorded by its request; the feedback follows in its messages.
+    const tuned = await upstreamRecords(mark(base, "ask"));
+    expect(tuned).toHaveLength(3);
+    expect(JSON.stringify(tuned.at(-1)?.messages)).toContain(mark(base, "tune"));
+
+    // Leaving the screen with feedback still unsent drops the session; it cannot reappear on return.
+    await feedback.fill(`Keep 2. ${mark(base, "tune")}`);
+    await page.getByRole("main").getByRole("link", { name: "Characters", exact: true }).click();
+    await expect(page).toHaveURL(/\/characters$/);
+    await page.getByRole("button", { name: "Create with AI" }).first().click();
+    await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+    await page.locator('[data-stage="brainstorm"]').click();
+    await expect(page.getByRole("textbox", { name: BRAINSTORM_COPY.field })).toHaveValue("");
+    await expect(page.getByRole("list", { name: BRAINSTORM_COPY.list })).toHaveCount(0);
+    expect(await page.content()).not.toContain(base);
+
+    // A session alive in the tab, an unsent draft included, for the browser cells.
+    await brainstorm(page, { request, model: "mock-fast" });
+    await expect(rows.first()).toContainText(mark(base, "idea"));
+    await expect(complete).toBeVisible();
+    await feedback.fill(`Keep 2. ${mark(base, "tune")}`);
   },
   CREATOR,
 );

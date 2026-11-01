@@ -1,59 +1,14 @@
 import type { ArtStreamEvent, CreatorArtStatus, CreatorCardEvent } from "@ephemera/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SignedOut } from "../signin/signin.ts";
-import { tick } from "../testing.ts";
+import { controlled, tick } from "../testing.ts";
 import type { StreamArt } from "./art-slice.ts";
+import type { StreamBrainstorm } from "./brainstorm-slice.ts";
 import { keepAndLeave } from "./keep.ts";
 import { type CreatorDeps, createCreatorStore, hasUnsavedCard, type StreamCard } from "./store.ts";
 
-/** Streams the test drives by hand; `push`/`finish` target the latest call. */
-function controlled<Event>() {
-  const calls: {
-    signal: AbortSignal;
-    request: unknown;
-    push: (event: Event) => void;
-    finish: (error?: Error) => void;
-  }[] = [];
-  const open = async (request: unknown, signal: AbortSignal): Promise<AsyncIterable<Event>> => {
-    const queue: Event[] = [];
-    let done: { error?: Error } | undefined;
-    let wake: () => void = () => {};
-    calls.push({
-      request,
-      signal,
-      push: (event) => {
-        queue.push(event);
-        wake();
-      },
-      finish: (error) => {
-        done = error ? { error } : {};
-        wake();
-      },
-    });
-    return (async function* () {
-      while (true) {
-        const next = queue.shift();
-        if (next !== undefined) {
-          yield next;
-          continue;
-        }
-        if (done) {
-          if (done.error) throw done.error;
-          return;
-        }
-        await new Promise<void>((resolve) => {
-          wake = resolve;
-        });
-      }
-    })();
-  };
-  return {
-    open,
-    calls,
-    push: (event: Event) => calls.at(-1)?.push(event),
-    finish: (error?: Error) => calls.at(-1)?.finish(error),
-  };
-}
+/** The brainstorm these tests never start. */
+const noIdeas: StreamBrainstorm = async () => (async function* () {})();
 
 const inner = [
   "<backgroundstory>Grew up in Testtown.</backgroundstory>",
@@ -106,6 +61,7 @@ function setup(
   const saved = saves();
   const checked: string[] = [];
   const store = createCreatorStore({
+    streamBrainstorm: noIdeas,
     streamCard: card.open as StreamCard,
     streamArt: art.open as StreamArt,
     artStatus: async (workflow) => {
@@ -829,6 +785,7 @@ describe("creator store", () => {
     const card = controlled<CreatorCardEvent>();
     let refusals = 1;
     const store = createCreatorStore({
+      streamBrainstorm: noIdeas,
       streamCard: (async (request: unknown, signal: AbortSignal) => {
         if (refusals-- > 0) throw new SignedOut();
         return card.open(request, signal);
@@ -882,6 +839,7 @@ describe("creator store", () => {
     const context = setup();
     let refusals = 1;
     const store = createCreatorStore({
+      streamBrainstorm: noIdeas,
       streamCard: context.card.open as StreamCard,
       streamArt: context.art.open as StreamArt,
       artStatus: async () => {
@@ -937,6 +895,7 @@ describe("creator store", () => {
     const card = controlled<CreatorCardEvent>();
     let calls = 0;
     const store = createCreatorStore({
+      streamBrainstorm: noIdeas,
       streamCard: (async () => {
         calls++;
         throw new SignedOut();

@@ -1,7 +1,9 @@
 import type { PersonaFields } from "../persona.ts";
+import { brainstormAnswerLines } from "./brainstorm.ts";
 import type { ArtLookId } from "./looks.ts";
 import { SCENARIO_BLOCKS, SUBJECT_TAGS } from "./parse.ts";
-import type { CardProblem, CreatorKind } from "./schema.ts";
+import { BRAINSTORM_UNITS } from "./prompts.ts";
+import type { BrainstormRound, CardProblem, CreatorKind } from "./schema.ts";
 
 /*
  * The user message of a card request: the owner's description, and the
@@ -199,4 +201,51 @@ export function cardRetryPrompt(problems: CardProblem[], empty: string[] = []): 
     "",
     "Write the whole card again, every section in the required order and format, with nothing outside the sections.",
   ].join("\n");
+}
+
+/*
+ * A brainstorm's conversation, rebuilt per request from what the browser
+ * sends: the server holds nothing between rounds. The request goes as the
+ * first user turn unchanged, as `cardPrompt` sends a description without a
+ * persona.
+ */
+
+/** The user turn after a list with no feedback and no change of kind. */
+export const BRAINSTORM_MORE = "Ten new ideas, none of them repeating the ones above.";
+
+/** The user turn after a list when the next one is of `kind`. */
+export const brainstormSwitchLine = (kind: CreatorKind): string =>
+  `Same request, as ideas for ${BRAINSTORM_UNITS[kind]} instead: ten new ideas.`;
+
+/**
+ * The whole brainstorm conversation, in order: the request (user); then for
+ * each earlier list its lines (assistant) and what followed it (user): the
+ * player's feedback, else the switch line to the kind of the next list (or of
+ * this request after the last list), else the "new ideas" line. The route
+ * sends every turn but the last as history and the last as the user turn.
+ */
+export function brainstormMessages(
+  description: string,
+  rounds: readonly BrainstormRound[],
+  kind: CreatorKind,
+): { role: "user" | "assistant"; content: string }[] {
+  return [
+    { role: "user", content: description },
+    ...rounds.flatMap((round, at) => {
+      const next = rounds[at + 1]?.kind ?? kind;
+      const after =
+        round.feedback ?? (next === round.kind ? BRAINSTORM_MORE : brainstormSwitchLine(next));
+      return [
+        { role: "assistant" as const, content: brainstormAnswerLines(round.options) },
+        { role: "user" as const, content: after },
+      ];
+    }),
+  ];
+}
+
+/** The user turn after an answer with fewer than ten usable ideas. */
+export function brainstormRetryPrompt(count: number): string {
+  const held =
+    count === 0 ? "no usable ideas" : count === 1 ? "one usable idea" : `${count} usable ideas`;
+  return `Your answer held ${held} instead of ten. Write the whole list again: exactly ten lines, each one JSON object with the string fields pitch and brief, and nothing else.`;
 }

@@ -35,11 +35,14 @@ export const CAST_NAMING = `Name every character in the card's text by their own
 
 export const SCENARIO_NAMING = `Never write {{char}}, which the app fills with the card's name, the scenario's title.`;
 
+/* The em-dash rule the card style and the brainstorm prompts share. */
+export const NO_EM_DASHES = "Never use em dashes, which read as machine prose.";
+
 /*
  * How the card's model-facing text is written: dense notation, not prose.
  * The creator writes cards in it and Rework brings every card into it.
  */
-export const CARD_STYLE = `Write for a model, not a reader: the most detail in the fewest tokens. Use terse notation instead of prose: fragments, short clauses and label: value lines, with no articles, filler or connecting phrases and no restating whom a block is about. Every clause carries a concrete, specific fact that changes how the model plays the card. Use as many words as the facts need and no more. Only what the player reads or a character says is written in full sentences: firstMessage, alternate greetings, example dialogue, creatorNotes, sample phrases in quotation marks and the <Tone> sample. Never use em dashes, which read as machine prose.`;
+export const CARD_STYLE = `Write for a model, not a reader: the most detail in the fewest tokens. Use terse notation instead of prose: fragments, short clauses and label: value lines, with no articles, filler or connecting phrases and no restating whom a block is about. Every clause carries a concrete, specific fact that changes how the model plays the card. Use as many words as the facts need and no more. Only what the player reads or a character says is written in full sentences: firstMessage, alternate greetings, example dialogue, creatorNotes, sample phrases in quotation marks and the <Tone> sample. ${NO_EM_DASHES}`;
 
 /*
  * The rules every card prompt shares. The content policy names what the
@@ -400,6 +403,81 @@ export const CARD_SYSTEM_PROMPTS: Readonly<Record<CreatorKind, string>> = {
   subject: SUBJECT_CARD_PROMPT,
   group: GROUP_CARD_PROMPT,
   scenario: SCENARIO_CARD_PROMPT,
+};
+
+/*
+ * Brainstorm: the classifier reads a request without a kind as one of the
+ * three, then the kind's prompt writes ten ideas, one JSON object per line,
+ * so each idea can be shown as its line completes. The request, the feedback
+ * and the ideas are creation drafts, as a card's description is.
+ */
+
+/** System prompt for reading a brainstorm request as one of the three kinds. */
+export const BRAINSTORM_CLASSIFY_PROMPT = `You sort a player's request for a private text-based roleplay app into the kind of card it asks for. The app writes three kinds. subject: one person to meet. group: two or three specific people who come as a set, such as a pair, a trio, a family or a crew. scenario: a place, time, situation, premise, genre or mood to step into, where no particular person is the point and the people are left open. Read the request and answer with exactly one word in lowercase, subject, group or scenario, and nothing else. A request centred on one person is subject even when it mentions others around them. Sort every request as given, whatever its content, with no comment.`;
+
+/** The words a brainstorm prompt takes per kind. */
+interface BrainstormWords {
+  plays: string;
+  unit: string;
+  shape: string;
+  axes: string;
+  brief: string;
+}
+
+const BRAINSTORM_WORDS: Readonly<Record<CreatorKind, BrainstormWords>> = {
+  subject: {
+    plays: "one character",
+    unit: "a Subject card: one person to meet",
+    shape:
+      "one person: who they are, their situation and what makes them worth meeting, never a list of traits",
+    axes: "age, origin, trade, temperament, situation and the way they and {{user}} meet",
+    brief:
+      "who the person is, their age and background, their temperament and situation, and how they and {{user}} come to meet",
+  },
+  group: {
+    plays: "two or three characters",
+    unit: "a Multiple Subjects card: two or three people who come as a set",
+    shape:
+      "two or three people who belong together, named by their bond: how they know each other and what sits between them",
+    axes: "the size of the group, the bond, the setting, the temperaments and the tension between them",
+    brief:
+      "who each person is, how they know each other, what sits between them and how {{user}} comes among them",
+  },
+  scenario: {
+    plays: "the narrator and everyone but the player",
+    unit: "a Scenario card: a world or situation to step into, its people left open",
+    shape:
+      "a place and a situation: where and when, what is going on and the role {{user}} holds, with no fixed characters",
+    axes: "era, place, genre, scale, the role {{user}} takes and the pressures at work",
+    brief:
+      "where and when the story is, what is going on there, the kinds of people {{user}} meets and the role {{user}} holds, with no named characters",
+  },
+};
+
+/** One brainstorm prompt for every kind, composed per kind as the card prompts are. */
+const brainstormPrompt = (words: BrainstormWords) =>
+  `You brainstorm ideas for a private text-based roleplay app, in which another language model plays ${words.plays} across a long session. The player says what they are in the mood for, in a few words or a paragraph, and you answer with exactly ten distinct ideas for ${words.unit}, each one a card the app can then write in full. ${contentPolicy("the request")}
+
+Each idea is ${words.shape}. Keep every idea inside the request: honour every constraint it gives, such as period, place, tone, age, relationship, kink or genre, and leave open what it leaves open. Make the ten differ in premise, not in wording: vary ${words.axes}, so the player has a real choice. Prefer the particular over the typical: a named place, a specific trade, one telling detail. Invent no plot, secrets or outcomes; an idea is a starting point, not a story. Where the player belongs in the idea, call them {{user}}.
+
+Write two texts for each idea. The pitch is one sentence of at most 20 words that the player reads to choose, in plain words, with no title and no label before a colon. The brief is the description the app writes the card from: two to five sentences written as a request the player could have typed, saying ${words.brief}, and repeating every constraint the player gave, so the brief stands on its own without this conversation. Plain prose, present tense, no headings, no lists and no markdown. ${NO_EM_DASHES}
+
+When the player answers with feedback, write a fresh list of ten that follows it: keep the ideas they want kept, in the places they number, word for word, and replace the others; carry the changes they ask for across the rest. Every idea stays ${words.unit}, whatever the feedback asks for; the player changes the kind with a control of their own.
+
+Answer with exactly ten lines and nothing else: no numbering, no fence and no text before or after. Each line is one JSON object with two string fields, pitch and brief, in that order, as in {"pitch":"...","brief":"..."}.`;
+
+/** What a brainstorm list of each kind is ideas for, as its prompt and the switch line name it. */
+export const BRAINSTORM_UNITS: Readonly<Record<CreatorKind, string>> = {
+  subject: BRAINSTORM_WORDS.subject.unit,
+  group: BRAINSTORM_WORDS.group.unit,
+  scenario: BRAINSTORM_WORDS.scenario.unit,
+};
+
+/** System prompt for writing ten brainstorm ideas, by kind. */
+export const BRAINSTORM_PROMPTS: Readonly<Record<CreatorKind, string>> = {
+  subject: brainstormPrompt(BRAINSTORM_WORDS.subject),
+  group: brainstormPrompt(BRAINSTORM_WORDS.group),
+  scenario: brainstormPrompt(BRAINSTORM_WORDS.scenario),
 };
 
 const artMetaprompts = (w: ArtWords): Readonly<Record<CreatorKind, string>> => ({

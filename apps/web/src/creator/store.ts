@@ -25,11 +25,18 @@ import {
   createArtSlice,
   effortOf,
 } from "./art-slice.ts";
+import {
+  BRAINSTORM_EMPTY,
+  type BrainstormSliceState,
+  createBrainstormSlice,
+  type StreamBrainstorm,
+} from "./brainstorm-slice.ts";
 
 /*
- * The creator's session (PRINCIPLES.md 1): the owner's description, the card
- * the model writes and the four candidate portraits are creation drafts, held
- * in this store in tab memory only. A session epoch, as in chat: every
+ * The creator's session (PRINCIPLES.md 1): the owner's description, the
+ * brainstorm's request and ideas, the card the model writes and the four
+ * candidate portraits are creation drafts, held in this store in tab memory
+ * only. A session epoch, as in chat: every
  * operation that drops a card advances it and aborts what is in flight, and a
  * late result tagged with an older epoch is dropped.
  */
@@ -39,8 +46,8 @@ export type StreamCard = (
   signal: AbortSignal,
 ) => Promise<AsyncIterable<CreatorCardEvent>>;
 
-/** The three screens of the flow before the showcase: choose a kind, describe, then the card. */
-type Stage = "choose" | "describe" | "card";
+/** The screens of the flow before the showcase: choose a kind (or brainstorm one), describe, then the card. */
+type Stage = "choose" | "brainstorm" | "describe" | "card";
 
 /**
  * Where a card stands: being written, waiting for a sign-in, stopped by the
@@ -105,7 +112,7 @@ export interface KeepRun {
 }
 
 /** The creator's session; art drops with the card, composition stays until the session clears. */
-export interface CreatorState extends ArtSliceState {
+export interface CreatorState extends ArtSliceState, BrainstormSliceState {
   stage: Stage;
   /** Subject, Group or Scenario; null until chosen. */
   kind: CreatorKind | null;
@@ -119,9 +126,9 @@ export interface CreatorState extends ArtSliceState {
   /** Keep, once asked: the snapshot and how far it got. */
   keepRun: KeepRun | null;
   /** The request a sign-in interrupted before it was answered; one renewal sends it once more. */
-  pending: "card" | "art" | null;
+  pending: "card" | "art" | "brainstorm" | null;
   choose: (kind: CreatorKind) => void;
-  /** Back to the choice of kind, the description kept. */
+  /** Back to the choice of kind, the description and the brainstorm kept; a running round stops. */
   change: () => void;
   setDescription: (description: string) => void;
   setModel: (model: string) => void;
@@ -135,8 +142,14 @@ export interface CreatorState extends ArtSliceState {
   stop: () => void;
   /** Drops the card and its art and writes another from the same description. */
   rewrite: () => void;
-  /** Drops the card and its art and returns to the description, which is kept (leaving the route too). */
+  /**
+   * Drops the card and its art and returns to the description, which is
+   * kept, with the brainstorm it may have come from; to the choice of kind
+   * when none was chosen.
+   */
   returnToDescription: () => void;
+  /** Leaving the route: as `returnToDescription`, and the brainstorm goes too. */
+  leave: () => void;
   /** Drops the card and its art, back at the description, which is kept. */
   discard: () => void;
   /**
@@ -155,6 +168,7 @@ export interface CreatorState extends ArtSliceState {
 export interface CreatorDeps
   extends Omit<ArtSliceDeps, "subject" | "reference" | "locked" | "register" | "onArtPending"> {
   streamCard: StreamCard;
+  streamBrainstorm: StreamBrainstorm;
   /** Creates the character under the given id (the existing create call). */
   saveCard: (id: string, fields: SheetFields) => Promise<CreateResult>;
   /** Uploads the chosen PNG as the character's portrait (the existing upload), ended by `signal`. */
@@ -192,6 +206,7 @@ type Session = Pick<
   | "artPending"
   | "pending"
   | "keepRun"
+  | "brainstorm"
 >;
 
 const EMPTY: Session = {
@@ -204,6 +219,7 @@ const EMPTY: Session = {
   card: null,
   pending: null,
   keepRun: null,
+  brainstorm: BRAINSTORM_EMPTY,
 };
 
 /** What dropping a card empties: the card's art, its direction and any Keep of it. */
@@ -261,9 +277,9 @@ export function createCreatorStore(deps: CreatorDeps) {
     const patchCard = (patch: Partial<CardRun>) =>
       set((state) => (state.card === null ? {} : { card: { ...state.card, ...patch } }));
 
-    /** A card refused by the sign-in redirect: it waits for the renewal, or goes again now for a stale refusal. */
-    const waitForSignIn = (error: SignedOut, retried: boolean) => {
-      set({ pending: "card" });
+    /** A request refused by the sign-in redirect: it waits for the renewal, or goes again now for a stale refusal. */
+    const waitForSignIn = (error: SignedOut, retried: boolean, pending: "card" | "brainstorm") => {
+      set({ pending });
       if (error.stale && signedIn() && !retried) get().resume();
     };
 
@@ -322,7 +338,7 @@ export function createCreatorStore(deps: CreatorDeps) {
         if (!writing()) return;
         if (error instanceof SignedOut && !answered && !controller.signal.aborted) {
           patchCard({ status: "waiting" });
-          waitForSignIn(error, retried);
+          waitForSignIn(error, retried, "card");
         } else {
           patchCard(
             controller.signal.aborted
@@ -371,14 +387,20 @@ export function createCreatorStore(deps: CreatorDeps) {
       epoch: 0,
       ...EMPTY,
 
+      // A kind tile opens Describe as a tile: no idea is picked (`pickIdea` sets its own after).
       choose: (kind) =>
-        set({
+        set((state) => ({
           kind,
           stage: "describe",
           artComposition: kind === "subject" ? get().artComposition : "regular",
           artLook: kind === "scenario" ? "auto" : get().artLook,
-        }),
-      change: () => set({ stage: "choose" }),
+          brainstorm: { ...state.brainstorm, picked: null },
+        })),
+      // A running brainstorm round stops; its session stays for the tile to reopen.
+      change: () => {
+        get().stopIdeas();
+        set({ stage: "choose" });
+      },
       setDescription: (description) => set({ description }),
       setModel: (model) => set({ model }),
       setReasoning: (reasoning) => set({ reasoning }),
@@ -407,6 +429,15 @@ export function createCreatorStore(deps: CreatorDeps) {
         },
         // A run waiting for the sign-in is the creator's pending request; one starting clears it.
         onArtPending: (pending) => set({ pending: pending ? "art" : null }),
+      }),
+      ...createBrainstormSlice(set, get, {
+        streamBrainstorm: deps.streamBrainstorm,
+        signedIn,
+        register: (controller) => {
+          inFlight.add(controller);
+          return () => inFlight.delete(controller);
+        },
+        waitForSignIn: (error, retried) => waitForSignIn(error, retried, "brainstorm"),
       }),
 
       create: (model, reasoning, personaId) => {
@@ -441,7 +472,9 @@ export function createCreatorStore(deps: CreatorDeps) {
         void runCard();
       },
 
-      returnToDescription: () =>
+      returnToDescription: () => {
+        // A round would lose its controller to the drop below; it ends as a Stop instead.
+        get().stopIdeas();
         set((state) => ({
           epoch: drop(),
           stage: state.kind === null ? "choose" : "describe",
@@ -449,7 +482,13 @@ export function createCreatorStore(deps: CreatorDeps) {
           ...DROPPED,
           artComposition: state.artComposition,
           artLook: state.artLook,
-        })),
+        }));
+      },
+
+      leave: () => {
+        get().resetIdeas();
+        get().returnToDescription();
+      },
 
       discard: () => {
         if (!keeping(get())) get().returnToDescription();
@@ -510,12 +549,17 @@ export function createCreatorStore(deps: CreatorDeps) {
         return true;
       },
 
-      clear: () => set({ ...EMPTY, epoch: drop() }),
+      clear: () => {
+        // The brainstorm's round lives in its slice's closure; it goes with the session.
+        get().resetIdeas();
+        set({ ...EMPTY, epoch: drop() });
+      },
 
       resume: () => {
         const { pending } = get();
         if (pending === "card" && get().card?.status === "waiting") void runCard(true);
         else if (pending === "art") get().resumeArt();
+        else if (pending === "brainstorm") get().resumeIdeas();
       },
     };
   });

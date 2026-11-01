@@ -1,6 +1,7 @@
 import { CREATOR_LIMITS, type CreatorKind } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, type KeyboardEvent, useEffect, useId, useRef } from "react";
+import { isCoarsePointer } from "@/app/form-factor.ts";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -84,6 +85,9 @@ export function Describe() {
   const look = useCreator((state) => state.artLook);
   const setLook = useCreator((state) => state.setArtLook);
   const change = useCreator((state) => state.change);
+  const backToIdeas = useCreator((state) => state.backToIdeas);
+  // Opened from a brainstorm's idea: Back to ideas takes Change's place.
+  const fromIdea = useCreator((state) => state.brainstorm.picked !== null);
   const create = useCreator((state) => state.create);
   const { options, model, unavailable } = useModelChoice(useCreator((state) => state.model));
   const { efforts, effort } = useEffortChoice(
@@ -104,8 +108,10 @@ export function Describe() {
   const { label, Icon } = KINDS[kind];
   const ready = description.trim() !== "" && model !== null;
 
+  // From an idea there is a brief to read first: no keyboard pops up over it on a touch screen.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only on arrival.
   useEffect(() => {
-    field.current?.focus({ preventScroll: true });
+    if (!(fromIdea && isCoarsePointer())) field.current?.focus({ preventScroll: true });
   }, []);
 
   const submit = (event?: FormEvent) => {
@@ -134,13 +140,22 @@ export function Describe() {
           <Icon size={20} className="text-narration" />
           {label}
         </span>
-        <Button
-          className="h-8 px-2 text-note touch:h-11"
-          aria-label={`Change from ${label}`}
-          onClick={() => inTransition(change)}
-        >
-          Change
-        </Button>
+        {fromIdea ? (
+          <Button
+            className="h-8 px-2 text-note touch:h-11"
+            onClick={() => inTransition(backToIdeas)}
+          >
+            Back to ideas
+          </Button>
+        ) : (
+          <Button
+            className="h-8 px-2 text-note touch:h-11"
+            aria-label={`Change from ${label}`}
+            onClick={() => inTransition(change)}
+          >
+            Change
+          </Button>
+        )}
       </div>
       <h2
         id={`${fieldId}-heading`}

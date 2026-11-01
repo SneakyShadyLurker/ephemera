@@ -12,7 +12,7 @@ describe("the creator session in this tab", () => {
       creatorStore.getState().setArtComposition("diptych");
       creatorStore.getState().setArtLook("film");
       // Leaving the route keeps the description for a visit to Settings.
-      creatorStore.getState().returnToDescription();
+      creatorStore.getState().leave();
       expect(creatorStore.getState().description).toBe("A placeholder lighthouse keeper");
       expect(creatorStore.getState().artComposition).toBe("diptych");
       expect(creatorStore.getState().artLook).toBe("film");

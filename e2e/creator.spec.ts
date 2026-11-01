@@ -5,20 +5,31 @@ import { tile } from "./support/cards.ts";
 import { beacons, upstreamRecords } from "./support/chat.ts";
 import {
   ART_TIMEOUT,
+  BRAINSTORM_COPY,
+  brainstorm,
   COPY,
   createCard,
   expectBatch,
   IMAGES,
+  ideaRows,
   KEEP_WITHOUT_PORTRAIT,
+  kindControl,
   listCharacters,
   portraits,
   recordArt,
   showcaseAction,
 } from "./support/creator.ts";
-import { cardName, keptBase, mark, ownerDescription } from "./support/creator-fixtures.ts";
+import {
+  brainstormIdea,
+  brainstormRequest,
+  cardName,
+  keptBase,
+  mark,
+  ownerDescription,
+} from "./support/creator-fixtures.ts";
 import { choose, createCharacterViaApi, patchSettings } from "./support/entities.ts";
-import { APP_SERVERS } from "./support/env.ts";
-import { openProfile } from "./support/retention.ts";
+import { APP_SERVERS, canary } from "./support/env.ts";
+import { expectStorageEmpty, expectUrlsClean, openProfile } from "./support/retention.ts";
 import { dataDirContaining, filesContaining, holds } from "./support/scan.ts";
 import { appOrigin, expect, test } from "./support/test.ts";
 
@@ -1018,4 +1029,144 @@ test("a card's markdown image, link and raw HTML load nothing and link nowhere",
   expect(await page.title()).not.toBe("owned");
   const sent = await beacons();
   expect(sent.filter((path) => path.startsWith("/__beacon/creator"))).toEqual([]);
+});
+
+/** The brainstorm's status line, by its text. */
+const ideasStatus = (page: Page, text: string | RegExp) =>
+  page.getByRole("status").filter({ hasText: text });
+
+test("Brainstorm: classified, adjusted, switched and picked into Describe, then written as a card", async ({
+  page,
+}) => {
+  const base = canary("brainstorm");
+  const request = brainstormRequest(base, { kind: "scenario" });
+  await brainstorm(page, { request, model: "mock-fast" });
+  const kinds = kindControl(page);
+  const rows = ideaRows(page);
+  await kinds.expectSelected("scenario");
+  await expect(rows).toHaveCount(10);
+  await expect(ideasStatus(page, BRAINSTORM_COPY.complete)).toBeVisible();
+  const first = (n: number) => brainstormIdea("scenario", base, 1, n).pitch;
+  await expect(rows.nth(2)).toContainText(first(3));
+  await expect(rows.first()).toContainText(mark(base, "idea"));
+  // The classifier and the list each got the request as it was typed.
+  expect(await upstreamRecords(mark(base, "ask"))).toHaveLength(2);
+
+  // Feedback keeps 3 and 7 word for word; the rest are fresh.
+  const feedback = page.getByRole("textbox", { name: BRAINSTORM_COPY.feedback });
+  await feedback.fill(`Keep 3 and 7 and make the rest darker. ${mark(base, "tune")}`);
+  await page.getByRole("button", { name: BRAINSTORM_COPY.more }).click();
+  await expect(rows.first()).toContainText(brainstormIdea("scenario", base, 2, 1).pitch);
+  await expect(rows).toHaveCount(10);
+  await expect(rows.nth(2)).toContainText(first(3));
+  await expect(rows.nth(6)).toContainText(first(7));
+  await expect(rows.nth(1)).toContainText(brainstormIdea("scenario", base, 2, 2).pitch);
+  const tuned = await upstreamRecords(mark(base, "ask"));
+  expect(tuned).toHaveLength(3);
+  expect(JSON.stringify(tuned.at(-1)?.messages)).toContain(mark(base, "tune"));
+
+  // Another kind brings ten of it.
+  await kinds.choose("subject");
+  await kinds.expectSelected("subject");
+  const third = (n: number) => brainstormIdea("subject", base, 3, n).pitch;
+  await expect(rows.first()).toContainText(third(1));
+  await expect(rows).toHaveCount(10);
+  await expect(ideasStatus(page, BRAINSTORM_COPY.complete)).toBeVisible();
+
+  // Change to the tiles and back: the request, the kind and the list are where they were.
+  await page.getByRole("button", { name: BRAINSTORM_COPY.change }).click();
+  await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+  await page.locator('[data-stage="brainstorm"]').click();
+  await expect(
+    page.getByRole("button", { name: new RegExp(BRAINSTORM_COPY.requestPrefix) }),
+  ).toContainText(mark(base, "ask"));
+  await kinds.expectSelected("subject");
+  await expect(rows).toHaveCount(10);
+  await expect(rows.nth(4)).toContainText(third(5));
+
+  // A pick opens Describe of its kind with the brief; Back to ideas marks the picked row.
+  await rows
+    .nth(2)
+    .getByRole("button", { name: BRAINSTORM_COPY.row(3, third(3)) })
+    .click();
+  const describe = page.getByRole("textbox", { name: COPY.subject.field });
+  await expect(describe).toHaveValue(brainstormIdea("subject", base, 3, 3).brief);
+  await page.getByRole("button", { name: BRAINSTORM_COPY.back }).click();
+  await expect(
+    page.getByRole("list", { name: BRAINSTORM_COPY.list }).locator('[aria-current="true"]'),
+  ).toContainText(third(3));
+
+  await rows
+    .nth(4)
+    .getByRole("button", { name: BRAINSTORM_COPY.row(5, third(5)) })
+    .click();
+  await expect(describe).toHaveValue(brainstormIdea("subject", base, 3, 5).brief);
+  await choose(page, "Model", "mock-fast");
+  await page.getByRole("button", { name: COPY.subject.create }).click();
+  await expect(heading(page, cardName("subject", base))).toBeVisible();
+  await expect(page.locator("main")).toContainText(mark(base, "card"));
+
+  await expectStorageEmpty(page);
+  await expectUrlsClean(page);
+});
+
+test("Brainstorm: Stop keeps the ideas that arrived, and New ideas can follow", async ({
+  page,
+}) => {
+  const base = canary("brainstorm-stop");
+  await brainstorm(page, {
+    request: brainstormRequest(base, { kind: "scenario" }),
+    model: "mock-slow",
+  });
+  await expect(ideaRows(page).first()).toContainText(mark(base, "idea"));
+  await page.getByRole("button", { name: BRAINSTORM_COPY.stop, exact: true }).click();
+  await expect(ideasStatus(page, /Stopped\. \d+ ideas? so far\./)).toBeVisible();
+  // The list call was cut off; the classifier had finished.
+  await expect
+    .poll(async () => (await upstreamRecords(mark(base, "ask"))).map((record) => record.aborted))
+    .toEqual([false, true]);
+  await expect(page.getByRole("button", { name: BRAINSTORM_COPY.more })).toBeEnabled();
+});
+
+test("Brainstorm: a short list says so, and a failed round leaves the list listed", async ({
+  page,
+}) => {
+  const base = canary("brainstorm-short");
+  await brainstorm(page, {
+    request: brainstormRequest(base, { kind: "group", script: "short" }),
+    model: "mock-fast",
+  });
+  const rows = ideaRows(page);
+  // Seven, then eight when asked again: the best attempt is shown.
+  await expect(ideasStatus(page, BRAINSTORM_COPY.short(8))).toBeVisible();
+  await expect(rows).toHaveCount(8);
+
+  await choose(page, "Model", "mock-error");
+  await page.getByRole("button", { name: BRAINSTORM_COPY.more }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: BRAINSTORM_COPY.alerts.upstream }),
+  ).toBeVisible();
+  await expect(rows).toHaveCount(8);
+  await expect(rows.first()).toContainText(brainstormIdea("group", base, 1, 1).pitch);
+});
+
+test("Brainstorm: leaving the screen mid-round drops the session", async ({ page }) => {
+  const base = canary("brainstorm-leave");
+  await brainstorm(page, {
+    request: brainstormRequest(base, { kind: "subject" }),
+    model: "mock-slow",
+  });
+  await expect(ideaRows(page).first()).toContainText(mark(base, "idea"));
+  await page.getByRole("main").getByRole("link", { name: "Characters", exact: true }).click();
+  await expect(page).toHaveURL(/\/characters$/);
+  // The list call was cut off; the classifier had finished.
+  await expect
+    .poll(async () => (await upstreamRecords(mark(base, "ask"))).map((record) => record.aborted))
+    .toEqual([false, true]);
+  await page.getByRole("button", { name: "Create with AI" }).first().click();
+  await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+  await page.locator('[data-stage="brainstorm"]').click();
+  await expect(page.getByRole("textbox", { name: BRAINSTORM_COPY.field })).toHaveValue("");
+  await expect(page.getByRole("list", { name: BRAINSTORM_COPY.list })).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText(mark(base, "idea"));
 });

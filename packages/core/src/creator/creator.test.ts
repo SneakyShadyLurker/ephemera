@@ -42,6 +42,7 @@ import {
   validateCardAnswer,
 } from "./index.ts";
 import {
+  CARD_STYLE,
   LOCATION_OPENING,
   OPENING_RESTRAINT,
   SCENARIO_OPENING_SHAPE,
@@ -1106,6 +1107,14 @@ describe("opening shapes", () => {
     expect(SUBJECT_OPENING_SHAPE.startsWith(LOCATION_OPENING)).toBe(true);
     expect(SCENARIO_OPENING_SHAPE.startsWith(LOCATION_OPENING)).toBe(true);
     expect(SUBJECT_OPENING_SHAPE.endsWith(OPENING_RESTRAINT)).toBe(true);
+  });
+});
+
+describe("card style", () => {
+  it("keeps its exact text", () => {
+    expect(CARD_STYLE).toBe(
+      "Write for a model, not a reader: the most detail in the fewest tokens. Use terse notation instead of prose: fragments, short clauses and label: value lines, with no articles, filler or connecting phrases and no restating whom a block is about. Every clause carries a concrete, specific fact that changes how the model plays the card. Use as many words as the facts need and no more. Only what the player reads or a character says is written in full sentences: firstMessage, alternate greetings, example dialogue, creatorNotes, sample phrases in quotation marks and the <Tone> sample. Never use em dashes, which read as machine prose.",
+    );
   });
 });
 

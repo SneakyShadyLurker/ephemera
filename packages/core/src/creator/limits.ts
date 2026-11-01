@@ -12,6 +12,10 @@ export const CREATOR_LIMITS = {
   artDirectionLength: 500,
   /** The owner's direction for an image card: a steer that may name personality, history and voice. */
   imageCardDirectionLength: 2_000,
+  /** Ideas in one brainstorm list; the prompt asks for exactly this many. */
+  brainstormOptions: 10,
+  /** Earlier lists a round carries as context; the browser drops older ones. */
+  brainstormRounds: 3,
   /**
    * `maxOutputTokens` for every creator call (card, rework, image prompt): above
    * what a card needs. Sent because a provider's default when it is omitted

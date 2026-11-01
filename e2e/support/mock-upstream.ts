@@ -3,8 +3,9 @@
  * memory only. Replies transform the input canary so every content class is
  * distinct: `<marker>-in-x` becomes `-out-x` in the reply, `-think-x` in
  * reasoning, `-cont-x` in a continuation and `-imp-x` in a message written
- * for the user. AI card creation's two calls and a scene's image prompt are
- * answered from the marks in their input (e2e/support/creator-fixtures.ts),
+ * for the user. AI card creation's two calls, a brainstorm's classifier and
+ * list calls and a scene's image prompt are answered from the marks and
+ * scripts in their input (e2e/support/creator-fixtures.ts),
  * as is an AI rework (e2e/support/rework-fixtures.ts). A memory, chapter or
  * opening call gets a fixed synthetic object that holds nothing of its input
  * (e2e/support/memory-fixtures.ts). A cast keeper or sheet call is
@@ -19,9 +20,18 @@ import {
   FAKE_LEVELS,
   FAKE_WINDOW,
 } from "../../apps/server/test/fake-upstream.ts";
+import { parseBrainstormAnswer } from "../../packages/core/src/creator/brainstorm.ts";
+import { CREATOR_LIMITS } from "../../packages/core/src/creator/limits.ts";
+import {
+  BRAINSTORM_MORE,
+  brainstormRetryPrompt,
+  brainstormSwitchLine,
+} from "../../packages/core/src/creator/message.ts";
 import {
   ART_FAMILIES,
   artMetaprompt,
+  BRAINSTORM_CLASSIFY_PROMPT,
+  BRAINSTORM_PROMPTS,
   CARD_SYSTEM_PROMPTS,
   SCENE_METAPROMPTS,
 } from "../../packages/core/src/creator/prompts.ts";
@@ -43,6 +53,8 @@ import {
 } from "./cast-fixtures.ts";
 import {
   baseOf,
+  brainstormAnswer,
+  brainstormScriptOf,
   cardAnswer,
   firstDraft,
   hostileProse,
@@ -177,13 +189,16 @@ const bodySchema = (
 
 /**
  * The creator call a request is, by its system prompt: a card of one kind, an
- * image prompt for a card's portraits or for a chat's scene, or a rework.
+ * image prompt for a card's portraits or for a chat's scene, a rework, or a
+ * brainstorm's classifier or list of one kind.
  */
 function creatorCall(messages: { role: string; content: string }[]) {
   const system = messages.find((message) => message.role === "system")?.content;
   if (system === REWORK_SYSTEM_PROMPT) return { call: "rework" as const };
+  if (system === BRAINSTORM_CLASSIFY_PROMPT) return { call: "brainstorm.classify" as const };
   for (const kind of creatorKindSchema.options) {
     if (system === CARD_SYSTEM_PROMPTS[kind]) return { call: "card" as const, kind };
+    if (system === BRAINSTORM_PROMPTS[kind]) return { call: "brainstorm" as const, kind };
     if (
       ART_FAMILIES.some((model) =>
         creatorArtCompositionSchema.options.some(
@@ -282,6 +297,41 @@ function held(ms: number, signal: AbortSignal): Promise<boolean> {
   });
 }
 
+/** The corrective turns a brainstorm list call may end on. */
+const BRAINSTORM_RETRIES = new Set(
+  Array.from({ length: CREATOR_LIMITS.brainstormOptions }, (_, count) =>
+    brainstormRetryPrompt(count),
+  ),
+);
+
+/**
+ * A brainstorm list call's conversation without a corrective attempt's last
+ * two turns, whether it was one, its round (one more than the earlier lists),
+ * and the ideas the latest feedback keeps by number from the list before it.
+ */
+function brainstormRound(messages: { role: string; content: string }[]) {
+  const turns = messages.filter((message) => message.role !== "system");
+  const retry = BRAINSTORM_RETRIES.has(turns.at(-1)?.content ?? "");
+  const conversation = retry ? turns.slice(0, -2) : turns;
+  const round = conversation.filter((message) => message.role === "assistant").length + 1;
+  const latest = conversation.at(-1)?.content ?? "";
+  const previous = conversation.at(-2);
+  const feedback =
+    conversation.length > 1 &&
+    latest !== BRAINSTORM_MORE &&
+    !creatorKindSchema.options.some((kind) => latest === brainstormSwitchLine(kind));
+  const kept = new Map(
+    feedback && previous?.role === "assistant"
+      ? [...latest.matchAll(/\b(10|[1-9])\b/g)].flatMap((match) => {
+          const n = Number(match[1]);
+          const option = parseBrainstormAnswer(previous.content).options[n - 1];
+          return option === undefined ? [] : [[n, option] as const];
+        })
+      : [],
+  );
+  return { retry, round, kept };
+}
+
 function split(text: string, parts: number): string[] {
   const size = Math.ceil(text.length / parts);
   return Array.from({ length: parts }, (_, i) => text.slice(i * size, (i + 1) * size)).filter(
@@ -345,7 +395,13 @@ Bun.serve({
       body: null,
       aborted: false,
       completed: false,
-      input: creator?.call === "card" ? firstUser : lastUser,
+      // A brainstorm's request is its first user turn, whatever rounds follow it.
+      input:
+        creator?.call === "card" ||
+        creator?.call === "brainstorm" ||
+        creator?.call === "brainstorm.classify"
+          ? firstUser
+          : lastUser,
       sampling: sampling(body),
       messages,
       image: (body as { messages: Message[] }).messages.some(hasImage),
@@ -514,6 +570,34 @@ Bun.serve({
             : model === "mock-stall"
               ? { chunks: stalled(split(answer, 80)), delayMs: 5, hang: true }
               : { chunks: split(answer, 8), delayMs: 5 },
+          request.signal,
+          record,
+        ),
+        record,
+      );
+    }
+    if (creator?.call === "brainstorm.classify") {
+      // The kind the request names, Subject without one; an unclear request names none.
+      const script = brainstormScriptOf(firstUser);
+      const answer = script.script === "unclear" ? "maybe" : (script.kind ?? "subject");
+      return recordSent(
+        completionResponse({ chunks: [answer], delayMs: 5 }, request.signal, record),
+        record,
+      );
+    }
+    if (creator?.call === "brainstorm") {
+      const base = baseOf(firstUser, "ask") ?? "unmarked";
+      const { retry, round, kept } = brainstormRound(messages);
+      const lines = brainstormAnswer(creator.kind, base, round, kept)
+        .split("\n")
+        .map((line) => `${line}\n`);
+      // mock-ideas-short answers seven ideas, and eight when asked again: the best attempt is short.
+      const short = brainstormScriptOf(firstUser).script === "short";
+      const sent = short ? lines.slice(0, retry ? 8 : 7) : lines;
+      // mock-slow writes a line every 400 ms, long enough to stop it or leave mid-list.
+      return recordSent(
+        completionResponse(
+          { chunks: sent, delayMs: model === "mock-slow" ? 400 : 5 },
           request.signal,
           record,
         ),

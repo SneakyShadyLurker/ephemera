@@ -53,6 +53,7 @@ export const MATRIX_ROWS = {
   crerr: { row: "creation drafts: upstream error", owner: "creator-retention.spec.ts" },
   crcomfy: { row: "creation drafts: ComfyUI error", owner: "creator-retention.spec.ts" },
   crnav: { row: "creation drafts: navigation away", owner: "creator-retention.spec.ts" },
+  crbrain: { row: "creation drafts: brainstorm", owner: "creator-retention.spec.ts" },
   crreload: { row: "creation drafts: reload", owner: "creator-retention.spec.ts" },
   crrst: {
     row: "creation drafts: server restart mid-generation",
