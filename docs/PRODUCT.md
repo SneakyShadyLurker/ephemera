@@ -115,7 +115,9 @@ Version 1.0 holds everything below.
   - A Subject or Multiple Subjects description holds the people alone,
     never a current place, time or scene: only the opening sets where
     and when play begins, so the place can change while the people stay
-    the same.
+    the same. How each person dresses is a general style or habit, such
+    as practical workwear or always a leather jacket, never one outfit
+    or a list of garments.
   - Scenario: a bare, open-ended frame to step into, in four blocks:
     `<Roleplay>` (the premise, `{{user}}`'s role and at most three broad
     pressures), `<Setting>` (the world's outline, or only what departs
@@ -236,7 +238,8 @@ Version 1.0 holds everything below.
   the notes, an optional direction from the owner steers who the characters
   are, the saved
   model writes it at its default effort, and the card is kept on arrival
-  with the image as its portrait.
+  with the image as its portrait. The clothing in the image is one outfit,
+  so the card takes only the style of dress it suggests.
 
 **AI Rework**
 - From a saved character's sheet, **AI Rework** in the header (an icon on
@@ -279,7 +282,9 @@ Version 1.0 holds everything below.
   alternate greetings keep their form. On a subject
   card the place and time play begins in stay in the opening alone: the
   description loses any it holds, and so does the scenario field unless
-  they are all it holds. A single subject
+  they are all it holds. A set outfit or list of garments in any field
+  the model reads becomes the general style or habit of dress it shows,
+  and an attached portrait's clothing never enters the card. A single subject
   is called `{{char}}` in the card's text, everyone else by name. Speech
   it writes sounds like the character talking, not prose.
 - The model answers with changes, each naming its field, the
