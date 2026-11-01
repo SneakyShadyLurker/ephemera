@@ -508,9 +508,9 @@ describe("the status line", () => {
     let out = panel();
     expect(updating(out)).toBe("Updating…");
     expect(out).toContain("data-cast-drift");
-    expect(out).toContain("frame-drift");
+    expect(out).toContain("lamplight-edge");
     expect(status(out)).toBe("");
-    // Under reduced motion the words stay; the light is not drawn (frame-drift's own rule).
+    // Under reduced motion the words stay; the light is not drawn (lamplight-edge's own rule).
     motion.reduced = true;
     out = panel();
     expect(updating(out)).toBe("Updating…");
@@ -531,11 +531,9 @@ describe("the status line", () => {
     expect(out).not.toMatch(/class="sr-only"[^>]*><span[^>]*data-cast-updating/);
   });
 
-  it("breathes the phone header's control while updating", () => {
+  it("keeps the phone header's control still while updating", () => {
     chat(woman, { status: "updating" });
-    expect(renderToStaticMarkup(<CastHeaderControl />)).toContain("animate-[breathe");
-    chat(woman);
-    expect(renderToStaticMarkup(<CastHeaderControl />)).not.toContain("animate-[breathe");
+    expect(renderToStaticMarkup(<CastHeaderControl />)).not.toContain("animate-");
   });
 });
 

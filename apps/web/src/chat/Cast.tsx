@@ -56,7 +56,6 @@ import {
   useCastSurface,
   useCastVisible,
 } from "./cast-ui.ts";
-import { REMEMBERING } from "./MemorySeam.tsx";
 import { chatStore, useChat } from "./session.ts";
 import type { ChatState } from "./store.ts";
 
@@ -250,11 +249,11 @@ function Updating({
 }
 
 /**
- * The light that glides along the edge of what holds it while the keeper
- * works: the art frame's drift (styles.css), on the lamp's breath. Under
- * reduced motion it is not drawn; "Updating…" says it.
+ * The light that passes along the edge of what holds it while the keeper
+ * works (styles.css `lamplight-edge`). Under reduced motion it is not drawn;
+ * "Updating…" says it.
  */
-function Drift({ on }: { on: boolean }) {
+function Pass({ on }: { on: boolean }) {
   return (
     <MotionScope>
       <AnimatePresence initial={false}>
@@ -266,7 +265,7 @@ function Drift({ on }: { on: boolean }) {
             {...FADING}
             className="pointer-events-none absolute inset-0"
           >
-            <span className="frame-drift" />
+            <span className="lamplight-edge" />
           </m.span>
         )}
       </AnimatePresence>
@@ -352,11 +351,11 @@ function RemovalLine({ removal }: { removal: CastRemoval }) {
 
 /**
  * "Cast", "Updating…" beside it while the cast updates, and under it a faint
- * hairline the drift's light glides along while no record is open. The
+ * hairline a light passes along while no record is open. The
  * band's measured row says Updating without showing it, unless reduced
  * motion leaves the words alone to show it.
  */
-function Heading({ breathing, band }: { breathing: boolean; band: boolean }) {
+function Heading({ passing, band }: { passing: boolean; band: boolean }) {
   const reduced = useReducedMotion();
   return (
     <div className="grid gap-1">
@@ -368,10 +367,10 @@ function Heading({ breathing, band }: { breathing: boolean; band: boolean }) {
         <span
           className={cn(
             "absolute inset-0 bg-dusk/30 transition-opacity duration-(--duration-quick) ease-fade",
-            !breathing && "opacity-0",
+            !passing && "opacity-0",
           )}
         />
-        <Drift on={breathing} />
+        <Pass on={passing} />
       </span>
     </div>
   );
@@ -389,17 +388,14 @@ function Entry({
   line,
   row,
   open,
-  breathing,
   wash,
 }: {
   entry: CastEntry;
   line: boolean;
   row: boolean;
   open: boolean;
-  breathing: boolean;
   wash: { key: string; style: CSSProperties } | undefined;
 }) {
-  const reduced = useReducedMotion();
   const age = ageOf(entry);
   const text = line ? stateLine(entry) : "";
   return (
@@ -423,7 +419,6 @@ function Entry({
           "absolute rounded-full bg-dusk transition-opacity duration-(--duration-quick) ease-fade",
           row ? "inset-x-1 bottom-0 h-0.5 touch:bottom-1.5" : "inset-y-1 -left-1.5 w-0.5",
           open ? "opacity-100" : "opacity-0",
-          open && breathing && !reduced && REMEMBERING,
         )}
       />
       <span className="break-words font-semibold text-ink text-ui">
@@ -492,14 +487,14 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
   if (!visible) return null;
   const listed = listedEntries(register);
   const { present, away } = split(listed);
-  const breathing = busy && !listed.some((entry) => entry.id === openId);
+  // While a record is open its surface's header carries the light instead.
+  const passing = busy && !listed.some((entry) => entry.id === openId);
   const entry = (item: CastEntry, line: boolean, row = false) => (
     <Entry
       entry={item}
       line={line}
       row={row}
       open={item.id === openId}
-      breathing={busy}
       wash={washOf(change, item.id, ["activity", "mood"], mountedAt)}
     />
   );
@@ -510,7 +505,7 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
         present={present}
         away={away}
         removal={removal}
-        breathing={breathing}
+        passing={passing}
         entry={(item) => entry(item, false, true)}
       />
     );
@@ -541,7 +536,7 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
   const shownFirst = withRemoval(first, removal, true);
   return (
     <div data-cast="" className="mt-4 grid gap-1.5 font-story">
-      <Heading breathing={breathing} band={false} />
+      <Heading passing={passing} band={false} />
       {shownFirst.length > 0 && list(shownFirst, "Cast", true)}
       {more.length > 0 && (
         <Disclosure summary={`and ${formatCount(more.length)} more`}>
@@ -567,13 +562,13 @@ function BandRoster({
   present,
   away,
   removal,
-  breathing,
+  passing,
   entry,
 }: {
   present: CastEntry[];
   away: CastEntry[];
   removal: CastRemoval | null;
-  breathing: boolean;
+  passing: boolean;
   entry: (item: CastEntry) => ReactNode;
 }) {
   const rosterOpen = useCastSurface((state) => state.open && state.entryId === null);
@@ -632,7 +627,7 @@ function BandRoster({
   return (
     <div data-cast="" className="mt-3 grid">
       <div ref={row} className="flex flex-wrap items-baseline gap-x-4 font-story">
-        <Heading breathing={breathing} band />
+        <Heading passing={passing} band />
         {items.length > 0 && (
           <ul aria-label="Cast" className="contents">
             {items.map((item, index) =>
@@ -673,13 +668,13 @@ function BandRoster({
 }
 
 /**
- * The phone header's quiet control: the record surface at the roster. Its
- * icon breathes while the cast updates, as the memory mark beside it does.
+ * The phone header's quiet control: the record surface at the roster. It
+ * holds still while the cast updates: the hairline under the roster's
+ * heading carries that.
  */
 export function CastHeaderControl() {
   const visible = useCastVisible();
   const open = useCastSurface((state) => state.open && state.entryId === null);
-  const busy = useChat(busyOf);
   if (!visible) return null;
   return (
     <Button
@@ -689,7 +684,7 @@ export function CastHeaderControl() {
       aria-expanded={open}
       onClick={(event) => openCast(null, event.currentTarget)}
     >
-      <CastIcon className={cn(busy && REMEMBERING)} />
+      <CastIcon />
     </Button>
   );
 }
@@ -814,7 +809,7 @@ const BODY = "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5";
 
 /**
  * The surface header's part while the cast updates: "Updating…" after the
- * title, and the drift along the header's lower edge. The drawer, modal,
+ * title, and the light passing along the header's lower edge. The drawer, modal,
  * says it; beside the popover the panel already does.
  */
 function SurfaceUpdating({ drawer }: { drawer: boolean }) {
@@ -826,7 +821,7 @@ function SurfaceUpdating({ drawer }: { drawer: boolean }) {
         live={drawer}
         className="self-center whitespace-nowrap px-1 font-sans text-meta text-reed"
       />
-      <Drift on={busy} />
+      <Pass on={busy} />
     </>
   );
 }

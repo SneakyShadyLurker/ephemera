@@ -75,7 +75,7 @@ export function ChatScreen() {
   useRoomTint();
   const composer = useRef<HTMLTextAreaElement>(null);
   const sessionToggle = useRef<HTMLButtonElement>(null);
-  // While a reply is in flight the portrait glows (styles.css `presence-glow`).
+  // While a reply is in flight; the composer's listening ring reads it (styles.css `lamplight-rim`).
   const writing = useChat((state) => state.generating);
   // One memory editor for the chat, so the seam moving under it keeps it open; a Clear closes it.
   const characterId = useSetting((settings) => settings.characterId);

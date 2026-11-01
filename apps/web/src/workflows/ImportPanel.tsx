@@ -494,10 +494,7 @@ export function PanelView({
       {state.phase === "reading" && (
         <>
           <p className="flex items-center gap-2 break-words text-note text-reed">
-            <SavingIcon
-              size={16}
-              className="shrink-0 animate-[breathe_1.2s_var(--ease-breath)_infinite_alternate] motion-reduce:animate-none"
-            />
+            <SavingIcon size={16} className="shrink-0" />
             Reading {state.fileName}
           </p>
           <MappingOutline />
@@ -593,10 +590,7 @@ export function PanelView({
           <Button variant="primary" disabled={!check.enabled} onClick={() => onSave()}>
             {saving ? (
               <>
-                <SavingIcon
-                  size={16}
-                  className="animate-[breathe_1.2s_var(--ease-breath)_infinite_alternate] motion-reduce:animate-none"
-                />
+                <SavingIcon size={16} />
                 Saving
               </>
             ) : replace !== null ? (

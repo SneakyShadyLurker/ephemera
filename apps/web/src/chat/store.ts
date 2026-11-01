@@ -502,6 +502,13 @@ export interface ChatState extends SceneSliceState, CastSliceState {
   generating: boolean;
   /** What the running generation writes; null when none runs. */
   generationMode: GenerationMode | null;
+  /**
+   * How the latest generation ended, whatever it left on show (a failed
+   * Continue or Replace puts the earlier reply back, Write for me writes
+   * no message); null before any, after Clear and while one waits for a
+   * sign-in. Not chat content.
+   */
+  generationEnd: GenerationEnd | null;
   /** What was deleted last and where, until the next change to the messages. */
   deleted: Deleted | null;
   /** The message in its edit field, what is edited, and the text written there. Chat content. */
@@ -996,6 +1003,9 @@ export function canGenerateAlternate(state: ChatState): boolean {
   const before = sentMessages(state.messages.slice(0, -1)).at(-1);
   return before?.role === "user";
 }
+
+/** How a generation ended. */
+type GenerationEnd = "complete" | "stopped" | "failed";
 
 interface Target {
   /** Applies the latest update; `prompt` is present from the first update on. */
@@ -1728,7 +1738,7 @@ export function createChatStore(
         if (get().epoch !== epoch) return;
         if (waiting.signal.aborted || !sameSubject(chosen, selection())) {
           target.end({ status: "stopped" });
-          set({ generating: false, generationMode: null });
+          set({ generating: false, generationMode: null, generationEnd: "stopped" });
           get().schedulePreview();
           return;
         }
@@ -1784,6 +1794,7 @@ export function createChatStore(
       let finishReason: PartialReplyFinishReason | undefined;
       let arrived = false;
       let retryNow = false;
+      let ended: GenerationEnd | null = null;
       try {
         for await (const update of streamReply(request, controller.signal)) {
           if (!arrived) {
@@ -1856,11 +1867,13 @@ export function createChatStore(
           finishReason = update.finishReason;
         }
         // A stream can end without an error after an abort; Stop still wins.
-        if (current())
+        if (current()) {
+          ended = controller.signal.aborted ? "stopped" : "complete";
           target.end({
-            status: controller.signal.aborted ? "stopped" : "complete",
+            status: ended,
             ...(controller.signal.aborted || finishReason === undefined ? {} : { finishReason }),
           });
+        }
       } catch (error) {
         if (
           !isSignedOut(error) &&
@@ -1876,8 +1889,9 @@ export function createChatStore(
           // Refused for an older request after the session came back: it goes out now.
           retryNow = signedIn() && (deps.resumable?.() ?? true);
         } else if (current()) {
+          ended = controller.signal.aborted ? "stopped" : "failed";
           target.end({
-            status: controller.signal.aborted ? "stopped" : "failed",
+            status: ended,
             ...(code === undefined ? {} : { refusal: code }),
             ...(busy && !controller.signal.aborted ? { busy: true as const } : {}),
           });
@@ -1892,7 +1906,7 @@ export function createChatStore(
         );
         inFlight.delete(controller);
         if (current()) {
-          set({ generating: false, generationMode: null });
+          set({ generating: false, generationMode: null, generationEnd: ended });
           get().schedulePreview();
           if (retryNow) void get().resume();
           // A reply settled: the story may have grown enough to remember.
@@ -2303,6 +2317,7 @@ export function createChatStore(
       draft: "",
       generating: false,
       generationMode: null,
+      generationEnd: null,
       deleted: null,
       editing: null,
       impersonation: null,
@@ -2861,6 +2876,7 @@ export function createChatStore(
           draft: "",
           generating: false,
           generationMode: null,
+          generationEnd: null,
           deleted: null,
           editing: null,
           impersonation: null,

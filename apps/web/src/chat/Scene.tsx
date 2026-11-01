@@ -3,7 +3,8 @@ import { type ReactNode, type RefObject, useEffect, useRef, useState } from "rea
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { useShallow } from "zustand/shallow";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { SceneIcon, StopIcon, useLampStep } from "@/components/icons";
+import { SceneIcon, StopIcon } from "@/components/icons";
+import { LamplightRim } from "@/components/lamplight.tsx";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { COMFYUI_BUSY, MODEL_BUSY } from "@/lib/text";
@@ -20,11 +21,12 @@ import { chatStore, useChat } from "./session.ts";
  * Picture this scene in the thread (PRINCIPLES.md 1). The picture is a print
  * laid into the story: a 2:3 plate reserved from the press, so nothing moves
  * when it lands, with one hairline frame and one line under it. While it is
- * painted the plate's own lamp light breathes behind it and a thin dusk line
- * measures the steps; the picture develops out of blur once, and a quick fade
- * brings it back after it was scrolled away. Its bytes are drawn from memory
- * onto a canvas, never given a URL, and decoded only while the plate is within
- * a viewport of view, so many pictures never hold many bitmaps.
+ * painted the lamp's light travels its rim (closing when it is done) and a
+ * thin dusk line measures the steps; the picture develops out of blur once,
+ * and a quick fade brings it back after it was scrolled away. Its bytes are
+ * drawn from memory onto a canvas, never given a URL, and decoded only while
+ * the plate is within a viewport of view, so many pictures never hold many
+ * bitmaps.
  */
 
 /** The item's stage line, which the button names as its description while it runs. */
@@ -288,7 +290,6 @@ export function SceneView({
       className={cn("grid justify-items-start gap-2.5", enter && "surface-in")}
     >
       <div ref={plateRef} className="relative isolate w-full tablet:w-[min(100%,32rem)]">
-        <PlateGlow painting={painting} />
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-(--radius) bg-surface">
           {bitmap !== undefined && (
             <ArtCanvas
@@ -301,7 +302,6 @@ export function SceneView({
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 rounded-[inherit] border border-control-edge/35"
           />
-          {meter === "pending" && <span aria-hidden="true" className="frame-drift" />}
           {typeof meter === "number" && (
             <span
               aria-hidden="true"
@@ -310,6 +310,7 @@ export function SceneView({
             />
           )}
         </div>
+        <LamplightRim busy={painting} settled={run.status === "complete"} />
       </div>
       {/* As tall as its controls, so the caption replacing them moves nothing. */}
       <div className="flex min-h-8 w-full items-start justify-between gap-4 touch:min-h-11 tablet:w-[min(100%,32rem)]">
@@ -360,24 +361,6 @@ export function SceneView({
         )}
       </div>
     </li>
-  );
-}
-
-/**
- * The plate's own lamp light (styles.css `scene-glow`): it breathes while the
- * picture is painted, starting in step with the mark's lamp as the portrait's
- * glow does, and fades out on any end.
- */
-function PlateGlow({ painting }: { painting: boolean }) {
-  const glow = useRef<HTMLSpanElement>(null);
-  useLampStep(glow, painting);
-  return (
-    <span
-      ref={glow}
-      data-painting={painting ? "" : undefined}
-      aria-hidden="true"
-      className="scene-glow"
-    />
   );
 }
 

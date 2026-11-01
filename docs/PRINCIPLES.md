@@ -346,16 +346,23 @@ field, lorebook entry and model reply is untrusted text.
   Short, spring-based, interruptible, and reduced to fades under
   `prefers-reduced-motion`.
 - One ambient exception keeps the window from looking dead at rest: the
-  mark at the top of the navigation breathes, its lamp's glow rising and
-  settling in a slow, seamless loop. It is the only motion on screen at
-  rest, and under `prefers-reduced-motion` it holds its resting glow.
-  While a reply is in flight the lamp breathes faster and the character's
-  portrait glows in step with it, and streamed words arrive with a short
-  fade (a continued reply streams on without one, so its earlier words stay
-  still); when the reply settles, both return to rest. Text in the focused
-  composer lights the glow faintly, without movement. Under
-  `prefers-reduced-motion` the lamp holds still, the glow shows still and
-  words appear at once.
+  mark at the top of the navigation lets its lamp's light drip down the
+  crescent's trail once a slow breath, each dot lit in turn. It is the only
+  motion on screen at rest, and under `prefers-reduced-motion` the trail
+  holds still.
+- Work in progress shows as light travelling along an edge, never as a
+  glow that swells or a word that blinks, and each operation shows one
+  light. While a reply is in flight a short light laps the floating
+  portrait's frame; on phones, or for a character without a portrait, a
+  light passes outward along the hairline after the character's name
+  instead. The mark's drip quickens meanwhile, and streamed words arrive
+  with a short fade (a continued reply streams on without one, so its
+  earlier words stay still). A reply that completes closes the light into
+  a full ring that fades; Stop or a failure only fades it. Text in the
+  focused composer shows a faint, still ring on the portrait. Status words
+  never move, and a save says "Saving" only once it lasts. Under
+  `prefers-reduced-motion` the frame shows a still ring, the drip and the
+  passing light stop, and words appear at once.
 - Streaming is smooth: no layout jumps, stable scroll anchoring, no flicker
   while Markdown completes.
 - Every action is reachable by keyboard; the layout works from phone to

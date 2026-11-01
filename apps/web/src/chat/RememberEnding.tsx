@@ -8,12 +8,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/cn";
 import { failureNote } from "../memory/failure.ts";
 import { memoryOnIn, memoryQuery, type RememberFailure } from "../memory/queries.ts";
 import { useSetting } from "../settings/settings.ts";
 import { useChatCharacter } from "./character.ts";
-import { REMEMBERING } from "./MemorySeam.tsx";
 import { chatStore, useChat } from "./session.ts";
 import { endingToRemember } from "./store.ts";
 
@@ -92,7 +90,7 @@ function useRememberEnding(proceed: () => void) {
 
 /**
  * What remembering the ending is doing, under the dialog's description: the
- * memory mark breathing while it is written, what holds it, or why it was not.
+ * memory mark while it is written, what holds it, or why it was not.
  */
 function EndingStatus({ ending }: { ending: Ending }) {
   if (ending.status === "idle") return null;
@@ -111,12 +109,12 @@ function EndingStatus({ ending }: { ending: Ending }) {
   );
 }
 
-/** The breathing line while the ending is written, after the reply still streaming, if any. */
+/** The status line while the ending is written, after the reply still streaming, if any. */
 function Remembering() {
   const replying = useChat((state) => state.generating);
   return (
     <p role="status" className={"arrive mt-4 flex items-center gap-2 text-note text-reed"}>
-      <MemoryIcon size={16} className={cn("shrink-0 text-ink", REMEMBERING)} />
+      <MemoryIcon size={16} className="shrink-0 text-ink" />
       {replying
         ? "Waiting for the reply to finish, then remembering how this chat ended…"
         : "Remembering how this chat ended…"}

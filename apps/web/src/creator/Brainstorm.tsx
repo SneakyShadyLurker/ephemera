@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { ideasAlert, ideasStatus, RETRY_NOTE } from "./brainstorm-notes.ts";
-import { FrameDrift } from "./CardLayout.tsx";
+import { FrameEdge } from "./CardLayout.tsx";
 import { COLUMN, KINDS, leaveBrainstorm } from "./Choose.tsx";
 import { useModelChoice } from "./Describe.tsx";
 import { ReasoningSelect, useEffortChoice } from "./ReasoningSelect.tsx";
@@ -279,7 +279,7 @@ export function IdeaList({
               {picked === index && <CheckIcon size={16} className="mt-1.5 text-ink" />}
             </button>
           )}
-          {edge === index && <FrameDrift />}
+          {edge === index && <FrameEdge />}
         </li>
       ))}
     </ol>

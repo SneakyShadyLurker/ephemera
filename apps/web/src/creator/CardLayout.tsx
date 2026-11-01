@@ -1,9 +1,8 @@
-import { Component, lazy, type ReactNode, type Ref, Suspense, useRef } from "react";
-import { useLampStep } from "@/components/icons";
+import { Component, lazy, type ReactNode, type Ref, Suspense } from "react";
+import { LamplightRim } from "@/components/lamplight.tsx";
 import { cn } from "@/lib/cn";
 import { LEAF_EDGE } from "../portraits/Portrait.tsx";
 import type { CardRow } from "./sections.ts";
-import { useCreatorWriting } from "./writing.ts";
 
 /*
  * The showcase's layout, shared by the card being written and the finished
@@ -68,56 +67,36 @@ export function Words({ text }: { text: string }) {
 }
 
 /**
- * The lamp glow behind the frame while the card or its art is in progress
- * (styles.css `presence-glow`, lit by `data-writing` on the screen), its
- * breath in step with the lamp's.
+ * One pass of light along the lower edge of its positioned parent (styles.css
+ * `lamplight-edge`): the brainstorm row being written.
  */
-function FrameGlow() {
-  const glow = useRef<HTMLSpanElement>(null);
-  useLampStep(glow, useCreatorWriting());
-  return (
-    <span
-      ref={glow}
-      data-presence-glow=""
-      data-frame-glow=""
-      aria-hidden="true"
-      className="presence-glow"
-    />
-  );
+export function FrameEdge() {
+  return <span aria-hidden="true" className="lamplight-edge" />;
 }
 
 /**
- * A light gliding along the lower edge of its positioned parent in step with
- * the lamp (styles.css `frame-drift`): the frame's, or the brainstorm row
- * being written.
- */
-export function FrameDrift() {
-  const drift = useRef<HTMLSpanElement>(null);
-  useLampStep(drift, useCreatorWriting());
-  return <span ref={drift} aria-hidden="true" className="frame-drift" />;
-}
-
-/**
- * The 2:3 frame on the surface: the lamp glow behind it and `progress`
- * (0 to 1) as a thin dusk line along its lower edge; `pending`, a stage
- * that has no measure, glides a light along it instead.
- * While the card or its art is in progress a faint lamplight pools inside
- * it from below (styles.css `frame-lamp`), under whatever the frame holds.
+ * The 2:3 frame on the surface, and `progress` (0 to 1) as a thin dusk line
+ * along its lower edge (a stage without a measure, `pending`, draws none). While its work runs (`busy`) the rim travels its
+ * edge; when the work ends it closes if the work finished (`settled`) and
+ * fades otherwise, then `onEnd`.
  */
 export function CardFrame({
   progress,
+  busy,
+  settled,
+  onEnd,
   children,
 }: {
   progress?: number | "pending" | undefined;
+  busy: boolean;
+  settled: boolean;
+  onEnd?: (() => void) | undefined;
   children?: ReactNode;
 }) {
   return (
     <div className="relative isolate">
-      <FrameGlow />
       <div className="@container relative grid aspect-[2/3] w-full overflow-hidden rounded-lg bg-surface">
-        <span aria-hidden="true" className="frame-lamp" />
         {children}
-        {progress === "pending" && <FrameDrift />}
         {typeof progress === "number" && (
           <span
             aria-hidden="true"
@@ -126,6 +105,7 @@ export function CardFrame({
           />
         )}
       </div>
+      <LamplightRim busy={busy} settled={settled} onEnd={onEnd} />
     </div>
   );
 }

@@ -112,7 +112,7 @@ export function Rail({ compact }: { compact: boolean }) {
         {/* The crescent sits inside its drawing box; the nudge sets its edge on the wordmark's. */}
         <span className={cn("grid", !compact && "-ml-0.5")}>
           <MarkIcon
-            breathing
+            dripping
             writing={writing}
             size={compact ? 32 : 44}
             aria-label={compact ? "Ephemera" : undefined}

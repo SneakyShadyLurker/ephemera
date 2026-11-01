@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, type SVGProps, useEffect, useRef } from "react";
+import { type CSSProperties, type ReactNode, type SVGProps, useEffect, useRef } from "react";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { cn } from "@/lib/cn";
 
@@ -250,9 +250,7 @@ type MarkSize = IconSize | 44 | 96;
 const MARK_SIZE_CLASS: Record<MarkSize, string> = { ...SIZE_CLASS, 44: "size-11", 96: "size-24" };
 /** From here up the full cut's thin crescent and smallest dot hold. */
 const FULL_CUT_FROM = 96;
-/** How far the breathing halo reaches, in lamp radii. */
-const HALO_REACH = 2.4;
-/** How much faster the lamp breathes while a reply is written: styles.css `--breath-rest` over `--breath-writing`. */
+/** How much faster the drip runs while something is written: styles.css `--breath-rest` over `--breath-writing`. */
 function writingRate(): number {
   const root = getComputedStyle(document.documentElement);
   const seconds = (name: string) => Number.parseFloat(root.getPropertyValue(name));
@@ -260,66 +258,38 @@ function writingRate(): number {
 }
 
 /**
- * Where the lamp is in its breath, from 0 to 1, so the portrait's glow can
- * start in step with it; undefined while it holds still.
- */
-export function lampPhase(): number | undefined {
-  const [animation] = document.querySelector(".lamp-halo")?.getAnimations() ?? [];
-  const progress = animation?.effect?.getComputedTiming().progress;
-  return progress ?? undefined;
-}
-
-/**
- * Starts the CSS animations under `element` in step with the lamp each time
- * they become `active`, while the lamp breathes at the same rate, so the two
- * never beat against each other. Reduced motion leaves them as CSS holds them.
- */
-export function useLampStep(element: RefObject<HTMLElement | null>, active: boolean): void {
-  const reduced = useReducedMotion();
-  useEffect(() => {
-    const phase = lampPhase();
-    if (!active || reduced || phase === undefined) return;
-    for (const animation of element.current?.getAnimations({ subtree: true }) ?? []) {
-      if (!(animation instanceof CSSAnimation)) continue;
-      const duration = Number(animation.effect?.getComputedTiming().duration);
-      if (Number.isFinite(duration)) animation.currentTime = phase * duration;
-    }
-  }, [element, active, reduced]);
-}
-
-/**
  * Ephemera's mark: a crescent dissolving beside one amber lamp. Solid, unlike
  * the set, in the small-size cut at interface sizes and the brand's full cut
  * when shown large. The crescent takes the text color; the lamp is always
- * dusk. A `breathing` mark, the one at the top of the
- * interface, keeps a halo behind its lamp that rises and settles at rest. The
- * halo is an HTML layer under the drawing rather than part of it, so its loop
- * runs on the compositor and never repaints the page. While a reply is
- * `writing` the same loop runs faster (styles.css `--breath-writing`); the rate
- * changes in place, so the breath never restarts or jumps.
+ * dusk. A `dripping` mark, the one at the top of the interface, lets its
+ * lamp's light drip down the trail once a breath (styles.css
+ * `lamplight-drip`), each dot after the one above it. While anything is
+ * `writing` the same drip runs faster (`--breath-writing`); the rate changes
+ * in place, so the loop never restarts or jumps. Under reduced motion the
+ * trail holds still.
  */
 export function MarkIcon({
   size = 20,
   className,
-  breathing = false,
+  dripping = false,
   writing = false,
   ...props
-}: Omit<IconProps, "size"> & { size?: MarkSize; breathing?: boolean; writing?: boolean }) {
-  const halo = useRef<HTMLSpanElement>(null);
+}: Omit<IconProps, "size"> & { size?: MarkSize; dripping?: boolean; writing?: boolean }) {
+  const drawing = useRef<SVGSVGElement>(null);
   const reduced = useReducedMotion();
   useEffect(() => {
-    // None under reduced motion: the halo holds still. When the preference
-    // lifts mid-reply, the loop comes back at rate 1, so this runs again.
-    if (reduced) return;
+    // None under reduced motion: the trail holds still. When the preference
+    // lifts mid-reply, the drip comes back at rate 1, so this runs again.
+    if (reduced || !dripping) return;
     const rate = writing ? writingRate() : 1;
-    for (const animation of halo.current?.getAnimations() ?? []) {
+    for (const animation of drawing.current?.getAnimations({ subtree: true }) ?? []) {
       animation.updatePlaybackRate(rate);
     }
-  }, [writing, reduced]);
+  }, [dripping, writing, reduced]);
   const { box, crescent, lamp, trail } = size >= FULL_CUT_FROM ? FULL_CUT : SMALL_CUT;
-  const inBox = (length: number) => `${(length / box.size) * 100}%`;
-  const mark = (
+  return (
     <svg
+      ref={drawing}
       viewBox={`${box.x} ${box.y} ${box.size} ${box.size}`}
       width={size}
       height={size}
@@ -327,31 +297,20 @@ export function MarkIcon({
       aria-hidden="true"
       focusable="false"
       data-icon="Mark"
-      className={cn(MARK_SIZE_CLASS[size], className)}
+      className={cn(MARK_SIZE_CLASS[size], dripping && "lamplight-mark", className)}
       {...props}
     >
       <path d={crescent} />
-      <circle {...lamp} className="fill-dusk" />
-      {trail.map((dot) => (
-        <circle key={dot.cy} {...dot} />
+      <circle {...lamp} data-lamp="" className="fill-dusk" />
+      {trail.map((dot, index) => (
+        <circle
+          key={dot.cy}
+          {...dot}
+          className={dripping ? "lamplight-drip" : undefined}
+          style={dripping ? ({ "--drip": index + 1 } as CSSProperties) : undefined}
+        />
       ))}
     </svg>
-  );
-  if (!breathing) return mark;
-  return (
-    <span className="relative isolate inline-grid shrink-0">
-      <span
-        ref={halo}
-        aria-hidden="true"
-        className="lamp-halo"
-        style={{
-          left: inBox(lamp.cx - box.x),
-          top: inBox(lamp.cy - box.y),
-          width: inBox(2 * lamp.r * HALO_REACH),
-        }}
-      />
-      {mark}
-    </span>
   );
 }
 

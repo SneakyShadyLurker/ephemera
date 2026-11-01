@@ -6,7 +6,6 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { memoryOnIn, memoryQuery } from "../memory/queries.ts";
 import { useSetting } from "../settings/settings.ts";
-import { REMEMBERING } from "./MemorySeam.tsx";
 import { useChat } from "./session.ts";
 import { foldedTurns, heldTurns } from "./store.ts";
 
@@ -17,10 +16,9 @@ const n = new Intl.NumberFormat("en", { notation: "compact" });
  * Beside the meter while the chat's character has memory on (every
  * character, until turned off), once its memory loaded: a small page
  * with its corner turned down, and how many turns are remembered, held or
- * folded, set in its
- * corner so the mark keeps its width and nothing beside it moves. It breathes
- * while a memory is written and opens the character's memory screen,
- * whose Back returns to the chat.
+ * folded, set in its corner so the mark keeps its width and nothing beside
+ * it moves. It opens the character's memory screen, whose Back returns to
+ * the chat.
  */
 export function MemoryMark() {
   const characterId = useSetting((settings) => settings.characterId);
@@ -29,7 +27,6 @@ export function MemoryMark() {
     enabled: characterId !== null,
   });
   const remembered = useChat((state) => foldedTurns(state) + heldTurns(state));
-  const remembering = useChat((state) => state.memory.status === "remembering");
   // Not before the memory first loads, nor for a character gone: only memory known to be on.
   if (characterId === null || !memoryOnIn(memory)) return null;
   return (
@@ -46,7 +43,7 @@ export function MemoryMark() {
           "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
         )}
       >
-        <MemoryIcon className={cn(remembering && REMEMBERING)} />
+        <MemoryIcon />
         {remembered > 0 && (
           <span
             key={remembered}

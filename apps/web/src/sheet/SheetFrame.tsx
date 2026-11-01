@@ -141,15 +141,12 @@ export function SaveState({
         className={cn(
           "flex min-w-0 items-center gap-1 whitespace-nowrap text-meta transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
           failure ? "text-ember" : "text-reed",
+          // A quick save never says Saving: the word shows only once the save lasts.
+          status.kind === "saving" && "lamplight-late",
         )}
       >
         {status.kind === "saved" && <CheckIcon size={16} />}
-        {status.kind === "saving" && (
-          <SavingIcon
-            size={16}
-            className="animate-[breathe_1.2s_var(--ease-breath)_infinite_alternate] motion-reduce:animate-none"
-          />
-        )}
+        {status.kind === "saving" && <SavingIcon size={16} />}
         {/* Saved and Saving take the same room, so nothing beside them moves as they swap. */}
         <span
           className={cn(
@@ -548,9 +545,20 @@ export function SheetMissing({
   );
 }
 
-/** A sheet waiting for its entity's fresh copy. */
+/**
+ * A sheet waiting for its entity's fresh copy: nothing at first, and once
+ * the wait lasts, the column's top rule with a light passing along it.
+ */
 export function SheetLoading() {
-  return <main className="flex-1" aria-busy="true" />;
+  return (
+    <main className="flex-1" aria-busy="true">
+      <div className={cn(SHEET_FRAME.form, "pt-[calc(3.5rem+env(safe-area-inset-top))]")}>
+        <div aria-hidden="true" className="lamplight-late relative h-px bg-rush">
+          <span className="lamplight-edge" />
+        </div>
+      </div>
+    </main>
+  );
 }
 
 /**

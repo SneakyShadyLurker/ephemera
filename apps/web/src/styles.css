@@ -253,13 +253,19 @@
   --ease-spring: linear(0, 0.25 9%, 0.6 20%, 0.84 33%, 0.95 46%, 0.99 62%, 1);
   --ease-fade: cubic-bezier(0.2, 0, 0, 1);
   /*
-   * The lamp's breath: its curve, a breath at rest, and one while a reply is
-   * written. Everything that breathes in step with the lamp reads these
-   * (components/icons.tsx derives the halo's playback rate from the two).
+   * The lamp's breath: one at rest, and one while something is written.
+   * Lamplight's loops read these (components/icons.tsx derives the mark's
+   * drip rate from the two).
    */
-  --ease-breath: cubic-bezier(0.37, 0, 0.63, 1);
   --breath-rest: 6s;
   --breath-writing: 3.6s;
+  /* How far apart the mark's trail dots light up as the lamp's light drips down it. */
+  --duration-drip: 180ms;
+  /* A rim closing on work that finished, then any rim fading out (components/lamplight.tsx reads both). */
+  --duration-close: 220ms;
+  --duration-fade-out: 300ms;
+  /* How long a wait stays quiet before it shows, so quick work never flickers. */
+  --delay-pending: 300ms;
   --duration-press: 80ms;
   --duration-release: 140ms;
   /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
@@ -794,9 +800,9 @@
     font-size: 1.125rem;
     font-weight: 600;
     line-height: 1.5rem;
-    /* Level with the name's first line, however many it takes. */
-    &::after {
-      content: "";
+    /* The hairline, level with the name's first line, however many it takes. */
+    & > [data-nameplate-rule] {
+      position: relative;
       flex: 1 0 1.5rem;
       height: 1px;
       margin-top: 0.75rem;
@@ -824,7 +830,6 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  /* biome-ignore lint/style/noDescendingSpecificity: & is .nameplate-name here, another element than .nameplate[data-voice="story"]::after; Biome cannot read @utility. */
   &::after {
     content: "";
     position: absolute;
@@ -875,41 +880,6 @@
 }
 
 /*
- * The mark's lamp at rest: a halo behind the crescent that rises and settles
- * ten times a minute, rising faster than it settles. Both ends of the cycle
- * are the same frame at zero speed, so the loop has no seam. Under reduced
- * motion the halo holds its resting glow.
- */
-@keyframes lamp-breathe {
-  0%,
-  100% {
-    opacity: 0.3;
-    scale: 0.75;
-  }
-  40% {
-    opacity: 0.8;
-    scale: 1;
-  }
-}
-
-@utility lamp-halo {
-  position: absolute;
-  z-index: -1;
-  aspect-ratio: 1;
-  translate: -50% -50%;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, var(--dusk) 30%, transparent);
-  pointer-events: none;
-  opacity: 0.3;
-  scale: 0.75;
-  animation: lamp-breathe var(--breath-rest) var(--ease-breath) infinite;
-  transition: filter var(--duration-panel-in) var(--ease-fade);
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-}
-
-/*
  * Streamdown's last block carries the caret while text streams. It holds
  * steady: the words arriving are the motion, and the caret breathes only
  * while nothing has come yet.
@@ -941,215 +911,6 @@
   }
 }
 
-/*
- * Inside the creator's frame while the card or its art is in progress: the
- * lamp's light pooling up from the lower edge, under whatever the frame
- * holds. It fades in and out with the work and stays still, so the glow
- * behind the frame and the writing edge carry the motion.
- */
-@utility frame-lamp {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    120% 70% at 50% 108%,
-    color-mix(in oklab, var(--dusk) 16%, transparent),
-    transparent 70%
-  );
-  opacity: 0;
-  transition: opacity var(--duration-panel-in) var(--ease-fade);
-  [data-writing] & {
-    opacity: 1;
-  }
-}
-
-/*
- * The frame's lower edge while the art's stage has no measure: a short soft
- * light glides along it and back, one way per breath of the lamp in flight
- * (3.6 s, its curve), so it moves with the glow and never against it.
- * Under reduced motion it is not drawn; the caption says what happens.
- */
-@keyframes drift {
-  from {
-    translate: -100% 0;
-  }
-  to {
-    translate: 250% 0;
-  }
-}
-
-@utility frame-drift {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: 2px;
-  overflow: hidden;
-  pointer-events: none;
-  transition: opacity var(--duration-panel-in) var(--ease-fade);
-  @starting-style {
-    opacity: 0;
-  }
-  &::before {
-    content: "";
-    position: absolute;
-    inset-block: 0;
-    width: 40%;
-    background: linear-gradient(90deg, transparent, var(--dusk), transparent);
-    animation: drift var(--breath-writing) var(--ease-breath) infinite alternate;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    display: none;
-  }
-}
-
-/*
- * The portrait's glow while a reply is in flight: a soft lamp-colored field
- * behind the frame that breathes with the mark's lamp, 3.6 s a breath
- * (`glow-breathe` has the lamp's shape), and settles when the reply ends.
- * Light canvases get a pale amber lighter than the canvas, dark ones a half
- * mix of the lamp. The element fades; its ::before breathes on top of that
- * opacity. While the owner writes in the composer it holds a faint, still
- * light. Under reduced motion it shows still while busy. The phone header's
- * small portrait has a tight one (`data-header-glow`).
- */
-@keyframes glow-breathe {
-  0%,
-  100% {
-    opacity: 0.55;
-    scale: 0.98;
-  }
-  40% {
-    opacity: 1;
-    scale: 1;
-  }
-}
-
-@utility presence-glow {
-  position: absolute;
-  inset: -10%;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--duration-panel-in) var(--ease-fade);
-  @variant dark {
-    inset: -6%;
-  }
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 18%;
-    background: light-dark(
-      oklch(from var(--dusk) 0.955 0.07 h),
-      color-mix(in oklab, var(--dusk) 50%, transparent)
-    );
-    filter: blur(24px);
-    opacity: 0.55;
-    scale: 0.98;
-    transition:
-      opacity var(--duration-panel-in) var(--ease-fade),
-      scale var(--duration-panel-in) var(--ease-fade);
-    @variant dark {
-      filter: blur(22px);
-    }
-  }
-  &[data-header-glow] {
-    inset: -3px;
-    &::before {
-      border-radius: 6px;
-      filter: blur(8px);
-    }
-  }
-  /*
-   * The creator's frame: the light pools lower and wider, as from a lamp
-   * set beneath the card, and its softer edge stays clear of the top of
-   * the scrolling column, which would cut it off.
-   */
-  &[data-frame-glow] {
-    inset: 5% -8% -9%;
-    &::before {
-      border-radius: 40%;
-      filter: blur(30px);
-    }
-  }
-  [data-writing] & {
-    opacity: 1;
-    &::before {
-      animation: glow-breathe var(--breath-writing) var(--ease-breath) infinite;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      opacity: 0.45;
-      &::before {
-        animation: none;
-        opacity: 1;
-        scale: 1;
-      }
-    }
-  }
-  main:not([data-writing]):has(form textarea:focus:not(:placeholder-shown)) & {
-    opacity: 0.45;
-    @variant dark {
-      opacity: 0.3;
-    }
-    &[data-header-glow] {
-      opacity: 0.3;
-    }
-    &::before {
-      opacity: 1;
-      scale: 1;
-    }
-  }
-}
-
-/*
- * A scene picture's own glow while it is painted: the portrait's lamp light
- * pooled behind its plate, breathing with `glow-breathe`. Lit only by its
- * own `data-painting`, never by a reply in flight, so a finished picture
- * stays still while the story is written; it fades out on any end. Under
- * reduced motion it holds still at 0.45.
- */
-@utility scene-glow {
-  position: absolute;
-  inset: 3% -6% -5%;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--duration-panel-in) var(--ease-fade);
-  /* biome-ignore lint/style/noDescendingSpecificity: & is .scene-glow here, another element than .nameplate[data-voice="story"]::after; Biome cannot read @utility. */
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 40%;
-    background: light-dark(
-      oklch(from var(--dusk) 0.955 0.07 h),
-      color-mix(in oklab, var(--dusk) 50%, transparent)
-    );
-    filter: blur(30px);
-    opacity: 0.55;
-    scale: 0.98;
-  }
-  &[data-painting] {
-    opacity: 1;
-    &::after {
-      animation: glow-breathe var(--breath-writing) var(--ease-breath) infinite;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      opacity: 0.45;
-      &::after {
-        animation: none;
-        opacity: 1;
-        scale: 1;
-      }
-    }
-  }
-}
-
-/* Words in the creator's focused description field light the mark's lamp faintly, without movement. */
-:root:has(textarea[data-lamp-field]:focus:not(:placeholder-shown)) .lamp-halo {
-  filter: brightness(1.2) saturate(1.15);
-}
-
 /* Appears only after six seconds without text: no timer in script. */
 @keyframes appear {
   to {
@@ -1160,6 +921,221 @@
 @utility still-waiting {
   opacity: 0;
   animation: appear var(--duration-quick) var(--ease-fade) 6s forwards;
+}
+
+/*
+ * Lamplight: how work in progress shows, one indicator for each operation.
+ * Light travels along an edge; it never swells, blurs wide or blinks, and
+ * status words never move. Three forms, all on the lamp's breath:
+ *
+ * - `lamplight-rim`: a short light travelling a frame's edge (a portrait,
+ *   the creator's card, a scene plate), drawn by components/lamplight.tsx.
+ * - `lamplight-edge`: one pass of light outward along a hairline, then a
+ *   still interval, where no frame is in view.
+ * - `lamplight-drip`: the mark's lamp light dripping down its trail.
+ *
+ * Under reduced motion the rim is a still ring, and the pass and the drip
+ * are not drawn: the words beside them say what happens.
+ */
+
+/* Where the rim's light is on its lap: 0 to -100, a dash offset along the frame's length. */
+@property --lap {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@keyframes lamplight-lap {
+  to {
+    --lap: -100;
+  }
+}
+
+/*
+ * The rim: an SVG over a frame's edge whose rects measure 100 along it
+ * (pathLength), so the light travels one even speed round any frame, its
+ * corners followed. A dim tail, a bright head at its front and, in the
+ * night scheme, a tight bloom under the head; one lap per resting breath.
+ * A small frame (under 9rem wide, as a tablet's floating portrait) draws
+ * every stroke at 1px and no bloom.
+ * `data-lamplight` says busy, or ending while the component closes or fades
+ * it; out of both the lap holds where it stopped. The still ring shows
+ * while the owner writes in the composer (`data-listen`), and while busy
+ * under reduced motion.
+ */
+@utility lamplight-rim {
+  position: absolute;
+  inset: -1px;
+  container-type: inline-size;
+  pointer-events: none;
+  & svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  & rect {
+    x: 0.75px;
+    y: 0.75px;
+    width: calc(100% - 1.5px);
+    height: calc(100% - 1.5px);
+    rx: calc(var(--radius) + 0.25px);
+    fill: none;
+    stroke: var(--dusk-line);
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  & [data-rim="ring"] {
+    stroke-width: 1.5px;
+    opacity: 0;
+    transition: opacity var(--duration-fade-out) var(--ease-fade);
+  }
+  & g {
+    opacity: 0;
+    animation: lamplight-lap var(--breath-rest) linear infinite paused;
+  }
+  & [data-rim="tail"] {
+    stroke-width: 1.5px;
+    stroke-dasharray: 17 83;
+    stroke-dashoffset: calc(var(--lap) * 1);
+    opacity: 0.6;
+  }
+  & [data-rim="head"] {
+    stroke: color-mix(in oklab, var(--dusk-line) 70%, var(--ink));
+    stroke-width: 2px;
+    stroke-dasharray: 3 97;
+    stroke-dashoffset: calc(var(--lap) - 14);
+  }
+  & [data-rim="bloom"] {
+    display: none;
+    stroke-width: 4px;
+    stroke-dasharray: 8 92;
+    stroke-dashoffset: calc(var(--lap) - 9);
+    filter: blur(4px);
+    opacity: 0.28;
+    @variant dark {
+      display: inline;
+    }
+  }
+  &[data-lamplight="busy"] g {
+    opacity: 1;
+    animation-play-state: running;
+    transition: opacity var(--duration-panel-in) var(--ease-fade);
+  }
+  &[data-lamplight="ending"] g {
+    opacity: 1;
+  }
+  @container (width < 9rem) {
+    & [data-rim] {
+      stroke-width: 1px;
+    }
+    & [data-rim="bloom"] {
+      display: none;
+    }
+  }
+  main:not([data-writing]):has(form textarea:focus:not(:placeholder-shown))
+    &[data-listen]
+    [data-rim="ring"] {
+    opacity: 0.25;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & g {
+      display: none;
+    }
+    &[data-lamplight="busy"] [data-rim="ring"] {
+      opacity: 0.4;
+    }
+  }
+}
+
+/*
+ * One pass of light outward along a hairline, from where it starts (the
+ * name, the heading), then still for the rest of the breath: never back and
+ * forth, never a progress bar. Sits on the lower edge of its positioned
+ * parent; a parent that is the hairline itself holds it whole. A mirrored
+ * parent (`-scale-x-100`) sends it the other way.
+ */
+@keyframes lamplight-pass {
+  0% {
+    translate: -100% 0;
+    opacity: 0;
+  }
+  8%,
+  55% {
+    opacity: 1;
+  }
+  62%,
+  100% {
+    translate: 360% 0;
+    opacity: 0;
+  }
+}
+
+@utility lamplight-edge {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+  &::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 28%;
+    background: linear-gradient(90deg, transparent, var(--dusk-line) 70%, transparent);
+    opacity: 0;
+    animation: lamplight-pass var(--breath-writing) linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    display: none;
+  }
+}
+
+/*
+ * The mark's trail at rest, and the lamp's light dripping down it once a
+ * breath: each dot turns dusk for a beat, `--drip` steps after the lamp.
+ * components/icons.tsx quickens the same loop in place while anything is
+ * written.
+ */
+@keyframes lamplight-drip {
+  0%,
+  14%,
+  100% {
+    fill: currentColor;
+    opacity: 0.6;
+  }
+  5% {
+    fill: var(--dusk);
+    opacity: 1;
+  }
+}
+
+@utility lamplight-drip {
+  opacity: 0.6;
+  animation: lamplight-drip var(--breath-rest) linear infinite;
+  animation-delay: calc(var(--drip, 0) * var(--duration-drip));
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* Words in a creator field the lamp listens to light the mark's lamp faintly, without movement. */
+@utility lamplight-mark {
+  & [data-lamp] {
+    transition: filter var(--duration-panel-in) var(--ease-fade);
+  }
+}
+:root:has(textarea[data-lamp-field]:focus:not(:placeholder-shown)) .lamplight-mark [data-lamp] {
+  filter: brightness(1.2) saturate(1.15);
+}
+
+/* A wait that shows only once it lasts (`--delay-pending`): a save, a sheet loading. */
+@utility lamplight-late {
+  opacity: 0;
+  animation: appear var(--duration-quick) var(--ease-fade) var(--delay-pending) forwards;
 }
 
 /*
@@ -1583,7 +1559,6 @@ details[open] > summary .disclosure-chevron {
 
 @utility settle-glow {
   position: relative;
-  /* biome-ignore lint/style/noDescendingSpecificity: & is .settle-glow here, another element than .nameplate[data-voice="story"]::after; Biome cannot read @utility. */
   &::after {
     content: "";
     position: absolute;

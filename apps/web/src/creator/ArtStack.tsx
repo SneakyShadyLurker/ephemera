@@ -599,11 +599,13 @@ export function ArtFrame({
   const frameRef = useArtFrame();
   const showing = useArtShowing();
   const progress = artProgress(art);
+  const busy = art?.status === "running";
+  const settled = art?.status === "complete";
 
   if (showing !== "batch") {
     return (
       <div className={cn("@container", phone ? FRAME.phone : FRAME.column, className)}>
-        <CardFrame progress={progress?.line}>
+        <CardFrame progress={progress?.line} busy={busy} settled={settled}>
           <NameLeaf name={name} caption={progress?.label ?? caption} />
         </CardFrame>
       </div>
@@ -614,7 +616,7 @@ export function ArtFrame({
   const label = portraitLabel(name, selected, images.length);
   return (
     <div className={cn(phone ? FRAME.phone : FRAME.column, className)}>
-      <CardFrame progress={progress?.line}>
+      <CardFrame progress={progress?.line} busy={busy} settled={settled}>
         {/* Mounted through a new batch's decoding, so an open viewer takes the new art. */}
         <PortraitViewer
           label={label}
@@ -895,15 +897,15 @@ export function ArtStack({
   );
 
   // Phones: the alternates beside the art, New art and its progress across
-  // the width under both, where the narrow column would crowd them.
+  // the width under both, where the narrow column would crowd them. The art
+  // stays the first child, as while it developed, so its frame (and the
+  // rim closing on the first batch) is the same one.
   if (phone) {
     return (
-      <div className="grid gap-4">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
-          {main}
-          {group}
-        </div>
-        {controls}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4">
+        {main}
+        {group}
+        <div className="col-span-full">{controls}</div>
       </div>
     );
   }
