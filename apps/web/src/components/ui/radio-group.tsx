@@ -32,4 +32,33 @@ function Radio({ className, ...props }: RadioPrimitive.Root.Props) {
   );
 }
 
-export { Radio, RadioGroup };
+/**
+ * One choice of a few, drawn as segments of one control on a canvas well:
+ * the chosen segment lifts onto the surface in ink. The caller sets the
+ * columns.
+ */
+function RadioSegments<Value>({ className, ...props }: RadioGroupPrimitive.Props<Value>) {
+  return (
+    <RadioGroupPrimitive
+      data-slot="radio-segments"
+      className={cn("grid gap-1 rounded-md bg-canvas p-1", className)}
+      {...props}
+    />
+  );
+}
+
+/** A segment of `RadioSegments`, named by its text. */
+function RadioSegment({ className, ...props }: RadioPrimitive.Root.Props) {
+  return (
+    <RadioPrimitive.Root
+      data-slot="radio-segment"
+      className={cn(
+        "press grid h-11 cursor-pointer place-items-center rounded-sm text-reed text-ui data-checked:bg-surface data-checked:text-ink",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Radio, RadioGroup, RadioSegment, RadioSegments };

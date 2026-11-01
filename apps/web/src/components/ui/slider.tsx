@@ -3,10 +3,10 @@ import { cn } from "@/lib/cn";
 
 /**
  * One value on a track. The filled part is Ink; the thumb is a surface disc
- * with the control edge, and it grows a ring while held or focused. A range
- * that spans zero (`centered`) has no fill, which would start at the minimum,
- * and marks zero with a tick instead. Name it with `thumbLabel`: the thumb
- * holds the range input.
+ * with the control edge; it grows while held and takes the focus ring while
+ * its input has keyboard focus. A range that spans zero (`centered`) has no
+ * fill, which would start at the minimum, and marks zero with a tick instead.
+ * Name it with `thumbLabel`: the thumb holds the range input.
  */
 function Slider({
   className,
@@ -32,7 +32,7 @@ function Slider({
           {!centered && <SliderPrimitive.Indicator className="rounded-full bg-ink" />}
           <SliderPrimitive.Thumb
             aria-label={thumbLabel}
-            className="relative block size-4 rounded-full border border-control-edge bg-surface shadow-[0_1px_2px_var(--shadow-overlay)] outline-none transition-[box-shadow,scale] duration-(--duration-quick) ease-fade after:absolute after:-inset-3.5 has-[:focus-visible]:shadow-[0_0_0_3px_color-mix(in_oklab,var(--dusk)_30%,transparent)] data-dragging:scale-110 motion-reduce:transition-[box-shadow] touch:size-5"
+            className="relative block size-4 rounded-full border border-control-edge bg-surface shadow-[0_1px_2px_var(--shadow-overlay)] outline-none transition-[box-shadow,scale] duration-(--duration-quick) ease-fade after:absolute after:-inset-3.5 has-[:focus-visible]:focus-ring data-dragging:scale-110 motion-reduce:transition-[box-shadow] touch:size-5"
           />
         </SliderPrimitive.Track>
       </SliderPrimitive.Control>

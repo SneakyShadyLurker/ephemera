@@ -41,7 +41,7 @@ import { isLocked } from "../rework/store.ts";
 import { applySettings, currentSettings, useSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, SHEET_GRID } from "../sheet/fields.ts";
+import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
@@ -338,10 +338,7 @@ function SheetEditor({
     mono?: boolean,
   ) => (
     <section id={`s-${section}`} className={SHEET_GRID}>
-      <label
-        htmlFor={`field-${key}`}
-        className="mb-2 block font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2.5 tablet:text-right"
-      >
+      <label htmlFor={`field-${key}`} className={sheetLabel()}>
         {CARD_FIELD_LABELS[key]}
       </label>
       <div className="grid gap-2">
@@ -360,7 +357,7 @@ function SheetEditor({
             className={cn(FIELD, mono && "font-mono text-note")}
           />
         </ReviewField>
-        {help && <p className="text-pretty text-note text-reed">{help}</p>}
+        {help && <p className={HELP}>{help}</p>}
       </div>
     </section>
   );
@@ -504,9 +501,7 @@ function SheetEditor({
         )}
 
         <section id="s-prompts" className={SHEET_GRID}>
-          <h2 className="mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-1.5 tablet:text-right">
-            Prompts
-          </h2>
+          <h2 className={sheetLabel("line")}>Prompts</h2>
           <div className="grid gap-5">
             <PromptField
               field="systemPrompt"
@@ -694,7 +689,7 @@ function PromptField({
           className={FIELD}
         />
       </ReviewField>
-      <p className="text-pretty text-note text-reed">{help}</p>
+      <p className={HELP}>{help}</p>
     </div>
   );
 }
@@ -941,10 +936,7 @@ function CharactersNote({
   const role = ROLE_NAMES[value.role].toLowerCase();
   return (
     <section id="s-character-note" className={SHEET_GRID} aria-labelledby="sheet-character-note">
-      <h2
-        id="sheet-character-note"
-        className="mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2.5 tablet:text-right"
-      >
+      <h2 id="sheet-character-note" className={sheetLabel()}>
         {CARD_FIELD_LABELS.characterNote}
       </h2>
       <div className="grid gap-4">
@@ -969,7 +961,7 @@ function CharactersNote({
               className={FIELD}
             />
           </ReviewField>
-          <p className="text-pretty text-note text-reed">
+          <p className={HELP}>
             <span id={statusId}>
               {sent
                 ? `Sent in every chat with ${name}, ${depthText(value.depth)}, as ${role === "assistant" ? "an" : "a"} ${role} message.`

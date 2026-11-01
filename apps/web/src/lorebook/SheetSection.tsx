@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { countOf, formatCount } from "@/lib/text";
 import { useSettled } from "../rework/ReviewField.tsx";
 import { useReworkLocked } from "../rework/session.ts";
-import { SHEET_GRID } from "../sheet/fields.ts";
+import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { bookSettings } from "./book.ts";
 import { LinkedBooks } from "./LinkedBooks.tsx";
 
@@ -40,10 +40,7 @@ export function LorebookSection({
   const budget = settings?.budget ?? null;
   return (
     <section id="s-lorebook" aria-labelledby="lorebook-heading" className={SHEET_GRID}>
-      <h2
-        id="lorebook-heading"
-        className="mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-2.5 tablet:text-right"
-      >
+      <h2 id="lorebook-heading" className={sheetLabel()}>
         Lorebook
       </h2>
       <div className="grid gap-8">
@@ -87,7 +84,7 @@ export function LorebookSection({
               />
             </div>
           )}
-          <p className="text-pretty text-note text-reed">
+          <p className={HELP}>
             Background the model reads when an entry's keywords come up in the chat, always, or by
             chance. Saved in the card and used with every chat with {name}.
           </p>

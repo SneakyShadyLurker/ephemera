@@ -6,7 +6,7 @@ import { MemoryIcon } from "@/components/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SwitchField } from "@/components/ui/switch";
 import { useReworkLocked } from "../rework/session.ts";
-import { SHEET_GRID } from "../sheet/fields.ts";
+import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { notReached } from "../signin/signin.ts";
 import { countsText, setMemoryOn } from "./memory.ts";
 import { memoryOnIn, memoryQuery } from "./queries.ts";
@@ -106,14 +106,11 @@ export function MemorySwitch({
 export function MemorySection({ id, name }: { id: string | null; name: string }) {
   return (
     <section id="s-memory" aria-labelledby="memory-heading" className={SHEET_GRID}>
-      <h2
-        id="memory-heading"
-        className="mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-0.5 tablet:text-right"
-      >
+      <h2 id="memory-heading" className={sheetLabel("text")}>
         Memory
       </h2>
       {id === null ? (
-        <p className="text-pretty text-note text-reed">
+        <p className={HELP}>
           Memory starts once {name} is saved, and stays on unless you turn it off here.{" "}
           {MEMORY_KEPT}
         </p>

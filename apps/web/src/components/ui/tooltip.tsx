@@ -26,7 +26,7 @@ function Tooltip({
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger render={children} />
       <TooltipPrimitive.Portal>
-        <TooltipPrimitive.Positioner side={side} sideOffset={6} className="z-50">
+        <TooltipPrimitive.Positioner side={side} sideOffset={6} className="z-(--z-overlay)">
           <TooltipPrimitive.Popup className="pop flex items-center gap-2 rounded-sm bg-ink px-2 py-1 text-canvas text-meta">
             {label}
             {shortcut && (

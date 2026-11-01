@@ -33,11 +33,11 @@ function AppShell() {
             <div className="relative flex min-w-0 flex-1">
               <Outlet />
               {/* Over the top of the content column: a settings save that is taking a while. */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col items-center gap-2 px-5 pt-[calc(0.75rem+env(safe-area-inset-top))] tablet:px-6 tablet:pt-6">
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-(--z-float) flex flex-col items-center gap-2 px-5 pt-[calc(0.75rem+env(safe-area-inset-top))] tablet:px-6 tablet:pt-6">
                 <SettingsSaveFloat />
               </div>
               {/* Over the bottom, clear of the headings: the update, then sign-in. The chat docks both above its composer. */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tablet:px-6 tablet:pb-6">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-(--z-float) flex flex-col items-center gap-2 px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tablet:px-6 tablet:pb-6">
                 <UpdateFloat />
                 <SignInFloat />
               </div>

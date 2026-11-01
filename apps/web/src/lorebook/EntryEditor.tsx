@@ -16,7 +16,7 @@ import {
   splitPoolNames,
 } from "@ephemera/core";
 import { useId, useState } from "react";
-import { ChanceArc, MoreIcon, PlusIcon } from "@/components/icons";
+import { ChanceArc, DeleteIcon, DuplicateIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { NumberField } from "@/components/ui/number-field";
@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { oneOf } from "@/lib/one-of.ts";
 import { countOf } from "@/lib/text";
-import { FIELD } from "../sheet/fields.ts";
+import { FIELD, HELP } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { activationChange, entryKeyProblems, isActivation, secondaryKeyProblems } from "./book.ts";
@@ -57,7 +57,6 @@ import { KeywordsField } from "./KeywordsField.tsx";
 import { ActivationMark } from "./marks.tsx";
 import { SettingsRow } from "./SettingsRow.tsx";
 
-const HELP = "text-pretty text-note text-reed";
 const LABEL = "font-medium text-ink text-ui";
 
 /** The editor's closed rows, in the order the owner asks them. */
@@ -90,9 +89,13 @@ export function EntryMenu({
         <MoreIcon />
       </MenuTrigger>
       <MenuContent label="Entry actions">
-        <MenuItem onClick={onDuplicate}>Duplicate</MenuItem>
+        <MenuItem onClick={onDuplicate}>
+          <DuplicateIcon size={16} />
+          Duplicate
+        </MenuItem>
         <MenuSeparator />
         <MenuItem danger onClick={onRemove}>
+          <DeleteIcon size={16} />
           Remove
         </MenuItem>
       </MenuContent>

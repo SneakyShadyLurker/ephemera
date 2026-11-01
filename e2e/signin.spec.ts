@@ -232,10 +232,26 @@ test.describe("sign-in expiry", () => {
     // In the chat it docks above the composer instead of covering the story.
     await main.getByRole("link", { name: "Chat" }).click();
     await expect(turns(page)).toHaveCount(2);
+    // The floating notice has folded away; the docked one stays.
+    await expect(update).toHaveCount(1);
     const docked = await update.boundingBox();
     const composer = await page.getByLabel("Message", { exact: true }).locator("..").boundingBox();
     expect((docked?.y ?? 0) + (docked?.height ?? Infinity)).toBeLessThanOrEqual(composer?.y ?? 0);
+    // Dismissed, it folds away with its words in place, out of reach, before it goes.
+    const folding = update.evaluate(
+      (node) =>
+        new Promise<string>((resolve) => {
+          new MutationObserver(() => {
+            if (node.closest("[inert]") !== null) resolve(node.textContent ?? "");
+          }).observe(document.body, {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["inert"],
+          });
+        }),
+    );
     await update.getByRole("button", { name: "Dismiss" }).click();
+    expect(await folding).toContain("Ephemera was updated");
     await expect(update).toHaveCount(0);
     expect(JSON.stringify(await browserStorage(page))).not.toContain(CANARY_MARKER);
   });

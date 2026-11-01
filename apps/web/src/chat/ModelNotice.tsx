@@ -1,5 +1,5 @@
-import { type RefObject, type TransitionEvent, useEffect, useRef, useState } from "react";
-import { NoticeCard, noticeFold } from "@/app/NoticeCard.tsx";
+import { type RefObject, useEffect, useRef, useState } from "react";
+import { NoticeCard, NoticeFold } from "@/app/NoticeCard.tsx";
 import { buttonVariants } from "@/components/ui/button";
 import { useContextWindow, useModelOptions } from "../api.ts";
 import { ModelSelect } from "../components/model-select.tsx";
@@ -109,13 +109,6 @@ function useModelChoice(
   return { model, shown, leaving, picker, end: () => setShown(null) };
 }
 
-/** Ends a fold on its own height transition, not on one inside it. */
-const onFold =
-  (leaving: boolean, end: () => void) =>
-  (event: TransitionEvent<HTMLDivElement>): void => {
-    if (leaving && event.target === event.currentTarget && event.propertyName === "height") end();
-  };
-
 const MODEL_STEP = {
   title: "Choose a model to begin",
   body: (name: string | undefined) =>
@@ -145,11 +138,11 @@ export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElem
   if (shown === null) return null;
 
   return (
-    <div
+    <NoticeFold
       data-model-notice=""
-      inert={leaving}
-      onTransitionEnd={onFold(leaving, end)}
-      className={`${SCRIPT_FRAME} shrink-0 ${noticeFold(leaving)}`}
+      leaving={leaving}
+      onLeft={end}
+      className={`${SCRIPT_FRAME} shrink-0`}
     >
       <div className="pb-2">
         {shown === "model" ? (
@@ -186,7 +179,7 @@ export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElem
           />
         )}
       </div>
-    </div>
+    </NoticeFold>
   );
 }
 
@@ -205,12 +198,7 @@ export function ModelStep({ composer }: { composer: RefObject<HTMLTextAreaElemen
   );
   if (shown === null) return null;
   return (
-    <div
-      data-model-notice=""
-      inert={leaving}
-      onTransitionEnd={onFold(leaving, end)}
-      className={noticeFold(leaving)}
-    >
+    <NoticeFold data-model-notice="" leaving={leaving} onLeft={end}>
       <div role="status" className="grid max-w-empty justify-items-start gap-3 pb-8">
         <div className="grid gap-1">
           <p className="font-medium text-ink text-lead">{MODEL_STEP.title}</p>
@@ -222,6 +210,6 @@ export function ModelStep({ composer }: { composer: RefObject<HTMLTextAreaElemen
           {picker}
         </div>
       </div>
-    </div>
+    </NoticeFold>
   );
 }

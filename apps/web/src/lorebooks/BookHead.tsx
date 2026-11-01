@@ -6,12 +6,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { LIST_X } from "../lorebook/EntryList.tsx";
 import type { BookContext } from "../lorebook/LorebookEditor.tsx";
-import { FIELD } from "../sheet/fields.ts";
+import { FIELD, HELP, TITLE_FIELD } from "../sheet/fields.ts";
 import { BookLinks } from "./BookLinks.tsx";
 import { NAME_TRANSITION } from "./BookRow.tsx";
 import { useLibrary } from "./library-state.ts";
-
-const HELP = "text-pretty text-note text-reed";
 
 /**
  * A library book's head, above its reading rules: its name to edit in place,
@@ -56,7 +54,7 @@ export function BookHead({
         {notice !== null && (
           <>
             <span className="min-w-0 flex-1 text-pretty">{notice.text}</span>
-            <Button className="h-8 px-2 text-ink text-note touch:h-11" onClick={onDismiss}>
+            <Button size="text" className="text-ink" onClick={onDismiss}>
               Dismiss
             </Button>
           </>
@@ -74,7 +72,7 @@ export function BookHead({
             aria-invalid={blank || undefined}
             aria-describedby={blank ? problemId : undefined}
             onChange={(event) => context.onName(event.target.value)}
-            className="-mx-1.5 min-w-0 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-semibold text-heading text-ink outline-none transition-[border-color,background-color] duration-(--duration-tint) placeholder:text-reed hover:border-rush focus:border-dusk-line focus:bg-surface aria-invalid:border-ember touch:border-b-rush"
+            className={cn(TITLE_FIELD, "min-w-0 py-0.5 text-heading aria-invalid:border-ember")}
           />
         </span>
         {blank && (
@@ -136,7 +134,7 @@ function Description({ value, onChange }: { value: string; onChange: (value: str
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="-mx-1.5 rounded-md px-1.5 py-1 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)]"
+        className="focus-ring-inset -mx-1.5 rounded-md px-1.5 py-1 text-left hover:bg-surface-hover"
       >
         <span className="sr-only">Edit description: </span>
         <span className="line-clamp-2 text-pretty text-narration text-ui">{value}</span>

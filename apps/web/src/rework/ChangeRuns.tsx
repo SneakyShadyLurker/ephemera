@@ -214,7 +214,7 @@ export function ChangeRuns({
         <>
           <Inserted text={change.replace} />
           <details className="disclosure mt-1.5 font-sans whitespace-normal">
-            <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink focus-visible:outline-2 focus-visible:outline-dusk-line focus-visible:outline-offset-2 touch:min-h-11 [&::-webkit-details-marker]:hidden">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden">
               Show original ({countWords(change.find)} words)
               <DisclosureChevron />
             </summary>

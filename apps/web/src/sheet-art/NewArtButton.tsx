@@ -43,8 +43,8 @@ export function NewArtButton({
   return (
     <>
       <Button
+        size="text"
         ref={triggerRef}
-        className="h-8 px-2 text-note touch:h-11"
         disabled={disabled}
         onClick={() => {
           // A saved Use closes the studio whichever way it was sent: pressed, or again after a sign-in.

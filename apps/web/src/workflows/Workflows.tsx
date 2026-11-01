@@ -13,12 +13,12 @@ import {
   WORKFLOWS_FULL,
 } from "../settings/pictures.ts";
 import { useSetting } from "../settings/settings.ts";
+import { HELP } from "../sheet/fields.ts";
 import { Glides } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { refreshWorkflows, workflowsQuery } from "./queries.ts";
 import { WorkflowRow } from "./WorkflowRow.tsx";
 
-const HELP = "text-pretty text-note text-reed";
 const GROUP = "font-medium text-note text-reed";
 
 /**
@@ -100,8 +100,9 @@ export function Workflows({
             {listFailedLine(notReached)}
           </p>
           <Button
+            size="text"
             variant="outline"
-            className="h-8 px-2.5 text-ink text-note touch:h-11"
+            className="text-ink"
             onClick={() => void refreshWorkflows()}
           >
             Try again

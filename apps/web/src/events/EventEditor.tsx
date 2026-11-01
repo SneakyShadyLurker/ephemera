@@ -18,11 +18,10 @@ import { isComposing } from "@/lib/keys.ts";
 import { countOf, formatCount } from "@/lib/text";
 import { tagCounts } from "../characters/filter.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
-import { FIELD } from "../sheet/fields.ts";
+import { FIELD, HELP } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import type { EventSaveFields } from "./autosave.ts";
 
-const HELP = "text-pretty text-note text-reed";
 const LABEL = "font-medium text-ink text-ui";
 /** The count of the instruction's characters shows from here. */
 const COUNT_FROM = 450;

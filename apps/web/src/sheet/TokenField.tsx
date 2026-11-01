@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { CloseIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { FOCUS_WITHIN } from "./fields.ts";
 
@@ -90,7 +91,7 @@ export function TokenField({
     <div
       data-settle={settle ? "" : undefined}
       className={cn(
-        "flex min-h-9 flex-wrap items-center gap-1.5 rounded-lg border border-control-edge bg-surface px-1.5 py-1 touch:min-h-11",
+        "flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-control-edge bg-surface px-1.5 py-1 touch:min-h-11",
         className,
         FOCUS_WITHIN,
         locked && "border-rush bg-canvas",
@@ -109,8 +110,8 @@ export function TokenField({
             )}
           >
             <span className="truncate">{token}</span>
-            <button
-              type="button"
+            <Button
+              size="icon"
               aria-label={`Remove ${item} ${token}`}
               disabled={locked}
               onClick={() => {
@@ -118,10 +119,10 @@ export function TokenField({
                 // The button goes with its token; focus stays in the field.
                 field.current?.focus();
               }}
-              className="grid size-6 shrink-0 place-items-center rounded-sm text-reed hover:bg-surface-pressed hover:text-ink disabled:text-text-disabled disabled:hover:bg-transparent touch:size-11"
+              className="size-6 rounded-sm hover:bg-surface-pressed touch:size-11"
             >
-              <CloseIcon size={16} className="size-3.5" />
-            </button>
+              <CloseIcon size={16} />
+            </Button>
           </span>
         );
       })}

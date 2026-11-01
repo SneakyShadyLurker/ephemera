@@ -9,14 +9,14 @@ const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
 /** The dim layer behind a modal dialog, fading in and out. */
 export const SCRIM =
-  "fixed inset-0 z-50 bg-scrim transition-opacity duration-(--duration-quick) ease-fade data-ending-style:opacity-0 data-starting-style:opacity-0";
+  "fixed inset-0 z-(--z-overlay) bg-scrim transition-opacity duration-(--duration-quick) ease-fade data-ending-style:opacity-0 data-starting-style:opacity-0";
 
 /**
  * A modal dialog's surface, centered and kept 1rem clear of every edge and
  * safe area, no wider than `--dialog-width`, rising and fading as it opens.
  */
 export const DIALOG_SURFACE =
-  "pop fixed top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 m-auto h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[min(var(--dialog-width),calc(100vw-2rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] rounded-xl border border-rush bg-surface shadow-overlay outline-none";
+  "pop fixed top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-(--z-overlay) m-auto h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[min(var(--dialog-width),calc(100vw-2rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] rounded-xl border border-rush bg-surface shadow-overlay outline-none";
 
 /**
  * A confirmation that interrupts: scrim, centered surface, focus held inside.

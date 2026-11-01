@@ -186,9 +186,9 @@ function ModelRow({
           <span className="flex items-center gap-2">
             <span className="text-ember text-note">Not set: replies can't be sent</span>
             <Button
+              size="text"
               variant="outline"
               aria-label={`Set ${windowLabel}`}
-              className="h-8 px-2.5 text-note touch:h-11"
               onClick={() => setEditing(true)}
             >
               Set
@@ -212,16 +212,16 @@ function ModelRow({
             <span className="text-note text-reed">tokens</span>
             {fallback === null ? (
               <Button
+                size="text"
                 aria-label={`Cancel ${windowLabel}`}
-                className="h-8 px-2 text-note touch:h-11"
                 onClick={() => setEditing(false)}
               >
                 Cancel
               </Button>
             ) : (
               <Button
+                size="text"
                 aria-label={`Reset ${windowLabel}`}
-                className="h-8 px-2 text-note touch:h-11"
                 onClick={() => {
                   setEditing(false);
                   onWindow(null);
@@ -244,8 +244,8 @@ function ModelRow({
             Not used: the provider reports {formatCount(reported)}.
           </span>
           <Button
+            size="text"
             aria-label={`Remove the window set for ${id}`}
-            className="h-8 px-2 text-note touch:h-11"
             onClick={() => onWindow(null)}
           >
             Remove
@@ -259,8 +259,8 @@ function ModelRow({
             Not used: a limit of {formatCount(stored)} tokens is stored.
           </span>
           <Button
+            size="text"
             aria-label={`Remove the limit stored for ${id}`}
-            className="h-8 px-2 text-note touch:h-11"
             onClick={() => onLimit(null)}
           >
             Remove
@@ -312,11 +312,7 @@ function LimitField({
       {/* Reset's place is kept, so the field stands where it did when Reset comes and goes. */}
       <span className="flex w-14 justify-end">
         {limited && (
-          <Button
-            aria-label={`Reset ${label}`}
-            className="h-8 px-2 text-note touch:h-11"
-            onClick={() => onChange(null)}
-          >
+          <Button size="text" aria-label={`Reset ${label}`} onClick={() => onChange(null)}>
             Reset
           </Button>
         )}

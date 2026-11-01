@@ -21,7 +21,8 @@ import {
   useState,
 } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { FADE, MotionScope } from "@/app/motion.tsx";
+import { fade, MotionScope } from "@/app/motion.tsx";
+import { staggerStep } from "@/app/motion-tokens.ts";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { BackIcon, CastIcon, CloseIcon, EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -135,16 +136,11 @@ const ROSTER = 5;
 // The changed signal.
 
 /**
- * How long the dusk wash lasts on what the newest snapshot changed: the
- * `--duration-wash` token (styles.css), which runs the animation.
- */
-const WASH_MS = 1_200;
-
-/**
  * The wash on a changed field, timed from when its snapshot landed, not from
  * when this element mounted: a field remounted (Presence moving to the next
- * reply, a record opened later) joins the fade where it is, or shows none
- * once it has run. Undefined for no wash.
+ * reply, a record opened later) joins the fade where it is, so one remounted
+ * after the wash has run (styles.css `--duration-wash`) shows none.
+ * Undefined for no wash.
  */
 function washOf(
   change: CastChange | null,
@@ -156,7 +152,6 @@ function washOf(
   const changed = change.fields.get(entryId);
   if (changed === undefined || !fields.some((field) => changed.has(field))) return undefined;
   const elapsed = Math.max(0, mountedAt - change.at);
-  if (elapsed >= WASH_MS) return undefined;
   return { key: change.key, style: { animationDelay: `-${elapsed}ms` } };
 }
 
@@ -186,12 +181,12 @@ function castStatusText(state: ChatState): string {
  * Each user brings its own MotionScope: the band, the float before the first
  * reply and the record surface sit outside the thread's.
  */
-const FADING = {
+const fading = () => ({
   initial: { opacity: 0 },
   animate: { opacity: 1 },
   exit: { opacity: 0 },
-  transition: FADE,
-} as const;
+  transition: fade(),
+});
 
 /**
  * "Updating…" while the keeper works, polite to assistive technology where
@@ -213,7 +208,7 @@ function Updating({
       <MotionScope>
         <AnimatePresence initial={false}>
           {busy && (
-            <m.span key="updating" data-cast-updating="" {...FADING}>
+            <m.span key="updating" data-cast-updating="" {...fading()}>
               Updating…
             </m.span>
           )}
@@ -237,7 +232,7 @@ function Pass({ on }: { on: boolean }) {
             key="drift"
             aria-hidden="true"
             data-cast-drift=""
-            {...FADING}
+            {...fading()}
             className="pointer-events-none absolute inset-0"
           >
             <span className="lamplight-edge" />
@@ -499,8 +494,8 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
         ) : (
           <li
             key={item.id}
-            className={cn(enter && "arrive")}
-            style={enter ? { transitionDelay: `${index * 30}ms` } : undefined}
+            className={cn(enter && "arrive stagger")}
+            style={enter ? staggerStep(index) : undefined}
           >
             {entry(item, line)}
           </li>
@@ -614,8 +609,8 @@ function BandRoster({
                 <li
                   key={item.id}
                   data-cast-name=""
-                  className={"arrive max-w-full"}
-                  style={{ transitionDelay: `${Math.min(index, ROSTER - 1) * 30}ms` }}
+                  className="arrive stagger max-w-full"
+                  style={staggerStep(Math.min(index, ROSTER - 1))}
                 >
                   {entry(item)}
                 </li>

@@ -61,7 +61,7 @@ function DrawerOverlay({ className, ...props }: DrawerPrimitive.Backdrop.Props) 
     <DrawerPrimitive.Backdrop
       data-slot="drawer-overlay"
       className={cn(
-        "fixed inset-0 z-50 min-h-dvh bg-scrim opacity-[calc(1-var(--drawer-swipe-progress))] transition-opacity duration-(--duration-panel-in) ease-fade select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))] data-starting-style:opacity-0 data-swiping:duration-0 supports-[-webkit-touch-callout:none]:absolute",
+        "fixed inset-0 z-(--z-overlay) min-h-dvh bg-scrim opacity-[calc(1-var(--drawer-swipe-progress))] transition-opacity duration-(--duration-panel-in) ease-fade select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))] data-starting-style:opacity-0 starting:opacity-0 data-swiping:duration-0 supports-[-webkit-touch-callout:none]:absolute",
         className,
       )}
       {...props}
@@ -75,7 +75,7 @@ function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<"div">)
       data-slot="drawer-swipe-handle"
       aria-hidden="true"
       className={cn(
-        "relative z-10 flex shrink-0 cursor-grab transition-opacity duration-(--duration-arrive) ease-fade group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-[swipe-axis=x]/drawer-popup:h-full group-data-[swipe-axis=x]/drawer-popup:w-3 group-data-[swipe-axis=x]/drawer-popup:items-center group-data-[swipe-axis=y]/drawer-popup:h-4 group-data-[swipe-axis=y]/drawer-popup:w-full group-data-[swipe-axis=y]/drawer-popup:justify-center group-data-[swipe-direction=down]/drawer-popup:items-end group-data-[swipe-direction=left]/drawer-popup:order-last group-data-[swipe-direction=left]/drawer-popup:justify-start group-data-[swipe-direction=right]/drawer-popup:justify-end group-data-[swipe-direction=up]/drawer-popup:order-last group-data-[swipe-direction=up]/drawer-popup:items-start after:block after:shrink-0 after:rounded-full after:bg-control-edge group-data-[swipe-axis=x]/drawer-popup:after:h-8 group-data-[swipe-axis=x]/drawer-popup:after:w-1 group-data-[swipe-axis=y]/drawer-popup:after:h-1 group-data-[swipe-axis=y]/drawer-popup:after:w-8 active:cursor-grabbing",
+        "relative z-(--z-raised) flex shrink-0 cursor-grab transition-opacity duration-(--duration-arrive) ease-fade group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-[swipe-axis=x]/drawer-popup:h-full group-data-[swipe-axis=x]/drawer-popup:w-3 group-data-[swipe-axis=x]/drawer-popup:items-center group-data-[swipe-axis=y]/drawer-popup:h-4 group-data-[swipe-axis=y]/drawer-popup:w-full group-data-[swipe-axis=y]/drawer-popup:justify-center group-data-[swipe-direction=down]/drawer-popup:items-end group-data-[swipe-direction=left]/drawer-popup:order-last group-data-[swipe-direction=left]/drawer-popup:justify-start group-data-[swipe-direction=right]/drawer-popup:justify-end group-data-[swipe-direction=up]/drawer-popup:order-last group-data-[swipe-direction=up]/drawer-popup:items-start after:block after:shrink-0 after:rounded-full after:bg-control-edge group-data-[swipe-axis=x]/drawer-popup:after:h-8 group-data-[swipe-axis=x]/drawer-popup:after:w-1 group-data-[swipe-axis=y]/drawer-popup:after:h-1 group-data-[swipe-axis=y]/drawer-popup:after:w-8 active:cursor-grabbing",
         className,
       )}
       {...props}
@@ -92,14 +92,14 @@ function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.
       <DrawerOverlay />
       <DrawerPrimitive.Viewport
         data-slot="drawer-viewport"
-        className="pointer-events-auto fixed inset-0 z-50 select-none"
+        className="pointer-events-auto fixed inset-0 z-(--z-overlay) select-none"
       >
         <DrawerPrimitive.Popup
           data-slot="drawer-popup"
           data-swipe-axis={swipeAxis}
           className={cn(
             // Base.
-            "group/drawer-popup pointer-events-auto fixed z-50 m-(--drawer-inset,0px) flex h-(--drawer-content-height) max-h-(--drawer-content-max-height,none) min-h-0 w-(--drawer-content-width,auto) transform-[translate3d(var(--translate-x,0px),var(--translate-y,0px),0)_scale(var(--stack-scale))] flex-col border-rush bg-surface text-ink shadow-overlay transition-[transform,height,opacity,filter] duration-(--duration-panel-in) ease-spring motion-reduce:data-ending-style:opacity-0 motion-reduce:data-ending-style:transform-none motion-reduce:data-starting-style:opacity-0 motion-reduce:data-starting-style:transform-none will-change-transform outline-none select-none [interpolate-size:allow-keywords] data-[swipe-direction=down]:rounded-t-xl data-[swipe-direction=down]:border-t data-[swipe-direction=left]:rounded-r-xl data-[swipe-direction=left]:border-r data-[swipe-direction=right]:rounded-l-xl data-[swipe-direction=right]:border-l data-[swipe-direction=up]:rounded-b-xl data-[swipe-direction=up]:border-b",
+            "group/drawer-popup pointer-events-auto fixed z-(--z-overlay) m-(--drawer-inset,0px) flex h-(--drawer-content-height) max-h-(--drawer-content-max-height,none) min-h-0 w-(--drawer-content-width,auto) transform-[translate3d(var(--translate-x,0px),var(--translate-y,0px),0)_scale(var(--stack-scale))] flex-col border-rush bg-surface text-ink shadow-overlay transition-[transform,height,opacity,filter] duration-(--duration-panel-in) ease-spring motion-reduce:data-ending-style:opacity-0 motion-reduce:data-ending-style:transform-none motion-reduce:data-starting-style:opacity-0 motion-reduce:data-starting-style:transform-none will-change-transform outline-none select-none [interpolate-size:allow-keywords] data-[swipe-direction=down]:rounded-t-xl data-[swipe-direction=down]:border-t data-[swipe-direction=left]:rounded-r-xl data-[swipe-direction=left]:border-r data-[swipe-direction=right]:rounded-l-xl data-[swipe-direction=right]:border-l data-[swipe-direction=up]:rounded-b-xl data-[swipe-direction=up]:border-b",
             // Nested.
             "data-nested-drawer-open:overflow-hidden data-nested-drawer-open:brightness-95",
             // Bleed.
@@ -108,8 +108,8 @@ function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.
             "[--drawer-content-height:var(--drawer-height,auto)] data-[swipe-axis=x]:[--drawer-content-width:min(22.5rem,calc(100vw-6rem))] data-[swipe-axis=y]:[--drawer-content-max-height:80dvh]",
             // Stack.
             "[--bleed:3rem] [--peek:1rem] [--stack-height:var(--drawer-frontmost-height,var(--drawer-height,0px))] [--stack-peek-offset:max(0px,calc((var(--nested-drawers)-var(--stack-progress))*var(--peek)))] [--stack-progress:clamp(0,var(--drawer-swipe-progress),1)] [--stack-scale-base:max(0,calc(1-(var(--nested-drawers)*var(--stack-step))))] [--stack-scale:clamp(0,calc(var(--stack-scale-base)+(var(--stack-step)*var(--stack-progress))),1)] [--stack-shrink:calc(1-var(--stack-scale))] [--stack-step:0.05]",
-            // Transitions.
-            "data-ending-style:transform-(--closed-transform) data-ending-style:opacity-[0.9999] data-ending-style:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))] data-nested-drawer-swiping:duration-0 data-ending-style:data-nested-drawer-swiping:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))] data-starting-style:transform-(--closed-transform) data-swiping:duration-0 data-ending-style:data-swiping:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))]",
+            // Transitions. A drawer mounted open enters from its starting style, as Base UI's never shows.
+            "starting:transform-(--closed-transform) motion-reduce:starting:transform-none motion-reduce:starting:opacity-0 data-ending-style:transform-(--closed-transform) data-ending-style:opacity-[0.9999] data-ending-style:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))] data-nested-drawer-swiping:duration-0 data-ending-style:data-nested-drawer-swiping:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))] data-starting-style:transform-(--closed-transform) data-swiping:duration-0 data-ending-style:data-swiping:duration-[calc(var(--drawer-swipe-strength)*var(--duration-swipe-out))]",
             // Axis: y.
             "data-[swipe-axis=y]:inset-x-0 data-[swipe-axis=y]:data-nested-drawer-open:h-(--stack-height)",
             // Axis: x.
@@ -164,6 +164,10 @@ function DrawerTitle({ className, ...props }: DrawerPrimitive.Title.Props) {
   );
 }
 
+function DrawerDescription({ ...props }: DrawerPrimitive.Description.Props) {
+  return <DrawerPrimitive.Description data-slot="drawer-description" {...props} />;
+}
+
 /** A panel's header: its title, then its controls, the close control last. */
 function DrawerHeader({ className, ...props }: React.ComponentProps<"header">) {
   return (
@@ -184,11 +188,26 @@ function DrawerCloseIcon({ label }: { label: string }) {
   );
 }
 
+/**
+ * A row in a phone's bottom sheet: the sheet's width, tinted under the
+ * finger and pressed like a button. The caller lays out what it holds.
+ */
+const DRAWER_ROW = "press w-full rounded-md text-left text-ink hover:bg-surface-hover";
+
+/** A sheet row that acts: an icon and a verb, a thumb's height. */
+const DRAWER_ACTION = cn(
+  DRAWER_ROW,
+  "flex h-13 items-center gap-4 px-4 text-lead [&_svg]:text-reed",
+);
+
 export {
+  DRAWER_ACTION,
+  DRAWER_ROW,
   Drawer,
   DrawerClose,
   DrawerCloseIcon,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,

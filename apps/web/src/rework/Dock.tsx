@@ -47,7 +47,7 @@ function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: Re
   const one = unplaced.length === 1;
   return (
     <details className="disclosure">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink focus-visible:outline-2 focus-visible:outline-dusk-line focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink [&::-webkit-details-marker]:hidden">
         {one
           ? "1 change could not be matched. It won't be applied."
           : `${unplaced.length} changes could not be matched. They won't be applied.`}
@@ -75,6 +75,13 @@ function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: Re
 }
 
 /** Buttons on phones reach 44px; the bar's two rows keep them apart. */
+/**
+ * How long a leave waits for its transition before it ends anyway: past the
+ * dock's leave (`dock-rise`, `--duration-panel-out`), so a transition that
+ * runs always ends it first.
+ */
+const LEAVE_FALLBACK_MS = 400;
+
 const TARGET = "max-tablet:h-11 max-tablet:px-4";
 const ICON_TARGET = "max-tablet:size-11";
 
@@ -158,7 +165,7 @@ export function Dock({
   const leaving = hidden && last !== null;
   useEffect(() => {
     if (!leaving) return;
-    const timer = setTimeout(() => setLast(null), 400);
+    const timer = setTimeout(() => setLast(null), LEAVE_FALLBACK_MS);
     return () => clearTimeout(timer);
   }, [leaving]);
 

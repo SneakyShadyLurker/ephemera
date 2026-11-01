@@ -129,7 +129,7 @@ export function Leaf({
   return (
     <span
       className={cn(
-        "relative block aspect-[2/3] shrink-0 overflow-hidden rounded-[5px]",
+        "relative block aspect-[2/3] shrink-0 overflow-hidden rounded-xs",
         LEAF_EDGE,
         className,
       )}
@@ -174,7 +174,7 @@ export function PortraitLeaf({
     <span
       aria-hidden="true"
       className={cn(
-        "@container relative grid aspect-[2/3] shrink-0 place-items-center overflow-hidden rounded-[5px] bg-surface-selected font-semibold font-story text-ink leading-none",
+        "@container relative grid aspect-[2/3] shrink-0 place-items-center overflow-hidden rounded-xs bg-surface-selected font-semibold font-story text-ink leading-none",
         LEAF_EDGE,
         className,
       )}

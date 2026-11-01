@@ -129,12 +129,11 @@ export function PresetsScreen() {
           </div>
         </div>
       </div>
-      {dragging && (
-        <DropOverlay
-          title="Drop presets to import"
-          hint="Ephemera prompt or sampler presets, or SillyTavern Chat Completion presets, as JSON"
-        />
-      )}
+      <DropOverlay
+        shown={dragging}
+        title="Drop presets to import"
+        hint="Ephemera prompt or sampler presets, or SillyTavern Chat Completion presets, as JSON"
+      />
     </main>
   );
 }
@@ -244,7 +243,7 @@ function PresetList({
               <Link
                 to={kind === "prompt" ? "/presets/prompt/$id" : "/presets/sampler/$id"}
                 params={{ id: preset.id }}
-                className="group flex min-h-16 items-center gap-4 px-1 py-2.5 hover:bg-surface-hover"
+                className="group row flex min-h-16 items-center gap-4 px-1 py-2.5"
               >
                 <span className="grid min-w-0 flex-1 gap-0.5">
                   <span className="flex min-w-0 items-center gap-2">

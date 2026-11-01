@@ -13,6 +13,7 @@ import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import { portraitStatusLabel, portraitStatusLine } from "../settings/pictures.ts";
 import { useSetting, useSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
+import { REQUEST_FIELD } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { StatusDot } from "../workflows/WorkflowRow.tsx";
 import { COLUMN, KINDS } from "./Choose.tsx";
@@ -20,7 +21,6 @@ import { CompositionChoice } from "./CompositionChoice.tsx";
 import { LookChoice } from "./LookChoice.tsx";
 import { artStatusQuery } from "./queries.ts";
 import { ReasoningSelect, useEffortChoice } from "./ReasoningSelect.tsx";
-import { REQUEST_FIELD } from "./request-field.ts";
 import { useCreator } from "./session.ts";
 import { inTransition, kindTransition } from "./transition.ts";
 import { WorkflowSelect } from "./WorkflowSelect.tsx";
@@ -141,15 +141,12 @@ export function Describe() {
           {label}
         </span>
         {fromIdea ? (
-          <Button
-            className="h-8 px-2 text-note touch:h-11"
-            onClick={() => inTransition(backToIdeas)}
-          >
+          <Button size="text" onClick={() => inTransition(backToIdeas)}>
             Back to ideas
           </Button>
         ) : (
           <Button
-            className="h-8 px-2 text-note touch:h-11"
+            size="text"
             aria-label={`Change from ${label}`}
             onClick={() => inTransition(change)}
           >
@@ -249,7 +246,7 @@ function PortraitAvailability() {
   return (
     <Popover>
       <PopoverTrigger
-        render={<Button className="-mx-2 h-8 gap-2 px-2 text-note touch:h-11" />}
+        render={<Button size="text" className="-mx-2 gap-2" />}
         aria-label={`${status.isSuccess ? portraitStatusLabel(status.data) : "Portraits unknown"}: details`}
       >
         <StatusDot tone={line?.tone ?? "unknown"} />

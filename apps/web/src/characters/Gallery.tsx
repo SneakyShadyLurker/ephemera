@@ -1,7 +1,7 @@
 import { type CharacterSummary, hasTag } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useId, useRef, useState, ViewTransition } from "react";
 import { useShallow } from "zustand/shallow";
 import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
 import { EmptyState } from "@/app/EmptyState.tsx";
@@ -28,6 +28,7 @@ import {
 } from "@/components/icons";
 import { hasReport, ReportGroups } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Drawer,
   DrawerCloseIcon,
@@ -43,6 +44,7 @@ import {
   MenuTrigger,
 } from "@/components/ui/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioSegment, RadioSegments } from "@/components/ui/radio-group";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 import { fold, matches } from "@/lib/find";
@@ -50,17 +52,17 @@ import { KeptNote } from "../creator/KeptNote.tsx";
 import { filterCharacters, type Order, repeatedNames, tagCounts } from "./filter.ts";
 import {
   clearFilters,
-  type GalleryState,
+  filtersOf,
+  REORDER,
   setOpened,
   setOrder,
   setQuery,
   toggleTag,
   useGallery,
+  useShownFilters,
 } from "./gallery-state.ts";
 import { CARD_FILE_TYPES, cardImports, importCards } from "./importing.ts";
 import { charactersQuery } from "./queries.ts";
-
-const filtersOf = ({ query, tags, order }: GalleryState) => ({ query, tags, order });
 
 const ORDERS: { value: Order; label: string }[] = [
   { value: "recent", label: "Recently edited" },
@@ -139,12 +141,11 @@ export function GalleryScreen() {
           </div>
         )}
       </div>
-      {dragging && (
-        <DropOverlay
-          title="Drop cards to import"
-          hint="SillyTavern or Ephemera character cards, as PNG or JSON"
-        />
-      )}
+      <DropOverlay
+        shown={dragging}
+        title="Drop cards to import"
+        hint="SillyTavern or Ephemera character cards, as PNG or JSON"
+      />
     </main>
   );
 }
@@ -225,7 +226,7 @@ function Toolbar({
             </li>
           ))}
           <li>
-            <Button className="h-8 text-note touch:h-11" onClick={clearFilters}>
+            <Button size="text" onClick={clearFilters}>
               Clear filters
             </Button>
           </li>
@@ -258,12 +259,7 @@ function TagList({ list }: { list: CharacterSummary[] }) {
           {counts.map(([tag, count]) => (
             <li key={tag}>
               <label className="flex h-9 cursor-pointer items-center gap-2.5 rounded-sm px-2.5 text-ink text-ui hover:bg-surface-hover touch:h-11">
-                <input
-                  type="checkbox"
-                  checked={hasTag(selected, tag)}
-                  onChange={() => toggleTag(tag)}
-                  className="size-4 accent-ink"
-                />
+                <Checkbox checked={hasTag(selected, tag)} onCheckedChange={() => toggleTag(tag)} />
                 <span className="min-w-0 flex-1 truncate">{tag}</span>
                 <span className="text-meta text-reed tabular-nums">{count}</span>
               </label>
@@ -326,6 +322,7 @@ function FilterSheet({ list }: { list: CharacterSummary[] }) {
   const [open, setOpen] = useState(false);
   const active = useGallery((state) => state.tags.length);
   const order = useGallery((state) => state.order);
+  const orderId = useId();
   return (
     <>
       <Button
@@ -344,26 +341,23 @@ function FilterSheet({ list }: { list: CharacterSummary[] }) {
             <DrawerCloseIcon label="Close filter and order" />
           </DrawerHeader>
           <div className="flex min-h-0 flex-col pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-            <fieldset className="grid gap-2 px-5 pb-3">
-              <legend className="mb-2 font-medium text-ink text-ui">Order</legend>
-              <div className="grid grid-cols-2 gap-1 rounded-md bg-canvas p-1">
+            <div className="grid gap-2 px-5 pb-3">
+              <span id={orderId} className="font-medium text-ink text-ui">
+                Order
+              </span>
+              <RadioSegments<Order>
+                aria-labelledby={orderId}
+                value={order}
+                onValueChange={(value) => setOrder(value)}
+                className="grid-cols-2"
+              >
                 {ORDERS.map(({ value, label }) => (
-                  <label key={value} className="relative">
-                    <input
-                      type="radio"
-                      name="gallery-order"
-                      value={value}
-                      checked={order === value}
-                      onChange={() => setOrder(value)}
-                      className="peer sr-only"
-                    />
-                    <span className="press grid h-11 cursor-pointer place-items-center rounded-sm text-reed text-ui peer-checked:bg-surface peer-checked:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-dusk-line peer-focus-visible:outline-offset-2">
-                      {label}
-                    </span>
-                  </label>
+                  <RadioSegment key={value} value={value}>
+                    {label}
+                  </RadioSegment>
                 ))}
-              </div>
-            </fieldset>
+              </RadioSegments>
+            </div>
             <span className="px-5 font-medium text-ink text-ui">Tags</span>
             <div className="flex min-h-0 flex-col px-3">
               <TagList list={list} />
@@ -415,15 +409,11 @@ function ImportReport() {
           {failures && <span className="text-ember">{failures}</span>}
         </p>
         {(failed.length > 1 || imported.some(({ report }) => hasReport(report))) && (
-          <Button
-            className="h-8 px-2 text-note touch:h-11"
-            aria-expanded={details}
-            onClick={() => setDetails(!details)}
-          >
+          <Button size="text" aria-expanded={details} onClick={() => setDetails(!details)}>
             {details ? "Hide details" : "Show details"}
           </Button>
         )}
-        <Button className="h-8 px-2 text-note touch:h-11" onClick={() => cardImports.dismiss()}>
+        <Button size="text" onClick={() => cardImports.dismiss()}>
           Dismiss
         </Button>
       </div>
@@ -454,7 +444,7 @@ function ImportReport() {
 }
 
 function Cast({ list, pending }: { list: CharacterSummary[]; pending: boolean }) {
-  const { query, tags, order } = useGallery(useShallow(filtersOf));
+  const { query, tags, order } = useShownFilters();
   const arrived = useGallery((state) => state.arrived);
   const opened = useGallery((state) => state.opened);
   const shown = filterCharacters(list, { query, tags, order });
@@ -473,23 +463,32 @@ function Cast({ list, pending }: { list: CharacterSummary[]; pending: boolean })
   return (
     <ul aria-label="Characters" className={BROWSE_GRID}>
       {shown.map((character) => (
-        <li key={character.id} data-character={character.id}>
-          <PortraitTile
-            owner="characters"
-            id={character.id}
-            name={character.name}
-            version={character.portrait}
-            arriving={arrived.includes(character.id)}
-            transition={opened === character.id}
-            onOpen={() => setOpened(character.id)}
-            caption={[
-              repeated.has(fold(character.name)) ? character.creator : "",
-              character.tags.join(", "),
-            ]
-              .filter(Boolean)
-              .join("; ")}
-          />
-        </li>
+        // A new order or tag filter glides each card to its place; nothing else animates it.
+        <ViewTransition
+          key={character.id}
+          default="none"
+          update={{ [REORDER]: "glide", default: "none" }}
+          enter={{ [REORDER]: "glide", default: "none" }}
+          exit={{ [REORDER]: "glide", default: "none" }}
+        >
+          <li data-character={character.id}>
+            <PortraitTile
+              owner="characters"
+              id={character.id}
+              name={character.name}
+              version={character.portrait}
+              arriving={arrived.includes(character.id)}
+              transition={opened === character.id}
+              onOpen={() => setOpened(character.id)}
+              caption={[
+                repeated.has(fold(character.name)) ? character.creator : "",
+                character.tags.join(", "),
+              ]
+                .filter(Boolean)
+                .join("; ")}
+            />
+          </li>
+        </ViewTransition>
       ))}
     </ul>
   );

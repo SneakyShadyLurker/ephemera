@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { sharedCallFailure } from "../model-call.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
-import { SHEET_GRID } from "../sheet/fields.ts";
+import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { ageOf } from "./age.ts";
 import { CAST_SHEET_KEY, type CastFailure, castSheetQuery, ensureCastSheet } from "./queries.ts";
 
@@ -94,16 +94,11 @@ export async function readCastSheet(
 export function CastSection({ id, name }: { id: string | null; name: string }) {
   return (
     <section id="s-cast" aria-labelledby="cast-heading" className={SHEET_GRID}>
-      <h2
-        id="cast-heading"
-        className="mb-2 font-semibold text-ink text-ui tablet:mb-0 tablet:pt-0.5 tablet:text-right"
-      >
+      <h2 id="cast-heading" className={sheetLabel("text")}>
         Cast
       </h2>
       {id === null ? (
-        <p className="text-pretty text-note text-reed">
-          The cast is read from the card once {name} is saved.
-        </p>
+        <p className={HELP}>The cast is read from the card once {name} is saved.</p>
       ) : (
         <CastSheetControls id={id} />
       )}
@@ -182,11 +177,11 @@ export function CastSheetView({
             })}
           </ul>
         ))}
-      {stale && <p className="text-pretty text-note text-reed">{CAST_KEPT}</p>}
+      {stale && <p className={HELP}>{CAST_KEPT}</p>}
       {sheet !== null && !stale && (
         // Current: what the sheet is for, and Regenerate within reach, quiet.
         <div className="flex items-start justify-between gap-4">
-          <p aria-live="polite" className="max-w-measure text-pretty text-note text-reed">
+          <p aria-live="polite" className={cn(HELP, "max-w-measure")}>
             {working ? "Reading the card" : CAST_KEPT}
           </p>
           <Button
@@ -206,7 +201,7 @@ export function CastSheetView({
             stale && "border-rush border-t pt-3",
           )}
         >
-          <p aria-live="polite" className="text-pretty text-note text-reed">
+          <p aria-live="polite" className={HELP}>
             {working ? "Reading the card" : note}
           </p>
           <Button variant="outline" disabled={working} onClick={() => onRead(stale)}>

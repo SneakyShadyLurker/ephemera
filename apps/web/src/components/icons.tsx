@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, type SVGProps, useEffect, useRef } from "react";
+import { motionMs } from "@/app/motion-tokens.ts";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { cn } from "@/lib/cn";
 
@@ -6,18 +7,20 @@ import { cn } from "@/lib/cn";
  * Ephemera's own icon set. Drawn on a 24-unit grid inside a 2-22 live area,
  * outlines with round caps and joins; Stop and More are the solid exceptions.
  * The stroke is compensated per display size so the drawn line stays optically
- * even: 1.5px at 16, 1.75px at 20 and 24, 2px at 32. Each size is set in rem
+ * even: 1.5px at 14 and 16, 1.75px at 20 and 24, 2px at 32. 14 is for a
+ * mark inside a 16px control (a checkbox's check, an infotip's i). Each size is set in rem
  * through its class, so icons grow with the text on large displays; the
  * width and height attributes are the fallback.
  */
-type IconSize = 16 | 20 | 24 | 32;
+type IconSize = 14 | 16 | 20 | 24 | 32;
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "children" | "strokeWidth"> {
   size?: IconSize;
 }
 
-const STROKE_PX: Record<IconSize, number> = { 16: 1.5, 20: 1.75, 24: 1.75, 32: 2 };
+const STROKE_PX: Record<IconSize, number> = { 14: 1.5, 16: 1.5, 20: 1.75, 24: 1.75, 32: 2 };
 const SIZE_CLASS: Record<IconSize, string> = {
+  14: "size-3.5",
   16: "size-4",
   20: "size-5",
   24: "size-6",
@@ -252,9 +255,7 @@ const MARK_SIZE_CLASS: Record<MarkSize, string> = { ...SIZE_CLASS, 44: "size-11"
 const FULL_CUT_FROM = 96;
 /** How much faster the drip runs while something is written: styles.css `--breath-rest` over `--breath-writing`. */
 function writingRate(): number {
-  const root = getComputedStyle(document.documentElement);
-  const seconds = (name: string) => Number.parseFloat(root.getPropertyValue(name));
-  return seconds("--breath-rest") / seconds("--breath-writing");
+  return motionMs("--breath-rest") / motionMs("--breath-writing");
 }
 
 /**

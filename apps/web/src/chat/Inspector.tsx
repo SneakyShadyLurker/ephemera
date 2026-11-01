@@ -1,10 +1,11 @@
 import { BUILT_IN_NAMES, type CallSettings, type InspectedPrompt } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { setInspectorOpen, setSessionOpen, useUi } from "@/app/ui.ts";
-import { ChatIcon, ChevronDownIcon } from "@/components/icons";
+import { ChatIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import {
   Drawer,
   DrawerCloseIcon,
@@ -206,8 +207,9 @@ function PreviewBody({
         <Status intro={intro} tone="ember">
           The preview could not be built: Ephemera could not be reached.{" "}
           <Button
+            size="text"
             variant="outline"
-            className="mt-2 h-8 px-2.5 text-ink text-note touch:h-11"
+            className="mt-2 text-ink"
             onClick={() => void chatStore.getState().requestPreview()}
           >
             Try again
@@ -624,6 +626,7 @@ function HistoryBand({
   breakAt: number | null;
 }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const [earlier, setEarlier] = useState(false);
   const { band, turns, isDraft, lorebookBlocks } = parts;
   const hidden = earlier ? 0 : Math.max(0, band.length - RECENT);
@@ -636,8 +639,9 @@ function HistoryBand({
         <button
           type="button"
           aria-expanded={open}
+          aria-controls={panelId}
           onClick={() => setOpen(!open)}
-          className="press flex min-h-12 w-full items-center gap-3 rounded-md pr-5 pl-1 text-left hover:bg-surface-hover touch:min-h-14"
+          className="row flex min-h-12 w-full items-center gap-3 rounded-md pr-5 pl-1 text-left touch:min-h-14"
         >
           <span className="grid w-7 place-items-center text-reed" aria-hidden="true">
             <ChatIcon size={16} />
@@ -657,22 +661,10 @@ function HistoryBand({
           <span className="text-meta text-reed tabular-nums">
             {formatCount(band.reduce((total, message) => total + message.tokens, 0))}
           </span>
-          <ChevronDownIcon
-            size={16}
-            className={cn(
-              "text-reed transition-[rotate] duration-(--duration-arrive) ease-spring motion-reduce:transition-none",
-              open && "rotate-180",
-            )}
-          />
+          <DisclosureChevron className="text-reed" />
         </button>
         {/* The waterline opens: the band grows to its content on the spring; reduced motion fades. */}
-        <div
-          className={cn(
-            "overflow-hidden transition-[height,opacity] duration-(--duration-panel-in) ease-spring [interpolate-size:allow-keywords] motion-reduce:transition-opacity motion-reduce:duration-(--duration-quick)",
-            open ? "h-auto opacity-100" : "h-0 opacity-0",
-          )}
-          inert={!open}
-        >
+        <Unfold show={open} id={panelId} keepMounted>
           <ol aria-label="Chat history as sent" className="grid border-rush border-t">
             {breakAt !== null && open && breakAt < hidden && <CacheRule inBand />}
             {hidden > 0 && (
@@ -693,7 +685,7 @@ function HistoryBand({
               </Fragment>
             ))}
           </ol>
-        </div>
+        </Unfold>
       </li>
     </>
   );

@@ -10,6 +10,7 @@ import { useSignedIn } from "../signin/hooks.ts";
 import { identity } from "../signin/identity.ts";
 import { SignInSheetRow } from "../signin/SignInSlots.tsx";
 import { isFailure, type SaveStatus, saveStatusText } from "./autosave.ts";
+import { TITLE_FIELD } from "./fields.ts";
 
 /*
  * The sheet frame shared by characters, personas and presets:
@@ -224,7 +225,7 @@ export function SheetNotice({ notice, onDismiss }: { notice: string; onDismiss: 
   return (
     <div role="alert" className="flex items-center gap-3 text-ember text-note arrive">
       <p className="flex-1">{notice}</p>
-      <Button className="h-8 px-2 text-note touch:h-11" onClick={onDismiss}>
+      <Button size="text" onClick={onDismiss}>
         Dismiss
       </Button>
     </div>
@@ -473,7 +474,10 @@ export function NameField({
       aria-readonly={readOnly || undefined}
       onKeyDown={(event) => event.key === "Enter" && event.preventDefault()}
       onChange={(event) => onChange(event.target.value.replace(/[\r\n]+/g, " "))}
-      className="-mx-1.5 w-full resize-none rounded-md border border-transparent bg-transparent px-1.5 font-semibold text-ink text-title-phone tracking-[-0.015em] outline-none transition-[border-color,background-color] duration-(--duration-tint) [field-sizing:content] placeholder:text-reed hover:border-rush focus:border-dusk-line focus:bg-surface tablet:text-title touch:border-b-rush"
+      className={cn(
+        TITLE_FIELD,
+        "w-full resize-none text-title-phone tracking-[-0.015em] [field-sizing:content] tablet:text-title",
+      )}
     />
   );
 }

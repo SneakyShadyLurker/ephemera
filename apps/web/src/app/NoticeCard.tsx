@@ -1,18 +1,73 @@
-import type { ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { cn } from "@/lib/cn";
 
 const SWAP = "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0";
 
-/**
- * The shell a docked notice folds away in: its height and opacity go to
- * nothing on `--duration-panel-out` (reduced motion shortens it), so the
- * composer below rises with it. The caller ends it on the `height`
- * transition's end.
+/*
+ * Notices share one exit contract: a notice arrives on its card's starting
+ * style and leaves through `NoticeFold`, which folds its slot away while the
+ * last text stays, then lets its owner unmount it. `useNoticeExit` keeps
+ * that last text for an owner whose notice simply stops.
  */
-export const noticeFold = (leaving: boolean): string =>
-  leaving
-    ? "h-0 overflow-clip opacity-0 transition-[height,opacity] duration-(--duration-panel-out) ease-spring [interpolate-size:allow-keywords]"
-    : "h-auto transition-[height,opacity] duration-(--duration-panel-out) ease-spring [interpolate-size:allow-keywords]";
+
+/**
+ * The shell a notice leaves in: while `leaving`, its height and opacity go
+ * to nothing on `--duration-panel-out`, inert and hidden from assistive
+ * technology, so what is below rises with
+ * it; under reduced motion it only fades and keeps its height until gone.
+ * `onLeft` runs once the fade has ended, for the owner to unmount it.
+ */
+export function NoticeFold({
+  leaving,
+  onLeft,
+  className,
+  children,
+  ...props
+}: {
+  leaving: boolean;
+  onLeft: () => void;
+  className?: string | undefined;
+  children: ReactNode;
+} & Omit<ComponentProps<"div">, "onTransitionEnd" | "inert">) {
+  return (
+    <div
+      {...props}
+      inert={leaving}
+      // Leaving, it is out of the accessibility tree at once: a notice replacing it is the one heard.
+      aria-hidden={leaving || undefined}
+      onTransitionEnd={(event) => {
+        // Its own fade, not a transition inside it.
+        if (leaving && event.target === event.currentTarget && event.propertyName === "opacity") {
+          onLeft();
+        }
+      }}
+      className={cn(
+        "transition-[height,opacity] duration-(--duration-panel-out) ease-spring [interpolate-size:allow-keywords] motion-reduce:transition-opacity motion-reduce:ease-fade",
+        leaving ? "h-0 overflow-clip opacity-0 motion-reduce:h-auto" : "h-auto",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A notice slot's state for an owner whose notice simply stops: `shown`, the
+ * value while there is one and the last one while it leaves; `leaving`; and
+ * `end`, NoticeFold's `onLeft`. `key` tells one value from the next.
+ */
+export function useNoticeExit<T>(value: T | null, key: (value: T) => string) {
+  const [kept, setKept] = useState<{ key: string; value: T } | null>(() =>
+    value === null ? null : { key: key(value), value },
+  );
+  if (value !== null && kept?.key !== key(value)) setKept({ key: key(value), value });
+  return {
+    shown: value ?? kept?.value ?? null,
+    leaving: value === null && kept !== null,
+    end: () => setKept(null),
+  };
+}
 
 /**
  * The quiet card of the app's notices (the sign-in notice, a sheet's conflict

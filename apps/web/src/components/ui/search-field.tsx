@@ -19,7 +19,7 @@ export function SearchField({
   return (
     <label
       className={cn(
-        "flex h-9 min-w-0 items-center gap-2 rounded-lg border border-control-edge bg-surface px-2.5 touch:h-11",
+        "flex h-9 min-w-0 items-center gap-2 rounded-md border border-control-edge bg-surface px-2.5 touch:h-11",
         FOCUS_WITHIN,
         className,
       )}

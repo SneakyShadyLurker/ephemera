@@ -6,8 +6,6 @@ import {
   type StoredEpisode,
 } from "@ephemera/core";
 import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, type PanInfo, useDragControls } from "motion/react";
-import * as m from "motion/react-m";
 import {
   createContext,
   type ReactNode,
@@ -19,10 +17,16 @@ import {
 } from "react";
 import { z } from "zod";
 import { useCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
-import { FADE, MotionScope, PANEL_OUT, QUICK, SPRING } from "@/app/motion.tsx";
 import { CloseIcon } from "@/components/icons";
-import { ConfirmDialog } from "@/components/ui/alert-dialog";
+import { ConfirmDialog, DIALOG_SURFACE, SCRIM } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
@@ -481,40 +485,15 @@ function EpisodeDialog({
   );
 }
 
-/** The panel rises on the spring from just below where it stands; on phones the sheet from below the screen. */
-const PANEL = {
-  hidden: (phone: boolean) => ({
-    ...(phone ? { y: "100%" } : { y: 8, scale: 0.98 }),
-    opacity: 0,
-    transition: {
-      y: { ...SPRING, duration: PANEL_OUT },
-      scale: { duration: PANEL_OUT },
-      opacity: FADE,
-    },
-  }),
-  shown: (phone: boolean) => ({
-    y: 0,
-    scale: 1,
-    opacity: 1,
-    transition: {
-      y: { ...SPRING, duration: phone ? 0.32 : SPRING.duration },
-      scale: SPRING,
-      opacity: { duration: QUICK },
-    },
-  }),
-};
-
-/** A sheet dragged down this far, or flung, closes. */
-const DISMISS_DISTANCE = 96;
-const DISMISS_VELOCITY = 480;
-
 /**
  * The editor's frame: its title and a close button above, the fields in
- * the one scroller, Delete and Done kept in view below. A centred panel
- * from tablet up; on phones a sheet from the bottom edge, clear of the
- * safe areas, that its handle drags down to close. It rises and leaves on
- * Motion's spring; `onClosed` runs once it has left. `restoreFocus` false
- * leaves focus to `onClosed` (a deleted memory's row is gone).
+ * the one scroller, Delete and Done kept in view below. A centred dialog
+ * from tablet up; on phones the shared bottom sheet (components/ui/drawer),
+ * clear of the safe areas, that a swipe down closes. Either asks `onClose`
+ * to close, which saves first and may keep it open; `onClosed` runs once it
+ * has left. `restoreFocus` false leaves focus to `onClosed` (a deleted
+ * memory's row is gone). It opens mounted, so it enters from its starting
+ * style rather than Base UI's.
  */
 function EditorPanel({
   open,
@@ -543,107 +522,107 @@ function EditorPanel({
   // On touch, the panel itself takes focus, so opening it never raises the keyboard.
   const coarse = useCoarsePointer();
   const popup = useRef<HTMLDivElement>(null);
-  const drag = useDragControls();
-  const onDragEnd = (_event: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) => {
-    if (info.offset.y > DISMISS_DISTANCE || info.velocity.y > DISMISS_VELOCITY) onClose();
+  const change = (next: boolean) => {
+    if (!next) onClose();
   };
-  return (
-    <DialogPrimitive.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
+  const complete = (next: boolean) => {
+    if (!next) onClosed();
+  };
+  const focus = {
+    initialFocus: coarse ? popup : initialFocus,
+    finalFocus: () => restoreFocus(),
+  };
+  const TITLE = "text-balance font-semibold text-heading text-ink";
+  const DESCRIPTION = "text-pretty text-reed text-ui";
+  const closeButton = <Button size="icon" aria-label={closeLabel} className="-mt-1 -mr-2" />;
+  /** The header, in the frame's own title, description and close: the sheet's on phones, the dialog's otherwise. */
+  const header = (heading: ReactNode, close: ReactNode) => (
+    <header
+      className={cn(
+        "header-hairline flex shrink-0 items-start gap-3 border-b",
+        phone ? "px-5 pt-1 pb-3" : "px-6 pt-5 pb-4",
+      )}
     >
-      <MotionScope>
-        <AnimatePresence custom={phone} onExitComplete={onClosed}>
-          {open && (
-            <DialogPrimitive.Portal keepMounted key="editor">
-              <DialogPrimitive.Backdrop
-                className="fixed inset-0 z-50 bg-scrim"
-                render={
-                  <m.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={FADE}
-                  />
-                }
-              />
-              <DialogPrimitive.Popup
-                ref={popup}
-                initialFocus={coarse ? popup : initialFocus}
-                finalFocus={() => restoreFocus()}
-                render={
-                  <m.div
-                    custom={phone}
-                    variants={PANEL}
-                    initial="hidden"
-                    animate="shown"
-                    exit="hidden"
-                    drag={phone ? "y" : false}
-                    dragListener={false}
-                    dragControls={drag}
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={{ top: 0, bottom: 0.8 }}
-                    onDragEnd={onDragEnd}
-                  />
-                }
-                className={cn(
-                  "fixed z-50 flex flex-col border-rush bg-surface shadow-overlay outline-none [timeline-scope:--thread]",
-                  phone
-                    ? "inset-x-0 bottom-0 max-h-[calc(100dvh-0.75rem-env(safe-area-inset-top))] rounded-t-xl border-t pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]"
-                    : "top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] m-auto h-fit max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[min(36rem,calc(100vw-2rem-env(safe-area-inset-left)-env(safe-area-inset-right)))] rounded-xl border",
-                )}
-              >
-                {phone && (
-                  // The sheet's handle: dragged down, the sheet follows and closes past a point.
-                  <div
-                    aria-hidden="true"
-                    onPointerDown={(event) => drag.start(event)}
-                    className="flex h-5 shrink-0 cursor-grab touch-none items-end justify-center after:h-1 after:w-8 after:rounded-full after:bg-control-edge active:cursor-grabbing"
-                  />
-                )}
-                <header
-                  className={cn(
-                    "header-hairline flex shrink-0 items-start gap-3 border-b",
-                    phone ? "px-5 pt-2 pb-3" : "px-6 pt-5 pb-4",
-                  )}
-                >
-                  <div className="grid min-w-0 flex-1 gap-1">
-                    <DialogPrimitive.Title className="text-balance font-semibold text-heading text-ink">
-                      {title}
-                    </DialogPrimitive.Title>
-                    <DialogPrimitive.Description className="text-pretty text-reed text-ui">
-                      {description}
-                    </DialogPrimitive.Description>
-                  </div>
-                  <DialogPrimitive.Close
-                    render={<Button size="icon" aria-label={closeLabel} className="-mt-1 -mr-2" />}
-                  >
-                    <CloseIcon />
-                  </DialogPrimitive.Close>
-                </header>
-                <div
-                  className={cn(
-                    "min-h-0 flex-1 overflow-y-auto overscroll-contain [scroll-timeline:--thread]",
-                    phone ? "px-5 py-4" : "px-6 py-5",
-                  )}
-                >
-                  {children}
-                </div>
-                <footer
-                  className={cn(
-                    "grid shrink-0 gap-2 border-rush border-t pt-3",
-                    phone ? "px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "px-6 pb-4",
-                  )}
-                >
-                  {footer}
-                </footer>
-              </DialogPrimitive.Popup>
-            </DialogPrimitive.Portal>
+      <div className="grid min-w-0 flex-1 gap-1">{heading}</div>
+      {close}
+    </header>
+  );
+  const body = (
+    <>
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain [scroll-timeline:--thread]",
+          phone ? "px-5 py-4" : "px-6 py-5",
+        )}
+      >
+        {children}
+      </div>
+      <footer
+        className={cn(
+          "grid shrink-0 gap-2 border-rush border-t pt-3",
+          phone ? "px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "px-6 pb-4",
+        )}
+      >
+        {footer}
+      </footer>
+    </>
+  );
+
+  if (phone) {
+    return (
+      <Drawer
+        open={open}
+        onOpenChange={change}
+        onOpenChangeComplete={complete}
+        swipeDirection="down"
+        showSwipeHandle
+        keyboardAware
+      >
+        <DrawerContent
+          ref={popup}
+          {...focus}
+          className="[timeline-scope:--thread] data-[swipe-axis=y]:[--drawer-content-max-height:calc(100dvh-0.75rem-env(safe-area-inset-top))]"
+        >
+          {header(
+            <>
+              <DrawerTitle className={TITLE}>{title}</DrawerTitle>
+              <DrawerDescription className={DESCRIPTION}>{description}</DrawerDescription>
+            </>,
+            <DrawerClose render={closeButton}>
+              <CloseIcon />
+            </DrawerClose>,
           )}
-        </AnimatePresence>
-      </MotionScope>
+          {body}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={change} onOpenChangeComplete={complete}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop className={cn(SCRIM, "starting:opacity-0")} />
+        <DialogPrimitive.Popup
+          ref={popup}
+          {...focus}
+          className={cn(
+            DIALOG_SURFACE,
+            "flex flex-col [--dialog-width:36rem] [timeline-scope:--thread] starting:translate-y-(--rise) starting:opacity-0",
+          )}
+        >
+          {header(
+            <>
+              <DialogPrimitive.Title className={TITLE}>{title}</DialogPrimitive.Title>
+              <DialogPrimitive.Description className={DESCRIPTION}>
+                {description}
+              </DialogPrimitive.Description>
+            </>,
+            <DialogPrimitive.Close render={closeButton}>
+              <CloseIcon />
+            </DialogPrimitive.Close>,
+          )}
+          {body}
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
 }

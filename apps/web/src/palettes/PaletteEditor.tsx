@@ -25,7 +25,7 @@ import { useTheme } from "../app/theme.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
 import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
-import { FIELD } from "../sheet/fields.ts";
+import { FIELD, HELP } from "../sheet/fields.ts";
 import { identity } from "../signin/identity.ts";
 import { ColourField, shortfallText } from "./ColourField.tsx";
 import {
@@ -53,8 +53,6 @@ import {
 type Scheme = "light" | "dark";
 
 const SCHEME_WORDS = { light: "By day", dark: "By night" } as const;
-
-const HELP = "text-pretty text-note text-reed";
 
 /** A synthetic scene in every voice and highlight; nothing of a chat. */
 const SAMPLE = `Mara (31): *She sets the lantern down on the sill.* "You came back. :rose[Mind the blue tin], and :sage[the third stair creaks]."
@@ -324,7 +322,7 @@ export function PaletteEditor({
       ))}
 
       <Collapsible.Root open={allOpen} onOpenChange={setAllOpen} className="border-rush border-t">
-        <Collapsible.Trigger className="group/all -mx-2 flex min-h-12 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-3 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] touch:min-h-14">
+        <Collapsible.Trigger className="group/all -mx-2 flex min-h-12 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-3 text-left row touch:min-h-14">
           <span className="grid flex-1 gap-0.5">
             <span className="font-medium text-ink text-ui">All colours</span>
             <span className={HELP}>
@@ -338,7 +336,7 @@ export function PaletteEditor({
             className="text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/all:rotate-180 motion-reduce:transition-none"
           />
         </Collapsible.Trigger>
-        <Collapsible.Panel className="-mx-1.5 h-(--collapsible-panel-height) overflow-hidden transition-[height,opacity] duration-(--duration-panel-in) ease-spring data-ending-style:h-0 data-starting-style:h-0 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-[opacity] motion-reduce:duration-(--duration-quick) motion-reduce:ease-fade">
+        <Collapsible.Panel className="-mx-1.5 unfold">
           <div className="grid gap-5 px-1.5 pt-1 pb-2">
             {MORE_GROUPS.map((group) => (
               <fieldset key={group.title} className="grid gap-3">
@@ -444,7 +442,7 @@ function Summary({
                   type="button"
                   title={shortfallText(short)}
                   onClick={() => onReveal(short, scheme)}
-                  className="rounded-sm underline underline-offset-2 outline-none hover:text-ink focus-visible:shadow-[0_0_0_2px_var(--dusk-line)]"
+                  className="rounded-sm underline underline-offset-2 hover:text-ink"
                 >
                   {ROLE_LABELS[short.role]}
                 </button>

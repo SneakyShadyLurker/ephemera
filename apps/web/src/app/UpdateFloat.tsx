@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { NoticeCard } from "@/app/NoticeCard.tsx";
+import { NoticeCard, NoticeFold, useNoticeExit } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
 import { useBehindServer } from "./build.ts";
 
@@ -42,6 +42,23 @@ function UpdateNotice({ placement }: { placement: "dock" | "float" }) {
   );
 }
 
+/** The notice's slot: shown while `shown`, folding away once it is not. */
+function UpdateSlot({ shown, placement }: { shown: boolean; placement: "dock" | "float" }) {
+  const { shown: kept, leaving, end } = useNoticeExit(shown ? placement : null, String);
+  if (kept === null) return null;
+  return (
+    <NoticeFold
+      leaving={leaving}
+      onLeft={end}
+      className={placement === "float" ? "pointer-events-auto w-full max-w-notice" : undefined}
+    >
+      <div className={placement === "dock" ? "pb-2" : undefined}>
+        <UpdateNotice placement={placement} />
+      </div>
+    </NoticeFold>
+  );
+}
+
 /**
  * Every screen but the chat: the notice floats over the bottom of the
  * content column, as the sign-in notice does, clear of the headings.
@@ -49,12 +66,7 @@ function UpdateNotice({ placement }: { placement: "dock" | "float" }) {
 export function UpdateFloat() {
   const shown = useUpdateShown();
   const docked = useStore(update, (state) => state.docks > 0);
-  if (!shown || docked) return null;
-  return (
-    <div className="pointer-events-auto w-full max-w-notice">
-      <UpdateNotice placement="float" />
-    </div>
-  );
+  return <UpdateSlot shown={shown && !docked} placement="float" />;
 }
 
 /** The chat: the notice docks above the composer, in the slot the other notices use. */
@@ -64,10 +76,5 @@ export function UpdateDock() {
     update.setState((state) => ({ docks: state.docks + 1 }));
     return () => update.setState((state) => ({ docks: state.docks - 1 }));
   }, []);
-  if (!shown) return null;
-  return (
-    <div className="pb-2">
-      <UpdateNotice placement="dock" />
-    </div>
-  );
+  return <UpdateSlot shown={shown} placement="dock" />;
 }

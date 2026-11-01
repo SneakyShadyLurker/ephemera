@@ -111,7 +111,7 @@ const FOLDED = "opacity-60";
 
 /** The opening moment: the greeting fades in just after the presence arrives. */
 const GREET =
-  "transition-opacity delay-120 duration-(--duration-panel-in) ease-fade starting:opacity-0";
+  "transition-opacity delay-(--delay-follow) duration-(--duration-panel-in) ease-fade starting:opacity-0";
 
 /**
  * Prose, rendered inert; plain paragraphs until the renderer arrives or if it

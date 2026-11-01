@@ -272,7 +272,7 @@ function EventRowBody({
             data-disclosure=""
             aria-labelledby={instructionId}
             aria-describedby={`${ruleId} ${scopeId}`}
-            className="group/row col-span-3 col-start-1 row-start-1 grid min-h-16 grid-cols-subgrid items-start gap-y-1 rounded-sm px-1 py-3 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] touch:py-3.5"
+            className="group/row col-span-3 col-start-1 row-start-1 grid min-h-16 grid-cols-subgrid items-start gap-y-1 rounded-sm px-1 py-3 text-left row touch:py-3.5"
           >
             <span
               id={instructionId}
@@ -364,11 +364,7 @@ function EventRowBody({
             onKeepMine={() => void autosave.keepMine()}
           />
         )}
-        <Collapsible.Panel
-          keepMounted
-          inert={!open}
-          className="-mx-1.5 h-(--collapsible-panel-height) overflow-hidden transition-[height,opacity] duration-(--duration-panel-in) ease-spring data-ending-style:h-0 data-starting-style:h-0 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-[opacity] motion-reduce:duration-(--duration-quick) motion-reduce:ease-fade [&[hidden]]:hidden"
-        >
+        <Collapsible.Panel keepMounted inert={!open} className="-mx-1.5 unfold">
           {/* The inset keeps focus rings inside the clipped panel. */}
           <div className="px-2.5 pt-1 pb-6">
             <EventEditor

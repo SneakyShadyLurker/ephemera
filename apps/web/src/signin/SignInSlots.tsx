@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { noticeFold } from "@/app/NoticeCard.tsx";
+import { NoticeFold } from "@/app/NoticeCard.tsx";
 import { SCRIPT_FRAME } from "../chat/frame.ts";
 import { useChat } from "../chat/session.ts";
 import { SHEET_GRID } from "../sheet/fields.ts";
@@ -56,17 +56,14 @@ function Notice({
 
   if (phase === "active") return null;
   return (
-    <div
+    <NoticeFold
       ref={frame}
+      leaving={leaving}
+      onLeft={() => signIn.dismiss()}
       onFocusCapture={(event) => {
         const from = event.relatedTarget;
         if (from instanceof HTMLElement && !frame.current?.contains(from)) returnTo.current = from;
       }}
-      onTransitionEnd={(event) => {
-        if (leaving && event.target === event.currentTarget && event.propertyName === "height")
-          signIn.dismiss();
-      }}
-      className={noticeFold(leaving)}
     >
       <div className={placement === "dock" ? "pb-2" : undefined}>
         <SignInNotice
@@ -76,7 +73,7 @@ function Notice({
           onSignIn={() => signIn.signIn()}
         />
       </div>
-    </div>
+    </NoticeFold>
   );
 }
 
@@ -96,7 +93,7 @@ export function SignInSheetRow() {
   const phase = useSignInPhase();
   if (phase === "active") return null;
   return (
-    <div className={`${SHEET_GRID} sticky bottom-3 z-10 tablet:bottom-6`}>
+    <div className={`${SHEET_GRID} sticky bottom-3 z-(--z-raised) tablet:bottom-6`}>
       <div className="hidden tablet:block" />
       <Notice placement="float" />
     </div>

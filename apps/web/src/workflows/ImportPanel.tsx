@@ -31,7 +31,7 @@ import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { useSetting } from "../settings/settings.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { FIELD } from "../sheet/fields.ts";
+import { FIELD, HELP } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { identity } from "../signin/identity.ts";
 import {
@@ -81,7 +81,6 @@ import {
 } from "./queries.ts";
 import { MissingList, StatusDot } from "./WorkflowRow.tsx";
 
-const HELP = "text-pretty text-note text-reed";
 /** A field under its label on phones, and beside it from tablets on, in the mapping list's 7rem column. */
 const FIELD_ROW = "grid items-start gap-y-1 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:gap-x-3";
 /** A field row's label, set level with the field's text once beside it. */

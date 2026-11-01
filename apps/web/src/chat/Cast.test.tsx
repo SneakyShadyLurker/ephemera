@@ -665,7 +665,7 @@ describe("a record", () => {
     );
   });
 
-  it("washes the fields the newest snapshot changed as it lands, and not once remounted after", () => {
+  it("washes the fields the newest snapshot changed as it lands, and joins it where it is once remounted", () => {
     const at = Date.UTC(2026, 9, 25, 12);
     const before = person(1, "Mara Battin", { state: { activity: "reading" } });
     const after = person(1, "Mara Battin", { state: { activity: "dancing" } });
@@ -689,10 +689,13 @@ describe("a record", () => {
     expect(fresh).toMatch(/data-cast-field="activity" data-cast-changed=""/);
     expect(fresh).not.toMatch(/data-cast-field="outfit" data-cast-changed/);
     expect(panel()).toMatch(/data-cast-changed=""[^>]*>dancing</);
-    // Mounted again later (Presence moved to the next reply): the wash has run, so none.
+    expect(fresh).toContain('style="animation-delay:-100ms"');
+    // Mounted again later (Presence moved to the next reply): the wash joins its fade where it
+    // is, past its end, so styles.css's --duration-wash alone says it shows none.
     vi.setSystemTime(at + 5_000);
-    expect(renderToStaticMarkup(<RecordText entry={after} />)).not.toContain("data-cast-changed");
-    expect(panel()).not.toContain("data-cast-changed");
+    expect(renderToStaticMarkup(<RecordText entry={after} />)).toContain(
+      'data-cast-changed="" style="animation-delay:-5000ms"',
+    );
   });
 
   it("edits the fields under the reading mode's sections, in its order", () => {

@@ -228,7 +228,7 @@ export function PalettePicker({ labelId }: { labelId: string }) {
           <Collapsible.Trigger
             ref={trigger}
             aria-describedby={answerId}
-            className="group/row col-span-full -mx-2 grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-2 py-2.5 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] touch:min-h-14"
+            className="group/row col-span-full -mx-2 grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-2 py-2.5 text-left row touch:min-h-14"
           >
             <span className="grid min-w-0 gap-0.5">
               <span id={ownLabelId} className="font-medium text-ink text-ui">
@@ -243,7 +243,7 @@ export function PalettePicker({ labelId }: { labelId: string }) {
               className="mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
             />
           </Collapsible.Trigger>
-          <Collapsible.Panel className="col-span-full -m-1 grid h-(--collapsible-panel-height) grid-cols-subgrid gap-3 overflow-hidden p-1 transition-[height,opacity] duration-(--duration-panel-in) ease-spring data-ending-style:h-0 data-starting-style:h-0 data-ending-style:opacity-0 data-starting-style:opacity-0 motion-reduce:transition-[opacity] motion-reduce:duration-(--duration-quick) motion-reduce:ease-fade">
+          <Collapsible.Panel className="col-span-full -m-1 unfold grid grid-cols-subgrid gap-3 p-1">
             <RadioGroup<PaletteChoice>
               aria-labelledby={ownLabelId}
               value={palette}
@@ -364,7 +364,7 @@ function NewTile({
         onKeyDown={keepArrows}
         className={cn(
           TILE,
-          "cursor-pointer text-left outline-none hover:bg-surface-hover focus-visible:shadow-[0_0_0_2px_var(--dusk-line)] active:scale-(--press-scale)",
+          "cursor-pointer text-left hover:bg-surface-hover active:scale-(--press-scale)",
         )}
       >
         <span

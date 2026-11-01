@@ -3,7 +3,7 @@ import { useFormFactor } from "@/app/form-factor.ts";
 import { DeleteIcon, DuplicateIcon, ExportIcon, MoreIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { DRAWER_ACTION, Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import {
   Menu,
   MenuContent,
@@ -16,10 +16,6 @@ import { cn } from "@/lib/cn";
 import { ExportLink, type ExportTarget } from "../signin/ExportLink.tsx";
 import { notReached } from "../signin/signin.ts";
 import type { CreateOutcome } from "./saving.ts";
-
-/** A phone action row in the bottom sheet. */
-export const SHEET_ROW =
-  "press flex h-13 w-full items-center gap-4 rounded-md px-4 text-left text-ink text-lead hover:bg-surface-hover [&_svg]:text-reed";
 
 /** One export the actions offer: its label and the file it downloads. */
 export interface SheetExport {
@@ -122,7 +118,7 @@ export function SheetActions({
                   <button
                     type="button"
                     disabled={locked}
-                    className={cn(SHEET_ROW, "disabled:text-text-disabled")}
+                    className={cn(DRAWER_ACTION, "disabled:text-text-disabled")}
                     onClick={() => {
                       setSheetOpen(false);
                       void onDuplicate();
@@ -140,7 +136,7 @@ export function SheetActions({
                     name={name}
                     ready={exportReady}
                     onError={onError}
-                    className={SHEET_ROW}
+                    className={DRAWER_ACTION}
                     onClick={() => setSheetOpen(false)}
                   >
                     <ExportIcon size={24} />
@@ -153,7 +149,7 @@ export function SheetActions({
                   type="button"
                   disabled={cannotDelete !== undefined || locked}
                   className={cn(
-                    SHEET_ROW,
+                    DRAWER_ACTION,
                     "text-ember disabled:text-text-disabled [&_svg]:text-current",
                   )}
                   onClick={() => {

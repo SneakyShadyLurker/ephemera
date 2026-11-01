@@ -959,7 +959,7 @@ test("deleting the last memory in its editor leaves focus on the list's heading"
   expect((await storedMemory(request, characterId)).episodes).toEqual([]);
 });
 
-test("on a phone, a memory with a long cue keeps the screen to its width, and its editor keeps Done in view", async ({
+test("on a phone, a memory with a long cue keeps the screen to its width, and its editor is the shared sheet that keeps Done in view and guards unsaved edits", async ({
   page,
   request,
 }) => {
@@ -1002,6 +1002,16 @@ test("on a phone, a memory with a long cue keeps the screen to its width, and it
   await expect(editor.getByRole("button", { name: "Close the memory" })).toBeInViewport();
   await expect(editor.getByRole("button", { name: "Done" })).toBeInViewport();
   await expect(editor.getByRole("button", { name: "Delete this memory" })).toBeInViewport();
+  // The phone sheet is the app's shared drawer, and its guard holds: an edit that cannot be
+  // saved keeps it open on the first close and lets the second leave without it.
+  await expect(editor).toHaveAttribute("data-slot", "drawer-popup");
+  await page.route("**/api/memory/episodes/**", (route) =>
+    route.request().method() === "PATCH" ? route.abort() : route.fallback(),
+  );
+  await editor.getByRole("textbox", { name: "Title" }).fill(unique("The pier"));
+  await page.keyboard.press("Escape");
+  await expect(editor.getByText(/Close again to leave without saving\./)).toBeVisible();
+  await expect(editor).toBeVisible();
   await editor.getByRole("button", { name: "Close the memory" }).click();
   await expect(editor).toHaveCount(0);
 });
@@ -1306,6 +1316,31 @@ test("a raw cast line repaired into a person opens their form, and focus stays i
   await expect
     .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
     .toEqual([JSON.stringify({ name: "Ilse", gender: "female" })]);
+});
+
+test("an open memory panel clips nothing once it has unfolded, so rows past its edge keep their tint and ring", async ({
+  page,
+  request,
+}) => {
+  await memoryChat(request);
+  await page.goto("/");
+  await openMemory(page);
+  // Phone width, where the rows reach furthest past the panel's edge.
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Off, then on again: the panel folds away and unfolds, so the clip has to lift after the growth.
+  const remember = page.getByRole("switch", { name: "Remember the story" });
+  await remember.click();
+  await expect(remember).not.toBeChecked();
+  await remember.click();
+  await expect(remember).toBeChecked();
+  const panel = page
+    .locator(".unfold")
+    .filter({ has: page.getByRole("textbox").first() })
+    .first();
+  await expect(panel).toBeVisible();
+  await expect
+    .poll(() => panel.evaluate((node) => getComputedStyle(node).overflow))
+    .toBe("visible");
 });
 
 test("a raw cast line cleared to start over opens an empty person's form, and focus stays in it", async ({

@@ -371,12 +371,11 @@ export function LibraryScreen() {
           <EventsSection />
         </div>
       </div>
-      {dragging && (
-        <DropOverlay
-          title="Drop lorebooks to import"
-          hint="An Ephemera lorebook or SillyTavern World Info file, as JSON"
-        />
-      )}
+      <DropOverlay
+        shown={dragging}
+        title="Drop lorebooks to import"
+        hint="An Ephemera lorebook or SillyTavern World Info file, as JSON"
+      />
     </main>
   );
 }

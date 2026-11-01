@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { motionMs, motionToken } from "@/app/motion-tokens.ts";
 
 /*
  * The rim (styles.css `lamplight-rim`): the one light a frame carries while
@@ -10,17 +11,6 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 /** Busy, or ending: closing on success (`settle`) or fading on any other end. */
 type Phase = "idle" | "busy" | "settle" | "fade";
 
-/** A motion token from styles.css, as written. */
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-
-/** A duration token in milliseconds, written in either unit (the build may rewrite 300ms as .3s). */
-function ms(name: string): number {
-  const value = token(name);
-  return Number.parseFloat(value) * (value.endsWith("ms") ? 1 : 1000);
-}
-
 /**
  * The success closure: from wherever the head is, the tail grows backward
  * along the frame until it meets it, its front held still, while the head
@@ -31,8 +21,8 @@ function close(lap: SVGGElement): Animation[] {
   const at = Number.parseFloat(getComputedStyle(lap).getPropertyValue("--lap")) || 0;
   const dash = Number.parseFloat(tail ? getComputedStyle(tail).strokeDasharray : "") || 0;
   const timing = {
-    duration: ms("--duration-close"),
-    easing: token("--ease-fade"),
+    duration: motionMs("--duration-close"),
+    easing: motionToken("--ease-fade"),
     fill: "forwards",
   } as const;
   const closing = tail?.animate(
@@ -85,9 +75,9 @@ export function LamplightRim({
     const fade = lap.animate(
       { opacity: 0 },
       {
-        delay: closing.length > 0 ? ms("--duration-close") : 0,
-        duration: ms("--duration-fade-out"),
-        easing: token("--ease-fade"),
+        delay: closing.length > 0 ? motionMs("--duration-close") : 0,
+        duration: motionMs("--duration-fade-out"),
+        easing: motionToken("--ease-fade"),
         fill: "forwards",
       },
     );

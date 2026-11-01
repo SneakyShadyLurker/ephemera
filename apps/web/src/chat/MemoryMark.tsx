@@ -60,7 +60,7 @@ export function RememberedCount({ count }: { count: number }) {
       key={count}
       aria-hidden="true"
       data-remembered-count=""
-      className="pointer-events-none absolute top-0.5 right-0 min-w-4 rounded-full bg-surface-selected px-1 text-center font-medium text-[0.6875rem] text-ink leading-4 tabular-nums transition-[opacity,scale] duration-(--duration-arrive) ease-spring starting:scale-75 starting:opacity-0 touch:top-1 touch:right-0.5"
+      className="pointer-events-none absolute top-0.5 right-0 min-w-4 rounded-full bg-surface-selected px-1 text-center font-medium text-ink text-tag tabular-nums transition-[opacity,scale] duration-(--duration-arrive) ease-spring starting:scale-75 starting:opacity-0 touch:top-1 touch:right-0.5"
     >
       {n.format(count)}
     </span>

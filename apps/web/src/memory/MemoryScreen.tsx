@@ -12,6 +12,7 @@ import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { MoreIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Unfold } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
@@ -46,7 +47,6 @@ import { MEMORY_KEPT, MemorySwitch } from "./MemorySection.tsx";
 import { countsText, rememberable, rememberNowHeld, rowAfterDelete } from "./memory.ts";
 import { NotebookEditor, useNotebook } from "./Notebook.tsx";
 import { forgetMemory, MEMORY_KEY, memoryQuery, refreshMemory } from "./queries.ts";
-import { Unfold } from "./Unfold.tsx";
 
 /*
  * A character's memory, as its own screen beside the sheet: the notebook at

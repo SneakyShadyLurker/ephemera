@@ -33,6 +33,9 @@ function failureText(failure: KeepFailure, name: string): string {
   }
 }
 
+/** The longest Keep waits on the portrait: past it the gallery shows the tile, drawn or not. */
+const PRELOAD_CAP_MS = 600;
+
 /** A kept portrait loads before the gallery shows it, briefly, so the art travels into a drawn tile. */
 async function preloadPortrait(id: string, version: number | null): Promise<void> {
   if (version === null) return;
@@ -40,7 +43,7 @@ async function preloadPortrait(id: string, version: number | null): Promise<void
   image.src = portraitUrl("characters", id, version, "thumb");
   await Promise.race([
     image.decode().catch(() => undefined),
-    new Promise((resolve) => setTimeout(resolve, 600)),
+    new Promise((resolve) => setTimeout(resolve, PRELOAD_CAP_MS)),
   ]);
 }
 

@@ -1,6 +1,7 @@
 import { entryOrigin, type LorebookStatus, type LorebookReport as Report } from "@ephemera/core";
-import { useState } from "react";
-import { ChevronDownIcon, LorebookIcon } from "@/components/icons";
+import { useId, useState } from "react";
+import { LorebookIcon } from "@/components/icons";
+import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { andList, countOf, formatCount, orList } from "@/lib/text";
 import {
@@ -265,6 +266,7 @@ export function LorebookReport({
   draft: boolean;
 }) {
   const [open, setOpen] = useState(true);
+  const panelId = useId();
   const [all, setAll] = useState(false);
   const [rest, setRest] = useState(false);
   const { counts } = report;
@@ -315,8 +317,9 @@ export function LorebookReport({
       <button
         type="button"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="press flex min-h-14 w-full items-center gap-3 px-5 text-left hover:bg-surface-hover"
+        className="row flex min-h-14 w-full items-center gap-3 px-5 text-left"
       >
         <LorebookIcon size={16} className="shrink-0 text-reed" />
         <span className="grid min-w-0 flex-1">
@@ -329,21 +332,9 @@ export function LorebookReport({
         <span className="text-meta text-reed tabular-nums">
           {formatCount(report.used)} of {formatCount(report.budget)}
         </span>
-        <ChevronDownIcon
-          size={16}
-          className={cn(
-            "shrink-0 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring motion-reduce:transition-none",
-            open && "rotate-180",
-          )}
-        />
+        <DisclosureChevron className="text-reed" />
       </button>
-      <div
-        className={cn(
-          "overflow-hidden transition-[height,opacity] duration-(--duration-panel-in) ease-spring [interpolate-size:allow-keywords] motion-reduce:transition-opacity motion-reduce:duration-(--duration-quick)",
-          open ? "h-auto opacity-100" : "h-0 opacity-0",
-        )}
-        inert={!open}
-      >
+      <Unfold show={open} id={panelId} keepMounted>
         <div className="grid gap-3 px-5 pb-5">
           <p className="text-pretty text-note text-reed">
             {books}, read against {scanned}
@@ -422,16 +413,10 @@ export function LorebookReport({
                   <span className="text-ink">Other entries</span>
                   <span className="text-pretty text-meta">{otherCounts}</span>
                 </span>
-                <ChevronDownIcon
-                  size={16}
-                  className={cn(
-                    "shrink-0 transition-[rotate] duration-(--duration-arrive) ease-spring motion-reduce:transition-none",
-                    rest && "rotate-180",
-                  )}
-                />
+                <DisclosureChevron />
               </button>
-              {rest && (
-                <dl className="grid gap-2 pt-1 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
+              <Unfold show={rest}>
+                <dl className="grid gap-2 pt-1">
                   {others.map(([status, , label, detail]) => {
                     const listed = report.entries.filter((entry) => entry.status === status);
                     const more = counts[status] - listed.length;
@@ -452,11 +437,11 @@ export function LorebookReport({
                     );
                   })}
                 </dl>
-              )}
+              </Unfold>
             </div>
           )}
         </div>
-      </div>
+      </Unfold>
     </section>
   );
 }

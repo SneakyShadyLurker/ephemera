@@ -1,6 +1,6 @@
 import { LazyMotion } from "motion/react";
 import { type ReactNode, useRef } from "react";
-import { motionFeatures, SPRING } from "@/app/motion.tsx";
+import { motionFeatures, spring } from "@/app/motion.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { ChevronDownIcon, ChevronUpIcon, MoveDownIcon, MoveUpIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ export function useGlide() {
   const reduce = useReducedMotion();
   return {
     layout: "position" as const,
-    transition: { layout: reduce ? { duration: 0 } : SPRING },
+    transition: { layout: reduce ? { duration: 0 } : spring() },
   };
 }
 

@@ -34,7 +34,7 @@ function MenuContent({
         sideOffset={6}
         collisionPadding={POPUP_EDGE}
         align={align}
-        className="z-50"
+        className="z-(--z-overlay)"
       >
         <MenuPrimitive.Popup
           aria-label={label}

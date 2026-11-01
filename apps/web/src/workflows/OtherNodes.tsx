@@ -16,7 +16,7 @@ export function OtherNodes({ nodes }: { nodes: Draft["inspection"]["nodes"] }) {
   if (nodes.length === 0) return null;
   return (
     <details className="disclosure">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-md text-reed text-ui hover:text-ink focus-visible:outline-2 focus-visible:outline-dusk-line focus-visible:outline-offset-2 touch:min-h-11 [&::-webkit-details-marker]:hidden">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-md text-reed text-ui hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden">
         <DisclosureChevron />
         {countOf(nodes.length, "other node")} {nodes.length === 1 ? "keeps its" : "keep their"}{" "}
         settings

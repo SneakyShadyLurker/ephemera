@@ -185,7 +185,7 @@ function RemovedRow({
       <TrackedChips before={entry.keys} after={[]} />
       {long ? (
         <details className="disclosure group/removed">
-          <summary className="flex w-fit cursor-pointer list-none items-center rounded-md text-note text-reed hover:text-ink focus-visible:outline-2 focus-visible:outline-dusk-line focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+          <summary className="flex w-fit cursor-pointer list-none items-center rounded-md text-note text-reed hover:text-ink [&::-webkit-details-marker]:hidden">
             Show removed entry
           </summary>
           <p className="mt-2 whitespace-pre-wrap break-words text-turn">

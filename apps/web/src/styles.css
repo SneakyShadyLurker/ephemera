@@ -247,6 +247,18 @@
   --radius: 0.5rem;
 
   /*
+   * Layers, lowest first: what sticks or floats inside its own scroller (a
+   * sticky bar, a nameplate, a scroll button), notices floating over a
+   * screen, the file drop's veil, and overlays (menus, popovers, tooltips,
+   * dialogs, drawers, the portrait viewer, the skip link). Used as
+   * `z-(--z-overlay)`.
+   */
+  --z-raised: 10;
+  --z-float: 20;
+  --z-drop: 30;
+  --z-overlay: 50;
+
+  /*
    * Motion: a calm spring without overshoot for movement, a quick curve for
    * opacity. Reduced motion zeroes every distance and shortens every duration.
    */
@@ -266,6 +278,16 @@
   --duration-fade-out: 300ms;
   /* How long a wait stays quiet before it shows, so quick work never flickers. */
   --delay-pending: 300ms;
+  /* How long a reply stays without text before it says it is still awaited. */
+  --delay-silence: 6s;
+  /* What follows another arrival waits this beat: a greeting after its presence, the room's lean after a reveal. */
+  --delay-follow: 120ms;
+  /* Between siblings arriving together, each a step after the one before (the `stagger` utility). */
+  --stagger-step: 30ms;
+  /* The least time between rows revealed one by one, so a burst still reads as a fill. */
+  --reveal-gap: 80ms;
+  /* The caret's breath while nothing has been written yet. */
+  --duration-caret: 1.2s;
   --duration-press: 80ms;
   --duration-release: 140ms;
   /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
@@ -274,11 +296,16 @@
   --duration-arrive: 180ms;
   --duration-panel-in: 240ms;
   --duration-panel-out: 180ms;
+  /* The longest travel, a portrait growing into its viewer: a longer spring. */
+  --duration-travel: 340ms;
+  /* An image surfacing out of blur; the creator's chosen portrait develops slower still. */
+  --duration-surface: 400ms;
+  --duration-develop: 480ms;
   /* A drawer swiped away at full strength; its swipe strength scales it. */
   --duration-swipe-out: 400ms;
   /* The glow on fields an AI Rework just wrote: a fade, so reduced motion keeps it. */
   --duration-settle: 700ms;
-  /* The dusk wash on what the cast's newest snapshot changed (chat/Cast.tsx WASH_MS): a fade. */
+  /* The dusk wash on what the cast's newest snapshot changed: a fade. */
   --duration-wash: 1200ms;
   --rise: 4px;
   --panel-shift: 12px;
@@ -359,6 +386,11 @@
     --duration-panel-in: var(--duration-quick);
     --duration-panel-out: var(--duration-quick);
     --duration-swipe-out: var(--duration-quick);
+    --duration-travel: var(--duration-quick);
+    --duration-surface: var(--duration-quick);
+    --duration-develop: var(--duration-quick);
+    --delay-follow: 0ms;
+    --stagger-step: 0ms;
     --rise: 0px;
     --panel-shift: 0px;
     --press-scale: 1;
@@ -441,6 +473,22 @@
   --color-text-disabled: var(--text-disabled);
   --color-scrim: var(--scrim);
 
+  /*
+   * Corners by role, so the same role is drawn the same everywhere:
+   * - xs (4px): marks and thumbnails: a checkbox, a swatch, a chip in a
+   *   line of text, a portrait leaf.
+   * - sm (6px): a small control inside another: a menu or select item, a
+   *   segment, the nameplate's More plate.
+   * - md (8px): controls: buttons, fields, rows, triggers.
+   * - lg (8px): cards, frames and popups: tiles, notices, a portrait, menus,
+   *   selects and popovers. As round as a control today, named apart so the
+   *   two can part.
+   * - xl (12px): panels and dialogs: dialogs, drawers, the composer, an
+   *   editor's panel.
+   * - full: pills, dots and round thumbs.
+   * A layer drawn over another (a clip, an edge) takes `rounded-[inherit]`.
+   */
+  --radius-xs: calc(var(--radius) * 0.5);
   --radius-sm: calc(var(--radius) * 0.75);
   --radius-md: var(--radius);
   --radius-lg: var(--radius);
@@ -448,6 +496,9 @@
   --radius-2xl: calc(var(--radius) * 2);
 
   /* Type scale after Bringhurst, with explicit leading. */
+  /* The smallest label: a phone tab's name, a count on a badge. */
+  --text-tag: 0.6875rem;
+  --text-tag--line-height: 1rem;
   --text-meta: 0.75rem;
   --text-meta--line-height: 1rem;
   --text-note: 0.8125rem;
@@ -465,13 +516,22 @@
   --text-story-phone--line-height: 1.75rem;
   --text-story: 1.125rem;
   --text-story--line-height: 1.875rem;
+  /* A character's name heading a memory row or seam, in the story face: the story's size, set close. */
+  --text-name: 1.125rem;
+  --text-name--line-height: 1.5rem;
   --text-heading: 1.25rem;
   --text-heading--line-height: 1.625rem;
+  /* The character's name beside the chat band's portrait. */
+  --text-band: 1.5rem;
+  --text-band--line-height: 1.75rem;
   /* The character sheet's name: 28/36 on phones, 32/40 from tablet. */
   --text-title-phone: 1.75rem;
   --text-title-phone--line-height: 2.25rem;
   --text-title: 2rem;
   --text-title--line-height: 2.5rem;
+  /* The wordmark, in the display face, one line. */
+  --text-wordmark: 1.1875rem;
+  --text-wordmark--line-height: 1;
 
   --ease-spring: var(--ease-spring);
   --ease-fade: var(--ease-fade);
@@ -504,8 +564,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--dusk-line);
-    outline-offset: 2px;
+    @apply focus-ring;
   }
 
   ::selection {
@@ -801,7 +860,7 @@
 @utility nameplate {
   position: sticky;
   top: 0.75rem;
-  z-index: 1;
+  z-index: var(--z-raised);
   container-type: scroll-state;
   margin-bottom: 0.25rem;
   background: var(--canvas);
@@ -893,7 +952,7 @@
 
 @utility caret {
   @apply stream-caret;
-  animation: breathe 1.2s ease-in-out infinite alternate;
+  animation: breathe var(--duration-caret) ease-in-out infinite alternate;
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
@@ -931,7 +990,7 @@
   }
 }
 
-/* Appears only after six seconds without text: no timer in script. */
+/* Appears only after `--delay-silence` without text: no timer in script. */
 @keyframes appear {
   to {
     opacity: 1;
@@ -940,7 +999,7 @@
 
 @utility still-waiting {
   opacity: 0;
-  animation: appear var(--duration-quick) var(--ease-fade) 6s forwards;
+  animation: appear var(--duration-quick) var(--ease-fade) var(--delay-silence) forwards;
 }
 
 /*
@@ -1187,9 +1246,46 @@
 }
 
 /*
+ * The same growth and fade for what cannot be a details: a Base UI
+ * Collapsible panel (components/ui/disclosure.tsx Unfold, and the rows that
+ * own a Collapsible), open and closed on its starting and ending styles.
+ * Clipped only while its height moves, so an open panel never cuts the
+ * tints and focus rings of rows that reach past its edge: opening, the
+ * clip lifts once the growth has run (a discrete overflow transition
+ * delayed by it); folding, it clips at once.
+ */
+@utility unfold {
+  height: var(--collapsible-panel-height);
+  overflow: visible;
+  overflow-clip-margin: 3px;
+  transition:
+    height var(--duration-panel-in) var(--ease-spring),
+    opacity var(--duration-quick) var(--ease-fade),
+    overflow 0s var(--duration-panel-in) allow-discrete;
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+    opacity: 0;
+    overflow: clip;
+  }
+  &[data-ending-style] {
+    transition:
+      height var(--duration-panel-out) var(--ease-spring),
+      opacity var(--duration-quick) var(--ease-fade),
+      overflow 0s allow-discrete;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: opacity var(--duration-quick) var(--ease-fade);
+    &[data-ending-style] {
+      transition: opacity var(--duration-quick) var(--ease-fade);
+    }
+  }
+}
+
+/*
  * A disclosure's chevron (components/ui/disclosure.tsx): it turns as its
- * details or its Base UI collapsible trigger opens, on the spring; reduced
- * motion turns it at once.
+ * details, its Base UI collapsible trigger or any expanded button opens, on
+ * the spring; reduced motion turns it at once.
  */
 @utility disclosure-chevron {
   rotate: var(--chevron-closed, 0deg);
@@ -1199,6 +1295,7 @@
   }
 }
 [data-panel-open] > .disclosure-chevron,
+[aria-expanded="true"] > .disclosure-chevron,
 details[open] > summary .disclosure-chevron {
   rotate: var(--chevron-open, 180deg);
 }
@@ -1228,7 +1325,7 @@ details[open] > summary .disclosure-chevron {
  */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 200ms;
+  animation-duration: var(--duration-arrive);
   animation-timing-function: var(--ease-fade);
 }
 
@@ -1254,8 +1351,8 @@ details[open] > summary .disclosure-chevron {
  */
 @utility surface-in {
   transition:
-    filter var(--surface-duration, 400ms) var(--ease-fade),
-    opacity var(--surface-duration, 400ms) var(--ease-fade);
+    filter var(--surface-duration, var(--duration-surface)) var(--ease-fade),
+    opacity var(--surface-duration, var(--duration-surface)) var(--ease-fade);
   @starting-style {
     opacity: 0;
     filter: blur(8px) saturate(0.4);
@@ -1270,17 +1367,19 @@ details[open] > summary .disclosure-chevron {
 
 /*
  * The creator's reveal, its one bold moment: the chosen portrait develops
- * like a print in the portrait entrance's language drawn out to 480 ms, and
- * the alternates fade in together over 180 ms from 300 ms. Reduced motion
- * keeps a short fade at once, without blur or stagger.
+ * like a print in the portrait entrance's language drawn out to
+ * `--duration-develop`, and the alternates fade in together over
+ * `--duration-arrive`, landing as it does. Reduced motion keeps a short fade
+ * at once, without blur or stagger.
  */
 @utility develop-in {
   @apply surface-in;
-  --surface-duration: 480ms;
+  --surface-duration: var(--duration-develop);
 }
 
 @utility alternates-in {
-  transition: opacity var(--duration-arrive) var(--ease-fade) 300ms;
+  transition: opacity var(--duration-arrive) var(--ease-fade)
+    calc(var(--duration-develop) - var(--duration-arrive));
   @starting-style {
     opacity: 0;
   }
@@ -1356,7 +1455,7 @@ details[open] > summary .disclosure-chevron {
 
 /* A portrait grows out of its place into the viewer and settles back: the longest travel, so a longer spring. */
 ::view-transition-group(portrait-viewer) {
-  animation-duration: 340ms;
+  animation-duration: var(--duration-travel);
   animation-timing-function: var(--ease-spring);
 }
 
@@ -1375,19 +1474,70 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
+ * An interactive row (a library book, a lorebook entry, an event, a preset,
+ * the palette editor's disclosure): its hover and press grounds ease on
+ * `--duration-tint` like a button's colours, and keyboard focus draws the
+ * inset ring. Menu, select and combobox highlights are not rows: they follow
+ * the keyboard at once.
+ */
+@utility row {
+  @apply focus-ring-inset;
+  transition: background-color var(--duration-tint) var(--ease-fade);
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--surface-hover);
+    }
+  }
+  &:active {
+    background-color: var(--surface-pressed);
+  }
+}
+
+/*
+ * Keyboard focus, drawn once: the ring outside an element (every element
+ * by default, through `:focus-visible`; `focus-ring` puts it on a control
+ * whose focus lives on a hidden input, as a slider's thumb), and the ring
+ * inside one that a clip or its neighbours would cut (a row in a list, a
+ * frame that clips its art). Both are outlines, so they draw above the
+ * element's own content.
+ */
+@utility focus-ring {
+  outline: 2px solid var(--dusk-line);
+  outline-offset: 2px;
+}
+
+@utility focus-ring-inset {
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--dusk-line);
+    outline-offset: -2px;
+  }
+}
+
+/*
  * How something new arrives: a short rise on the spring and a fade, from its
  * starting style. A turn, a name on the cast roster, a notice or a revealed
  * field arrive this way. Reduced motion zeroes the rise, leaving the fade;
  * a horizontal translate the element carries stays.
  */
 @utility arrive {
-  transition:
-    opacity var(--duration-arrive) var(--ease-spring),
-    translate var(--duration-arrive) var(--ease-spring);
+  /* Longhands, so `stagger` can set the delay beside it. */
+  transition-property: opacity, translate;
+  transition-duration: var(--duration-arrive);
+  transition-timing-function: var(--ease-spring);
   @starting-style {
     opacity: 0;
     translate: var(--tw-translate-x, 0) var(--rise);
   }
+}
+
+/*
+ * Siblings arriving together, each `--step` (app/motion-tokens.ts
+ * staggerStep) times `--stagger-step` after the first; at once under
+ * reduced motion.
+ */
+@utility stagger {
+  transition-delay: calc(var(--step, 0) * var(--stagger-step));
 }
 
 /* Popups rise 4px and fade; Base UI's starting and ending styles keep it interruptible. */
@@ -1441,6 +1591,26 @@ details[open] > summary .disclosure-chevron {
   &[data-leaving] {
     opacity: 0;
     translate: 0 var(--panel-shift);
+    transition-duration: var(--duration-panel-out);
+  }
+}
+
+/*
+ * A panel docked at the side (Session beside the thread): it slides in from
+ * its edge on the spring and fades, and leaves the same way, quicker, while
+ * `data-leaving`. Reduced motion zeroes the shift, leaving the fade.
+ */
+@utility dock-side {
+  transition:
+    translate var(--duration-panel-in) var(--ease-spring),
+    opacity var(--duration-panel-in) var(--ease-fade);
+  @starting-style {
+    opacity: 0;
+    translate: var(--panel-shift) 0;
+  }
+  &[data-leaving] {
+    opacity: 0;
+    translate: var(--panel-shift) 0;
     transition-duration: var(--duration-panel-out);
   }
 }

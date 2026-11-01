@@ -60,7 +60,9 @@ test("imports PNG and JSON cards, reports each file and shows their portraits", 
   await expect(tile(page, withoutArt).locator("svg[data-icon='Mark']")).toBeVisible();
 });
 
-test("search, tag filter and order narrow the gallery", async ({ page }) => {
+test("search, tag filter and order narrow the gallery; a tag filter or order glides the cards, a search applies at once", async ({
+  page,
+}) => {
   const tag = `t${crypto.randomUUID().slice(0, 6)}`;
   const [alpha, beta, gamma] = ["Alpha", "Beta", "Gamma"].map(uniqueName);
   await importCards(page, [
@@ -69,12 +71,26 @@ test("search, tag filter and order narrow the gallery", async ({ page }) => {
     jsonCard("c.json", card(gamma ?? "", { tags: ["other"] })),
   ]);
 
+  // Every view transition the page starts, counted.
+  await page.evaluate(() => {
+    const start = document.startViewTransition.bind(document);
+    Object.assign(window, { transitions: 0 });
+    document.startViewTransition = ((update?: ViewTransitionUpdateCallback) => {
+      (window as unknown as { transitions: number }).transitions++;
+      return start(update);
+    }) as typeof document.startViewTransition;
+  });
+  const transitions = () =>
+    page.evaluate(() => (window as unknown as { transitions: number }).transitions);
+
   const search = page.getByRole("searchbox", { name: "Search characters" });
   await search.fill("findable");
   await expect(tile(page, beta ?? "")).toBeVisible();
   await expect(tile(page, alpha ?? "")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/\d+ of \d+/);
   await search.fill("");
+  await expect(tile(page, alpha ?? "")).toBeVisible();
+  expect(await transitions()).toBe(0);
 
   await page.getByRole("button", { name: "Tags" }).click();
   await page.getByRole("searchbox", { name: "Find a tag" }).fill(tag);
@@ -83,14 +99,21 @@ test("search, tag filter and order narrow the gallery", async ({ page }) => {
   await expect(tile(page, alpha ?? "")).toBeVisible();
   await expect(tile(page, beta ?? "")).toBeVisible();
   await expect(tile(page, gamma ?? "")).toHaveCount(0);
+  const filtered = await transitions();
+  expect(filtered).toBeGreaterThan(0);
+  const shownNames = async () =>
+    (await page.getByRole("list", { name: "Characters" }).getByRole("link").allInnerTexts()).map(
+      (text) => text.split("\n")[0],
+    );
+  const before = await shownNames();
 
   await page.getByRole("button", { name: /^Order:/ }).click();
   await page.getByRole("menuitemradio", { name: "Name" }).click();
-  const names = await page
-    .getByRole("list", { name: "Characters" })
-    .getByRole("link")
-    .allInnerTexts();
-  expect(names.map((text) => text.split("\n")[0])).toEqual([alpha, beta]);
+  await expect.poll(shownNames).toEqual([alpha, beta]);
+  // Cards that moved glided there.
+  if (before.join() !== [alpha, beta].join()) {
+    expect(await transitions()).toBeGreaterThan(filtered);
+  }
 
   await page.getByRole("button", { name: `Remove tag filter ${tag}` }).click();
   await expect(tile(page, gamma ?? "")).toBeVisible();

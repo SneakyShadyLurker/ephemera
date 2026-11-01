@@ -67,7 +67,7 @@ function ComboboxPopup({
         align="start"
         sideOffset={6}
         collisionPadding={POPUP_EDGE}
-        className="z-50 w-(--anchor-width) tablet:w-[max(var(--anchor-width),20rem)]"
+        className="z-(--z-overlay) w-(--anchor-width) tablet:w-[max(var(--anchor-width),20rem)]"
         style={{ maxWidth: `calc(100vw - ${2 * POPUP_EDGE}px)` }}
       >
         <ComboboxPrimitive.Popup

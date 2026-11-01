@@ -12,6 +12,7 @@ import {
 } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import {
+  DRAWER_ROW,
   Drawer,
   DrawerCloseIcon,
   DrawerContent,
@@ -116,7 +117,7 @@ function MoreMenu({
         }
       >
         {plate ? (
-          <span className="grid h-6 w-7 place-items-center rounded-[6px] border border-rush bg-surface transition-colors duration-(--duration-quick) ease-fade group-hover/more:bg-surface-hover group-data-popup-open/more:bg-surface-hover">
+          <span className="grid h-6 w-7 place-items-center rounded-sm border border-rush bg-surface transition-colors duration-(--duration-quick) ease-fade group-hover/more:bg-surface-hover group-data-popup-open/more:bg-surface-hover">
             <MoreIcon size={16} />
           </span>
         ) : (
@@ -352,11 +353,7 @@ const PICKER_ROW =
 function GreetingMenu({ message, label }: { message: AssistantMessage; label: string }) {
   return (
     <Menu>
-      <MenuTrigger
-        render={
-          <Button variant="quiet" className="h-8 gap-1.5 px-2 text-note tabular-nums touch:h-11" />
-        }
-      >
+      <MenuTrigger render={<Button size="text" variant="quiet" className="gap-1.5 tabular-nums" />}>
         {label}
         <ChevronDownIcon size={16} />
       </MenuTrigger>
@@ -392,10 +389,11 @@ function GreetingSheet({ message, label }: { message: AssistantMessage; label: s
   return (
     <Drawer open={open} onOpenChange={setOpen} swipeDirection="down" showSwipeHandle>
       <Button
+        size="text"
         variant="quiet"
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
-        className="h-8 gap-1.5 px-2 text-note tabular-nums touch:h-11"
+        className="gap-1.5 tabular-nums"
       >
         {label}
         <ChevronDownIcon size={16} />
@@ -419,9 +417,10 @@ function GreetingSheet({ message, label }: { message: AssistantMessage; label: s
                   setOpen(false);
                 }}
                 className={cn(
+                  DRAWER_ROW,
                   PICKER_ROW,
-                  "press w-full rounded-sm px-2.5 text-left",
-                  index === message.shown ? "bg-surface-selected" : "hover:bg-surface-hover",
+                  "px-2.5",
+                  index === message.shown && "bg-surface-selected hover:bg-surface-selected",
                 )}
               >
                 <span className="pt-px text-note text-reed tabular-nums">{index + 1}</span>

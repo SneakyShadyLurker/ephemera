@@ -25,7 +25,7 @@ export function ImportReportLine({
         <p className="text-pretty text-ember">
           {outcome.file} was not imported: {outcome.reason}.
         </p>
-        <Button className="-ml-2 h-8 px-2 text-note touch:h-11" onClick={onDismiss}>
+        <Button size="text" className="-ml-2" onClick={onDismiss}>
           Dismiss
         </Button>
       </div>
@@ -41,15 +41,11 @@ export function ImportReportLine({
       </p>
       <div className="-ml-2 flex flex-wrap gap-1">
         {hasReport(report) && (
-          <Button
-            className="h-8 px-2 text-note touch:h-11"
-            aria-expanded={details}
-            onClick={() => setDetails(!details)}
-          >
+          <Button size="text" aria-expanded={details} onClick={() => setDetails(!details)}>
             {details ? "Hide details" : "Show details"}
           </Button>
         )}
-        <Button className="h-8 px-2 text-note touch:h-11" onClick={onDismiss}>
+        <Button size="text" onClick={onDismiss}>
           Dismiss
         </Button>
       </div>

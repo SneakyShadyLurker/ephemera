@@ -15,18 +15,11 @@ export function KeptNote() {
     <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-note arrive">
       <CheckIcon size={16} className="text-reed" />
       <p className="min-w-0 break-words text-ink">Kept {kept.name}</p>
-      <Button
-        variant="outline"
-        className="h-8 px-2.5 text-note touch:h-11"
-        onClick={() => start(kept.id, kept.name)}
-      >
+      <Button size="text" variant="outline" onClick={() => start(kept.id, kept.name)}>
         <ChatIcon size={16} />
         Chat
       </Button>
-      <Button
-        className="h-8 px-2 text-note touch:h-11"
-        onClick={() => keptStore.setState({ kept: null })}
-      >
+      <Button size="text" onClick={() => keptStore.setState({ kept: null })}>
         Dismiss
       </Button>
       {dialog}
