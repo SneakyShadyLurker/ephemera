@@ -685,17 +685,17 @@ Version 1.0 holds everything below.
   in four blocks: how to play scenario cards as game master and subject
   cards as their subjects with lean narration and outcomes judged without
   plot armor, reading the player's quoted text as speech and asterisked
-  text as action that no one hears said, what every non-player character must have and how they act
-  in character, give agreement, trust and attraction only when earned
-  rather than by default, hold grievances and turn dark only for reasons,
-  take initiative and first meet `{{user}}` and one another as strangers
+  text as action whose wording no one answers as said, what every
+  non-player character must have and how they act in character, give
+  agreement, trust and attraction only when earned rather than by
+  default, hold grievances and turn dark only for reasons, take
+  initiative and first meet `{{user}}` and one another as strangers
   unless the card, persona, lorebook or story so far says they know each
-  other,
-  a world model of the scene (space, bodies, sex and consequence), and
-  the reply format (a location line, then narration and speech, actions
-  and thoughts prefixed with name and age). They
-  read the tags the AI card creator writes. Its persona source template labels the
-  persona as `<persona>`, the tag the main prompt names, and says it
+  other, a world model of the scene (space, bodies, sex and
+  consequence), and the reply format (a location line, then narration
+  and speech, actions and thoughts prefixed with name and age). They
+  read the tags the AI card creator writes. Its persona source template
+  labels the persona as `<persona>`, the tag the main prompt names, and says it
   describes the player's character, whatever its pronouns, as fact the
   story stays consistent with.
 - Sampler presets: model, max output tokens, temperature, top-p,
