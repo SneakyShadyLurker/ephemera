@@ -896,12 +896,9 @@ describe("rework prompt", () => {
     expect(REWORK_SYSTEM_PROMPT).toContain(
       "Clothing that belongs to a character, in the description, personality, systemPrompt, postHistoryInstructions, characterNote and lorebook entries, is a general style or habit of dress: a set outfit or a list of garments becomes the style it shows",
     );
-    // Keywords follow the outfit into the style; uneditable secondary keywords keep it and say so.
+    // Lorebook activation wins: a keyword's phrase stays, as a habit inside the style.
     expect(REWORK_SYSTEM_PROMPT).toContain(
-      "An entry keyword that names such an outfit turns to the style's words with it; a passage that matches secondary keywords, which you cannot change, stays as it is, and the summary says it still names the outfit.",
-    );
-    expect(REWORK_SYSTEM_PROMPT).toContain(
-      "a character turned into a group, an outfit turned into a style or a scenario card's trim (Layout below) changes them",
+      "Entry keywords and settings stay as they are: a phrase in the outfit that matches a lorebook entry's keywords or secondary keywords stays word for word, folded into the style as a habit",
     );
     // An opening's scene keeps what someone wears in it.
     expect(REWORK_SYSTEM_PROMPT).toContain(
@@ -950,7 +947,7 @@ describe("rework prompt", () => {
     expect(REWORK_SYSTEM_PROMPT).not.toContain("principal characters");
     // Name-keyed lorebook entries follow the role, so none is left unreachable.
     expect(REWORK_SYSTEM_PROMPT).toContain(
-      "a naming fix above, a character turned into a group, an outfit turned into a style or a scenario card's trim",
+      "a naming fix above, a character turned into a group or a scenario card's trim",
     );
     expect(REWORK_SYSTEM_PROMPT).toContain("its name and keywords turned to the group's words");
     // An entry Rework cannot retarget keeps its facts and settings, and the owner hears of it.
