@@ -892,6 +892,19 @@ describe("rework prompt", () => {
     );
   });
 
+  it("turns a set outfit anywhere the model reads into a style of dress, and never copies the portrait's", () => {
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "Clothing, in every field the model reads, is a general style or habit of dress: a set outfit or a list of garments becomes the style it shows",
+    );
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "Never drop a fact beyond a scenario card's characters and trim, a side character's name and a set outfit's garments.",
+    );
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "The clothing it shows is one outfit and never goes into the card as one.",
+    );
+    expect(REWORK_SYSTEM_PROMPT).toContain("never one outfit or a list of garments");
+  });
+
   it("unnames a subject card's minor side characters and invents no secrets or goals", () => {
     expect(REWORK_SYSTEM_PROMPT).toContain(
       "whose name appears only in the description or personality field, nowhere else in the card or lorebook, keywords included, loses the name",
