@@ -129,7 +129,7 @@ describe("a scene picture", () => {
     expect(live(out)).toEqual(["Developing the picture"]);
     expect(out).toContain("Step 3 of 8");
     expect(out).toContain('aria-label="Stop the picture"');
-    expect(out).toContain("data-painting");
+    expect(out).toContain('data-lamplight="busy"');
     expect(out).not.toContain("<canvas");
     expect(out).not.toContain("Paint it again");
   });
@@ -138,7 +138,7 @@ describe("a scene picture", () => {
     const out = view({ status: "waiting" });
     expect(live(out)).toEqual(["Waiting for sign-in"]);
     expect(out).toContain('aria-label="Stop the picture"');
-    expect(out).not.toContain("data-painting");
+    expect(out).not.toContain("data-lamplight");
   });
 
   it("says why it failed, with Paint it again and Hide", () => {

@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { REMEMBERING } from "../chat/MemorySeam.tsx";
 import { chatStore } from "../chat/session.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
@@ -209,7 +208,7 @@ export function NotebookEditor({
           placeholder="Where the story stands now, in a few sentences."
           onChange={(event) => onChange({ name: event.target.value })}
           // On touch, with no pointer to bring up its edge, the field keeps its lower rule at rest.
-          className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush", writing && REMEMBERING)}
+          className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush")}
         />
       </div>
       <OpeningField
@@ -278,7 +277,7 @@ const OPENING_ACTION = "h-8 gap-1.5 px-2 text-ink text-note touch:h-11";
 /**
  * The next chat's opening, edited by hand, or written again from what is
  * remembered by Regenerate beside its label. While it writes, the notebook
- * holds still and breathes; written, the new text goes through the
+ * holds still and a light passes along the field's lower edge; written, the new text goes through the
  * notebook's own edit, so autosave keeps it, and Undo puts the previous text
  * back the same way until the opening is edited or written again. A
  * failure says why under the field. The text lives here and in the
@@ -403,19 +402,23 @@ function OpeningField({
           (reason === null || coarse ? button : <Tooltip label={reason}>{button}</Tooltip>)}
       </div>
       <div className="grid gap-1">
-        <textarea
-          id={fieldId}
-          value={opening}
-          readOnly={readOnly || writing}
-          aria-busy={writing}
-          maxLength={MEMORY_LIMITS.opening}
-          aria-describedby={helpId}
-          onChange={(event) => {
-            dispatch({ type: "edited" });
-            onChange(event.target.value);
-          }}
-          className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush", writing && REMEMBERING)}
-        />
+        {/* While it is written, one light passes along the field's lower edge; the others hold still. */}
+        <div className="relative grid">
+          <textarea
+            id={fieldId}
+            value={opening}
+            readOnly={readOnly || writing}
+            aria-busy={writing}
+            maxLength={MEMORY_LIMITS.opening}
+            aria-describedby={helpId}
+            onChange={(event) => {
+              dispatch({ type: "edited" });
+              onChange(event.target.value);
+            }}
+            className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush")}
+          />
+          {writing && <span aria-hidden="true" className="lamplight-edge" />}
+        </div>
         {/* One region for what Regenerate did, so each change is announced; empty, it takes no room. */}
         <div
           role="status"
@@ -509,7 +512,7 @@ function Lines({
   /** Characters of one line. */
   maxLength?: number;
   readOnly: boolean;
-  /** Held while the opening is written: the lines breathe as its field does. */
+  /** Held while the opening is written. */
   pending: boolean;
   help?: ReactNode;
   onChange: (lines: string[]) => void;
@@ -543,7 +546,7 @@ function Lines({
       </span>
       <div className="grid justify-items-start gap-1">
         {list.length > 0 && (
-          <ul className={cn("grid w-full", pending && REMEMBERING)}>
+          <ul className="grid w-full">
             {list.map((line, at) => (
               // Lines have no identity but their place; focus follows the place.
               <li

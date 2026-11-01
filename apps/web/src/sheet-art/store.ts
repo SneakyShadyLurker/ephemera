@@ -243,7 +243,7 @@ export function createSheetArtStore(deps: SheetArtDeps) {
     };
   });
 
-  // The lamp breathes at the in-flight pace while portraits are on their way; told only on a change.
+  // The mark's drip runs at the in-flight pace while portraits are on their way; told only on a change.
   let writing = false;
   store.subscribe((state) => {
     const now = state.art?.status === "running";

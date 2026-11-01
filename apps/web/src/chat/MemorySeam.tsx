@@ -53,10 +53,6 @@ function latestTurns(state: ChatState): number {
   return latest === null ? 0 : sentCount(state.messages, latest.from, latest.to);
 }
 
-/** The hairline's slow breath while a memory is written, on the lamp's timing; still under reduced motion. */
-export const REMEMBERING =
-  "animate-[breathe_3s_var(--ease-breath)_infinite_alternate] motion-reduce:animate-none";
-
 /** The thread's entrance: a short rise on the spring and a fade; reduced motion keeps the fade. */
 const ENTRANCE = {
   initial: { opacity: 0, y: 4 },
@@ -142,10 +138,10 @@ export function MemorySeam() {
       className="group/seam grid justify-items-center gap-1.5 py-1 text-center"
     >
       <div className="flex w-full items-center gap-4">
-        <span
-          aria-hidden="true"
-          className={cn("h-px flex-1 bg-rush", status === "remembering" && REMEMBERING)}
-        />
+        {/* While a memory is written a light passes outward from the title along each side. */}
+        <span aria-hidden="true" className="relative h-px flex-1 -scale-x-100 bg-rush">
+          {status === "remembering" && <span className="lamplight-edge" />}
+        </span>
         {title !== "" && (
           <p className="min-w-0 max-w-[80%] text-balance font-semibold font-story text-[1.125rem] text-ink leading-6 [overflow-wrap:anywhere]">
             {title}
@@ -153,12 +149,10 @@ export function MemorySeam() {
         )}
         <span
           aria-hidden="true"
-          className={cn(
-            "h-px flex-1 bg-rush",
-            title === "" && "-ml-4",
-            status === "remembering" && REMEMBERING,
-          )}
-        />
+          className={cn("relative h-px flex-1 bg-rush", title === "" && "-ml-4")}
+        >
+          {status === "remembering" && <span className="lamplight-edge" />}
+        </span>
       </div>
       {/* Three columns, the outer two equal, so the line stays under the title whether Edit and
           Forget, which hover reveals, are seen or not. */}

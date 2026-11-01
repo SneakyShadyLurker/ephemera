@@ -589,6 +589,35 @@ const assistant = (state: ChatState) => {
   return message;
 };
 
+describe("how the latest generation ended", () => {
+  it("is complete, failed or stopped by the generation, whatever reply is shown; Clear forgets it", async () => {
+    const { store, reply } = readyStore();
+    expect(store.getState().generationEnd).toBeNull();
+    await replied(store, reply, "First");
+    expect(store.getState().generationEnd).toBe("complete");
+
+    // A failed Continue puts the completed reply back; the generation still failed.
+    const continuing = store.getState().continueReply();
+    reply.push("lost");
+    reply.finish(new Error("upstream"));
+    await continuing;
+    expect(shownReply(assistant(store.getState())).status).toBe("complete");
+    expect(store.getState().generationEnd).toBe("failed");
+
+    // Write for me leaves the messages alone: a completed reply stays the last one.
+    const writing = store.getState().impersonate();
+    reply.push("I wa");
+    await tick();
+    store.getState().stop();
+    reply.finish(new DOMException("aborted", "AbortError"));
+    await writing;
+    expect(store.getState().generationEnd).toBe("stopped");
+
+    store.getState().clear();
+    expect(store.getState().generationEnd).toBeNull();
+  });
+});
+
 describe("greetings", () => {
   it("open an empty chat, step and pick without requests, and stop at the last", () => {
     const { store, reply } = readyStore();

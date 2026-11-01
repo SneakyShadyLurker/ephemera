@@ -1,5 +1,6 @@
 import { formatLocationLine } from "@ephemera/core";
 import { Component, lazy, type ReactNode, Suspense } from "react";
+import { useFormFactor } from "@/app/form-factor.ts";
 import { cn } from "@/lib/cn";
 import { MODEL_BUSY } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
@@ -56,10 +57,13 @@ function Nameplate({
   voice,
   name,
   qualifier = "",
+  writing = false,
 }: {
   voice: "story" | "line";
   name: string;
   qualifier?: string;
+  /** The reply is being written with no portrait in view: light passes along the hairline. */
+  writing?: boolean;
 }) {
   return (
     <p data-speaker="" data-voice={voice} className="nameplate">
@@ -67,6 +71,11 @@ function Nameplate({
         {name}
         <span className="sr-only">{`${qualifier}: `}</span>
       </span>
+      {voice === "story" && (
+        <span aria-hidden="true" data-nameplate-rule="">
+          {writing && <span className="lamplight-edge" />}
+        </span>
+      )}
     </p>
   );
 }
@@ -262,8 +271,10 @@ function ReplyTurn({
   locked: boolean;
   presence: boolean;
 }) {
-  const name = useChatCharacter()?.name;
-  const character = name ?? "Model";
+  const chosen = useChatCharacter();
+  const character = chosen?.name ?? "Model";
+  // One light for the reply: the portrait's rim where the float shows one (Presence), else the hairline.
+  const rim = useFormFactor() !== "phone" && chosen?.portrait != null;
   const showHidden = useSetting((settings) => settings.showHiddenReasoning);
   const reply = shownReply(message);
   const streaming = reply.status === "streaming";
@@ -281,7 +292,7 @@ function ReplyTurn({
         folded && FOLDED,
       )}
     >
-      <Nameplate voice="story" name={character} />
+      <Nameplate voice="story" name={character} writing={streaming && !rim} />
       {/* Under the nameplate, so it sticks clear of the portrait; the reply's text wraps around it. */}
       {presence && <Presence placement="float" />}
       <div className="prose-turn min-w-0 text-story-phone tablet:text-story">

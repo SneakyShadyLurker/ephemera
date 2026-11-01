@@ -248,6 +248,99 @@ test("Multiple Subjects: written with both characters and kept as one card", asy
   expect(kept).toHaveLength(1);
 });
 
+/** How a rim's ending went: the tail closed onto the head (success), and the light faded. */
+interface RimEnding {
+  closed: boolean;
+  faded: boolean;
+}
+
+/**
+ * Before the page loads: records each rim's ending, in order, once the rim
+ * component has started it (components/lamplight.tsx).
+ */
+function recordRimEndings() {
+  const endings: RimEnding[] = [];
+  (window as unknown as { rimEndings: RimEnding[] }).rimEndings = endings;
+  new MutationObserver((records) => {
+    for (const { target } of records) {
+      if (!(target instanceof Element) || target.getAttribute("data-lamplight") !== "ending")
+        continue;
+      setTimeout(() => {
+        const tail = target.querySelector('[data-rim="tail"]');
+        const closed = (tail?.getAnimations() ?? []).some(
+          (animation) =>
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect.getKeyframes().some(
+              (frame) =>
+                String(frame.strokeDasharray)
+                  .match(/[\d.]+/g)
+                  ?.map(Number)
+                  .join() === "100,0",
+            ),
+        );
+        const faded = (target.querySelector("g")?.getAnimations() ?? []).some(
+          (animation) => !(animation instanceof CSSAnimation),
+        );
+        endings.push({ closed, faded });
+      }, 60);
+    }
+  }).observe(document, { subtree: true, attributes: true, attributeFilter: ["data-lamplight"] });
+}
+
+const rimEndings = (page: Page) =>
+  page.evaluate(() => (window as unknown as { rimEndings: RimEnding[] }).rimEndings);
+
+const CLOSED: RimEnding = { closed: true, faded: true };
+
+test("a finished card's frame closes its light before the showcase, with portraits off", async ({
+  page,
+}) => {
+  await page.addInitScript(recordRimEndings);
+  const base = keptBase();
+  // mock-slow writes for seconds, so the frame's light runs before it closes; mock-fast can finish within a frame.
+  await createCard(page, {
+    kind: "subject",
+    description: ownerDescription(base),
+    model: "mock-slow",
+  });
+  await expect(page.getByText("Portraits off", { exact: true })).toBeVisible({ timeout: 20_000 });
+  expect(await rimEndings(page)).toEqual([CLOSED]);
+  await expect(page.locator(".lamplight-rim")).toHaveCount(0);
+});
+
+test("on a phone the card's light closes, then the art's frame carries it and closes on the first batch", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ mode: "plain" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(recordRimEndings);
+  // The art waits until the card's light has closed and the art's rim runs.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/creator/art", async (route) => {
+    await held;
+    await route.continue().catch(() => {});
+  });
+  try {
+    const base = keptBase();
+    await createCard(page, {
+      kind: "subject",
+      description: ownerDescription(base),
+      model: "mock-slow",
+    });
+    await expect.poll(() => rimEndings(page), { timeout: 20_000 }).toEqual([CLOSED]);
+    await expect(page.locator('.lamplight-rim[data-lamplight="busy"]')).toHaveCount(1);
+    release();
+    await expectBatch(page);
+    await expect.poll(() => rimEndings(page), { timeout: ART_TIMEOUT }).toEqual([CLOSED, CLOSED]);
+  } finally {
+    release();
+  }
+});
+
 test("a ComfyUI failure says portraits are unavailable and the card can still be kept", async ({
   comfy,
   page,

@@ -37,9 +37,17 @@ function inView(point: Element, scroller: Element): boolean {
  * stands where text arrives. The column follows the writing only while the
  * owner stays at its edge. While the model thinks, before its first text,
  * the frame and the edge say so; when a first draft lacked parts, a quiet
- * line above the name says it is being written again.
+ * line above the name says it is being written again. A finished card stays
+ * here while the frame's light closes and fades, then `onClosed` hands it to
+ * the showcase.
  */
-export function Writing({ scroller }: { scroller: RefObject<HTMLDivElement | null> }) {
+export function Writing({
+  scroller,
+  onClosed,
+}: {
+  scroller: RefObject<HTMLDivElement | null>;
+  onClosed: () => void;
+}) {
   const kind = useCreator((state) => state.card?.kind ?? "subject");
   const status = useCreator((state) => state.card?.status ?? "writing");
   const answer = useCreator((state) => state.card?.answer ?? "");
@@ -110,7 +118,12 @@ export function Writing({ scroller }: { scroller: RefObject<HTMLDivElement | nul
     <>
       <CardLayout
         frame={
-          <CardFrame progress={writing ? writingProgress(parsed) : undefined}>
+          <CardFrame
+            progress={writing ? writingProgress(parsed) : undefined}
+            busy={writing}
+            settled={status === "complete"}
+            onEnd={onClosed}
+          >
             <NameLeaf name={parsed.name.text} caption={caption} />
           </CardFrame>
         }

@@ -8,7 +8,7 @@ import { ChunkLoadError } from "./chunk-error.ts";
 import { useFormFactor } from "./form-factor.ts";
 import { setNavOpen } from "./ui.ts";
 
-/** Whether anything is being written now (a chat reply, a card or its art): the lamp breathes faster then. */
+/** Whether anything is being written now (a chat reply, a card or its art): the mark's drip quickens then. */
 export function useInFlight(): boolean {
   const reply = useChat((state) => state.generating);
   const creating = useCreatorWriting();
@@ -51,7 +51,7 @@ export const SETTINGS_FRAME =
 
 /**
  * A screen's 56px header row. On phones it starts with the navigation button,
- * the breathing mark, which quickens while a reply is written; the hairline appears only once content scrolls beneath it.
+ * the dripping mark, which quickens while a reply is written; the hairline appears only once content scrolls beneath it.
  */
 export function ScreenHeader({
   title,
@@ -91,7 +91,7 @@ export function ScreenHeader({
         >
           {phone && (
             <Button size="icon" aria-label="Open navigation" onClick={() => setNavOpen(true)}>
-              <MarkIcon breathing writing={writing} size={24} />
+              <MarkIcon dripping writing={writing} size={24} />
             </Button>
           )}
           {lead}

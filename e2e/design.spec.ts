@@ -253,114 +253,119 @@ test("the app icon is served and follows the color scheme", async ({ page }) => 
 });
 
 /**
- * The one breathing lamp, at the top of the interface: the rail's mark, or on
- * a phone the mark that opens navigation, which keeps breathing alone while
+ * The one dripping mark, at the top of the interface: the rail's mark, or on
+ * a phone the mark that opens navigation, which keeps dripping alone while
  * the sheet is open.
  */
-async function navigationLamp(page: Page, phone: boolean) {
+async function navigationMark(page: Page, phone: boolean) {
   await page.goto("/");
-  const lamps = page.locator(".lamp-halo");
-  await expect(lamps).toHaveCount(1);
+  const marks = page.locator(".lamplight-mark");
+  await expect(marks).toHaveCount(1);
   if (phone) {
     const button = page.getByRole("button", { name: "Open navigation" });
-    await expect(button.locator(".lamp-halo")).toHaveCount(1);
     // Found by CSS, since the open sheet hides the header from the accessibility tree.
-    const halo = page.locator("header .lamp-halo");
-    await expect(halo).toHaveCount(1);
+    const mark = page.locator("header .lamplight-mark");
+    await expect(button.locator(".lamplight-mark")).toHaveCount(1);
     // At the top of the screen, in the header row.
-    const box = await halo.boundingBox();
+    const box = await mark.boundingBox();
     expect((box?.y ?? Infinity) + (box?.height ?? 0) / 2).toBeLessThan(56);
     await button.click();
     const sheet = page.getByRole("dialog", { name: "Ephemera" });
     await expect(sheet.getByRole("link", { name: "Characters" })).toBeVisible();
-    await expect(sheet.locator(".lamp-halo")).toHaveCount(0);
-    await expect(lamps).toHaveCount(1);
-    return halo;
+    await expect(sheet.locator(".lamplight-mark")).toHaveCount(0);
+    await expect(marks).toHaveCount(1);
+    return mark;
   }
   const navigation = page.getByRole("navigation", { name: "Main" });
+  const mark = navigation.locator(".lamplight-mark");
+  await expect(mark).toHaveCount(1);
   // In the navigation, above its destinations.
-  const halo = navigation.locator(".lamp-halo");
-  await expect(halo).toHaveCount(1);
   const above = await navigation.evaluate((nav) => {
-    const glow = nav.querySelector(".lamp-halo")?.getBoundingClientRect();
+    const drawing = nav.querySelector(".lamplight-mark")?.getBoundingClientRect();
     const first = nav.querySelector("a")?.getBoundingClientRect();
-    return glow && first ? glow.y + glow.height / 2 < first.y : false;
+    return drawing && first ? drawing.y + drawing.height < first.y : false;
   });
   expect(above).toBe(true);
-  return halo;
+  return mark;
 }
 
 for (const { name, width, height } of FORM_FACTORS) {
-  test(`the mark's lamp breathes in a seamless loop, and rests under reduced motion (${name})`, async ({
+  test(`the mark has no halo: its lamp's light drips down the trail in a seamless loop, and holds still under reduced motion (${name})`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height });
-    const halo = await navigationLamp(page, name === "phone");
-    const loop = await halo.evaluate(async (el) => {
-      const [animation] = el.getAnimations();
+    const mark = await navigationMark(page, name === "phone");
+    // Nothing is drawn beside the drawing: no halo, no wrapper of its own.
+    expect(await mark.evaluate((svg) => svg.parentElement?.children.length)).toBe(1);
+    const loop = await mark.evaluate(async (svg) => {
+      const lamp = svg.querySelector("[data-lamp]");
+      const dots = [...svg.querySelectorAll(".lamplight-drip")];
+      const [dot] = dots;
+      const [animation] = dot?.getAnimations() ?? [];
       const effect = animation?.effect;
       const frames = effect instanceof KeyframeEffect ? effect.getKeyframes() : [];
-      const at = (offset: number) => {
-        const frame = frames.find((f) => f.computedOffset === offset);
-        return { opacity: frame?.opacity, scale: frame?.scale };
-      };
+      const at = (offset: number) => frames.find((f) => f.computedOffset === offset);
       // It runs by itself: the timeline advances across a few frames.
       const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
       const started = Number(animation?.currentTime);
       for (let i = 0; i < 5; i++) await frame();
       const advanced = Number(animation?.currentTime) - started;
       const playState = animation?.playState;
-      // The rendered glow, sampled with the loop paused at a given moment.
+      // The dot sampled with the loop paused at a given moment of its cycle (after its delay).
+      const delay = Number(effect?.getTiming().delay);
       const sample = (ms: number) => {
         if (animation) {
           animation.pause();
-          animation.currentTime = ms;
+          animation.currentTime = delay + ms;
         }
-        return { opacity: getComputedStyle(el).opacity, scale: getComputedStyle(el).scale };
+        const style = dot ? getComputedStyle(dot) : undefined;
+        return { fill: style?.fill, opacity: style?.opacity };
       };
-      const centre = (box: DOMRect) => [box.x + box.width / 2, box.y + box.height / 2];
-      const lamp = el.parentElement?.querySelector("circle.fill-dusk")?.getBoundingClientRect();
-      const glow = el.getBoundingClientRect();
       return {
+        dots: dots.length,
+        lampAnimations: lamp?.getAnimations().length,
+        animations: svg.getAnimations({ subtree: true }).length,
+        name: animation instanceof CSSAnimation ? animation.animationName : "",
+        duration: effect?.getComputedTiming().duration,
+        iterations: effect?.getComputedTiming().iterations,
+        delay,
         playState,
         advanced,
-        iterations: effect?.getComputedTiming().iterations,
-        first: at(0),
-        last: at(1),
+        first: { fill: at(0)?.fill, opacity: at(0)?.opacity },
+        last: { fill: at(1)?.fill, opacity: at(1)?.opacity },
         rest: sample(0),
-        peak: sample(2400),
-        // Either side of the seam between two cycles.
-        seam: [sample(5990), sample(6010)],
-        offset: lamp ? Math.hypot(...centre(glow).map((v, i) => v - (centre(lamp)[i] ?? 0))) : null,
-        width: glow.width,
+        lit: sample(300),
+        lamp: lamp ? getComputedStyle(lamp).fill : null,
       };
     });
-    expect(loop.playState).toBe("running");
+    // The interface's small cut has one trail dot; it drips 0.18 s after the lamp.
+    expect(loop).toMatchObject({
+      dots: 1,
+      lampAnimations: 0,
+      animations: 1,
+      name: "lamplight-drip",
+      duration: 6000,
+      iterations: Infinity,
+      delay: 180,
+      playState: "running",
+    });
     expect(loop.advanced).toBeGreaterThan(0);
-    expect(loop.iterations).toBe(Infinity);
+    // No seam: the loop ends where it starts, at the crescent's colour, dimmed.
     expect(loop.first).toEqual(loop.last);
-    // It breathes: the glow at its peak differs from the glow at rest.
-    expect(Number(loop.peak.opacity)).toBeGreaterThan(Number(loop.rest.opacity));
-    expect(loop.peak.scale).not.toBe(loop.rest.scale);
-    // No seam: the last moment of a cycle is all but the first of the next.
-    const [before, after] = loop.seam;
-    expect(Math.abs(Number(before?.opacity) - Number(after?.opacity))).toBeLessThan(0.001);
-    // The glow is centred on the lamp.
-    expect(loop.width).toBeGreaterThan(0);
-    expect(loop.offset).toBeLessThan(0.5);
+    expect(loop.rest.opacity).toBe("0.6");
+    // For a beat the dot takes the lamp's light, at full strength.
+    expect(loop.lit).toEqual({ fill: loop.lamp, opacity: "1" });
 
     await page.emulateMedia({ reducedMotion: "reduce" });
-    const still = await (await navigationLamp(page, name === "phone")).evaluate((el) => ({
-      animations: el.getAnimations().length,
-      opacity: getComputedStyle(el).opacity,
-      scale: getComputedStyle(el).scale,
-    }));
-    // Still, at the loop's resting frame, so switching the preference never jumps.
-    expect(still).toEqual({
-      animations: 0,
-      opacity: String(loop.first.opacity),
-      scale: String(loop.first.scale),
+    const still = await (await navigationMark(page, name === "phone")).evaluate((svg) => {
+      const dot = svg.querySelector(".lamplight-drip");
+      return {
+        animations: svg.getAnimations({ subtree: true }).length,
+        opacity: dot ? getComputedStyle(dot).opacity : null,
+      };
     });
+    // Still, at the loop's resting frame, so switching the preference never jumps.
+    expect(still).toEqual({ animations: 0, opacity: "0.6" });
   });
 }
 
@@ -1145,106 +1150,224 @@ test("on a phone the story and the composer keep 20px margins", async ({ page })
 });
 
 /**
- * What the waiting motion shows at a moment: the lamp's rate and place in its
- * loop, the portrait's glow and its breath, and the streamed words' fades.
+ * What the activity light shows at a moment: the mark's drip, the floating
+ * portrait's rim, the last reply's hairline pass and the streamed words.
  */
-async function waitingMotion(page: Page) {
+async function activity(page: Page) {
   return page.evaluate(() => {
-    const [lamp] = document.querySelector(".lamp-halo")?.getAnimations() ?? [];
-    const glow = document.querySelector("[data-presence-glow]");
-    const breaths = (glow?.getAnimations({ subtree: true }) ?? []).filter(
-      (animation) => animation instanceof CSSAnimation,
-    );
+    const [drip] =
+      document.querySelector(".lamplight-mark")?.getAnimations({ subtree: true }) ?? [];
+    const rim = document.querySelector("[data-presence] .lamplight-rim");
+    const lap = rim?.querySelector("g");
+    const [lapping] = (lap?.getAnimations() ?? []).filter((a) => a instanceof CSSAnimation);
+    const ring = rim?.querySelector('[data-rim="ring"]');
+    const reply = [...document.querySelectorAll('[data-role="assistant"]')].at(-1);
+    const pass = reply?.querySelector("[data-speaker] .lamplight-edge");
+    const [passing] = pass?.getAnimations({ subtree: true }) ?? [];
     const words = [...document.querySelectorAll("[data-sd-animate]")];
     const newest = words.at(-1);
-    const caret = document.querySelector(".caret-after > :last-child");
     return {
-      lampRate: lamp?.playbackRate,
-      lampTime: Number(lamp?.currentTime),
-      lampProgress: lamp?.effect?.getComputedTiming().progress,
-      glowOpacity: glow ? Number(getComputedStyle(glow).opacity) : null,
-      breaths: breaths.map((animation) => ({
-        name: animation instanceof CSSAnimation ? animation.animationName : "",
-        duration: animation.effect?.getComputedTiming().duration,
-        playState: animation.playState,
-        progress: animation.effect?.getComputedTiming().progress,
-      })),
+      dripRate: drip?.playbackRate,
+      dripTime: Number(drip?.currentTime),
+      rims: document.querySelectorAll(".lamplight-rim").length,
+      rim: rim ? (rim.getAttribute("data-lamplight") ?? "idle") : null,
+      lap: lapping
+        ? {
+            duration: lapping.effect?.getComputedTiming().duration,
+            state: lapping.playState,
+            shown: lap ? getComputedStyle(lap).display !== "none" : false,
+          }
+        : null,
+      ring: ring ? Number(getComputedStyle(ring).opacity) : null,
+      pass: passing
+        ? {
+            name: passing instanceof CSSAnimation ? passing.animationName : "",
+            duration: passing.effect?.getComputedTiming().duration,
+            state: passing.playState,
+          }
+        : null,
       words: words.length,
       newest: newest
         ? {
             name: getComputedStyle(newest).animationName,
             duration: getComputedStyle(newest).animationDuration,
-            delay: getComputedStyle(newest).animationDelay,
           }
         : null,
-      caret: caret ? getComputedStyle(caret, "::after").animationName : null,
     };
   });
 }
 
-for (const { name, width, height } of [FORM_FACTORS[2], FORM_FACTORS[0]]) {
-  test(`while a reply is in flight the lamp breathes faster, the portrait glows and words fade in; at rest none of it (${name})`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height });
-    const character = await characterWithArt(page);
-    await openChat(page, "mock-slow");
-    await chooseCharacter(page, character);
-    await expect(page.locator(".lamp-halo")).toHaveCount(1);
-    await expect(page.locator("[data-presence-glow]")).toHaveCount(1);
-
-    // At rest: the lamp at its own pace, no glow, nothing breathing behind the portrait.
-    const rest = await waitingMotion(page);
-    expect(rest).toMatchObject({ lampRate: 1, glowOpacity: 0, breaths: [], words: 0 });
-
-    // Listening: text in the focused composer lights the glow faintly (light canvas) and holds it still.
-    const field = page.getByLabel("Message", { exact: true });
-    const input = canary("in");
-    await field.fill(input);
-    await expect.poll(async () => (await waitingMotion(page)).glowOpacity).toBeCloseTo(0.45, 2);
-    expect(await waitingMotion(page)).toMatchObject({ lampRate: 1, breaths: [] });
-
-    // In flight: the lamp quickens in place, the glow breathes with it, new words fade in.
-    await field.press("Enter");
-    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
-    await expect.poll(async () => (await waitingMotion(page)).lampRate).toBeCloseTo(5 / 3, 5);
-    await expect.poll(async () => (await waitingMotion(page)).glowOpacity).toBe(1);
-    await expect.poll(async () => (await waitingMotion(page)).words).toBeGreaterThan(0);
-    // Observe a fresh span; already-seen spans can have zero animation duration.
-    await expect
-      .poll(async () => (await waitingMotion(page)).newest)
-      .toEqual({ name: "sd-fadeIn", duration: "0.12s", delay: "0s" });
-    const writing = await waitingMotion(page);
-    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
-    // The rate changed without restarting the loop.
-    expect(writing.lampTime).toBeGreaterThan(rest.lampTime);
-    expect(writing.breaths).toHaveLength(1);
-    expect(writing.breaths[0]).toMatchObject({
-      name: "glow-breathe",
-      duration: 3600,
-      playState: "running",
+/**
+ * Watches the portrait's rim for its next ending and reports how it went:
+ * whether the tail closed onto the head (a stroke-dasharray animation to a
+ * full ring) and whether the light faded.
+ */
+async function watchEnding(page: Page) {
+  await page.evaluate(() => {
+    const rim = document.querySelector("[data-presence] .lamplight-rim");
+    const store = window as unknown as { ending?: Promise<{ closed: boolean; faded: boolean }> };
+    store.ending = new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        if (rim?.getAttribute("data-lamplight") !== "ending") return;
+        observer.disconnect();
+        // Once the component's effect has started the ending.
+        setTimeout(() => {
+          const tail = rim.querySelector('[data-rim="tail"]');
+          const closed = (tail?.getAnimations() ?? []).some((animation) =>
+            animation.effect instanceof KeyframeEffect
+              ? animation.effect.getKeyframes().some(
+                  (frame) =>
+                    String(frame.strokeDasharray)
+                      .match(/[\d.]+/g)
+                      ?.map(Number)
+                      .join() === "100,0",
+                )
+              : false,
+          );
+          const faded = (rim.querySelector("g")?.getAnimations() ?? []).some(
+            (animation) => !(animation instanceof CSSAnimation),
+          );
+          resolve({ closed, faded });
+        }, 60);
+      });
+      if (rim) observer.observe(rim, { attributes: true, attributeFilter: ["data-lamplight"] });
     });
-    // In step with the lamp: the same place in the same 3.6 s breath.
-    const apart = Math.abs(Number(writing.breaths[0]?.progress) - Number(writing.lampProgress));
-    expect(Math.min(apart, 1 - apart)).toBeLessThan(0.05);
-    // The caret holds still while text streams.
-    expect(writing.caret).toBe("none");
-
-    // Done: everything returns to rest, and the words are plain text again.
-    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
-    await expect
-      .poll(async () => (await waitingMotion(page)).glowOpacity, { intervals: [50], timeout: 400 })
-      .toBe(0);
-    const done = await waitingMotion(page);
-    expect(done).toMatchObject({ lampRate: 1, breaths: [], words: 0 });
-    expect(done.lampTime).toBeGreaterThan(writing.lampTime);
-    await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-      `Reply: ${input.replace("-in-", "-out-")}${" more".repeat(80)}`,
-    );
   });
+  return () =>
+    page.evaluate(
+      () => (window as unknown as { ending: Promise<{ closed: boolean; faded: boolean }> }).ending,
+    );
 }
 
-test("under reduced motion a reply in flight holds the lamp still, shows a still glow and words at once; lifting it restores the rhythm", async ({
+test("a desktop reply lights the portrait's rim, not the hairline: its lap runs, the mark's drip quickens in place, and a finished reply closes the ring", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: FORM_FACTORS[2].width, height: FORM_FACTORS[2].height });
+  const character = await characterWithArt(page);
+  await openChat(page, "mock-slow");
+  await chooseCharacter(page, character);
+  await expect(page.locator("[data-presence] .lamplight-rim")).toHaveCount(1);
+
+  // At rest: the drip at its own pace, the rim dark.
+  const rest = await activity(page);
+  expect(rest).toMatchObject({ dripRate: 1, rims: 1, rim: "idle", ring: 0, words: 0 });
+
+  // Listening: text in the focused composer shows a still, faint ring.
+  const field = page.getByLabel("Message", { exact: true });
+  const input = canary("in");
+  await field.fill(input);
+  await expect.poll(async () => (await activity(page)).ring).toBeCloseTo(0.25, 2);
+  expect(await activity(page)).toMatchObject({ dripRate: 1, rim: "idle" });
+
+  // In flight: one light, on the rim; the nameplate's hairline stays still.
+  await field.press("Enter");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect.poll(async () => (await activity(page)).dripRate).toBeCloseTo(5 / 3, 5);
+  await expect.poll(async () => (await activity(page)).words).toBeGreaterThan(0);
+  await expect
+    .poll(async () => (await activity(page)).newest)
+    .toEqual({ name: "sd-fadeIn", duration: "0.12s" });
+  const writing = await activity(page);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  expect(writing).toMatchObject({
+    rim: "busy",
+    lap: { duration: 6000, state: "running", shown: true },
+    pass: null,
+  });
+  // The rate changed without restarting the drip.
+  expect(writing.dripTime).toBeGreaterThan(rest.dripTime);
+
+  // Done: the tail closes onto the head, the ring fades, and the drip returns to rest.
+  const ending = await watchEnding(page);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+  expect(await ending()).toEqual({ closed: true, faded: true });
+  await expect.poll(async () => (await activity(page)).rim).toBe("idle");
+  const done = await activity(page);
+  expect(done).toMatchObject({ dripRate: 1, words: 0, lap: { state: "paused" } });
+  expect(done.dripTime).toBeGreaterThan(writing.dripTime);
+  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+    `Reply: ${input.replace("-in-", "-out-")}${" more".repeat(80)}`,
+  );
+});
+
+test("Stop fades the portrait's rim without closing it", async ({ page }) => {
+  await page.setViewportSize({ width: FORM_FACTORS[2].width, height: FORM_FACTORS[2].height });
+  const character = await characterWithArt(page);
+  await openChat(page, "mock-slow");
+  await chooseCharacter(page, character);
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect.poll(async () => (await activity(page)).rim).toBe("busy");
+  const ending = await watchEnding(page);
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(lastReply(page)).toHaveAttribute("data-status", "stopped");
+  expect(await ending()).toEqual({ closed: false, faded: true });
+  await expect.poll(async () => (await activity(page)).rim).toBe("idle");
+});
+
+test("a stopped Write for me fades the rim without closing it, though the reply shown is complete", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: FORM_FACTORS[2].width, height: FORM_FACTORS[2].height });
+  const character = await characterWithArt(page);
+  await openChat(page, "mock-slow");
+  await chooseCharacter(page, character);
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+  await expect.poll(async () => (await activity(page)).rim).toBe("idle");
+  await page.getByRole("button", { name: "Write for me" }).click();
+  await expect.poll(async () => (await activity(page)).rim).toBe("busy");
+  const ending = await watchEnding(page);
+  await page.getByRole("button", { name: "Stop" }).click();
+  expect(await ending()).toEqual({ closed: false, faded: true });
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+});
+
+test("a tablet's floating portrait is a small frame: its rim draws 1px strokes and no bloom, unlike the desktop's", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.setViewportSize({ width: FORM_FACTORS[1].width, height: FORM_FACTORS[1].height });
+  const character = await characterWithArt(page);
+  await openChat(page, "mock-slow");
+  await chooseCharacter(page, character);
+  const rim = page.locator("[data-presence] .lamplight-rim");
+  const strokes = () =>
+    rim.evaluate((node) =>
+      Object.fromEntries(
+        [...node.querySelectorAll("[data-rim]")].map((stroke) => [
+          stroke.getAttribute("data-rim"),
+          getComputedStyle(stroke).display === "none"
+            ? "none"
+            : getComputedStyle(stroke).strokeWidth,
+        ]),
+      ),
+    );
+  await expect(rim).toHaveCount(1);
+  expect(await strokes()).toEqual({ ring: "1px", bloom: "none", tail: "1px", head: "1px" });
+  await page.setViewportSize({ width: FORM_FACTORS[2].width, height: FORM_FACTORS[2].height });
+  await expect.poll(strokes).toEqual({ ring: "1.5px", bloom: "4px", tail: "1.5px", head: "2px" });
+});
+
+test("a phone reply passes a light along the nameplate's hairline and draws no rim", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: FORM_FACTORS[0].width, height: FORM_FACTORS[0].height });
+  const character = await characterWithArt(page);
+  await openChat(page, "mock-slow");
+  await chooseCharacter(page, character);
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect
+    .poll(async () => (await activity(page)).pass)
+    .toEqual({ name: "lamplight-pass", duration: 3600, state: "running" });
+  // Neither the band's portrait nor the header's carries a rim.
+  expect(await activity(page)).toMatchObject({ rims: 0, rim: null });
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+  expect((await activity(page)).pass).toBeNull();
+});
+
+test("under reduced motion a reply in flight shows a still ring with no lap, no drip and words at once; lifting it brings the drip back at the writing pace", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1253,22 +1376,24 @@ test("under reduced motion a reply in flight holds the lamp still, shows a still
   await chooseCharacter(page, character);
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
-  await expect.poll(async () => (await waitingMotion(page)).glowOpacity).toBeCloseTo(0.45, 2);
-  await expect.poll(async () => (await waitingMotion(page)).words).toBeGreaterThan(0);
-  const writing = await waitingMotion(page);
+  await expect.poll(async () => (await activity(page)).ring).toBeCloseTo(0.4, 2);
+  await expect.poll(async () => (await activity(page)).words).toBeGreaterThan(0);
+  const writing = await activity(page);
   await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
-  expect(writing).toMatchObject({ breaths: [], newest: { name: "none" }, caret: "none" });
-  const lamp = await page.locator(".lamp-halo").evaluate((el) => el.getAnimations().length);
-  expect(lamp).toBe(0);
+  expect(writing).toMatchObject({
+    rim: "busy",
+    // The lap is not drawn, so it does not run.
+    lap: null,
+    dripRate: undefined,
+    newest: { name: "none" },
+  });
 
-  // Lifting the preference mid-reply brings the loops back at the writing rhythm, in step.
+  // Lifting the preference mid-reply brings the drip back at the writing pace, and the lap.
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await expect.poll(async () => (await waitingMotion(page)).lampRate).toBeCloseTo(5 / 3, 5);
-  const resumed = await waitingMotion(page);
+  await expect.poll(async () => (await activity(page)).dripRate).toBeCloseTo(5 / 3, 5);
+  const resumed = await activity(page);
   await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
-  expect(resumed.breaths).toHaveLength(1);
-  const apart = Math.abs(Number(resumed.breaths[0]?.progress) - Number(resumed.lampProgress));
-  expect(Math.min(apart, 1 - apart)).toBeLessThan(0.05);
+  expect(resumed.lap).toMatchObject({ state: "running", shown: true });
 });
 
 test("Continue streams on without fading the reply's earlier words out and back in", async ({

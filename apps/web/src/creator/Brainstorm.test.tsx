@@ -112,12 +112,12 @@ describe("the ideas list", () => {
     const writing = html(
       <IdeaList rows={rows} busy={true} edge={3} picked={null} onPick={() => {}} />,
     );
-    expect(writing.match(/frame-drift/g)).toHaveLength(1);
-    const lit = writing.split("<li").filter((row) => row.includes("frame-drift"));
+    expect(writing.match(/lamplight-edge/g)).toHaveLength(1);
+    const lit = writing.split("<li").filter((row) => row.includes("lamplight-edge"));
     expect(lit).toHaveLength(1);
     expect(lit[0]).toContain(idea(4).pitch);
     const waiting = html(<IdeaList rows={rows} busy={true} picked={null} onPick={() => {}} />);
-    expect(waiting).not.toContain("frame-drift");
+    expect(waiting).not.toContain("lamplight-edge");
   });
 
   it("marks the picked row as current", () => {

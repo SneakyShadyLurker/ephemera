@@ -1,5 +1,5 @@
 import { Link, useBlocker } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { BackIcon } from "@/components/icons";
@@ -38,8 +38,15 @@ export function CreateScreen() {
       (state.brainstorm.status === "classifying" || state.brainstorm.status === "writing"),
   );
   const scroller = useRef<HTMLDivElement>(null);
-  // The lamp glow breathes behind the frame, and the navigation lamp at the
-  // same pace, while ideas, the card or its art are in progress.
+  // A card that just finished writing stays in its frame while the frame's light closes on it.
+  const [seen, setSeen] = useState(status);
+  const [closing, setClosing] = useState(false);
+  if (status !== seen) {
+    setSeen(status);
+    setClosing(seen === "writing" && status === "complete");
+  }
+  const shown = closing ? null : complete;
+  // The navigation mark's drip quickens while ideas, the card or its art are in progress.
   const busy = status === "writing" || developing || ideas;
 
   useEffect(() => {
@@ -85,14 +92,14 @@ export function CreateScreen() {
           <Brainstorm scroller={scroller} />
         ) : stage === "describe" || status === null ? (
           <Describe />
-        ) : complete !== null ? (
-          <Showcase card={complete} />
+        ) : shown !== null ? (
+          <Showcase card={shown} />
         ) : (
-          <Writing scroller={scroller} />
+          <Writing scroller={scroller} onClosed={() => setClosing(false)} />
         )}
       </div>
       {ideas && <BrainstormBar />}
-      {complete !== null && <KeepBar kind={complete.kind} />}
+      {shown !== null && <KeepBar kind={shown.kind} />}
       <LeaveGuard />
     </main>
   );

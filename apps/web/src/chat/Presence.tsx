@@ -1,6 +1,5 @@
-import { useRef } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { useLampStep } from "@/components/icons";
+import { LamplightRim } from "@/components/lamplight.tsx";
 import { cn } from "@/lib/cn";
 import { FullPortrait, Leaf, Portrait } from "../portraits/Portrait.tsx";
 import { PortraitViewer } from "../portraits/PortraitViewer.tsx";
@@ -43,7 +42,6 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         placement === "band" && "[view-timeline:--presence_block]",
       )}
     >
-      <Glow />
       <PortraitViewer
         label={`Portrait of ${name}`}
         art={<FullPortrait id={character.id} version={character.portrait} shown={size} />}
@@ -51,6 +49,8 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
       >
         <Portrait id={character.id} name={name} version={character.portrait} size={size} />
       </PortraitViewer>
+      {/* The reply's one light on tablet and desktop; phones carry it on the nameplate's hairline. */}
+      {placement === "float" && <ReplyRim />}
     </div>
   );
 
@@ -116,31 +116,21 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
 }
 
 /**
- * The glow behind the portrait while a reply is written. Its breath starts in
- * step with the mark's lamp, which breathes at the same rate then, so the two
- * never beat against each other. The phone header's small portrait carries a
- * tighter one.
+ * The floating portrait's rim: busy while a reply (or Write for me's
+ * draft) is written, closing when that generation completes and fading when
+ * it is stopped or fails; a still faint ring while
+ * the owner writes in the composer.
  */
-function Glow({ header = false }: { header?: boolean }) {
-  const glow = useRef<HTMLSpanElement>(null);
+function ReplyRim() {
   const writing = useChat((state) => state.generating);
-  useLampStep(glow, writing);
-  return (
-    <span
-      ref={glow}
-      data-presence-glow={header ? undefined : ""}
-      data-header-glow={header ? "" : undefined}
-      aria-hidden="true"
-      className="presence-glow"
-    />
-  );
+  const settled = useChat((state) => state.generationEnd === "complete");
+  return <LamplightRim busy={writing} settled={settled} listen />;
 }
 
 /**
  * The phone header's small portrait: it fades in as the band's portrait
  * leaves view, driven by scrolling alone, in a slot that is always reserved
- * so the title never moves. Its glow fades in with it. Decorative: the title
- * names the character.
+ * so the title never moves. Decorative: the title names the character.
  */
 export function HeaderPortrait() {
   const character = useChatCharacter();
@@ -151,7 +141,6 @@ export function HeaderPortrait() {
       data-presence-header=""
       className="presence-in relative isolate shrink-0"
     >
-      <Glow header />
       <Leaf id={character.id} version={character.portrait} className="w-8 rounded-[4px]" />
     </span>
   );

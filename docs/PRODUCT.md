@@ -646,11 +646,10 @@ Version 1.0 holds everything below.
   leaves her out of the chat's cast, for the narrator and the keeper too,
   and the roster says she was removed, with Undo, until the cast next
   updates or the panel is used. While the keeper works, "Updating…" stands
-  beside "Cast" and a soft light glides along a hairline under it, as on a
-  painting scene's frame, and the record surface's header carries both. On
-  phones the band shows only the light, so its names hold still, and the
-  header's cast control breathes. Under reduced motion the words alone say
-  it, the band's included. A failure says so, with Try again, even before
+  beside "Cast" and one light passes along a hairline under it, and the
+  record surface's header carries both. On phones the band shows only the
+  light, so its names hold still; the header's cast control stays still.
+  Under reduced motion the words alone say it, the band's included. A failure says so, with Try again, even before
   anyone is listed, and the fields the newest update changed wash briefly.
 - The register, its snapshots and the corrections are chat content:
   Clear, a reload or leaving the page drops them with the chat.
@@ -747,8 +746,8 @@ Version 1.0 holds everything below.
 - The chosen character is present beside the story: one portrait, their
   prose in a reading sans across the page and yours in the interface sans on
   a slip at the trailing edge, a room that leans
-  faintly toward the portrait's colour, and a lamp and a glow that answer
-  while they write.
+  faintly toward the portrait's colour, and the lamp's light travelling the
+  portrait's frame while they write.
 - **Picture this scene**: with a ComfyUI address saved, a button under the
   character's portrait, in the float and in the phone band (alone in its
   place when there is no portrait), paints one 2:3 picture of the moment.
