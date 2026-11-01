@@ -136,7 +136,7 @@ Version 1.0 holds everything below.
     fewest tokens: fragments and `label: value` lines, no filler, word
     limits as ceilings. Only the opening, the pitch, quoted speech and the
     `<Tone>` sample are full sentences.
-- Brainstorm, a fourth tile beside the kinds, turns a mood or a few words
+- Brainstorm, a fourth tile below the kinds, turns a mood or a few words
   into ideas: the model reads the request as one of the three kinds and
   writes ten ideas of it, each a one-line pitch with a brief behind it,
   filling in row by row as they arrive. Stop keeps what arrived. Another
