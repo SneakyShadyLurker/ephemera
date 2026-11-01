@@ -17,7 +17,7 @@ import {
 } from "react";
 import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
 import { PANEL_OUT } from "@/app/motion.tsx";
-import { useReducedMotion } from "@/app/reduced-motion.ts";
+import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { CheckIcon, IdeasIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
@@ -511,7 +511,6 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
   const alertRef = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
   const feedbackId = useId();
-  const still = useReducedMotion();
 
   // Back from Describe, the list is where it was and focus on the idea that was picked.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only on arrival.
@@ -531,7 +530,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
     const top = list.current?.getBoundingClientRect().top;
     if (!running || view === null || top === undefined) return;
     const above = top - view.getBoundingClientRect().top - LIST_HEADROOM;
-    if (above < 0) view.scrollBy({ top: above, behavior: still ? "instant" : "smooth" });
+    if (above < 0) view.scrollBy({ top: above, behavior: scrollBehavior() });
   }, [running]);
 
   // A round that settled while focus was lost with the Stop bar hands it to the list, or the alert.
