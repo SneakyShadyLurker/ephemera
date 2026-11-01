@@ -55,9 +55,9 @@ test("imports PNG and JSON cards, reports each file and shows their portraits", 
   const revalidated = await page.request.get(src ?? "", { headers: { "If-None-Match": etag } });
   expect(revalidated.status()).toBe(304);
 
-  // Without art, the name is set in the frame; the caption names it for assistive tech.
+  // Without art, the cover keeps the mark alone; the caption names the character.
   await expect(tile(page, withoutArt).locator("img")).toHaveCount(0);
-  await expect(tile(page, withoutArt).locator('[aria-hidden="true"]')).toContainText(withoutArt);
+  await expect(tile(page, withoutArt).locator("svg[data-icon='Mark']")).toBeVisible();
 });
 
 test("search, tag filter and order narrow the gallery", async ({ page }) => {
@@ -114,6 +114,8 @@ test("a new character is saved once named, and every field and greeting persists
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
+  // The optional details wait in Card details, after the portrait, name and tags.
+  await page.getByText("Card details", { exact: true }).click();
   const fields: [string, string][] = [
     ["Nickname", "Toby"],
     ["Creator", "E2E"],
@@ -362,7 +364,7 @@ test("a portrait upload accepts PNG and refuses SVG", async ({ page }) => {
   const png = await pngCard("p.png", card("ignored"), 40, 60);
   await picker.setInputFiles(png);
   await expect(page.locator("#s-identity img")).toHaveJSProperty("complete", true);
-  await expect(page.getByRole("button", { name: "Replace" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Portrait actions" })).toBeVisible();
 });
 
 test("the chat speaks as the chosen character, and switching asks first", async ({ page }) => {
@@ -413,15 +415,67 @@ test("the chat speaks as the chosen character, and switching asks first", async 
   expect(await lastReply(page).evaluate((turn) => turn.textContent)).toMatch(/^Model: /);
 });
 
-test("an empty library invites an import", async ({ page }) => {
+test("an empty library invites an import on the populated gallery's edges", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await createCharacterViaApi(page.request, uniqueName("Edges"));
+  const header = page.locator("main header");
+  const edges = async () => {
+    const title = await header.getByRole("heading", { level: 1 }).boundingBox();
+    const last = await header.getByRole("button", { name: "Create with AI" }).boundingBox();
+    return { left: title?.x ?? Number.NaN, right: (last?.x ?? 0) + (last?.width ?? 0) };
+  };
+  await page.goto("/characters");
+  await expect(page.getByRole("list", { name: "Characters" })).toBeVisible();
+  const populated = await edges();
+
   await page.route("**/api/characters", (route) =>
     route.request().method() === "GET"
       ? route.fulfill({ json: { characters: [] } })
       : route.continue(),
   );
+  await page.reload();
+  const heading = page.getByRole("heading", { name: "No characters yet" });
+  await expect(heading).toBeVisible();
+  // One container: the header keeps its edges, and the empty state starts on them.
+  const empty = await edges();
+  expect(Math.abs(empty.left - populated.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(empty.right - populated.right)).toBeLessThanOrEqual(1);
+  expect(Math.abs(((await heading.boundingBox())?.x ?? 0) - populated.left)).toBeLessThanOrEqual(1);
+  // One first step in the body; the header keeps the others.
+  const body = page.locator("main [data-skip-target]");
+  await expect(body.getByRole("button")).toHaveCount(1);
+  await expect(body.getByRole("button", { name: "Import cards" })).toBeVisible();
+});
+
+test("a card without a portrait names its character once, below the cover", async ({ page }) => {
+  const name = uniqueName("Unpainted");
+  await createCharacterViaApi(page.request, name);
   await page.goto("/characters");
-  await expect(page.getByRole("heading", { name: "No characters yet" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Import cards" }).last()).toBeVisible();
+  const card = tile(page, name);
+  await expect(card).toBeVisible();
+  // The link is still named by the character, and the cover holds no second name.
+  await expect(card).toHaveAccessibleName(new RegExp(`^${name}`));
+  expect(await card.evaluate((link, text) => link.textContent?.split(text).length ?? 0, name)).toBe(
+    2,
+  );
+  await expect(card.locator("svg[data-icon='Mark']")).toBeVisible();
+});
+
+test("on desktop the sheet's optional details wait in Card details", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = uniqueName("Details");
+  await createCharacterViaApi(page.request, name, { creator: "Archive", characterVersion: "3" });
+  await openSheet(page, name);
+  const identity = page.locator("#s-identity");
+  const nickname = identity.getByRole("textbox", { name: "Nickname" });
+  await expect(identity.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
+  await expect(nickname).toBeHidden();
+  // Closed, its summary says what is set.
+  const summary = identity.getByText("Card details", { exact: true });
+  await expect(identity.locator("summary")).toContainText("Archive, version 3");
+  await summary.click();
+  await expect(nickname).toBeVisible();
+  await expect(identity.getByRole("textbox", { name: "Creator" })).toHaveValue("Archive");
 });
 
 for (const { width, height } of [

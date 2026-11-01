@@ -41,6 +41,40 @@ import { appOrigin, expect, test } from "./support/test.ts";
 
 const heading = (page: Page, name: string) => page.getByRole("heading", { name, level: 2 });
 
+test("the three kinds sit on aligned tracks, each label on one line, Brainstorm a row below", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/characters/create");
+  const kinds = ["subject", "group", "scenario"].map((kind) =>
+    page.locator(`[data-kind="${kind}"]`),
+  );
+  const tracks = await Promise.all(
+    kinds.map((kind) =>
+      kind.evaluate((choice) => {
+        const art = choice.querySelector("[data-art]")?.getBoundingClientRect();
+        const title = choice.querySelector("[data-title]")?.getBoundingClientRect();
+        const leading = Number.parseFloat(
+          getComputedStyle(choice.querySelector("[data-title]") ?? choice).lineHeight,
+        );
+        return {
+          art: art?.height,
+          top: title?.top,
+          lines: Math.round((title?.height ?? 0) / leading),
+        };
+      }),
+    ),
+  );
+  for (const track of tracks) {
+    expect(track.art).toBe(tracks[0]?.art);
+    expect(track.top).toBe(tracks[0]?.top);
+    expect(track.lines).toBe(1);
+  }
+  const brainstorm = await page.locator('[data-stage="brainstorm"]').boundingBox();
+  const subject = await kinds[0]?.boundingBox();
+  expect(brainstorm?.y ?? 0).toBeGreaterThan((subject?.y ?? 0) + (subject?.height ?? 0));
+});
+
 /** The gallery's confirmation after Keep. */
 const keptNote = (page: Page, name: string) =>
   page.getByRole("status").filter({ hasText: `Kept ${name}` });
@@ -297,11 +331,15 @@ test("a finished card's frame closes its light before the showcase, with portrai
 }) => {
   await page.addInitScript(recordRimEndings);
   const base = keptBase();
-  // mock-slow writes for seconds, so the frame's light runs before it closes; mock-fast can finish within a frame.
   await createCard(page, {
     kind: "subject",
     description: ownerDescription(base),
     model: "mock-slow",
+  });
+  // Describe also says "Portraits off" until its view transition starts writing.
+  // Keep belongs to the showcase, which follows the frame's closing and fading.
+  await expect(page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT })).toBeVisible({
+    timeout: 20_000,
   });
   await expect(page.getByText("Portraits off", { exact: true })).toBeVisible({ timeout: 20_000 });
   expect(await rimEndings(page)).toEqual([CLOSED]);

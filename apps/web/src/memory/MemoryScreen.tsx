@@ -22,7 +22,7 @@ import { chatStore, useChat } from "../chat/session.ts";
 import { currentSettings, useSetting, useSettings } from "../settings/settings.ts";
 import { isFailure, type SaveStatus } from "../sheet/autosave.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { SHEET_GRID } from "../sheet/fields.ts";
+import { NOTEBOOK_GRID } from "../sheet/fields.ts";
 import {
   type BackTarget,
   LeaveGuardScope,
@@ -199,7 +199,7 @@ function MemoryFrame({
             <h1
               id={SCREEN_TITLE}
               tabIndex={-1}
-              className="truncate font-semibold text-ink text-lead outline-none"
+              className="truncate font-semibold text-heading text-ink outline-none"
             >
               Memory
             </h1>
@@ -244,7 +244,7 @@ function MemoryFrame({
           )}
         >
           {notice !== null && (
-            <div className={SHEET_GRID}>
+            <div className={NOTEBOOK_GRID}>
               <div />
               <SheetNotice notice={notice} onDismiss={() => setNotice(null)} />
             </div>
@@ -258,13 +258,19 @@ function MemoryFrame({
 }
 
 /** "What Mira remembers", set as the character's name is in the story, with its rule to the edge. */
-function Heading({ name, children }: { name: string; children?: ReactNode }) {
+function Heading({ id, name, children }: { id: string; name: string; children?: ReactNode }) {
+  const chosen = useSetting((settings) => settings.characterId) === id;
+  const remembering = useChat((state) => state.memory.status === "remembering") && chosen;
   return (
-    <div className={SHEET_GRID}>
+    <div className={NOTEBOOK_GRID}>
       <div />
       <div className="grid min-w-0 gap-1.5">
-        <h2 className="flex items-center gap-3.5 font-semibold font-story text-heading text-ink after:mt-px after:h-px after:min-w-6 after:flex-1 after:bg-rush">
+        <h2 className="flex items-center gap-3.5 font-semibold font-story text-heading text-ink">
           <span className="min-w-0 text-balance">What {name} remembers</span>
+          {/* While a memory of this character is written, a light passes along the rule. */}
+          <span aria-hidden="true" className="relative mt-px h-px min-w-6 flex-1 bg-rush">
+            {remembering && <span className="lamplight-edge" />}
+          </span>
         </h2>
         <div className="grid min-w-0">{children}</div>
       </div>
@@ -354,7 +360,7 @@ function Book({
       }
     >
       <div className="grid grid-cols-[minmax(0,1fr)]">
-        <Heading name={name}>
+        <Heading id={id} name={name}>
           <Unfold show={!on}>
             <p className="max-w-help text-pretty pb-5 font-story text-reed text-turn">
               Memory is off, so {name} forgets each chat when it ends. Turned back on, {name} keeps
@@ -387,7 +393,7 @@ function Book({
         <Unfold show={on || holding}>
           <div className="grid grid-cols-[minmax(0,1fr)] gap-10 pt-10">
             {!on && (
-              <p role="status" className={cn(SHEET_GRID, "text-pretty text-note text-reed")}>
+              <p role="status" className={cn(NOTEBOOK_GRID, "text-pretty text-note text-reed")}>
                 <span className="max-tablet:hidden" />
                 <span>
                   Memory was turned off elsewhere. The notebook stays here until its edits are
@@ -408,7 +414,7 @@ function Book({
               onRemount={remount}
             />
             {on && (
-              <section aria-labelledby={MEMORIES_HEADING} className={SHEET_GRID}>
+              <section aria-labelledby={MEMORIES_HEADING} className={NOTEBOOK_GRID}>
                 <h2
                   id={MEMORIES_HEADING}
                   tabIndex={-1}
@@ -491,8 +497,9 @@ function NotebookPart({
 }
 
 /**
- * While the open chat with this character is remembering, or failed to:
- * said under the heading, with the failure's way out. Empty, it takes no
+ * While the open chat with this character is remembering (announced only;
+ * Remember now and the heading's light show it), or failed to: said under
+ * the heading, with the failure's way out. Empty, it takes no
  * room (its region stays, so what it says next is announced).
  */
 function RememberingLine({ id }: { id: string }) {
@@ -505,7 +512,8 @@ function RememberingLine({ id }: { id: string }) {
       role="status"
       className="flex flex-wrap items-center gap-x-1 text-note text-reed empty:-mt-1.5 [&>p]:py-1.5"
     >
-      {chosen && status === "remembering" && <p>Remembering…</p>}
+      {/* Shown by Remember now and the heading's light; said here for assistive tech. */}
+      {chosen && status === "remembering" && <p className="sr-only">Remembering…</p>}
       {chosen && status === "failed" && (
         <>
           <p className="text-pretty">{note.text}</p>

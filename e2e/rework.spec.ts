@@ -354,7 +354,8 @@ test("a portrait change under way holds AI Rework until it ends, an open compose
   // An upload under way: the composer does not open; refused, Rework is back.
   writes.hold();
   await picker.setInputFiles(image(`${base}-refused`));
-  await expect(identity.getByRole("button", { name: "Replacing" })).toBeDisabled();
+  await expect(identity.getByText("Saving the portrait", { exact: true })).toBeVisible();
+  await expect(identity.getByRole("button", { name: "Portrait actions" })).toBeDisabled();
   await expect(button).toBeDisabled();
   writes.refuse();
   await expect(identity.getByRole("alert")).toHaveText("Use a PNG, JPEG or WebP image.");
@@ -362,7 +363,8 @@ test("a portrait change under way holds AI Rework until it ends, an open compose
 
   // A removal under way holds it too, until it lands.
   writes.hold();
-  await identity.getByRole("button", { name: "Remove", exact: true }).click();
+  await identity.getByRole("button", { name: "Portrait actions" }).click();
+  await page.getByRole("menuitem", { name: "Remove", exact: true }).click();
   await expect(button).toBeDisabled();
   writes.release();
   await expect(identity.getByRole("button", { name: "Add portrait" })).toBeEnabled();
@@ -387,7 +389,7 @@ test("a portrait change under way holds AI Rework until it ends, an open compose
 
   // Once the portrait lands, the same composer sends.
   writes.release();
-  await expect(identity.getByRole("button", { name: "Replace", exact: true })).toBeEnabled();
+  await expect(identity.getByRole("button", { name: "Portrait actions" })).toBeEnabled();
   await expect(rework).toBeEnabled();
   await field.press("Control+Enter");
   await expect(composer(page)).toHaveCount(0);

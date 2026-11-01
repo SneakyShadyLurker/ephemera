@@ -94,7 +94,15 @@ Version 1.0 holds everything below.
 - Duplicating a character keeps its links to library lorebooks.
 - Gallery with search and tag filtering. Tags ignore case everywhere:
   "Noir" and "noir" are one tag, on a card, in the gallery and in event
-  scopes.
+  scopes. Every card names its character once, below the cover; a card
+  without a portrait keeps a quiet cover with the mark's crescent and lamp.
+  An empty gallery says so on the same edges as a full one and offers
+  Import cards as the first step; New character and Create with AI stay in
+  the header.
+- The character sheet leads with the portrait, the name and the tags;
+  Nickname, Creator and Version wait in Card details. Under the portrait
+  one row holds New art and a menu with Replace and Remove; a persona's
+  holds Replace and Remove.
 
 **Create with AI**
 - From the gallery, a model the owner picks (the saved one by default),
@@ -136,7 +144,8 @@ Version 1.0 holds everything below.
     fewest tokens: fragments and `label: value` lines, no filler, word
     limits as ceilings. Only the opening, the pitch, quoted speech and the
     `<Tone>` sample are full sentences.
-- Brainstorm, a fourth tile below the kinds, turns a mood or a few words
+- The three kinds are offered as equals side by side, each with its title
+  and one sentence. Brainstorm, a quieter row below the kinds, turns a mood or a few words
   into ideas: the model reads the request as one of the three kinds and
   writes ten ideas of it, each a one-line pitch with a brief behind it,
   filling in row by row as they arrive. Stop keeps what arrived. Another
@@ -373,11 +382,12 @@ Version 1.0 holds everything below.
 **Lorebooks**
 - A library of lorebooks beside the ones embedded in cards: create,
   rename, edit, duplicate (the copy is linked to no character) and delete.
-  The Lorebooks screen lists the library by name, each book with its
-  entries, how many are on, how its enabled entries go in and the
-  characters it is linked to, then the books in character cards, which
-  open in their card's editor and can be copied to the library as books of
-  their own. One Find covers book and character names.
+  The Lorebooks screen lists the library by name under its own heading,
+  each book with its entries, how many are on, how its enabled entries go
+  in and, beside them, the characters it is linked to; then the books in
+  character cards, which open in their card's editor and can be copied to
+  the library as books of their own; then Events. One Find across the
+  column covers book and character names.
 - Link a book to any number of characters, up to 8 books per character.
   A character's chats read its embedded book and its linked books together,
   in link order; deleting a book or a character removes its links. Links
@@ -394,8 +404,8 @@ Version 1.0 holds everything below.
 
 **Events**
 - One-line instructions the story is given now and then, by chance, kept
-  per user in one Events row at the top of the Lorebooks screen, above the
-  library. The row arrives closed and says how many events there are and
+  per user in one compact Events row at the end of the Lorebooks screen,
+  after the library and the books in cards. The row arrives closed and says how many events there are and
   how many are on; opened, it lists them. Each event has its instruction
   (up to 500 characters, one line, macros filled as in the Author's Note),
   a chance per reply (0 to 100%, one decimal), a cooldown in replies (0 to
@@ -432,8 +442,11 @@ Version 1.0 holds everything below.
   when the story gives it), where each pair of people stands with each
   other and what made it so, one line per pair, durable facts and open
   threads, and Cast lines for recurring invented NPCs. Each Cast line is
-  an editable JSON object with a name, gender and optional fixed anchor
-  fields, at most 32 lines of 1,200 characters each. It holds no ids or
+  stored as a JSON object with a name, gender and optional fixed anchor
+  fields, at most 32 lines of 1,200 characters each. The notebook shows
+  each as a person, the name and then the fixed details, and edits them
+  as fields in the same shape; a line that does not read as a person stays
+  as written text. It holds no ids or
   scene state. The model is instructed to omit the player and card subjects;
   owner lines stay editable, the player is excluded when seeding, and card
   anchors win on overlap. Invalid owner
@@ -849,10 +862,12 @@ Version 1.0 holds everything below.
   window field, and a model picker in Settings notes it under the choice.
 - Without a reply model, or with one whose context window is unknown, a
   notice above the composer says why nothing can be sent and holds the
-  model picker itself, whatever the chat shows, a greeting included; a
-  choice made there folds the notice away and returns focus to the
-  message, its draft kept. Enter in the message leads to the picker until
-  then. The cast waits for a usable model, saying what it waits for
+  model picker itself, whatever the chat shows, a greeting included; on a
+  first run, with the story empty and no character chosen, choosing the
+  model is instead the empty story's first step, before its invitation to
+  write. A choice made there
+  folds the notice or step away and returns focus to the message, its
+  draft kept. Enter in the message leads to the picker until then. The cast waits for a usable model, saying what it waits for
   rather than failing, and reads the card as soon as one is chosen.
 - Settings also hold a context limit per model, 131,072 tokens unless set
   there. The context in use, which sets the token budget, is the smaller

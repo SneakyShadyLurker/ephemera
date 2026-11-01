@@ -301,7 +301,8 @@ describe("the memory screen", () => {
     expect(out).toMatch(/role="switch"[^>]*aria-checked="true"/);
     expect(out).toContain("Remember the story");
     expect(out).toContain("The chat itself is never kept.");
-    expect(out).toContain("Nothing remembered yet. Memories arrive as the story grows.");
+    expect(out).toContain("Nothing remembered yet");
+    expect(out).toContain("Memories arrive as the story grows.");
     expect(out).toContain("Remember now");
   });
 
@@ -366,7 +367,8 @@ describe("the memory screen", () => {
     expect(out).toContain('aria-label="Relationships, line 1"');
     expect(out).toContain("Mira and the ferryman: wary, bound by the favour.");
     expect(out).toContain("Add a relationship");
-    expect(out).toContain("Nothing remembered yet. Memories arrive as the story grows.");
+    expect(out).toContain("Nothing remembered yet");
+    expect(out).toContain("Memories arrive as the story grows.");
   });
 
   it("lists the memories newest first, a chapter folding its members", () => {

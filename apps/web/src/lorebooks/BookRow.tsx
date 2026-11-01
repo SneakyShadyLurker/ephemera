@@ -47,9 +47,9 @@ function Linked({ characters, className }: { characters: LinkedCharacter[]; clas
 }
 
 /**
- * One library book: its name, its counts with their marks, and the
- * characters it is linked to; a stable trailing column on desktop, wrapping
- * with the counts on tablet, a line of its own on phones. The name carries
+ * One library book: its name, then its counts with their marks and the
+ * characters it is linked to beside them, wrapping with the counts on
+ * tablet and desktop, a line of its own on phones. The name carries
  * the shared transition into the editor while this is the book last opened
  * and its row is in view; otherwise the screens crossfade.
  */
@@ -84,7 +84,7 @@ export function BookRow({
         aria-label={name}
         aria-describedby={metaId}
         onClick={() => setOpened(book.id)}
-        className={cn(LINK, "desktop:grid-cols-[minmax(0,1fr)_16rem]")}
+        className={LINK}
       >
         <span className="grid min-w-0 gap-1">
           <span className="flex min-w-0 items-center gap-2">
@@ -102,10 +102,9 @@ export function BookRow({
             className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 text-meta text-reed"
           >
             <ActivationCounts counts={book} />
-            <Linked characters={characters} className="max-tablet:basis-full desktop:hidden" />
+            <Linked characters={characters} className="max-tablet:basis-full" />
           </span>
         </span>
-        <Linked characters={characters} className="hidden justify-end desktop:flex" />
       </Link>
       <BookMenu
         row={row}

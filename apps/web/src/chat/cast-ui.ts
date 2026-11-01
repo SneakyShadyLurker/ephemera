@@ -25,6 +25,35 @@ export const CAST_TEXT_FIELDS: readonly CastTextField[] = [
   ...CAST_STATE_FIELDS,
 ];
 
+/**
+ * Field names: for assistive technology in the cast record's reading mode,
+ * visible labels in its edit mode and on the memory notebook's cast.
+ */
+export const CAST_FIELD_LABELS: Record<CastTextField, string> = {
+  age: "Age",
+  ethnicity: "Ethnicity",
+  skin: "Skin",
+  face: "Face",
+  experience: "Sexual experience",
+  relationship: "Relationship",
+  height: "Height",
+  weight: "Weight",
+  build: "Build",
+  hair: "Hair",
+  eyes: "Eyes",
+  intimate: "Intimate body",
+  personality: "Personality",
+  fetishes: "Fetishes and taboos",
+  outfit: "Outfit",
+  disarray: "Clothing state",
+  position: "Position",
+  activity: "Activity",
+  mood: "Mood",
+  arousal: "Arousal",
+  injuries: "Injuries",
+  intoxication: "Intoxication",
+};
+
 const isAnchorField = (field: CastTextField): field is CastAnchorField =>
   (CAST_ANCHOR_FIELDS as readonly string[]).includes(field);
 

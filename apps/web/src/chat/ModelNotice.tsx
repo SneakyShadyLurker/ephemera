@@ -1,13 +1,15 @@
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { type RefObject, type TransitionEvent, useEffect, useRef, useState } from "react";
 import { NoticeCard, noticeFold } from "@/app/NoticeCard.tsx";
 import { buttonVariants } from "@/components/ui/button";
 import { useContextWindow, useModelOptions } from "../api.ts";
 import { ModelSelect } from "../components/model-select.tsx";
-import { useSettings, useUpdateSettings } from "../settings/settings.ts";
+import { useSetting, useSettings, useUpdateSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
 import { useSignInPhase } from "../signin/hooks.ts";
 import { useChatCharacter } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
+import { useChat } from "./session.ts";
+import { storyEmpty } from "./store.ts";
 
 /** The notice's body, which the message field and Send are described by while it shows. */
 export const MODEL_NOTICE_BODY = "model-notice-body";
@@ -38,37 +40,41 @@ export function useModelBlocker(): { blocker: Blocker | null; settling: boolean 
   return { blocker: null, settling: window === "loading" };
 }
 
-/** Focuses the notice's first control (Enter in an empty-handed composer); false without one. */
+/**
+ * Focuses the notice's first control (Enter in an empty-handed composer); false without one.
+ * A notice folding away is inert, so the one still shown is the one asked.
+ */
 export function focusModelNotice(): boolean {
   const control = document.querySelector<HTMLElement>(
-    "[data-model-notice] [data-notice-actions] :is(a, button)",
+    "[data-model-notice]:not([inert]) [data-notice-actions] :is(a, button)",
   );
   control?.focus();
   return control != null;
 }
 
 /**
- * Above the composer, the one way out when Send cannot work: without a
- * model, the picker itself, so choosing takes one step in place; with a
- * model whose context window is unknown (PRODUCT.md § Models), a way to set
- * one beside the picker. Once nothing blocks it folds away, and a choice
- * made here hands focus to the message field.
+ * The picker and what the notice says, for either place it shows: the live
+ * blocker (`live`, null when this place has nothing to say), held while a
+ * just-chosen model's window loads and while it folds away, so the words do
+ * not change as it leaves. A choice made here hands focus to the message
+ * field, or to the notice's way out when the model has no known window.
  */
-export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
-  const { blocker, settling } = useModelBlocker();
+function useModelChoice(
+  composer: RefObject<HTMLTextAreaElement | null>,
+  live: Blocker | null,
+  settling: boolean,
+) {
+  const { blocker } = useModelBlocker();
   const settings = useSettings();
   const { model } = settings;
-  const character = useChatCharacter();
   const options = useModelOptions(model);
   const updateSettings = useUpdateSettings();
   /** The model picked in this notice, until focus has followed it; null otherwise. */
   const picked = useRef<string | null>(null);
 
-  // What the card says: the live blocker, held while a just-chosen model's window loads and while
-  // it folds away, so the words do not change as it leaves.
-  const [shown, setShown] = useState<Blocker | null>(blocker);
-  if (blocker !== null && blocker !== shown) setShown(blocker);
-  const leaving = blocker === null && !settling && shown !== null;
+  const [shown, setShown] = useState<Blocker | null>(live);
+  if (live !== null && live !== shown) setShown(live);
+  const leaving = live === null && !settling && shown !== null;
 
   // Only after a pick made here (the list leaves focus to this), once that model is the setting:
   // never after a change elsewhere. A second model without a window lands here too.
@@ -81,8 +87,6 @@ export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElem
     if (blocker === "window") focusModelNotice();
     else if (blocker === null) composer.current?.focus();
   }, [model, blocker, settling, composer]);
-
-  if (shown === null) return null;
 
   const pick = (chosen: string) => {
     // The same model again changes nothing, so nothing would hand focus on.
@@ -102,15 +106,49 @@ export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElem
       className="max-w-none tablet:w-64"
     />
   );
+  return { model, shown, leaving, picker, end: () => setShown(null) };
+}
+
+/** Ends a fold on its own height transition, not on one inside it. */
+const onFold =
+  (leaving: boolean, end: () => void) =>
+  (event: TransitionEvent<HTMLDivElement>): void => {
+    if (leaving && event.target === event.currentTarget && event.propertyName === "height") end();
+  };
+
+const MODEL_STEP = {
+  title: "Choose a model to begin",
+  body: (name: string | undefined) =>
+    name === undefined
+      ? "Replies come from the model you choose. You can change it any time in Session."
+      : `${name} replies through the model you choose. You can change it any time in Session.`,
+};
+
+/**
+ * Above the composer, the one way out when Send cannot work: without a
+ * model, the picker itself, so choosing takes one step in place; with a
+ * model whose context window is unknown (PRODUCT.md § Models), a way to set
+ * one beside the picker. On a first run (an empty story, no character) the
+ * model step is the empty story's (ModelStep), so this says only the
+ * window then. Once nothing blocks it folds away.
+ */
+export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
+  const { blocker, settling } = useModelBlocker();
+  const empty = useChat(storyEmpty);
+  const firstRun = useSetting((settings) => settings.characterId) === null && empty;
+  const character = useChatCharacter();
+  const { model, shown, leaving, picker, end } = useModelChoice(
+    composer,
+    blocker === "model" && firstRun ? null : blocker,
+    settling,
+  );
+  if (shown === null) return null;
 
   return (
     <div
       data-model-notice=""
       inert={leaving}
-      onTransitionEnd={(event) => {
-        if (leaving && event.target === event.currentTarget && event.propertyName === "height")
-          setShown(null);
-      }}
+      onTransitionEnd={onFold(leaving, end)}
       className={`${SCRIPT_FRAME} shrink-0 ${noticeFold(leaving)}`}
     >
       <div className="pb-2">
@@ -119,12 +157,8 @@ export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElem
             placement="dock"
             swapKey="model"
             bodyId={MODEL_NOTICE_BODY}
-            title="Choose a model to begin"
-            body={
-              character === undefined
-                ? "Replies come from the model you choose. You can change it any time in Session."
-                : `${character.name} replies through the model you choose. You can change it any time in Session.`
-            }
+            title={MODEL_STEP.title}
+            body={MODEL_STEP.body(character?.name)}
             actions={
               <div data-notice-actions="" className={ACTIONS}>
                 {picker}
@@ -151,6 +185,42 @@ export function ModelNotice({ composer }: { composer: RefObject<HTMLTextAreaElem
             }
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A first run's opening step while no model is chosen: the same title,
+ * sentence and picker as the notice, set as the empty story's first step
+ * rather than a card over the composer. It folds away once a model is
+ * chosen, inside room the empty story keeps, so nothing after it moves.
+ */
+export function ModelStep({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
+  const { blocker, settling } = useModelBlocker();
+  const { shown, leaving, picker, end } = useModelChoice(
+    composer,
+    blocker === "model" ? "model" : null,
+    settling,
+  );
+  if (shown === null) return null;
+  return (
+    <div
+      data-model-notice=""
+      inert={leaving}
+      onTransitionEnd={onFold(leaving, end)}
+      className={noticeFold(leaving)}
+    >
+      <div role="status" className="grid max-w-empty justify-items-start gap-3 pb-8">
+        <div className="grid gap-1">
+          <p className="font-medium text-ink text-lead">{MODEL_STEP.title}</p>
+          <p id={MODEL_NOTICE_BODY} className="text-pretty text-note text-reed">
+            {MODEL_STEP.body(undefined)}
+          </p>
+        </div>
+        <div data-notice-actions="" className={ACTIONS}>
+          {picker}
+        </div>
       </div>
     </div>
   );

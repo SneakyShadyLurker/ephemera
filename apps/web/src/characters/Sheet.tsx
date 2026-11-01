@@ -17,10 +17,11 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
+import { useCanDock } from "@/app/form-factor.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { ChatIcon, SectionsIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
 import { depthText, ROLE_NAMES } from "@/lib/roles";
@@ -194,7 +195,6 @@ function SheetEditor({
   /** Fetches the saved character and reopens the sheet on it (a conflict's Reload). */
   onReload: () => Promise<void>;
 }) {
-  const phone = useFormFactor() === "phone";
   const wide = useCanDock();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -421,36 +421,38 @@ function SheetEditor({
           aria-label="Identity"
           className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
-          <PortraitField
-            owner="characters"
-            noun="character"
-            id={id}
-            name={fields.name}
-            version={portrait}
-            locked={held}
-            arrived={arrivedPortrait}
-            onBusyChange={setPortraitBusy}
-            onChange={portraitChanged}
-            extra={
-              id === null
-                ? undefined
-                : ({ busy }) => (
-                    <NewArtButton
-                      characterId={id}
-                      name={fields.name.trim() || "this character"}
-                      portrait={portrait}
-                      card={() => artCardRef.current}
-                      onPortrait={(version) => {
-                        setArrivedPortrait(version);
-                        portraitChanged(version);
-                      }}
-                      held={held}
-                      disabled={held || busy}
-                      onOpen={() => setComposing(false)}
-                    />
-                  )
-            }
-          />
+          {/* From tablet the portrait spans the identity and its details beside it. */}
+          <div className="tablet:row-span-2">
+            <PortraitField
+              owner="characters"
+              noun="character"
+              id={id}
+              version={portrait}
+              locked={held}
+              arrived={arrivedPortrait}
+              onBusyChange={setPortraitBusy}
+              onChange={portraitChanged}
+              primary={
+                id === null
+                  ? undefined
+                  : ({ busy }) => (
+                      <NewArtButton
+                        characterId={id}
+                        name={fields.name.trim() || "this character"}
+                        portrait={portrait}
+                        card={() => artCardRef.current}
+                        onPortrait={(version) => {
+                          setArrivedPortrait(version);
+                          portraitChanged(version);
+                        }}
+                        held={held}
+                        disabled={held || busy}
+                        onOpen={() => setComposing(false)}
+                      />
+                    )
+              }
+            />
+          </div>
           <div className="grid content-start gap-4">
             <ReviewField
               field={{ kind: "text", key: "name" }}
@@ -465,27 +467,9 @@ function SheetEditor({
                 onChange={(name) => edit({ name })}
               />
             </ReviewField>
-            {phone ? (
-              <TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />
-            ) : (
-              <IdentityFields fields={fields} edit={edit} locked={locked} />
-            )}
+            <TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />
           </div>
-          {phone && (
-            <details className="col-span-2 border-rush border-y">
-              <summary className="flex h-12 cursor-pointer list-none items-center justify-between text-ink text-ui">
-                Card details
-                <span className="truncate pl-3 text-meta text-reed">
-                  {[fields.creator, fields.characterVersion && `version ${fields.characterVersion}`]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              </summary>
-              <div className="grid gap-3 pb-4">
-                <SmallFields fields={fields} edit={edit} locked={locked} />
-              </div>
-            </details>
-          )}
+          <CardDetails fields={fields} edit={edit} locked={locked} />
         </section>
 
         {text("description", "description", <>Who {"{{char}}"} is.</>)}
@@ -646,7 +630,12 @@ function SmallFields({
   );
 }
 
-function IdentityFields({
+/**
+ * The card's optional details (Nickname, Creator, Version) under one
+ * disclosure after the identity, so the portrait, name and tags lead; its
+ * summary says what is set. On phones it spans the identity's width.
+ */
+function CardDetails({
   fields,
   edit,
   locked,
@@ -655,13 +644,20 @@ function IdentityFields({
   edit: Edit;
   locked: boolean;
 }) {
+  const set = [fields.creator, fields.characterVersion && `version ${fields.characterVersion}`]
+    .filter(Boolean)
+    .join(", ");
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-3 gap-3">
+    <details className="disclosure col-span-2 border-rush border-y tablet:col-start-2 tablet:col-span-1">
+      <summary className="flex h-12 cursor-pointer list-none items-center gap-2 text-ink text-ui">
+        <span>Card details</span>
+        <DisclosureChevron className="text-reed" />
+        <span className="min-w-0 flex-1 truncate pl-1 text-meta text-reed">{set}</span>
+      </summary>
+      <div className="grid gap-3 pb-4 tablet:grid-cols-3">
         <SmallFields fields={fields} edit={edit} locked={locked} />
       </div>
-      <TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />
-    </div>
+    </details>
   );
 }
 

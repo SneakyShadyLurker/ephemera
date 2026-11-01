@@ -212,7 +212,6 @@ function PersonaEditor({
             owner="personas"
             noun="persona"
             id={id}
-            name={fields.name}
             version={portrait}
             onChange={(version) => {
               setPortraitVersion(version);

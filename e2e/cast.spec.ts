@@ -226,6 +226,22 @@ test("a first model without a known context window turns the notice to the windo
   await expect.poll(() => sheets.length).toBe(1);
 });
 
+test("on a first run, a model without a known context window folds the story's model step into the window notice, which takes focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const story = page.getByRole("log", { name: "Story" });
+  const step = story.getByRole("status").filter({ hasText: "Choose a model to begin" });
+  await expect(step).toBeVisible();
+  await story.getByRole("combobox", { name: "Chat model", exact: true }).click();
+  await page.getByRole("option", { name: "mock-nowindow", exact: true }).click();
+  // The step folds away, inert while it does; the notice over the composer says what still blocks.
+  const notice = page.getByRole("status").filter({ hasText: "Context window unknown" });
+  await expect(notice).toContainText("mock-nowindow has no known context window");
+  await expect(notice.getByRole("link", { name: "Set a context window" })).toBeFocused();
+  await expect(step).toHaveCount(0);
+});
+
 for (const factor of FACTORS) {
   test(`the cast seeds from the card's sheet and the greeting, lists women only, and opens each record (${factor.name})`, async ({
     page,

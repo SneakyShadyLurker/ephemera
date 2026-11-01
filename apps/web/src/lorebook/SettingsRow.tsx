@@ -1,49 +1,73 @@
 import { Collapsible } from "@base-ui/react/collapsible";
 import { type ReactNode, useId } from "react";
-import { ChevronDownIcon } from "@/components/icons";
+import { DisclosureChevron } from "@/components/ui/disclosure";
+import { cn } from "@/lib/cn";
+
+/** A row's trigger: its tint on hover and its ring on focus, inside the panel's clip. */
+const TRIGGER =
+  "-mx-2 rounded-md px-2 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] touch:min-h-14";
 
 /**
  * One of the entry editor's four questions: a full-width button named by the
  * question and described by its current answer, and the settings under it.
  * Closed by default and never opened by the screen; a closed panel stays
  * mounted but inert, out of the tab order. The panel grows on the height
- * spring and fades; reduced motion keeps the fade alone.
+ * spring and fades; reduced motion keeps the fade alone. A `compact` row
+ * (Events on the library) is as wide as its words, its chevron beside the label.
  */
 export function SettingsRow({
   label,
   answer,
   open,
   onOpenChange,
+  compact = false,
   children,
 }: {
   label: string;
   answer: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  compact?: boolean;
   children: ReactNode;
 }) {
   const labelId = useId();
   const answerId = useId();
   return (
     <Collapsible.Root open={open} onOpenChange={onOpenChange} className="border-rush border-t">
-      <Collapsible.Trigger
-        aria-labelledby={labelId}
-        aria-describedby={answerId}
-        className="group/row -mx-2 grid min-h-12 w-[calc(100%+1rem)] grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-2 py-3 text-left outline-none hover:bg-surface-hover focus-visible:shadow-[inset_0_0_0_2px_var(--dusk-line)] touch:min-h-14"
-      >
-        <span className="grid min-w-0 gap-0.5 @xl:grid-cols-[10.5rem_minmax(0,1fr)] @xl:items-baseline @xl:gap-x-4">
+      {compact ? (
+        <Collapsible.Trigger
+          aria-labelledby={labelId}
+          aria-describedby={answerId}
+          className={cn(TRIGGER, "flex min-h-11 w-fit max-w-full items-center gap-2 py-2.5")}
+        >
           <span id={labelId} className="font-medium text-ink text-ui">
             {label}
           </span>
-          <span id={answerId} className="text-pretty text-note text-reed">
+          <DisclosureChevron className="text-reed" />
+          <span id={answerId} className="min-w-0 text-pretty text-note text-reed">
             {answer}
           </span>
-        </span>
-        <ChevronDownIcon
-          size={16}
-          className="mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
-        />
-      </Collapsible.Trigger>
+        </Collapsible.Trigger>
+      ) : (
+        <Collapsible.Trigger
+          aria-labelledby={labelId}
+          aria-describedby={answerId}
+          className={cn(
+            TRIGGER,
+            "grid min-h-12 w-[calc(100%+1rem)] grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 py-3",
+          )}
+        >
+          <span className="grid min-w-0 gap-0.5 @xl:grid-cols-[10.5rem_minmax(0,1fr)] @xl:items-baseline @xl:gap-x-4">
+            <span id={labelId} className="font-medium text-ink text-ui">
+              {label}
+            </span>
+            <span id={answerId} className="text-pretty text-note text-reed">
+              {answer}
+            </span>
+          </span>
+          <DisclosureChevron className="mt-0.5 text-reed" />
+        </Collapsible.Trigger>
+      )}
       <Collapsible.Panel
         keepMounted
         inert={!open}

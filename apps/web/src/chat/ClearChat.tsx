@@ -13,30 +13,35 @@ import { hasChatContent } from "./store.ts";
  * as starting a chat with someone else does. While memory
  * is on and the ending is unremembered, it offers to remember the ending
  * first; the dialog stays open while it is written and clears once it is.
+ * With a `trigger`, Base UI wires it to the dialog; without one (a menu's
+ * item), `request` opens it, and closing returns focus to `returnTo`.
  */
-export function ClearChat({
-  trigger,
+export function useClearChatDialog({
   composer,
+  trigger,
+  returnTo,
 }: {
-  trigger: ReactElement;
   composer: RefObject<HTMLTextAreaElement | null>;
-}) {
+  trigger?: ReactElement;
+  returnTo?: RefObject<HTMLElement | null>;
+}): { dialog: ReactElement; request: () => void } {
   const clear = useClearChat();
   const character = useChatCharacter();
   const [open, setOpen] = useState(false);
   const closes = character ? `The chat with ${character.name} closes. ` : "";
-  return (
+  const onOpenChange = (next: boolean) => {
+    // Nothing written yet, at most the untouched greeting: nothing to lose or remember.
+    if (next && !hasChatContent(chatStore.getState())) {
+      clear();
+      composer.current?.focus();
+      return;
+    }
+    setOpen(next);
+  };
+  const dialog = (
     <DiscardChatDialog
       open={open}
-      onOpenChange={(next) => {
-        // Nothing written yet, at most the untouched greeting: nothing to lose or remember.
-        if (next && !hasChatContent(chatStore.getState())) {
-          clear();
-          composer.current?.focus();
-          return;
-        }
-        setOpen(next);
-      }}
+      onOpenChange={onOpenChange}
       proceed={() => {
         clear();
         setOpen(false);
@@ -51,14 +56,25 @@ export function ClearChat({
         without: "Clear without remembering",
         confirm: "Clear",
       }}
-      // The trigger is the header's Clear control; Base UI wires it to the dialog.
-      trigger={trigger}
+      {...(trigger === undefined ? {} : { trigger })}
       // After clearing, the disabled Clear cannot hold focus: write the next line instead.
       finalFocus={() =>
         hasChatContent(chatStore.getState()) || currentSettings().characterId !== null
-          ? true
+          ? (returnTo?.current ?? true)
           : composer.current
       }
     />
   );
+  return { dialog, request: () => onOpenChange(true) };
+}
+
+/** Clear with its own trigger: the header's Clear control. */
+export function ClearChat({
+  trigger,
+  composer,
+}: {
+  trigger: ReactElement;
+  composer: RefObject<HTMLTextAreaElement | null>;
+}) {
+  return useClearChatDialog({ composer, trigger }).dialog;
 }

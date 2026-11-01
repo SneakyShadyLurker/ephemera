@@ -3,6 +3,7 @@ import type { APIRequestContext, Page, Route } from "@playwright/test";
 import { CONTINUED_SCENE, NEW_SCENE, STORY_HEADING } from "../packages/core/src/memory/prompt.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
+  chatMenuButton,
   chooseCharacter,
   chooseModel,
   clearChat,
@@ -53,7 +54,7 @@ import { expect, test, unsafe } from "./support/test.ts";
  * e2e/retention.spec.ts.
  */
 
-const NOTHING_REMEMBERED = "Nothing remembered yet. Memories arrive as the story grows.";
+const NOTHING_REMEMBERED = "Nothing remembered yet";
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 const folded = (page: Page) => page.locator("[data-message][data-folded]");
@@ -1061,7 +1062,7 @@ test("Forget everything empties the memory screen, keeps memory on and unfolds t
     .getByRole("button", { name: "Forget everything" })
     .click();
   await expect(episodeRows(page)).toHaveCount(0);
-  await expect(page.getByText(NOTHING_REMEMBERED)).toBeVisible();
+  await expect(page.getByRole("heading", { name: NOTHING_REMEMBERED })).toBeVisible();
   // The menu that held focus went with what it forgot: the screen's title takes it.
   await expect(page.getByRole("heading", { name: "Memory", level: 1 })).toBeFocused();
   await expect(page.getByRole("switch", { name: "Remember the story" })).toBeChecked();
@@ -1103,6 +1104,10 @@ for (const { width, height, form } of [
     const first = await twoExchanges(page);
     await rememberNow(page);
     await expect(seam(page).getByRole("status")).toHaveText(heldLine(3));
+    // On a phone the mark is in the chat menu; its count shows on the menu's button.
+    if (form === "phone") {
+      await expect(chatMenuButton(page).locator("[data-remembered-count]")).toHaveText("3");
+    }
     await openMemory(page);
     // Labelled on every width: on a phone too, the word says where it goes.
     await expect(backToChat(page)).toHaveText("Chat");
@@ -1192,15 +1197,22 @@ test("remembered NPC anchors seed the next chat and notebook edits replace or re
     sent?.messages.find((message) => message.content.startsWith(STORY_HEADING))?.content,
   ).not.toContain(line);
   await openMemory(page);
-  const field = page.getByRole("textbox", { name: "Cast, line 1", exact: true });
-  await expect(field).toHaveValue(line);
+  // The stored line reads as a person: the name, then the fixed details.
+  const person = page.getByRole("button", { name: new RegExp(`^${MEMORY_CAST_NAME}`) });
+  await expect(person).toContainText("Female, age 31, hair black bob");
+  expect(JSON.parse(line)).toMatchObject({ name: MEMORY_CAST_NAME, age: "31" });
+  await person.click();
+  // Edited through the same details, it is stored in the same shape.
   const renamed = JSON.stringify({
     name: "Noor Haddad",
     gender: "female",
     age: "32",
     hair: "silver",
   });
-  await field.fill(renamed);
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Noor Haddad");
+  await page.getByRole("textbox", { name: "Age", exact: true }).fill("32");
+  await page.getByRole("textbox", { name: "Hair", exact: true }).fill("silver");
   await expect
     .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
     .toEqual([renamed]);
@@ -1221,6 +1233,152 @@ test("remembered NPC anchors seed the next chat and notebook edits replace or re
   await exchange(page, afterDelete);
   const [removed] = await upstreamRecords(afterDelete);
   expect(removed?.messages.some((message) => message.content.startsWith("<cast>"))).toBe(false);
+});
+
+test("a person's gender chosen before their name is kept, and saved with the name", async ({
+  page,
+  request,
+}) => {
+  const { characterId } = await memoryChat(request);
+  await page.goto("/");
+  await openMemory(page);
+  await page.getByRole("button", { name: "Add a person", exact: true }).click();
+  const name = page.getByRole("textbox", { name: "Name", exact: true });
+  const gender = page.getByRole("combobox", { name: "Gender", exact: true });
+  await expect(name).toBeFocused();
+  await gender.click();
+  await page.getByRole("option", { name: "Male", exact: true }).click();
+  await expect(gender).toHaveText("Male");
+  await name.fill("Tomas Weller");
+  await expect
+    .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
+    .toEqual([JSON.stringify({ name: "Tomas Weller", gender: "male" })]);
+  // Cleared again, the name leaves nothing to keep, and the form still holds the gender.
+  await name.fill("");
+  await expect(gender).toHaveText("Male");
+  await expect
+    .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
+    .toEqual([]);
+  // Another person opened meanwhile, the nameless one keeps their gender and details.
+  await page.getByRole("textbox", { name: "Age", exact: true }).fill("40");
+  await page.getByRole("button", { name: "Add a person", exact: true }).click();
+  await expect(name).toBeFocused();
+  const nameless = page.getByRole("button", { name: /^Unnamed/ });
+  await expect(nameless).toContainText("Male, age 40");
+  await nameless.click();
+  await expect(gender).toHaveText("Male");
+  await expect(page.getByRole("textbox", { name: "Age", exact: true })).toHaveValue("40");
+  await name.fill("Tomas Weller");
+  await expect
+    .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
+    .toEqual([JSON.stringify({ name: "Tomas Weller", gender: "male", age: "40" })]);
+});
+
+test("a raw cast line repaired into a person opens their form, and focus stays in it", async ({
+  page,
+  request,
+}) => {
+  const { characterId } = await memoryChat(request);
+  const revision = (await storedMemory(request, characterId)).state?.revision ?? 0;
+  const line = JSON.stringify({ name: "Ilse", gender: "woman" });
+  const seeded = await request.patch(`/api/memory/characters/${characterId}`, {
+    headers: unsafe(),
+    data: {
+      notebook: { situation: "", relationships: [], facts: [], threads: [], cast: [line] },
+      revision,
+    },
+  });
+  expect(seeded.status()).toBe(200);
+  await page.goto("/");
+  await openMemory(page);
+  const raw = page.getByRole("textbox", { name: "Cast, line 1", exact: true });
+  await expect(raw).toHaveValue(line);
+  await raw.focus();
+  // The caret at the line's end, as a click there leaves it.
+  await raw.evaluate((field: HTMLTextAreaElement) =>
+    field.setSelectionRange(field.value.length, field.value.length),
+  );
+  for (const _ of 'woman"}') await page.keyboard.press("Backspace");
+  await page.keyboard.type('female"}');
+  const name = page.getByRole("textbox", { name: "Name", exact: true });
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("Ilse");
+  await expect
+    .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
+    .toEqual([JSON.stringify({ name: "Ilse", gender: "female" })]);
+});
+
+test("a raw cast line cleared to start over opens an empty person's form, and focus stays in it", async ({
+  page,
+  request,
+}) => {
+  const { characterId } = await memoryChat(request);
+  const revision = (await storedMemory(request, characterId)).state?.revision ?? 0;
+  const line = JSON.stringify({ name: "Ilse", gender: "woman" });
+  const seeded = await request.patch(`/api/memory/characters/${characterId}`, {
+    headers: unsafe(),
+    data: {
+      notebook: { situation: "", relationships: [], facts: [], threads: [], cast: [line] },
+      revision,
+    },
+  });
+  expect(seeded.status()).toBe(200);
+  await page.goto("/");
+  await openMemory(page);
+  const raw = page.getByRole("textbox", { name: "Cast, line 1", exact: true });
+  await expect(raw).toHaveValue(line);
+  await raw.focus();
+  await raw.evaluate((field: HTMLTextAreaElement) => field.select());
+  await page.keyboard.press("Backspace");
+  const name = page.getByRole("textbox", { name: "Name", exact: true });
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("");
+});
+
+test("a cast line at its limit cannot grow past it, says why, and the notebook still saves", async ({
+  page,
+  request,
+}) => {
+  const { characterId } = await memoryChat(request);
+  const words = (length: number) => "w".repeat(length);
+  const fixed = {
+    name: "Vera Lind",
+    gender: "female",
+    skin: words(240),
+    face: "",
+    build: words(240),
+    hair: words(240),
+    eyes: words(240),
+  };
+  const atLimit = { ...fixed, face: words(1_200 - JSON.stringify(fixed).length) };
+  const line = JSON.stringify(atLimit);
+  expect(line).toHaveLength(1_200);
+  const revision = (await storedMemory(request, characterId)).state?.revision ?? 0;
+  const seeded = await request.patch(`/api/memory/characters/${characterId}`, {
+    headers: unsafe(),
+    data: {
+      notebook: { situation: "", relationships: [], facts: [], threads: [], cast: [line] },
+      revision,
+    },
+  });
+  expect(seeded.status()).toBe(200);
+  const { name, gender, ...details } = fixed;
+  await page.goto("/");
+  await openMemory(page);
+  await page.getByRole("button", { name: /^Vera Lind/ }).click();
+  const age = page.getByRole("textbox", { name: "Age", exact: true });
+  await age.pressSequentially("31");
+  await expect(age).toHaveValue("");
+  await expect(
+    page.getByRole("status").filter({ hasText: "a cast line holds. Shorten one to add more." }),
+  ).toContainText("at the 1,200 characters");
+  // Shortened, the line takes the age, and the notebook saves it.
+  await page.getByRole("textbox", { name: "Face", exact: true }).fill("round");
+  await age.fill("31");
+  await expect(age).toHaveValue("31");
+  await expect
+    .poll(async () => (await storedMemory(request, characterId)).state?.notebook.cast)
+    .toEqual([JSON.stringify({ name, gender, age: "31", ...details, face: "round" })]);
 });
 
 test("memory off and Forget prevent notebook cast from seeding another chat", async ({

@@ -21,7 +21,7 @@ import { eventsSummary } from "./rule.ts";
 
 /*
  * Events on the Lorebooks screen: one line the story is given now and then,
- * by chance. One row above the lorebooks, closed until opened; inside,
+ * by chance. One compact row after the lorebooks, closed until opened; inside,
  * newest first, each event edited in place and saved as it changes.
  * Definitions only; which event fired where is chat content and never here.
  */
@@ -393,6 +393,7 @@ export function EventsSection() {
         }
         open={shown}
         onOpenChange={showSection}
+        compact
       >
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="grid min-w-0 flex-1 basis-64 gap-1">

@@ -1,6 +1,7 @@
 import { type CSSProperties, useRef } from "react";
 import { GLIDE } from "@/app/glide.ts";
 import { useOnScreen } from "@/app/KeptScroll.tsx";
+import { MarkIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { useRenewals } from "../signin/hooks.ts";
 import { type PortraitOwner, type PortraitSize, portraitUrl } from "./queries.ts";
@@ -14,14 +15,13 @@ export const PORTRAIT_TRANSITION = "character-portrait";
 
 /**
  * A character's or persona's portrait: always the whole art as a 2:3 leaf,
- * filled from the top, never cropped to a face. Without art, the name is set
- * in the frame as type (hidden from assistive tech, since a caption or
- * heading names its owner).
+ * filled from the top, never cropped to a face. Without art the leaf keeps
+ * its quiet ground with the mark's crescent and lamp low in it, one faint
+ * glyph: the name is said once, by the caption or heading beside it.
  */
 export function Portrait({
   owner = "characters",
   id,
-  name,
   version,
   size = "thumb",
   arriving = false,
@@ -30,7 +30,6 @@ export function Portrait({
 }: {
   owner?: PortraitOwner;
   id: string;
-  name: string;
   version: number | null;
   size?: PortraitSize;
   /** Just imported or uploaded: surfaces out of blur once. */
@@ -68,11 +67,8 @@ export function Portrait({
           className={cn("size-full object-cover object-top", arriving && "surface-in")}
         />
       ) : (
-        <div aria-hidden="true" className="flex size-full flex-col justify-end p-[9%]">
-          <span className="line-clamp-4 text-balance break-words font-[460] text-[clamp(0.75rem,11cqi,1.3125rem)] text-narration italic leading-[1.25] tracking-[-0.01em]">
-            {name}
-          </span>
-          <span className="mt-3 block h-px w-8 bg-control-edge" />
+        <div className="flex size-full items-end p-[9%]">
+          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
         </div>
       )}
     </div>

@@ -36,6 +36,7 @@ import { useSettings } from "../settings/settings.ts";
 import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
   busyOf,
+  CAST_FIELD_LABELS,
   CAST_TEXT_FIELDS,
   type CastChange,
   type CastRemoval,
@@ -70,32 +71,6 @@ import type { ChatState } from "./store.ts";
  */
 
 type TextField = CastTextField;
-
-/** Field names: for assistive technology in reading mode, visible labels in edit mode. */
-const LABELS: Record<TextField, string> = {
-  age: "Age",
-  ethnicity: "Ethnicity",
-  skin: "Skin",
-  face: "Face",
-  experience: "Sexual experience",
-  relationship: "Relationship",
-  height: "Height",
-  weight: "Weight",
-  build: "Build",
-  hair: "Hair",
-  eyes: "Eyes",
-  intimate: "Intimate body",
-  personality: "Personality",
-  fetishes: "Fetishes and taboos",
-  outfit: "Outfit",
-  disarray: "Clothing state",
-  position: "Position",
-  activity: "Activity",
-  mood: "Mood",
-  arousal: "Arousal",
-  injuries: "Injuries",
-  intoxication: "Intoxication",
-};
 
 /** Fields set in a tone, as the story's highlights are. */
 const TONES: Partial<Record<TextField, "rose" | "sage" | "iris">> = {
@@ -1066,7 +1041,7 @@ function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
         onClick={() => chatStore.getState().revertCast(entry.id, field)}
         className="press flex items-center font-sans text-meta text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink touch:min-h-11"
       >
-        Revert {LABELS[field].toLowerCase()}
+        Revert {CAST_FIELD_LABELS[field].toLowerCase()}
       </button>
     </div>
   );
@@ -1129,7 +1104,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
           <dl className="grid grid-cols-1 gap-y-2 @[20rem]:grid-cols-[6.5rem_minmax(0,1fr)] @[20rem]:gap-x-3">
             {rows.map((field) => (
               <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
-                <dt className="font-sans text-meta text-reed">{LABELS[field]}</dt>
+                <dt className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</dt>
                 <dd className="min-w-0 break-words text-narration text-ui">{value(field)}</dd>
               </div>
             ))}
@@ -1215,7 +1190,7 @@ export function EditRecord({ entry, onDone }: { entry: CastEntry; onDone: () => 
             <legend className={cn("mb-2", SECTION_LABEL)}>{legend}</legend>
             {fields.map((field, index) => (
               <label key={field} className="grid gap-1">
-                <span className="font-sans text-meta text-reed">{LABELS[field]}</span>
+                <span className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</span>
                 <textarea
                   // biome-ignore lint/a11y/noAutofocus: edit mode opens because Edit record was chosen.
                   autoFocus={group === 0 && index === 0}

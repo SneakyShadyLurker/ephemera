@@ -3,12 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState } from "react";
 import { HeaderAction } from "@/app/Browse.tsx";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress, JSON_FILE_TYPES } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
-import { ImportIcon, LorebookIcon, PlusIcon } from "@/components/icons";
+import { ImportIcon, PlusIcon } from "@/components/icons";
 import { ImportReportLine } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
@@ -43,6 +44,9 @@ import {
 const FRAME = "mx-auto w-full max-w-wide px-5 tablet:px-8";
 
 const NEW_NAME = "New lorebook";
+
+/** The library's and the cards' section headings, one size. */
+const SECTION_HEADING = "font-semibold text-ink text-lead";
 
 const EMPTY_TEXT =
   "Background and events for your characters. An entry can apply always, on keywords or by chance.";
@@ -263,9 +267,6 @@ export function LibraryScreen() {
             />
           ))}
 
-          {/* Events are the owner's whatever the library holds: first, one row, and Find leaves them be. */}
-          <EventsSection />
-
           {library.isError ? (
             <div role="alert" className="grid justify-items-start gap-2">
               <p className="text-ember text-note">The lorebooks could not be loaded.</p>
@@ -275,16 +276,15 @@ export function LibraryScreen() {
             </div>
           ) : rows === null ? null : (
             <>
+              {/* One Find over both lists, across the column. */}
               {anything && (
-                <div className="max-w-help">
-                  <SearchField
-                    ref={findField}
-                    label="Find lorebooks and characters"
-                    value={find}
-                    placeholder="Find by book or character name"
-                    onChange={(event) => setFind(event.target.value)}
-                  />
-                </div>
+                <SearchField
+                  ref={findField}
+                  label="Find lorebooks and characters"
+                  value={find}
+                  placeholder="Find by book or character name"
+                  onChange={(event) => setFind(event.target.value)}
+                />
               )}
               {noMatch ? (
                 <div className="grid justify-items-start gap-2 border-rush border-t pt-5">
@@ -294,27 +294,50 @@ export function LibraryScreen() {
                   </Button>
                 </div>
               ) : empty ? (
-                <EmptyLibrary
-                  creating={creating}
-                  onImport={actions.import}
-                  onCreate={actions.create}
-                />
+                <EmptyState
+                  title="No lorebooks yet"
+                  className="pt-2 pb-0"
+                  actions={
+                    <>
+                      <Button
+                        variant="primary"
+                        disabled={creating}
+                        focusableWhenDisabled
+                        onClick={actions.create}
+                      >
+                        <PlusIcon size={16} />
+                        New lorebook
+                      </Button>
+                      <Button variant="outline" onClick={actions.import}>
+                        <ImportIcon size={16} />
+                        Import lorebook
+                      </Button>
+                    </>
+                  }
+                >
+                  {EMPTY_TEXT}
+                </EmptyState>
               ) : (
                 rows.books.length > 0 && (
-                  <ul aria-label="Lorebooks" className="grid border-rush border-t">
-                    {rows.books.map((row, at) => (
-                      <BookRow
-                        onError={failed}
-                        key={row.book.id}
-                        row={row}
-                        arrived={arrived.includes(row.book.id)}
-                        onDuplicate={() => void duplicate(row)}
-                        onDelete={() =>
-                          void remove(row, (rows.books[at + 1] ?? rows.books[at - 1])?.book.id)
-                        }
-                      />
-                    ))}
-                  </ul>
+                  <section aria-labelledby="library" className="grid gap-3">
+                    <h2 id="library" className={SECTION_HEADING}>
+                      Library
+                    </h2>
+                    <ul aria-label="Lorebooks" className="grid border-rush border-t">
+                      {rows.books.map((row, at) => (
+                        <BookRow
+                          onError={failed}
+                          key={row.book.id}
+                          row={row}
+                          arrived={arrived.includes(row.book.id)}
+                          onDuplicate={() => void duplicate(row)}
+                          onDelete={() =>
+                            void remove(row, (rows.books[at + 1] ?? rows.books[at - 1])?.book.id)
+                          }
+                        />
+                      ))}
+                    </ul>
+                  </section>
                 )
               )}
             </>
@@ -322,7 +345,7 @@ export function LibraryScreen() {
           {rows !== null && !noMatch && rows.embedded.length > 0 && (
             <section aria-labelledby="in-cards" className="grid gap-3">
               <div className="grid gap-1">
-                <h2 id="in-cards" className="font-semibold text-ink text-lead">
+                <h2 id="in-cards" className={SECTION_HEADING}>
                   In character cards
                 </h2>
                 <p className="max-w-help text-pretty text-note text-reed">
@@ -343,6 +366,9 @@ export function LibraryScreen() {
               </ul>
             </section>
           )}
+
+          {/* Events are the owner's whatever the library holds: last, one compact row, and Find leaves them be. */}
+          <EventsSection />
         </div>
       </div>
       {dragging && (
@@ -352,34 +378,5 @@ export function LibraryScreen() {
         />
       )}
     </main>
-  );
-}
-
-/** No library book yet: what a lorebook is for and the two ways to start one. */
-function EmptyLibrary({
-  creating,
-  onImport,
-  onCreate,
-}: {
-  /** A new book is on its way: New waits for it. */
-  creating: boolean;
-  onImport: () => void;
-  onCreate: () => void;
-}) {
-  return (
-    <div className="grid justify-items-start gap-3 border-rush border-t pt-8">
-      <LorebookIcon size={24} className="text-reed" />
-      <p className="max-w-empty text-pretty text-lead text-narration">{EMPTY_TEXT}</p>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={creating} focusableWhenDisabled onClick={onCreate}>
-          <PlusIcon size={16} />
-          New lorebook
-        </Button>
-        <Button onClick={onImport}>
-          <ImportIcon size={16} />
-          Import lorebook
-        </Button>
-      </div>
-    </div>
   );
 }

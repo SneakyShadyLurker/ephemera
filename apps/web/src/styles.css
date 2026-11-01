@@ -32,9 +32,9 @@
  * Palettes: every colour token, defined once per palette as a light-dark()
  * pair, so the theme picks the scheme and the palette only the colours.
  * `data-palette` on <html> (core PALETTES, saved in Settings) chooses one;
- * on a swatch it scopes one to the swatch. Tokyo Night, the default (core
- * DEFAULT_PALETTE), needs no attribute, so its block comes first and every
- * later one overrides it. Every palette holds Lamplight's contrast floors in
+ * on each half of a swatch it scopes one to that half. Tokyo Night, the
+ * default (core DEFAULT_PALETTE), needs no attribute, so its block comes
+ * first and every later one overrides it. Every palette holds Lamplight's contrast floors in
  * both schemes (e2e/design.spec.ts).
  */
 /* Tokyo Night: Day by day, Night by night, a blue accent. */
@@ -391,8 +391,22 @@
   --gap-index: 3rem;
   /* The prompt preset sheet's formatting key beside its form, at the same gap. */
   --container-key: 17rem;
-  /* Measures: the story and interface prose, a floating notice, help beside controls, an empty state's sentence. */
+  /* Measures: interface prose, a floating notice, help beside controls, an empty state's sentence. */
   --container-measure: 40rem;
+  /*
+   * The character's prose: about 75 characters of the reading sans at the
+   * story size, never longer. Once the story is wider, the floating portrait
+   * grows into the rest, up to its widest column.
+   */
+  --container-story: 38rem;
+  --container-portrait: 20rem;
+  /* Between the floating portrait and the prose beside it, from desktop or a story wide enough for a column. */
+  --gap-presence: 2.5rem;
+  /*
+   * From this story width the prose beside the portrait keeps a column of its
+   * own: the measure, the gap and the portrait's narrowest (10rem) column.
+   */
+  --container-story-column: 50.5rem;
   --container-notice: 38.5rem;
   --container-help: 34rem;
   --container-empty: 30rem;
@@ -754,7 +768,8 @@
   width: fit-content;
   max-width: min(34rem, 92%);
   margin-inline-start: auto;
-  border: 1px solid var(--rush);
+  /* By day the surface sits close to the canvas, so the slip takes a control's edge. */
+  border: 1px solid light-dark(var(--control-edge), var(--rush));
   border-radius: 1.125rem;
   border-end-end-radius: 0.3125rem;
   background: var(--surface);
@@ -777,7 +792,8 @@
  * Nameplates: each turn opens with its speaker's name in the voice that
  * follows. The character's is in ink, the loudest name in the story, with a
  * hairline from it to the story's edge that opens the reply; the owner's
- * is a quiet label over the slip, at the trailing edge with it. It sticks a
+ * is a quiet label over the slip, at the trailing edge with it. On phones the
+ * turn's More ends the row: after the hairline, or beside the owner's name. It sticks a
  * little below the top of the story while its turn scrolls past, on the
  * canvas (the shadow fills the space above it), and only then lets the text
  * below fade out under it, so the edge never cuts a line in half.
@@ -810,6 +826,10 @@
     }
   }
   &[data-voice="line"] {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.125rem;
     padding-inline-end: 0.375rem;
     color: var(--reed);
     font-family: var(--font-sans);
@@ -1168,7 +1188,8 @@
 
 /*
  * A disclosure's chevron (components/ui/disclosure.tsx): it turns as its
- * details opens, on the spring; reduced motion turns it at once.
+ * details or its Base UI collapsible trigger opens, on the spring; reduced
+ * motion turns it at once.
  */
 @utility disclosure-chevron {
   rotate: var(--chevron-closed, 0deg);
@@ -1177,6 +1198,7 @@
     transition: none;
   }
 }
+[data-panel-open] > .disclosure-chevron,
 details[open] > summary .disclosure-chevron {
   rotate: var(--chevron-open, 180deg);
 }
@@ -1281,15 +1303,16 @@ details[open] > summary .disclosure-chevron {
 
 /*
  * The sheet's name joins its header once the name field scrolls beneath it.
- * It is fully opaque early in its range, so a scroll that comes to rest
- * partway leaves a readable title; the rise takes the whole range.
+ * It is fully opaque within the first few pixels of its range, so a scroll
+ * that comes to rest partway leaves a readable title; the rise takes the
+ * whole range.
  */
 @keyframes name-in {
   from {
     opacity: 0;
     translate: 0 var(--rise);
   }
-  40% {
+  10% {
     opacity: 1;
   }
   to {

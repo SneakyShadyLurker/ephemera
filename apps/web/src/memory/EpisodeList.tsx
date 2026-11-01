@@ -1,5 +1,6 @@
 import type { StoredEpisode } from "@ephemera/core";
 import { useId, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
@@ -8,7 +9,10 @@ import { type BookRow, bookRows } from "./memory.ts";
 import { Unfold } from "./Unfold.tsx";
 
 /** Said where the book is empty: memories come by themselves. */
-export const NOTHING_REMEMBERED = "Nothing remembered yet. Memories arrive as the story grows.";
+export const NOTHING_REMEMBERED = {
+  title: "Nothing remembered yet",
+  direction: "Memories arrive as the story grows.",
+} as const;
 
 /**
  * What a row says under its summary: how much of the story it holds. A
@@ -37,7 +41,11 @@ export function EpisodeList({
 }) {
   const rows = bookRows(episodes);
   if (rows.length === 0) {
-    return <p className="font-story text-reed text-turn">{NOTHING_REMEMBERED}</p>;
+    return (
+      <EmptyState level={3} title={NOTHING_REMEMBERED.title} className="pt-1 pb-0 tablet:pt-3.5">
+        {NOTHING_REMEMBERED.direction}
+      </EmptyState>
+    );
   }
   return (
     // One column at the screen's width: no title, summary or cue widens it.

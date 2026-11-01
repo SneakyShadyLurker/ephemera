@@ -23,6 +23,7 @@ import { cn } from "@/lib/cn";
 import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
+import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { FIELD } from "../sheet/fields.ts";
 import { identity } from "../signin/identity.ts";
@@ -357,7 +358,7 @@ export function PaletteEditor({
         </p>
       )}
 
-      <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-rush border-t bg-surface px-4 py-3 tablet:static tablet:mx-0 tablet:mb-0 tablet:border-0 tablet:bg-transparent tablet:p-0">
+      <div className={PANEL_FOOTER}>
         {draft.saved && (
           <Button variant="danger" disabled={busy !== null} onClick={() => setConfirmDelete(true)}>
             Delete
