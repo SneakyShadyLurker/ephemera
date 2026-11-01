@@ -18,7 +18,7 @@ import { textOf } from "./inert.ts";
  */
 
 /** Closing marks for each opening mark of speech; single quotes and apostrophes never open it. */
-const CLOSERS: Record<string, string> = {
+export const CLOSERS: Record<string, string> = {
   "“": '”"',
   "„": "“”",
   "«": "»",
@@ -29,7 +29,7 @@ const CLOSERS: Record<string, string> = {
 const SEALED = new Set(["em", "span", "code"]);
 
 /** The marks that close the quotation still open, carried across the elements it runs through. */
-interface Quote {
+export interface Quote {
   closers: string | null;
 }
 

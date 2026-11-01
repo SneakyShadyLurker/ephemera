@@ -462,6 +462,19 @@ describe("Markdown scene voices", () => {
     expect(out).toContain('<span data-voice="speech">“Now.”</span>');
   });
 
+  it("keeps a highlight's own quotes out of the speech around it", () => {
+    const out = render("“She called me :rose[“darling”]”, she says.");
+    expect(out).toContain(
+      '<span data-voice="speech">“She called me <span data-tone="rose">“darling”</span>”</span>, she says.',
+    );
+  });
+
+  it("opens speech after an action once a low-high quote has closed", () => {
+    expect(render('„Hello“ she says. *smiles*"Hello," she says.')).toMatch(
+      /<\/em><span data-voice="speech">“Hello,”<\/span> she says\./,
+    );
+  });
+
   it("keeps a cue's name visible while its words fade in", () => {
     const out = render('Kate (25): "Hi', true);
     const separator = /<span data-cue-separator=""[^>]*>.*?<\/span><\/span>/.exec(out)?.[0] ?? "";
