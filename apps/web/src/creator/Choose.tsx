@@ -115,7 +115,7 @@ function KindPanel({ kind, onChoose }: { kind: CreatorKind; onChoose: () => void
   );
 }
 
-/** One panel: its drawing over a faint glow, its label (which travels on), and a sentence. */
+/** One panel: its drawing in a faint glow, its label (which travels on), and a sentence. */
 function Panel({
   label,
   sentence,
@@ -150,11 +150,11 @@ function Panel({
       )}
     >
       <span className="relative grid place-items-center text-narration">
-        {/* A faint lamp glow warms the drawing from below on hover and focus. */}
+        {/* A faint lamp glow, centred behind the drawing, warms it on hover and focus. */}
         <span
           aria-hidden="true"
           className={cn(
-            "absolute top-1/2 left-1/2 aspect-square -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--dusk)_30%,transparent),transparent)] opacity-0 transition-opacity duration-(--duration-panel-in) ease-fade group-hover:opacity-100 group-focus-visible:opacity-100",
+            "absolute top-1/2 left-1/2 aspect-square -translate-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--dusk)_30%,transparent),transparent)] opacity-0 transition-opacity duration-(--duration-panel-in) ease-fade group-hover:opacity-100 group-focus-visible:opacity-100",
             glow,
           )}
         />
