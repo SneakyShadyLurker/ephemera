@@ -278,6 +278,20 @@ describe("default prompt preset scenarios", () => {
   });
 });
 
+describe("default prompt preset reading the player", () => {
+  it("hears only {{user}}'s quoted words and takes asterisked text as actions, in Main and the note", () => {
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      `In the player's messages, "quoted" text is what {{user}} says aloud and *asterisked* text is what {{user}} does.`,
+    );
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      "never quote, echo or answer an action's wording as if {{user}} had said it",
+    );
+    expect(DEFAULT_NOTE_PROMPT).toContain(
+      "Only {{user}}'s quoted words are spoken; *actions* are done, not said",
+    );
+  });
+});
+
 describe("scene line cues", () => {
   it.each([
     ['Kate (25): "Hi"', "Kate", "25", '"Hi"'],
