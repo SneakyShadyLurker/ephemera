@@ -5,6 +5,7 @@ import {
   chooseCharacter,
   chooseModel,
   clearChat,
+  headerAction,
   lastReply,
   openChat,
   send,
@@ -29,7 +30,7 @@ const sentList = (page: Page) =>
   inspector(page).getByRole("list", { name: "Prompt in send order" });
 
 async function openInspector(page: Page) {
-  await page.getByRole("button", { name: "Prompt", exact: true }).click();
+  await headerAction(page, "Prompt");
   await expect(inspector(page)).toBeVisible();
 }
 

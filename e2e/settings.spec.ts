@@ -173,6 +173,35 @@ test("a palette recolours the app in either scheme and is painted onto the app s
   await expect.poll(shellPalette).toBe(false);
 });
 
+test("each palette's swatch shows its day scheme beside its night scheme, whatever the window's", async ({
+  page,
+}) => {
+  const tiles = page.getByRole("radiogroup", { name: "Palette", exact: true }).locator("label");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto("/settings");
+    await expect(tiles).toHaveCount(6);
+    const halves = await tiles.evaluateAll((labels) =>
+      labels.map((label) => {
+        const [day, night] = [...(label.querySelector('[aria-hidden="true"]')?.children ?? [])];
+        const lightness = (half: Element | undefined) => {
+          if (half === undefined) return Number.NaN;
+          const probe = document.createElement("span");
+          probe.style.color = `oklch(from ${getComputedStyle(half).backgroundColor} l 0 0)`;
+          document.body.append(probe);
+          const value = Number.parseFloat(getComputedStyle(probe).color.replace(/^oklch\(/, ""));
+          probe.remove();
+          return value;
+        };
+        return { name: label.textContent, day: lightness(day), night: lightness(night) };
+      }),
+    );
+    for (const { name, day, night } of halves) {
+      expect(day, `${name} in a ${scheme} window`).toBeGreaterThan(night + 0.3);
+    }
+  }
+});
+
 /**
  * Fails the root loader's settings read and its one retry, so the tab starts
  * on the fallback settings, then holds every later read until released and

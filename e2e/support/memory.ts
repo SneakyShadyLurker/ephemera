@@ -1,7 +1,7 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { type CharacterMemory, characterMemorySchema } from "../../packages/core/src/responses.ts";
 import { uniqueName } from "./cards.ts";
-import { lastReply, send } from "./chat.ts";
+import { headerAction, lastReply, send } from "./chat.ts";
 import { createCharacterViaApi, patchSettings } from "./entities.ts";
 import { expect, unsafe } from "./test.ts";
 import type { MockModel } from "./upstream.ts";
@@ -95,7 +95,7 @@ export const FOLDED_LINE = /^Remembered\. \d+ turns? folded(, \d+ still sent)?\.
  * from the chat (`from=chat`), so its Back returns there.
  */
 export async function openMemory(page: Page) {
-  await memoryMark(page).click();
+  await headerAction(page, "Memory");
   await expect(page).toHaveURL((url) => /^\/characters\/[^/]+\/memory$/.test(url.pathname));
   await expect(page).toHaveURL((url) => url.searchParams.get("from") === "chat");
   await expect(page.getByRole("heading", { name: "Memory", level: 1 })).toBeVisible();

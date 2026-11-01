@@ -54,7 +54,12 @@ export function Reasoning({
     if (editing && details.current) details.current.open = true;
   }, [editing]);
   return (
-    <details ref={details} open={reasoningOpen} className="disclosure mb-2">
+    // On phones its line sits tight between the nameplate and the prose; the summary keeps its touch height.
+    <details
+      ref={details}
+      open={reasoningOpen}
+      className="disclosure mb-2 max-tablet:-mt-1.5 max-tablet:mb-0.5"
+    >
       <summary className="-ml-1 inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-note text-reed hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden">
         <DisclosureChevron className="[--chevron-closed:-90deg] [--chevron-open:0deg]" />
         {thinking ? (
@@ -103,7 +108,7 @@ export function Reasoning({
  */
 export function HiddenReasoning({ ms }: { ms: number }) {
   return (
-    <p className="mb-2 flex min-h-8 items-center gap-1.5 text-note text-reed touch:min-h-11">
+    <p className="mb-2 flex min-h-8 items-center gap-1.5 text-note text-reed touch:min-h-11 max-tablet:-mt-1.5 max-tablet:mb-0.5">
       <span aria-hidden="true" className="size-4" />
       {thoughtFor(ms)}; the model keeps its reasoning to itself.
     </p>

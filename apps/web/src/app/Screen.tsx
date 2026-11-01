@@ -1,10 +1,12 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { MarkIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { useChat } from "../chat/session.ts";
 import { useCreatorWriting } from "../creator/writing.ts";
 import { ChunkLoadError } from "./chunk-error.ts";
+import { EmptyState } from "./EmptyState.tsx";
 import { useFormFactor } from "./form-factor.ts";
 import { setNavOpen } from "./ui.ts";
 
@@ -34,12 +36,13 @@ export const SCROLL_GUTTER_END = "tablet:[scrollbar-gutter:stable]";
 export const BROWSE_FRAME = "mx-auto w-full max-w-browse px-4 tablet:px-[clamp(1rem,3vw,4rem)]";
 /**
  * A gallery's cards inside `BROWSE_FRAME` as an `@container`: as many columns
- * as fit, the card's minimum growing with the space. The minimum leaves six
+ * as fit, the card's minimum growing with the space, so a wide window takes
+ * larger cards rather than more empty tracks. The minimum leaves five
  * columns on a 1440px window whether the scrollbars overlay the content or
  * take their gutters (`SCROLL_GUTTERS`).
  */
 export const BROWSE_GRID =
-  "grid grid-cols-2 gap-x-3.5 gap-y-6 tablet:grid-cols-[repeat(auto-fill,minmax(clamp(10.25rem,12cqi,13rem),1fr))] tablet:gap-x-6 tablet:gap-y-8";
+  "grid grid-cols-2 gap-x-3.5 gap-y-6 tablet:grid-cols-[repeat(auto-fill,minmax(clamp(10.25rem,15cqi,16rem),1fr))] tablet:gap-x-6 tablet:gap-y-8";
 /** One quiet page column: an empty gallery. */
 export const PAGE_FRAME = "mx-auto w-full max-w-page px-5 tablet:px-6";
 /**
@@ -61,6 +64,7 @@ export function ScreenHeader({
   storyTitle,
   frame,
   gutters,
+  yieldsTitle = false,
 }: {
   title: ReactNode;
   children?: ReactNode;
@@ -74,6 +78,11 @@ export function ScreenHeader({
   frame?: string;
   /** The gutter class the body's scroller keeps (`SCROLL_GUTTERS`, the chat thread's own alike), so the header keeps the same room. */
   gutters?: string;
+  /**
+   * The title fades while an ancestor carries `data-name-stuck` (a nameplate with the same
+   * name stuck under the header), so the name never shows twice; it stays the heading.
+   */
+  yieldsTitle?: boolean;
 }) {
   const phone = useFormFactor() === "phone";
   const writing = useInFlight();
@@ -99,7 +108,10 @@ export function ScreenHeader({
             className={cn(
               "min-w-0 flex-1 truncate text-ink tablet:px-0",
               lead ? "pr-2 pl-1" : "px-2",
-              story ? "font-[450] font-story text-[1.125rem] leading-6" : "font-semibold text-lead",
+              // A display step above the navigation's labels, one size on every screen.
+              story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
+              yieldsTitle &&
+                "transition-opacity duration-(--duration-quick) ease-fade [[data-name-stuck]_&]:opacity-0",
             )}
           >
             {title}
@@ -116,47 +128,53 @@ export function ScreenHeader({
  * What a screen shows when its code or data throws while rendering: calm,
  * content-free (an error's message can quote card text), inside the app
  * shell so navigation and the sign-in notice stay. The chat lives outside
- * the screen and is not touched.
+ * the screen and is not touched. Code that did not arrive comes back only
+ * with a reload, which ends the chat, so that is said and left to the owner.
  */
 export function ScreenError({ error, reset }: { error: unknown; reset: () => void }) {
   const chunk = error instanceof ChunkLoadError;
   return (
     <main className="flex min-w-0 flex-1 flex-col">
       <ScreenHeader title="Something went wrong" />
-      <div className="grid justify-items-start gap-3 px-5 py-8 tablet:px-8">
-        <p
-          data-skip-target=""
-          tabIndex={-1}
-          role="alert"
-          className="max-w-measure text-pretty text-lead text-reed outline-none"
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 tablet:px-6">
+        <EmptyState
+          alert
+          skipTarget
+          title={chunk ? "This screen needs a reload" : "This screen could not load"}
+          actions={
+            !chunk && (
+              <Button variant="outline" onClick={reset}>
+                Try again
+              </Button>
+            )
+          }
         >
           {chunk
-            ? "This screen's code did not arrive, and the browser keeps that until the page reloads. Your chat is still here; a reload brings the screen back and ends the chat."
-            : "This screen could not load. Your chat is still here."}
-        </p>
-        {!chunk && (
-          <Button variant="outline" onClick={reset}>
-            Try again
-          </Button>
-        )}
+            ? "Its code did not arrive, and the browser keeps that until the page reloads. Your chat is still here; a reload brings the screen back and ends the chat."
+            : "Your chat is still here."}
+        </EmptyState>
       </div>
     </main>
   );
 }
 
-/** A quiet screen with a title and one sentence, such as Not found. */
-export function PlaceholderScreen({ title, note }: { title: string; note: string }) {
+/** An address that leads nowhere: said plainly, with the way back to the story. */
+export function NotFoundScreen() {
   return (
     <main className="flex min-w-0 flex-1 flex-col [timeline-scope:--thread]">
-      <ScreenHeader title={title} />
-      <div className="overflow-y-auto px-5 py-8 [scroll-timeline:--thread] tablet:px-8">
-        <p
-          data-skip-target=""
-          tabIndex={-1}
-          className="max-w-measure text-pretty text-lead text-reed outline-none"
+      <ScreenHeader title="Not found" />
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 [scroll-timeline:--thread] tablet:px-6">
+        <EmptyState
+          skipTarget
+          title="Nothing lives at this address"
+          actions={
+            <Link to="/" className={buttonVariants({ variant: "primary" })}>
+              Back to the story
+            </Link>
+          }
         >
-          {note}
-        </p>
+          The link may be old or mistyped.
+        </EmptyState>
       </div>
     </main>
   );

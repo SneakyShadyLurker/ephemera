@@ -39,11 +39,12 @@ export function leaveBrainstorm(change: () => void) {
 }
 
 /**
- * State 1: three panels, side by side from tablet up and filling the column,
- * padded so the longest label, Multiple Subjects, stays on one line, and
- * Brainstorm under them across the column in the panels' row form.
- * Arrow keys move between all four; choosing one carries its label into the
- * next state.
+ * State 1: three equal choices on aligned tracks from tablet up (a reserved
+ * art place of one height, the label on one line, one sentence), each a row
+ * on phones; Brainstorm a quieter row under them across the column. Open
+ * on the canvas: hover and focus tint the surface (the lamplight rim means
+ * work in progress). Arrow keys move between all four; choosing one carries
+ * its label into the next state.
  */
 export function Choose() {
   const kind = useCreator((state) => state.kind);
@@ -51,7 +52,7 @@ export function Choose() {
   const openBrainstorm = useCreator((state) => state.openBrainstorm);
   const group = useRef<HTMLFieldSetElement>(null);
 
-  // Back from Change, focus returns to the panel the owner came from.
+  // Back from Change, focus returns to the choice the owner came from.
   useEffect(() => {
     const target = fromBrainstorm ? '[data-stage="brainstorm"]' : `[data-kind="${kind}"]`;
     if (fromBrainstorm || kind !== null) group.current?.querySelector<HTMLElement>(target)?.focus();
@@ -74,101 +75,80 @@ export function Choose() {
       <fieldset
         ref={group}
         onKeyDown={onKeyDown}
-        className="grid gap-3 tablet:grid-cols-3 tablet:gap-5"
+        className="grid gap-1 tablet:grid-cols-3 tablet:gap-x-3 tablet:gap-y-0"
       >
         <legend className="sr-only">What to create</legend>
         {(Object.keys(KINDS) as CreatorKind[]).map((option) => (
-          <KindPanel
+          <KindChoice
             key={option}
             kind={option}
             onChoose={() => inTransition(() => choose(option))}
           />
         ))}
-        <Panel
-          label="Brainstorm"
-          sentence="Ten ideas from a mood or a few words, for any of the three."
-          Icon={IdeasIcon}
-          transition={kindTransition("brainstorm")}
-          data-stage="brainstorm"
-          onClick={() => inTransition(openBrainstorm)}
-          className="min-h-22 grid-cols-[3rem_minmax(0,1fr)] tablet:col-span-3"
-          glow="w-16"
-        />
+        {/* Under a rule, a quieter row across the column. */}
+        <div className="mt-4 border-rush border-t pt-2 tablet:col-span-3 tablet:mt-6">
+          <button
+            type="button"
+            data-stage="brainstorm"
+            onClick={() => inTransition(openBrainstorm)}
+            className={cn(CHOICE, "flex w-full items-center gap-3 px-3 py-3")}
+          >
+            <IdeasIcon size={20} className="shrink-0 text-reed" />
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <span
+                className="w-fit font-semibold text-ink text-ui"
+                style={{ viewTransitionName: kindTransition("brainstorm") }}
+              >
+                Brainstorm
+              </span>
+              <span className="text-pretty text-note text-reed">
+                Ten ideas from a mood or a few words, for any of the three.
+              </span>
+            </span>
+          </button>
+        </div>
       </fieldset>
     </div>
   );
 }
 
-function KindPanel({ kind, onChoose }: { kind: CreatorKind; onChoose: () => void }) {
-  const { label, sentence, Icon } = KINDS[kind];
-  return (
-    <Panel
-      label={label}
-      sentence={sentence}
-      Icon={Icon}
-      transition={kindTransition(kind)}
-      data-kind={kind}
-      onClick={onChoose}
-      className="max-tablet:min-h-22 max-tablet:grid-cols-[3rem_minmax(0,1fr)] tablet:min-h-72 tablet:grid-rows-[minmax(0,1fr)_auto]"
-      glow="w-24 max-tablet:w-16"
-    />
-  );
-}
+/** A choice's ground at rest and its surface tints on hover, focus and press. */
+const CHOICE =
+  "press rounded-lg text-left hover:bg-surface-hover focus-visible:bg-surface-hover active:bg-surface-pressed";
 
-/** One panel: its drawing in a faint glow, its label (which travels on), and a sentence. */
-function Panel({
-  label,
-  sentence,
-  Icon,
-  transition,
-  onClick,
-  className,
-  glow,
-  ...data
-}: {
-  label: string;
-  sentence: string;
-  Icon: ComponentType<IconProps>;
-  /** The label's shared-element name into the next state. */
-  transition: string;
-  onClick: () => void;
-  /** The panel's form: a column from tablet up, or a row. */
-  className: string;
-  /** The glow's size, as the drawing's place allows. */
-  glow: string;
-  "data-kind"?: string;
-  "data-stage"?: string;
-}) {
+/**
+ * One of the three: its art's place (reserved, one height in all three),
+ * its label (which travels on) on one line, and a sentence; from tablet the
+ * three share the column's row tracks, so the labels sit on one line.
+ */
+function KindChoice({ kind, onChoose }: { kind: CreatorKind; onChoose: () => void }) {
+  const { label, sentence, Icon } = KINDS[kind];
   return (
     <button
       type="button"
-      {...data}
-      onClick={onClick}
+      data-kind={kind}
+      onClick={onChoose}
       className={cn(
-        "group grid items-center gap-4 rounded-lg border border-rush bg-surface p-4 text-left transition-[translate,scale,border-color] duration-(--duration-arrive) ease-spring hover:-translate-y-(--rise) hover:border-dusk-line focus-visible:-translate-y-(--rise) focus-visible:border-dusk-line active:scale-(--press-scale)",
-        className,
+        CHOICE,
+        "group grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-4 p-3 tablet:row-span-3 tablet:grid-cols-1 tablet:grid-rows-subgrid tablet:items-start tablet:gap-y-0",
       )}
     >
-      <span className="relative grid place-items-center text-narration">
-        {/* A faint lamp glow, centred behind the drawing, warms it on hover and focus. */}
-        <span
-          aria-hidden="true"
-          className={cn(
-            "absolute top-1/2 left-1/2 aspect-square -translate-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--dusk)_30%,transparent),transparent)] opacity-0 transition-opacity duration-(--duration-panel-in) ease-fade group-hover:opacity-100 group-focus-visible:opacity-100",
-            glow,
-          )}
-        />
-        <Icon size={32} className="relative" />
+      {/* The art's place: a quiet field holding the kind's own icon. */}
+      <span
+        aria-hidden="true"
+        data-art=""
+        className="grid aspect-[2/3] place-items-center rounded-md bg-surface text-reed transition-colors duration-(--duration-tint) ease-fade group-hover:bg-surface-selected group-hover:text-ink group-focus-visible:bg-surface-selected group-focus-visible:text-ink max-tablet:row-span-2 tablet:aspect-auto tablet:h-44"
+      >
+        <Icon size={24} />
       </span>
-      <span className="grid gap-1.5">
-        <span
-          className="w-fit font-semibold text-heading text-ink"
-          style={{ viewTransitionName: transition }}
-        >
-          {label}
-        </span>
-        <span className="text-pretty text-note text-reed">{sentence}</span>
+      <span
+        data-title=""
+        className="w-fit font-semibold text-heading text-ink tablet:mt-4 tablet:whitespace-nowrap"
+        style={{ viewTransitionName: kindTransition(kind) }}
+      >
+        {label}
       </span>
+      <span className="text-pretty text-note text-reed tablet:mt-1.5">{sentence}</span>
     </button>
   );
 }

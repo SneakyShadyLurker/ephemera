@@ -156,10 +156,12 @@ export function deriveScheme(
 /**
  * The classes that set a scheme. A stylesheet rule rather than an inline
  * style: the production build rewrites `light-dark()` into variables that
- * only a `color-scheme` rule in a stylesheet sets; the dev server resolves
- * it natively from the same property. PalettePicker's swatches use them too.
+ * only a `color-scheme` rule in a stylesheet sets, and that resolve on the
+ * element declaring a palette token, so a scheme reads a palette only on the
+ * element carrying both; the dev server resolves it natively from the same
+ * property. PalettePicker's swatches use them too.
  */
-const SCHEME_CLASS = { light: "[color-scheme:light]", dark: "[color-scheme:dark]" } as const;
+export const SCHEME_CLASS = { light: "[color-scheme:light]", dark: "[color-scheme:dark]" } as const;
 
 /** A built-in palette's two schemes, from styles.css as the browser resolves them. */
 export function readBuiltIn(palette: Palette): { light: PaletteScheme; dark: PaletteScheme } {

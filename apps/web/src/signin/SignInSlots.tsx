@@ -103,15 +103,15 @@ export function SignInSheetRow() {
   );
 }
 
-/** Every other screen: the notice floats over the bottom of the content column. */
+/** Every other screen: the notice floats over the bottom of the content column (the root's slot). */
 export function SignInFloat() {
   const claimed = useStore(claims, (count) => count > 0);
-  if (claimed) return null;
+  // Signed in, nothing takes a place in the slot beside the update notice.
+  const active = useSignInPhase() === "active";
+  if (claimed || active) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tablet:px-6 tablet:pb-6">
-      <div className="pointer-events-auto w-full max-w-notice">
-        <Notice placement="float" />
-      </div>
+    <div className="pointer-events-auto w-full max-w-notice">
+      <Notice placement="float" />
     </div>
   );
 }

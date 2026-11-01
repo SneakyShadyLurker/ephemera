@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
@@ -21,7 +22,6 @@ import {
   CloseIcon,
   ImportIcon,
   LampFlameIcon,
-  MarkIcon,
   PlusIcon,
   SortIcon,
   TagIcon,
@@ -85,8 +85,8 @@ export function GalleryScreen() {
 
   const list = characters.data ?? [];
   const empty = characters.isSuccess && list.length === 0;
-  // The header sits on what the body shows: the cast, or the page column of an empty library.
-  const frame = characters.isError || empty ? PAGE_FRAME : BROWSE_FRAME;
+  // The header sits on what the body shows: the cast and an empty library share one frame.
+  const frame = characters.isError ? PAGE_FRAME : BROWSE_FRAME;
 
   return (
     <main
@@ -123,7 +123,7 @@ export function GalleryScreen() {
         {characters.isError ? (
           <ListLoadFailed what="Characters" onRetry={() => void characters.refetch()} />
         ) : empty ? (
-          <EmptyGallery onImport={openPicker} onNew={newCharacter} onCreate={createWithAi} />
+          <EmptyGallery phone={phone} onImport={openPicker} />
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
           <div
@@ -496,55 +496,29 @@ function Cast({ list, pending }: { list: CharacterSummary[]; pending: boolean })
 }
 
 /**
- * Empty library: on desktop and tablet the one drawn frame is the live drop
- * target, in the drag outline's own line; phones get the mark above the words.
+ * Empty library: import is the first step (most stories start from a card
+ * already made), with the drop hint where dropping works; New character and
+ * Create with AI stay in the header.
  */
-function EmptyGallery({
-  onImport,
-  onNew,
-  onCreate,
-}: {
-  onImport: () => void;
-  onNew: () => void;
-  onCreate: () => void;
-}) {
+function EmptyGallery({ phone, onImport }: { phone: boolean; onImport: () => void }) {
   return (
-    <div
-      className={cn(
-        PAGE_FRAME,
-        "grid pt-[12dvh] tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6",
-      )}
-    >
-      <div className="hidden tablet:block">
-        <div className="grid aspect-[2/3] place-items-center rounded-lg border-2 border-control-edge border-dashed text-reed">
-          <ImportIcon size={24} />
-        </div>
-      </div>
-      <div className="grid content-start justify-items-start gap-3 transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
-        {/* A failed import into an empty library still reports why. */}
+    <div className={BROWSE_FRAME}>
+      {/* A failed import into an empty library still reports why. */}
+      <div className="pt-3 empty:hidden">
         <ImportReport />
-        <MarkIcon size={96} className="mb-2 -ml-1.5 text-reed tablet:hidden" />
-        <h2 className="font-semibold text-heading text-ink">No characters yet</h2>
-        <p className="max-w-empty text-pretty text-lead text-reed">
-          Import a PNG or JSON character card, or create your own.
-          <span className="max-tablet:hidden"> Cards can also be dropped on this page.</span>{" "}
-          Characters are saved; chats are not.
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
+      </div>
+      <EmptyState
+        title="No characters yet"
+        actions={
           <Button variant="primary" onClick={onImport}>
             <ImportIcon size={16} />
             Import cards
           </Button>
-          <Button variant="outline" onClick={onNew}>
-            <PlusIcon size={16} />
-            New character
-          </Button>
-          <Button variant="outline" onClick={onCreate}>
-            <LampFlameIcon size={16} />
-            Create with AI
-          </Button>
-        </div>
-      </div>
+        }
+      >
+        Import a character card as PNG or JSON{phone ? "" : ", or drop cards on this page"}.
+        Characters are saved; chats are not.
+      </EmptyState>
     </div>
   );
 }

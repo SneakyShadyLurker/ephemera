@@ -610,6 +610,39 @@ test("deleting a book names the characters that lose it and takes it off their s
   }
 });
 
+test("the library leads, the cards' books follow and Events closes the page; Find spans the column", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const book = uniqueName("Almanac");
+  await createLorebookViaApi(page.request, book);
+  const characterId = await createCharacterViaApi(page.request, uniqueName("Order"));
+  await setLorebookViaApi(page.request, characterId, {
+    entries: [loreEntry({ comment: "Bell", keys: ["bell"], content: "The bell rings." })],
+  });
+  await page.goto("/lorebooks");
+  await expect(library(page)).toBeVisible();
+  const top = async (locator: Locator) => (await locator.boundingBox())?.y ?? Number.NaN;
+  const shelf = page.getByRole("heading", { name: "Library", exact: true });
+  const cards = page.getByRole("heading", { name: "In character cards" });
+  const events = page.getByRole("button", { name: "Events", exact: true });
+  expect(await top(shelf)).toBeLessThan(await top(cards));
+  expect(await top(cards)).toBeLessThan(await top(events));
+  // Find spans the list's column; a book's link state sits by its name, not at the far edge.
+  const list = await library(page).boundingBox();
+  // The field is the search box's label, its icon and input inside.
+  const search = await find(page).locator("xpath=..").boundingBox();
+  expect(Math.abs((search?.width ?? 0) - (list?.width ?? 0))).toBeLessThanOrEqual(2);
+  const linked = await bookRow(page, book).getByText("Not linked", { exact: true }).boundingBox();
+  expect((linked?.x ?? Number.POSITIVE_INFINITY) - (list?.x ?? 0)).toBeLessThan(
+    (list?.width ?? 0) / 2,
+  );
+  // The Events chevron sits beside its label.
+  const label = await events.getByText("Events", { exact: true }).boundingBox();
+  const chevron = await events.locator("svg").first().boundingBox();
+  expect((chevron?.x ?? 0) - ((label?.x ?? 0) + (label?.width ?? 0))).toBeLessThanOrEqual(12);
+});
+
 test("Copy to library makes an independent copy of a card's book, linked to no one", async ({
   page,
 }) => {

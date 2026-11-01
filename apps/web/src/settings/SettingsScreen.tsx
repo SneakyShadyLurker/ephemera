@@ -33,7 +33,7 @@ import { ContextSize } from "./ContextSize.tsx";
 import { useNumberDraft } from "./number-draft.ts";
 import { Pictures } from "./Pictures.tsx";
 import { PostProcessing } from "./PostProcessing.tsx";
-import { ROW_SELECT, SettingGroup, SettingRow, WithUnit } from "./SettingRow.tsx";
+import { HINT, ROW_SELECT, SettingGroup, SettingRow, WithUnit } from "./SettingRow.tsx";
 import { SECTION_TEXT, SECTIONS, type Section, sectionSchema, shownSection } from "./sections.ts";
 import {
   castPatch,
@@ -112,7 +112,7 @@ export function SettingsScreen({
           SCROLL_GUTTERS,
         )}
       >
-        <div className={cn(SETTINGS_FRAME, "grid gap-8 pt-6 pb-16 tablet:pt-8")}>
+        <div className={cn(SETTINGS_FRAME, "grid gap-6 pt-4 pb-16 tablet:gap-8 tablet:pt-8")}>
           <SaveAlerts />
           {phone && shown === null && (
             <nav aria-label="Settings categories">
@@ -166,7 +166,7 @@ export function SettingsScreen({
             <Panel
               section="appearance"
               phone={phone}
-              lead="Saved on this server, so a reload or another device keeps your choices."
+              note="Saved on this server, so a reload or another device keeps your choices."
             >
               <AppearanceSettings />
             </Panel>
@@ -224,29 +224,37 @@ export function SettingsScreen({
 
 /**
  * A category's panel: its title (the header carries it on phones) and lead,
- * then its groups.
+ * then its groups, then a `note` that stays secondary: guidance worth
+ * knowing that no setting depends on.
  */
 function Panel({
   section,
   phone,
   lead,
+  note,
   children,
 }: {
   section: Section;
   phone: boolean;
   lead?: string;
+  note?: string;
   children: ReactNode;
 }) {
   return (
-    <TabsPanel value={section} keepMounted className="grid min-w-0 gap-10 tablet:col-start-2">
+    <TabsPanel
+      value={section}
+      keepMounted
+      className="grid min-w-0 gap-8 tablet:col-start-2 tablet:gap-10"
+    >
       {/* On phones the header names the category; with no lead, the head leaves the flow. */}
       <div className={cn("grid gap-1", phone && lead === undefined && "sr-only")}>
         <h2 className={cn("font-semibold text-heading text-ink", phone && "sr-only")}>
           {SECTION_TEXT[section].label}
         </h2>
-        {lead !== undefined && <p className="text-pretty text-note text-reed">{lead}</p>}
+        {lead !== undefined && <p className={HINT}>{lead}</p>}
       </div>
       {children}
+      {note !== undefined && <p className={cn(HINT, "-mt-4 tablet:-mt-6")}>{note}</p>}
     </TabsPanel>
   );
 }
@@ -290,6 +298,7 @@ function AppearanceSettings() {
     <SettingGroup>
       <SettingRow
         label="Theme"
+        control="choices"
         about={
           <p>
             Light, dark, or whichever your system is using right now. Match system follows the
@@ -310,7 +319,7 @@ function AppearanceSettings() {
             never refuses a choice.
           </p>
         }
-        wide
+        control="panel"
       >
         <PalettePicker labelId={paletteLabel} />
       </SettingRow>

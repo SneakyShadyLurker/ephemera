@@ -30,13 +30,17 @@ const DESTINATIONS = [
   { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ] as const;
 
-/** The active row's marker; one exists at a time, so its transition name makes it glide between rows. */
+/**
+ * The active row's marker, in the palette's accent line: it says "you are
+ * here", over a ground only a step off the rail's. One exists at a time, so
+ * its transition name makes it glide between rows.
+ */
 function Marker() {
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "absolute top-1/2 left-0 h-4 w-0.5 -translate-y-1/2 rounded-full bg-ink [view-transition-name:nav-marker]",
+        "absolute top-1/2 left-0 h-5 w-[3px] -translate-y-1/2 rounded-full bg-dusk-line [view-transition-name:nav-marker]",
         GLIDE,
       )}
     />
@@ -66,7 +70,7 @@ function Destinations({
               : {})}
             onClick={onNavigate}
             className={cn(
-              "press group relative flex items-center rounded-md font-medium text-reed hover:bg-surface-hover hover:text-ink data-[status=active]:bg-surface-selected data-[status=active]:text-ink",
+              "press group relative flex items-center rounded-md font-medium text-reed hover:bg-surface-hover hover:text-ink data-[status=active]:bg-surface data-[status=active]:text-ink data-[status=active]:hover:bg-surface-hover",
               layout === "rail" && "h-11 gap-3 px-3 text-ui",
               layout === "sheet" && "h-13 gap-4 px-4 text-lead",
               layout === "icons" &&
@@ -75,7 +79,7 @@ function Destinations({
           >
             {({ isActive }) => (
               <>
-                {isActive && layout !== "icons" && <Marker />}
+                {isActive && <Marker />}
                 <Icon size={layout === "sheet" ? 24 : 20} />
                 {label}
               </>

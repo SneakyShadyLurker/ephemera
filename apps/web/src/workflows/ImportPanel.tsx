@@ -28,6 +28,7 @@ import { isComposing } from "@/lib/keys.ts";
 import { countOf } from "@/lib/text";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import { FAMILY_NAMES } from "../settings/pictures.ts";
+import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { useSetting } from "../settings/settings.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import { FIELD } from "../sheet/fields.ts";
@@ -81,8 +82,10 @@ import {
 import { MissingList, StatusDot } from "./WorkflowRow.tsx";
 
 const HELP = "text-pretty text-note text-reed";
-/** A field beside its label, in the mapping list's 7rem column. */
-const FIELD_ROW = "grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1";
+/** A field under its label on phones, and beside it from tablets on, in the mapping list's 7rem column. */
+const FIELD_ROW = "grid items-start gap-y-1 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:gap-x-3";
+/** A field row's label, set level with the field's text once beside it. */
+const FIELD_LABEL = "font-medium text-ink text-ui tablet:pt-2 tablet:touch:pt-3";
 const SMALL = "h-8 px-2.5 text-ink text-note touch:h-11";
 
 /** A workflow file on its way in: a new import, or a replacement for one of the user's workflows. */
@@ -576,7 +579,7 @@ export function PanelView({
 
       {check.unchosen > 0 && <p className={HELP}>{unchosenSummary(check.unchosen)}</p>}
 
-      <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-rush border-t bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tablet:static tablet:mx-0 tablet:mb-0 tablet:border-0 tablet:bg-transparent tablet:p-0">
+      <div className={PANEL_FOOTER}>
         <span className="flex-1" />
         {(refused || stalled === "busy" || stalled === "unreachable") && (
           <Button variant="outline" onClick={onChooseFile}>
@@ -713,7 +716,7 @@ function Fields({
   return (
     <div className="grid gap-4">
       <div className={FIELD_ROW}>
-        <label htmlFor={nameId} className="pt-2 font-medium text-ink text-ui touch:pt-3">
+        <label htmlFor={nameId} className={FIELD_LABEL}>
           Name
         </label>
         <div className="grid min-w-0 gap-1">
@@ -744,7 +747,7 @@ function Fields({
         </div>
       </div>
       <div className={FIELD_ROW}>
-        <span id={familyId} className="pt-2 font-medium text-ink text-ui touch:pt-3">
+        <span id={familyId} className={FIELD_LABEL}>
           Family
         </span>
         <div className="grid min-w-0 gap-1">

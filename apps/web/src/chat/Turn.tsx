@@ -58,25 +58,29 @@ function Nameplate({
   name,
   qualifier = "",
   writing = false,
+  actions,
 }: {
   voice: "story" | "line";
   name: string;
   qualifier?: string;
   /** The reply is being written with no portrait in view: light passes along the hairline. */
   writing?: boolean;
+  /** On phones, the turn's More: at the hairline's end, or beside the owner's name. */
+  actions?: ReactNode;
 }) {
   return (
-    <p data-speaker="" data-voice={voice} className="nameplate">
-      <span className="nameplate-name">
+    <div data-speaker="" data-voice={voice} className="nameplate">
+      <p className="nameplate-name">
         {name}
         <span className="sr-only">{`${qualifier}: `}</span>
-      </span>
+      </p>
       {voice === "story" && (
         <span aria-hidden="true" data-nameplate-rule="">
           {writing && <span className="lamplight-edge" />}
         </span>
       )}
-    </p>
+      {actions}
+    </div>
   );
 }
 
@@ -87,16 +91,18 @@ function Nameplate({
 function PersonaNameplate({
   personaId,
   name,
+  actions,
 }: {
   personaId: string | null | undefined;
   name?: string | undefined;
+  actions?: ReactNode;
 }) {
   const persona = usePersona(personaId);
   const speaker = speakerName(personaId, name, persona);
   return speaker === undefined ? (
-    <Nameplate voice="line" name="You" />
+    <Nameplate voice="line" name="You" actions={actions} />
   ) : (
-    <Nameplate voice="line" name={speaker} qualifier=", your persona" />
+    <Nameplate voice="line" name={speaker} qualifier=", your persona" actions={actions} />
   );
 }
 
@@ -165,7 +171,12 @@ export function Turn({
     return at?.id === id ? at : undefined;
   });
   const editing = useChat((state) => state.editing?.id === id && state.editing.target === "text");
+  // Phones keep a turn's More in its nameplate row, so a short turn is not buried in a row of controls.
+  const phone = useFormFactor() === "phone";
   if (message === undefined) return null;
+  const actions = !editing && !locked && (
+    <TurnActions id={id} speaker="your message" inPlate={phone} />
+  );
   return message.role === "user" ? (
     <li
       data-message=""
@@ -174,7 +185,11 @@ export function Turn({
       data-folded={folded ? "" : undefined}
       className={cn("group relative", enter && "arrive", folded && FOLDED)}
     >
-      <PersonaNameplate personaId={message.personaId} name={message.name} />
+      <PersonaNameplate
+        personaId={message.personaId}
+        name={message.name}
+        actions={phone ? actions : undefined}
+      />
       <div
         data-prose=""
         data-voice="line"
@@ -186,7 +201,7 @@ export function Turn({
           <Prose text={message.text} streaming={false} />
         )}
       </div>
-      {!editing && !locked && <TurnActions id={id} speaker="your message" />}
+      {!phone && actions}
     </li>
   ) : (
     <ReplyTurn
@@ -197,6 +212,7 @@ export function Turn({
       folded={folded}
       locked={locked}
       presence={presence}
+      phone={phone}
     />
   );
 }
@@ -262,6 +278,7 @@ function ReplyTurn({
   folded,
   locked,
   presence,
+  phone,
 }: {
   message: AssistantMessage;
   enter: boolean;
@@ -270,15 +287,19 @@ function ReplyTurn({
   folded: boolean;
   locked: boolean;
   presence: boolean;
+  phone: boolean;
 }) {
   const chosen = useChatCharacter();
   const character = chosen?.name ?? "Model";
   // One light for the reply: the portrait's rim where the float shows one (Presence), else the hairline.
-  const rim = useFormFactor() !== "phone" && chosen?.portrait != null;
+  const rim = !phone && chosen?.portrait != null;
   const showHidden = useSetting((settings) => settings.showHiddenReasoning);
   const reply = shownReply(message);
   const streaming = reply.status === "streaming";
   const kind = message.greeting ? "greeting" : "reply";
+  const actions = !editing && !locked && reply.status !== "waiting" && (
+    <TurnActions id={message.id} speaker={`${character}'s ${kind}`} inPlate={phone} />
+  );
   return (
     <li
       data-message=""
@@ -292,10 +313,20 @@ function ReplyTurn({
         folded && FOLDED,
       )}
     >
-      <Nameplate voice="story" name={character} writing={streaming && !rim} />
+      <Nameplate
+        voice="story"
+        name={character}
+        writing={streaming && !rim}
+        actions={phone ? actions : undefined}
+      />
       {/* Under the nameplate, so it sticks clear of the portrait; the reply's text wraps around it. */}
       {presence && <Presence placement="float" />}
-      <div className="prose-turn min-w-0 text-story-phone tablet:text-story">
+      {/*
+       * The prose never runs past the story measure. Beside the portrait, once the story is
+       * wider than that measure, it keeps a column of its own instead of running on under the
+       * portrait at the story's full width.
+       */}
+      <div className="prose-turn min-w-0 max-w-story text-story-phone tablet:text-story @story-column/story:[[data-presence]~&]:flow-root">
         {editing ? (
           <EditField id={message.id} label={`Edit ${character}'s ${kind}`} story />
         ) : (
@@ -319,9 +350,7 @@ function ReplyTurn({
           </>
         )}
       </div>
-      {!editing && !locked && reply.status !== "waiting" && (
-        <TurnActions id={message.id} speaker={`${character}'s ${kind}`} />
-      )}
+      {!phone && actions}
     </li>
   );
 }

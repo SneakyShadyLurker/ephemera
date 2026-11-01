@@ -15,8 +15,13 @@ import type { ChoicePlace } from "./panel-state.ts";
 
 const PLACES = ["Prompt", "Size and count", "Seed", "Image output"] as const;
 
-/** Each row's grid: the place name in the Settings label width, then its nodes. */
-const ROW = "relative grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 py-2.5 pl-4";
+/**
+ * Each row's grid: the place name over its nodes on phones, where a label
+ * column would leave the nodes a sliver; from tablets on, the name in the
+ * import panel's label column (ImportPanel's FIELD_ROW), then its nodes.
+ */
+const ROW =
+  "relative grid gap-y-1 py-2.5 pl-4 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:gap-x-3";
 
 /** A note line that fades in again whenever its text changes after a choice. */
 const CHANGING =

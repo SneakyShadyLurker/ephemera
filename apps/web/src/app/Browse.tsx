@@ -68,7 +68,6 @@ export function PortraitTile({
       <Portrait
         owner={owner}
         id={id}
-        name={name}
         version={version}
         arriving={arriving}
         transition={transition}

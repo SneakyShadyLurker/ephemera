@@ -12,6 +12,7 @@ import {
 import { useFormFactor } from "@/app/form-factor.ts";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { useScheme } from "@/app/theme.tsx";
+import { UpdateDock } from "@/app/UpdateFloat.tsx";
 import {
   markInspectorUnavailable,
   overlayIntent,
@@ -19,30 +20,39 @@ import {
   toggleSession,
   useUi,
 } from "@/app/ui.ts";
-import { ClearIcon, SessionIcon } from "@/components/icons";
+import { ClearIcon, InspectIcon, MemoryIcon, MoreIcon, SessionIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuLinkItem,
+  MenuSeparator,
+  MenuTrigger,
+} from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
+import { countOf } from "@/lib/text";
 import { OpenEpisodeContext, useEpisodeEditor } from "../memory/EpisodeEditor.tsx";
 import { applyAtmosphere, useAtmosphere } from "../portraits/atmosphere.ts";
 import { useSetting } from "../settings/settings.ts";
 import { SignInDock } from "../signin/SignInSlots.tsx";
 import { CastHeaderControl, CastSurface } from "./Cast.tsx";
-import { ClearChat } from "./ClearChat.tsx";
+import { ClearChat, useClearChatDialog } from "./ClearChat.tsx";
 import { Composer } from "./Composer.tsx";
 import { useChatCharacter } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { useGreetings } from "./greetings.ts";
-import { MemoryMark } from "./MemoryMark.tsx";
-import { MeterFigures, PromptButton, Waterline } from "./Meter.tsx";
+import { MemoryLink, MemoryMark, RememberedCount, useMemoryStatus } from "./MemoryMark.tsx";
+import { METER_ID, MeterFigures, PromptButton, useMeterFigures, Waterline } from "./Meter.tsx";
 import { ModelNotice } from "./ModelNotice.tsx";
-import { loadInspector } from "./open-inspector.ts";
+import { loadInspector, openInspector } from "./open-inspector.ts";
 import { HeaderPortrait } from "./Presence.tsx";
 import { SESSION_SHEET, SessionPanel } from "./SessionPanel.tsx";
 import { chatStore, useChat } from "./session.ts";
 import { useChatShortcuts } from "./shortcuts.ts";
 import { hasChatContent } from "./store.ts";
-import { Thread } from "./Thread.tsx";
+import { RetentionNote, Thread } from "./Thread.tsx";
 
 // The inspector's code arrives with the page's preload (app/preload.ts).
 const Inspector = lazy(() => loadInspector().then((module) => ({ default: module.Inspector })));
@@ -95,6 +105,10 @@ export function ChatScreen() {
         <div className={cn("shrink-0 overflow-hidden pt-1", SCROLL_GUTTERS)}>
           <ModelNotice composer={composer} />
           <SignInDock composer={composer} />
+          <div className={SCRIPT_FRAME}>
+            <UpdateDock />
+          </div>
+          <RetentionNote />
           <Composer field={composer} />
         </div>
       </main>
@@ -130,14 +144,24 @@ function ChatHeader({
       lead={phone && character?.portrait != null ? <HeaderPortrait /> : undefined}
       // A character's name in the story face, as its nameplates have it.
       storyTitle={character !== undefined}
+      // A character's nameplate stuck under the header names them already (Thread's useNameStuck).
+      yieldsTitle={character !== undefined}
     >
       <div className="flex min-w-0 items-center justify-end gap-1">
-        {/* On phones the roster scrolls away with the band; this keeps the cast in reach. */}
-        {phone && <CastHeaderControl />}
-        <MeterFigures />
-        <MemoryMark />
-        <ClearChat composer={composer} trigger={<ClearTrigger disabled={empty} />} />
-        <PromptButton />
+        {phone ? (
+          <>
+            {/* The roster scrolls away with the band; this keeps the cast in reach. */}
+            <CastHeaderControl />
+            <ChatMenu composer={composer} empty={empty} />
+          </>
+        ) : (
+          <>
+            <MeterFigures />
+            <MemoryMark />
+            <ClearChat composer={composer} trigger={<ClearTrigger disabled={empty} />} />
+            <PromptButton />
+          </>
+        )}
         <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
           <Button
             ref={sessionToggle}
@@ -162,6 +186,68 @@ function ClearTrigger(props: ComponentProps<typeof Button>) {
         <ClearIcon />
       </Button>
     </Tooltip>
+  );
+}
+
+/**
+ * Phones: the header keeps the name, the cast and Session, and this menu
+ * holds the rest under the labels the wider header gives them: Memory with
+ * how many turns it remembers, Prompt with the meter's figures once the
+ * window is nearly full, and Clear chat. The remembered count also sits in
+ * the menu button's corner, as on the Memory mark, so it shows without
+ * opening the menu.
+ */
+function ChatMenu({
+  composer,
+  empty,
+}: {
+  composer: RefObject<HTMLTextAreaElement | null>;
+  empty: boolean;
+}) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const memory = useMemoryStatus();
+  const figures = useMeterFigures();
+  const clear = useClearChatDialog({ composer, returnTo: trigger });
+  return (
+    <>
+      <Menu>
+        <MenuTrigger render={<Button ref={trigger} size="icon" aria-label="More chat actions" />}>
+          <MoreIcon />
+          {memory !== null && <RememberedCount count={memory.remembered} />}
+        </MenuTrigger>
+        <MenuContent label="Chat actions">
+          {memory !== null && (
+            <MenuLinkItem closeOnClick render={<MemoryLink characterId={memory.characterId} />}>
+              <MemoryIcon size={16} />
+              <span className="flex-1">Memory</span>
+              {memory.remembered > 0 && (
+                <span className="text-meta text-reed tabular-nums">
+                  {countOf(memory.remembered, "turn")} remembered
+                </span>
+              )}
+            </MenuLinkItem>
+          )}
+          <MenuItem
+            aria-describedby={figures === null ? undefined : METER_ID}
+            onClick={() => void openInspector()}
+          >
+            <InspectIcon size={16} />
+            <span className="flex-1">Prompt</span>
+            {figures !== null && (
+              <span aria-hidden="true" className="text-meta text-reed tabular-nums">
+                {figures}
+              </span>
+            )}
+          </MenuItem>
+          <MenuSeparator />
+          <MenuItem danger disabled={empty} onClick={clear.request}>
+            <ClearIcon size={16} />
+            Clear chat
+          </MenuItem>
+        </MenuContent>
+      </Menu>
+      {clear.dialog}
+    </>
   );
 }
 

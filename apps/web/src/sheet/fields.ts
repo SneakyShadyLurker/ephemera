@@ -11,3 +11,5 @@ export const FOCUS_WITHIN =
 
 /** The sheets' grid: labels hang in a margin beside the fields, like speaker cues. */
 export const SHEET_GRID = "tablet:grid tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6";
+/** The memory screen's: the same, with a margin wide enough on desktop for its longer labels on one line. */
+export const NOTEBOOK_GRID = `${SHEET_GRID} desktop:grid-cols-[10.5rem_minmax(0,1fr)]`;

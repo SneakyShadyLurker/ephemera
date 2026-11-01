@@ -10,8 +10,16 @@ import { useChatCharacter } from "./character.ts";
 import { SceneButton } from "./Scene.tsx";
 import { useChat } from "./session.ts";
 
-/** The portrait's column in each placement: the button under it takes the same width. */
-const COLUMN = { float: "w-28 desktop:w-40 @chat-roomy/chat:w-56", band: "w-24" } as const;
+/**
+ * The portrait's column in each placement: the button under it takes the same width. Once the
+ * story is wider than the prose's measure, the float grows into the width the measure leaves,
+ * less the gap, up to its widest column.
+ */
+const COLUMN = {
+  float:
+    "w-28 desktop:w-40 @story-column/story:w-[clamp(--spacing(40),calc(100cqi-var(--container-story)-var(--gap-presence)),var(--container-portrait))]",
+  band: "w-24",
+} as const;
 
 /**
  * The character, present once. Tablet and desktop: the portrait floats at the
@@ -47,7 +55,7 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         art={<FullPortrait id={character.id} version={character.portrait} shown={size} />}
         className={COLUMN[placement]}
       >
-        <Portrait id={character.id} name={name} version={character.portrait} size={size} />
+        <Portrait id={character.id} version={character.portrait} size={size} />
       </PortraitViewer>
       {/* The reply's one light on tablet and desktop; phones carry it on the nameplate's hairline. */}
       {placement === "float" && <ReplyRim />}
@@ -70,7 +78,7 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         <div
           key={character.id}
           data-presence=""
-          className="surface-in float-left mt-1 mr-8 mb-4 desktop:mr-10"
+          className="surface-in float-left mt-1 mr-8 mb-4 desktop:mr-(--gap-presence) @story-column/story:mr-(--gap-presence)"
         >
           {column}
         </div>

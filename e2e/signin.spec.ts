@@ -225,10 +225,18 @@ test.describe("sign-in expiry", () => {
     await expect(update).toContainText("Ephemera was updated");
     await expect(update.getByRole("button", { name: "Reload" })).toBeVisible();
     expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBe(true);
-    await update.getByRole("button", { name: "Dismiss" }).click();
-    await expect(update).toHaveCount(0);
+    // It floats over the bottom of the column, clear of the screen's heading.
+    const heading = await page.getByRole("heading", { level: 1, name: "Characters" }).boundingBox();
+    const floating = await update.boundingBox();
+    expect(floating?.y).toBeGreaterThan((heading?.y ?? 0) + (heading?.height ?? Infinity));
+    // In the chat it docks above the composer instead of covering the story.
     await main.getByRole("link", { name: "Chat" }).click();
     await expect(turns(page)).toHaveCount(2);
+    const docked = await update.boundingBox();
+    const composer = await page.getByLabel("Message", { exact: true }).locator("..").boundingBox();
+    expect((docked?.y ?? 0) + (docked?.height ?? Infinity)).toBeLessThanOrEqual(composer?.y ?? 0);
+    await update.getByRole("button", { name: "Dismiss" }).click();
+    await expect(update).toHaveCount(0);
     expect(JSON.stringify(await browserStorage(page))).not.toContain(CANARY_MARKER);
   });
 

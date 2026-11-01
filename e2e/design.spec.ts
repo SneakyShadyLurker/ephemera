@@ -6,9 +6,11 @@ import { CONTRAST_FLOORS, paletteProperty, WASH_OPACITY } from "../packages/core
 import { importCards, pngCard, uniqueName, v3 } from "./support/cards.ts";
 import {
   browserStorage,
+  chatMenuButton,
   chooseCharacter,
   chooseModel,
   clearChat,
+  headerAction,
   lastReply,
   messages,
   moreAction,
@@ -155,16 +157,27 @@ for (const { name, width, height, story } of [
     const narration = await tokenColor(page, "--narration");
     const ink = await tokenColor(page, "--ink");
 
-    const prose = await typeOf(reply, "p");
-    expect(prose.family).toMatch(/^"Atkinson Hyperlegible Next Variable"/);
-    // The mock's reply is unmarked narration, in the scene's narration ink.
-    expect(prose).toMatchObject({ ...story, color: told });
+    // The lazy Markdown renderer can replace its plain-text fallback after the reply completes.
+    // Read and assert every property together, retrying if that handoff detaches the element.
+    await expect
+      .poll(() => typeOf(reply, "p"))
+      .toMatchObject({
+        family: expect.stringMatching(/^"Atkinson Hyperlegible Next Variable"/),
+        ...story,
+        // The mock's reply is unmarked narration, in the scene's narration ink.
+        color: told,
+      });
 
-    const said = await typeOf(line, "p");
-    expect(said.family).toMatch(/^"Geist Variable"/);
-    expect(said).toMatchObject({ size: "16px", leading: "26px", color: ink });
+    await expect
+      .poll(() => typeOf(line, "p"))
+      .toMatchObject({
+        family: expect.stringMatching(/^"Geist Variable"/),
+        size: "16px",
+        leading: "26px",
+        color: ink,
+      });
     // The owner's narration is a step quieter than what they say.
-    expect((await typeOf(line, "em")).color).toBe(narration);
+    await expect.poll(async () => (await typeOf(line, "em")).color).toBe(narration);
 
     // Told apart at a glance: the owner's line is a slip on the surface at the trailing
     // edge of the story, the character's prose open on the canvas from its leading edge.
@@ -200,7 +213,11 @@ for (const { name, width, height, story } of [
     // Editing the reply keeps its voice: the field is set as the prose it holds.
     await moreAction(page, page.locator("[data-reply-actions]"), "Edit");
     const field = await typeOf(lastReply(page), "textarea");
-    expect(field).toMatchObject({ family: prose.family, size: story.size, leading: story.leading });
+    expect(field).toMatchObject({
+      family: expect.stringMatching(/^"Atkinson Hyperlegible Next Variable"/),
+      size: story.size,
+      leading: story.leading,
+    });
   });
 }
 
@@ -836,10 +853,12 @@ for (const { name, width, height, portrait } of [
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(character);
     }
     if (name === "desktop") {
-      // With the docked Session closed the chat column is wide: a larger portrait, and the
-      // story spans the column but for its padding.
+      // With the docked Session closed the chat column is wide: the portrait grows into the
+      // width the prose's measure leaves, up to its widest, and the story spans the column but
+      // for its padding.
       await page.getByRole("button", { name: "Session", exact: true }).click();
-      await expect.poll(async () => (await image.boundingBox())?.width).toBe(224);
+      await expect.poll(async () => (await image.boundingBox())?.width).toBeGreaterThan(160);
+      expect((await image.boundingBox())?.width).toBeLessThanOrEqual(320);
       const column = await thread.boundingBox();
       const turn = await lastReply(page).boundingBox();
       if (!column || !turn) throw new Error("the story is not laid out");
@@ -1088,7 +1107,7 @@ test("on a short window a long greeting menu scrolls within the window, its last
   await expect(page.getByRole("button", { name: "Greeting 12 of 12" })).toBeVisible();
 });
 
-test("without a character the empty chat invites the first line, then offers a character, then says nothing is kept", async ({
+test("without a character the empty chat invites the first line, then offers a character, and the composer says nothing is kept", async ({
   page,
 }) => {
   await openChat(page, "mock-fast");
@@ -1098,16 +1117,58 @@ test("without a character the empty chat invites the first line, then offers a c
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
-  expect(said).toEqual([
-    "Write the first line, or choose a character.",
-    "Choose a character",
+  expect(said).toEqual(["Write the first line, or choose a character.", "Choose a character"]);
+  // The invitation is the story's voice: the reading sans.
+  await expect(story.getByText("Write the first line, or choose a character.")).toHaveCSS(
+    "font-family",
+    /^"Atkinson Hyperlegible Next Variable"/,
+  );
+  // The retention note sits by the composer, just above it.
+  const note = page.getByText(
     "This conversation isn't saved. Refreshing or closing this tab clears it.",
-  ]);
+  );
+  const noteBox = await note.boundingBox();
+  const fieldBox = await page.getByLabel("Message", { exact: true }).locator("..").boundingBox();
+  if (!noteBox || !fieldBox) throw new Error("the composer is not laid out");
+  expect(fieldBox.y - (noteBox.y + noteBox.height)).toBeGreaterThanOrEqual(0);
+  expect(fieldBox.y - (noteBox.y + noteBox.height)).toBeLessThanOrEqual(16);
   const message = page.getByLabel("Message", { exact: true });
   await expect(message).toHaveAttribute("placeholder", "Write the first line");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   await expect(message).toHaveAttribute("placeholder", "Write your reply");
+  await expect(note).toHaveCount(0);
+});
+
+test("the first run asks for a model first, in the empty story, and once it is chosen the rest stays put", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const story = page.getByRole("log", { name: "Story" });
+  const step = story.getByRole("status").filter({ hasText: "Choose a model to begin" });
+  await expect(step).toBeVisible();
+  // One composition: the model's step comes first, then the invitation and the character.
+  const said = await story.evaluate((node) =>
+    [...node.querySelectorAll("p, button")]
+      .map((element) => element.textContent?.trim() ?? "")
+      .filter((text) => text !== ""),
+  );
+  expect(said[0]).toBe("Choose a model to begin");
+  expect(said.slice(-2)).toEqual([
+    "Write the first line, or choose a character.",
+    "Choose a character",
+  ]);
+  // The story holds the step, so no notice over the composer repeats it.
+  await expect(page.locator("[data-model-notice]")).toHaveCount(1);
+  const invitation = story.getByText("Write the first line, or choose a character.");
+  const before = await invitation.boundingBox();
+  const picker = story.getByRole("combobox", { name: "Chat model", exact: true });
+  await picker.click();
+  await page.getByRole("option", { name: "mock-fast", exact: true }).click();
+  await expect(step).toHaveCount(0);
+  await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
+  expect(await invitation.boundingBox()).toEqual(before);
+  await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
 });
 
 test("a long unbroken word in the owner's line wraps inside its slip and leaves the story's width alone", async ({
@@ -1526,6 +1587,144 @@ test("focus in a turn lands clear of the nameplate stuck above it", async ({ pag
     .toBeGreaterThanOrEqual(0);
 });
 
+test("on a wide window the character's prose keeps to its measure, and the portrait takes the width it leaves", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = await characterInColour(page, "Measure", [120, 110, 140]);
+  await openChat(page, "mock-long");
+  await chooseCharacter(page, name);
+  // The docked Session closed, so the chat column takes the window.
+  const session = page.getByRole("button", { name: "Session", exact: true });
+  if ((await session.getAttribute("aria-pressed")) === "true") await session.click();
+  for (const label of ["first", "second"]) {
+    await send(page, canary(label));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+  }
+  const laid = await page.evaluate(() => {
+    const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const story = document.querySelector("[data-presence]")?.parentElement?.closest(".flow-root");
+    const prose = [...document.querySelectorAll('[data-role="assistant"] .prose-turn')].map(
+      (element) => element.getBoundingClientRect(),
+    );
+    const portrait = document.querySelector("[data-presence]")?.getBoundingClientRect();
+    return {
+      measure:
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--container-story"),
+        ) * rem,
+      story: story?.getBoundingClientRect().width ?? 0,
+      widest: Math.max(...prose.map((box) => box.width)),
+      latestLeft: prose.at(-1)?.left ?? 0,
+      portraitRight: portrait?.right ?? Number.NaN,
+      portraitWidth: portrait?.width ?? 0,
+      minimum: 10 * rem,
+    };
+  });
+  // No reply's prose runs past the measure, though the story is wider.
+  expect(laid.story).toBeGreaterThan(laid.measure + laid.portraitWidth);
+  expect(laid.widest).toBeLessThanOrEqual(laid.measure + 0.5);
+  // The portrait grew past its narrowest column, and the latest reply keeps a column beside it.
+  expect(laid.portraitWidth).toBeGreaterThan(laid.minimum);
+  expect(laid.latestLeft).toBeGreaterThan(laid.portraitRight);
+});
+
+test("while a character's nameplate is stuck under the header, the header's title gives way and stays the heading", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const name = uniqueName("Plate");
+  await createCharacterViaApi(page.request, name);
+  await openChat(page, "mock-long");
+  await chooseCharacter(page, name);
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+  const title = page.getByRole("heading", { level: 1, name });
+  const thread = scroller(page);
+  await thread.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  await expect(title).toHaveCSS("opacity", "1");
+  // The reply 80px past the top: its nameplate sticks under the header.
+  await thread.evaluate((node) => {
+    const reply = node.querySelector('[data-role="assistant"]');
+    node.scrollTop +=
+      (reply?.getBoundingClientRect().top ?? 0) - node.getBoundingClientRect().top + 80;
+  });
+  await expect(title).toHaveCSS("opacity", "0");
+  await expect(title).toHaveAccessibleName(name);
+  await thread.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  await expect(title).toHaveCSS("opacity", "1");
+});
+
+test("on a phone a turn's More sits in its nameplate's row and opens the same menu", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openChat(page, "mock-fast");
+  for (const label of ["first", "second"]) {
+    await send(page, canary(label));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  }
+  for (const [turn, label] of [
+    [turns(page).nth(0), "More actions, your message"],
+    [turns(page).nth(1), "More actions, Model's reply"],
+  ] as const) {
+    const plate = await turn.locator("[data-speaker]").boundingBox();
+    const more = turn.locator("[data-speaker]").getByRole("button", { name: label });
+    await expect(more).toBeVisible();
+    const box = await more.boundingBox();
+    if (!plate || !box) throw new Error("the nameplate is not laid out");
+    // In the row: centred on the name's line, at the row's end.
+    expect(Math.abs(box.y + box.height / 2 - (plate.y + plate.height / 2))).toBeLessThan(2);
+    expect(Math.abs(box.x + box.width - (plate.x + plate.width))).toBeLessThan(8);
+    // No row of its own after the turn: the prose ends it.
+    await expect(
+      turn.locator(":scope > :last-child").getByRole("button", { name: label }),
+    ).toHaveCount(0);
+  }
+  // The latest reply's More stays in its own row of actions, not in the nameplate.
+  await expect(lastReply(page).locator("[data-speaker]").getByRole("button")).toBeHidden();
+  // The same menu, by keyboard too.
+  const more = turns(page).nth(0).getByRole("button", { name: "More actions, your message" });
+  await more.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem")).toHaveText(["Edit", "Delete", "Delete from here"]);
+  await menu.getByRole("menuitem", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Edit your message" })).toBeFocused();
+});
+
+test("on a phone the chat menu holds Prompt and Clear chat, and both work", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openChat(page, "mock-fast");
+  const header = page.locator("header");
+  // The header keeps the name and Session; the rest is in the menu.
+  await expect(header.getByRole("button", { name: "Prompt", exact: true })).toHaveCount(0);
+  await expect(header.getByRole("button", { name: "Clear chat" })).toHaveCount(0);
+  await expect(header.getByRole("button", { name: "Session", exact: true })).toBeVisible();
+  const menuButton = chatMenuButton(page);
+  await menuButton.click();
+  const menu = page.getByRole("menu", { name: "Chat actions" });
+  // Nothing written yet: Clear is there, disabled, as the header's is.
+  await expect(menu.getByRole("menuitem", { name: "Clear chat" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(menuButton).toBeFocused();
+
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await headerAction(page, "Prompt");
+  const inspector = page.getByRole("dialog", { name: "Prompt" });
+  await expect(inspector).toBeVisible();
+  await inspector.getByRole("button", { name: "Close prompt" }).click();
+  await expect(inspector).toHaveCount(0);
+
+  await clearChat(page);
+  await expect(messages(page)).toHaveCount(0);
+});
+
 test("a single reply shows no pager, and Edit and Delete are reachable through More by keyboard", async ({
   page,
 }) => {
@@ -1820,7 +2019,7 @@ for (const { name, width, height, scheme } of [
     );
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
 
-    await page.getByRole("button", { name: "Prompt", exact: true }).click();
+    await headerAction(page, "Prompt");
     const dialog = page.getByRole("dialog", { name: "Prompt" });
     const section = dialog.getByRole("region", { name: "Lorebook" });
     await expect(section).toContainText("with storm and squall");
@@ -2024,10 +2223,12 @@ for (const scheme of ["light", "dark"] as const) {
     const swatches = page
       .getByRole("radiogroup", { name: "Palette", exact: true })
       .locator("[data-palette]");
-    await expect(swatches).toHaveCount(6);
-    const ids = await swatches.evaluateAll((all) =>
-      all.map((swatch) => swatch.getAttribute("data-palette")),
-    );
+    // Each swatch's day and night halves carry its palette.
+    await expect(swatches).toHaveCount(12);
+    const ids = await swatches.evaluateAll((all) => [
+      ...new Set(all.map((half) => half.getAttribute("data-palette"))),
+    ]);
+    expect(ids).toHaveLength(6);
     const canvases = new Set<string>();
     for (const id of ids) {
       // Only the root's attribute, never the saved setting, which other tests share.
@@ -2116,12 +2317,12 @@ const galleryColumns = (page: Page) =>
     .evaluate((list) => getComputedStyle(list).gridTemplateColumns.split(" ").length);
 
 for (const { width, height, root, columns } of [
-  { width: 1440, height: 900, root: "16px", columns: 6 },
+  { width: 1440, height: 900, root: "16px", columns: 5 },
   // A portrait screen: the width keys the scale, so the root stays at the default.
-  { width: 1440, height: 2560, root: "16px", columns: 6 },
-  { width: 1920, height: 1080, root: "16px", columns: 7 },
-  { width: 2560, height: 1440, root: "18px", columns: 8 },
-  { width: 3840, height: 2160, root: "20px", columns: 10 },
+  { width: 1440, height: 2560, root: "16px", columns: 5 },
+  { width: 1920, height: 1080, root: "16px", columns: 6 },
+  { width: 2560, height: 1440, root: "18px", columns: 6 },
+  { width: 3840, height: 2160, root: "20px", columns: 8 },
 ]) {
   test(`the interface scales with the display and fills the gallery (${width}x${height})`, async ({
     page,
@@ -2251,4 +2452,13 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
   const sheet = page.getByRole("dialog", { name: "Filter and order" });
   await sheet.getByRole("button", { name: "Close filter and order" }).click();
   await expect(sheet).toHaveCount(0);
+});
+
+test("an address that leads nowhere says so and leads back to the story", async ({ page }) => {
+  await page.goto("/nowhere-at-all");
+  await expect(page.getByRole("heading", { level: 1, name: "Not found" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nothing lives at this address" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to the story" }).click();
+  await expect(page).toHaveURL((url) => url.pathname === "/");
+  await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });

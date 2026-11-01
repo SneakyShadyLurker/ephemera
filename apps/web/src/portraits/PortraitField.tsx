@@ -1,32 +1,32 @@
 import { type ReactNode, useId, useRef, useState } from "react";
-import { PlusIcon } from "@/components/icons";
+import { DeleteIcon, ImportIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/cn";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Portrait } from "./Portrait.tsx";
 import { type PortraitOwner, removePortrait, setPortrait } from "./queries.ts";
 
 /**
- * A sheet's portrait in the margin with Replace and Remove; a new sheet offers
- * Add portrait once it is saved with a name. A fresh upload surfaces out of
- * blur once, and so does a version that `arrived` through another path.
- * `extra`: the sheet's own actions under the field's (a character's New
- * art), told whether the picker is busy.
+ * A sheet's portrait in the margin with one row of actions under it: the
+ * sheet's `primary` action (a character's New art, told whether the picker
+ * is busy) with Replace and Remove in a menu beside it, or without one
+ * Replace and Remove themselves. A new sheet offers Add portrait once it is
+ * saved with a name. A fresh upload surfaces out of blur once, and so does a
+ * version that `arrived` through another path.
  */
 export function PortraitField({
   owner,
   id,
-  name,
   version,
   noun,
   locked = false,
   arrived: arrivedVersion = null,
-  extra,
+  primary,
   onBusyChange,
   onChange,
 }: {
   owner: PortraitOwner;
   id: string | null;
-  name: string;
   version: number | null;
   /** What the sheet edits, for the hint on a new sheet ("character", "persona"). */
   noun: string;
@@ -37,7 +37,7 @@ export function PortraitField({
   locked?: boolean;
   /** A version that just arrived through another path (New art's Use as portrait). */
   arrived?: number | null;
-  extra?: ((state: { busy: boolean }) => ReactNode) | undefined;
+  primary?: ((state: { busy: boolean }) => ReactNode) | undefined;
   /** An upload or removal starts or ends: the sheet holds an AI Rework meanwhile. */
   onBusyChange?: (busy: boolean) => void;
   onChange: (version: number | null) => void;
@@ -66,6 +66,16 @@ export function PortraitField({
     } else setError(result.reason);
   };
 
+  const remove = async () => {
+    if (id === null || busy || locked) return;
+    setBusy(true);
+    setError(null);
+    const removed = await removePortrait(owner, id);
+    setBusy(false);
+    if (removed) onChange(null);
+    else setError("The portrait could not be removed.");
+  };
+
   return (
     <div className="grid content-start gap-1">
       <input
@@ -92,44 +102,75 @@ export function PortraitField({
           <span className="text-note">{busy ? "Adding" : "Add portrait"}</span>
         </button>
       ) : (
-        <>
-          <Portrait
-            owner={owner}
-            id={id ?? ""}
-            name={name}
-            version={version}
-            size="full"
-            arriving={arrived || (arrivedVersion !== null && arrivedVersion === version)}
-            transition
-          />
-          <div className="grid">
-            <Button
-              className="h-8 px-2 text-note touch:h-11"
-              disabled={busy || locked}
-              onClick={() => picker.current?.click()}
-            >
-              {busy ? "Replacing" : "Replace"}
-            </Button>
-            <Button
-              className="h-8 px-2 text-note touch:h-11"
-              disabled={busy || locked}
-              onClick={async () => {
-                if (id === null || busy || locked) return;
-                setBusy(true);
-                setError(null);
-                const removed = await removePortrait(owner, id);
-                setBusy(false);
-                if (removed) onChange(null);
-                else setError("The portrait could not be removed.");
-              }}
-            >
-              Remove
-            </Button>
-          </div>
-        </>
+        <Portrait
+          owner={owner}
+          id={id ?? ""}
+          version={version}
+          size="full"
+          arriving={arrived || (arrivedVersion !== null && arrivedVersion === version)}
+          transition
+        />
       )}
-      {/* One place whether or not a portrait is stored, so a first portrait keeps what it holds mounted. */}
-      {extra && <div className={cn("grid", version !== null && "-mt-1")}>{extra({ busy })}</div>}
+      {/*
+       * One row, its primary action first in one place whether or not a
+       * portrait is stored, so a first portrait keeps what it holds mounted.
+       */}
+      <div className="flex flex-wrap items-center gap-1 pt-1 empty:hidden">
+        {primary?.({ busy })}
+        {version !== null &&
+          (primary ? (
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    size="icon"
+                    className="size-8 touch:size-11"
+                    aria-label="Portrait actions"
+                    disabled={busy || locked}
+                  />
+                }
+              >
+                <MoreIcon size={16} />
+              </MenuTrigger>
+              <MenuContent label="Portrait actions" align="start">
+                <MenuItem onClick={() => picker.current?.click()}>
+                  <ImportIcon size={16} />
+                  Replace
+                </MenuItem>
+                <MenuItem onClick={() => void remove()}>
+                  <DeleteIcon size={16} />
+                  Remove
+                </MenuItem>
+              </MenuContent>
+            </Menu>
+          ) : (
+            <>
+              <Button
+                className="h-8 px-2 text-note touch:h-11"
+                disabled={busy || locked}
+                onClick={() => picker.current?.click()}
+              >
+                Replace
+              </Button>
+              <Tooltip label="Remove portrait">
+                <Button
+                  size="icon"
+                  className="size-8 touch:size-11"
+                  aria-label="Remove portrait"
+                  disabled={busy || locked}
+                  onClick={() => void remove()}
+                >
+                  <DeleteIcon size={16} />
+                </Button>
+              </Tooltip>
+            </>
+          ))}
+      </div>
+      {busy && version !== null && (
+        <p role="status" className="px-2 text-meta text-reed">
+          Saving the portrait
+        </p>
+      )}
       {id === null && (
         <p id={`${errorId}-hint`} className="sr-only">
           Add a name first; the portrait can be added once the {noun} is saved.

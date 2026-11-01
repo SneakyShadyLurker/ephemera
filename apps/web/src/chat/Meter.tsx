@@ -22,7 +22,8 @@ import { type ChatState, nextPrompt } from "./store.ts";
  */
 
 const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 0 });
-const METER_ID = "context-meter";
+/** The meter's id: every control that opens the inspector is described by it. */
+export const METER_ID = "context-meter";
 
 function level(state: ChatState): Level | null {
   const prompt = nextPrompt(state);
@@ -94,6 +95,19 @@ export function Waterline() {
       </Meter.Track>
     </Meter.Root>
   );
+}
+
+/**
+ * The figures as the header shows them from tablet up, for the phone's chat
+ * menu: the estimate against the window once it is nearly full, "Full" once
+ * history is left out, and nothing before.
+ */
+export function useMeterFigures(): string | null {
+  const { value, stage } = useMeter();
+  if (value === null || stage === "quiet") return null;
+  return stage === "full"
+    ? "Full"
+    : `${compact.format(value.estimate)} of ${compact.format(value.window)}`;
 }
 
 /** Opens the inspector; its tooltip always carries the meter's figures. */

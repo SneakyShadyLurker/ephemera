@@ -326,15 +326,20 @@ field, lorebook entry and model reply is untrusted text.
   the reply; the owner's persona (or "You") in the interface sans, a quiet
   label over the slip. No badge, no accent. The name stays at the top of
   the story while its turn scrolls past, and assistive technology hears it
-  once.
+  once; while the character's name stays there, the header's title, the
+  same name, gives way to it, so a name never shows twice.
 - The character is present: one portrait at the head of the latest reply,
-  whose text wraps around it, so it moves down the story as the story grows
-  (above the story on phones), not a thumbnail on every turn.
-- A wide window is used, not framed in empty canvas: the story spans the
-  chat column with padding, and once the column has room the portrait grows
-  with it.
+  whose text wraps around it, or keeps a column beside it once the story is
+  wide, so it moves down the story as the story grows (above the story on
+  phones), not a thumbnail on every turn.
+- The character's prose wraps at about 75 characters of the reading sans,
+  never longer. A wide window is still used, not framed in empty canvas:
+  the story spans the chat column with padding, the owner's slips keep its
+  trailing edge, and the portrait grows into the width the prose leaves,
+  up to its widest column.
 - Past full HD the whole interface scales up with the window, to a quarter
-  larger at 4K; lines do not grow longer. A screen's header controls sit on
+  larger at 4K; the measure scales with the type, so lines never hold more
+  characters. A screen's header controls sit on
   the edges of the content they act on.
 - The room may lean faintly toward the hue of the character's portrait,
   read from the image in the browser and kept in memory only: never saved,

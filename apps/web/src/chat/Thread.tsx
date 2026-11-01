@@ -12,9 +12,11 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { useSetting } from "../settings/settings.ts";
 import { useChatCharacter } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { SeamSlot, seamIndex } from "./MemorySeam.tsx";
+import { ModelStep } from "./ModelNotice.tsx";
 import { loadMarkdown } from "./markdown-chunk.ts";
 import { Presence } from "./Presence.tsx";
 import { SceneItems } from "./Scene.tsx";
@@ -29,6 +31,7 @@ import {
   promptFoldedTurns,
   rememberedEnd,
   shownReply,
+  storyEmpty,
 } from "./store.ts";
 import { FoldLine, Tombstone, TrimMarker } from "./ThreadMarks.tsx";
 import { Turn } from "./Turn.tsx";
@@ -103,15 +106,18 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
         scrollClassName="overscroll-contain [scroll-timeline:--thread] max-tablet:[scrollbar-gutter:auto]!"
         className={cn(SCRIPT_FRAME, "min-h-full pt-6 pb-8")}
       >
-        {/* A flow root, so a portrait floated beside an empty story stays inside it. */}
-        <div className="flow-root">
+        {/*
+         * A flow root, so a portrait floated beside an empty story stays inside it, and the
+         * story's container: its prose measure and the portrait's column follow its width.
+         */}
+        <div className="@container/story flow-root">
           {phone ? (
             <Presence placement="band" />
           ) : (
             presenceAt === -1 && <Presence placement="float" />
           )}
           {ids.length === 0 ? (
-            deletedAt === null && <EmptyStory />
+            deletedAt === null && <EmptyStory composer={composer} />
           ) : (
             <MotionScope>
               {/* The one column never grows past the story's width, whatever a turn holds. */}
@@ -161,6 +167,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
       </ConversationContent>
       <ConversationScrollButton onKeyboardUse={() => composer.current?.focus()} />
       <FollowWriting />
+      <NameStuck ids={ids} horizon={horizon} shown={shown} />
     </Conversation>
   );
 }
@@ -183,6 +190,71 @@ function FollowWriting() {
     if (!started) return;
     void scrollToBottom(scrollBehavior());
   }, [writing, scrollToBottom]);
+  return null;
+}
+
+/** Where a nameplate sticks: its `top` in styles.css (`nameplate`), and a pixel below it. */
+const STUCK_LINE = 13;
+
+/**
+ * Marks the chat (`data-name-stuck` on its <main>) while a character's
+ * nameplate is stuck under the header, so the header's title, the same
+ * name, gives way (ScreenHeader `yieldsTitle`). A nameplate sticks while its
+ * turn crosses the line it sticks at, so one observer watches the
+ * character's turns against a band one pixel high there, renewed when the
+ * turns change (`ids`, or folded turns shown or hidden by `horizon` and
+ * `shown`, which leave `ids` as they are) or the scroller's height does.
+ * A renewal keeps the mark until the new observer answers, so the title
+ * does not blink; only leaving the chat, or no turn to watch, clears it.
+ */
+function NameStuck({
+  ids,
+  horizon,
+  shown,
+}: {
+  ids: readonly string[];
+  horizon: number;
+  shown: boolean;
+}) {
+  const { scrollRef, contentRef } = useStickToBottomContext();
+  useEffect(() => {
+    const chat = scrollRef.current?.closest("main");
+    return () => chat?.removeAttribute("data-name-stuck");
+  }, [scrollRef]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `ids`, `horizon` and `shown` change the turns to watch.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    const content = contentRef.current;
+    const chat = scroller?.closest("main");
+    if (!scroller || !content || !chat) return;
+    const crossing = new Set<Element>();
+    let observer: IntersectionObserver | undefined;
+    const watch = () => {
+      observer?.disconnect();
+      crossing.clear();
+      const below = Math.max(0, scroller.clientHeight - STUCK_LINE - 1);
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) crossing.add(entry.target);
+            else crossing.delete(entry.target);
+          }
+          chat.toggleAttribute("data-name-stuck", crossing.size > 0);
+        },
+        { root: scroller, rootMargin: `-${STUCK_LINE}px 0px -${below}px 0px` },
+      );
+      const turns = content.querySelectorAll('[data-message][data-role="assistant"]');
+      // With no turn to watch the observer never answers, so nothing is stuck.
+      if (turns.length === 0) chat.removeAttribute("data-name-stuck");
+      for (const turn of turns) observer.observe(turn);
+    };
+    const resized = new ResizeObserver(watch);
+    resized.observe(scroller);
+    return () => {
+      resized.disconnect();
+      observer?.disconnect();
+    };
+  }, [scrollRef, contentRef, ids, horizon, shown]);
   return null;
 }
 
@@ -226,42 +298,50 @@ function usePresenceHeld() {
 const RETENTION = "This conversation isn't saved. Refreshing or closing this tab clears it.";
 
 /**
- * The empty story. With a character, the presence beside it is the welcome:
- * one line and the retention note, level with the portrait. Without one, the
- * invitation, a way to choose a character, then the note. A missing model is
- * the notice above the composer's to say (ModelNotice), whatever the story holds.
+ * By the composer while the story is empty: nothing written here is kept.
+ * It leaves with the first line, and the story takes its room, so the
+ * composer stays where it is.
  */
-function EmptyStory() {
-  const character = useChatCharacter();
-  const choose = character === undefined && (
-    <div className="flex flex-wrap gap-2">
-      <Button variant="outline" onClick={() => setSessionOpen(true)}>
-        Choose a character
-      </Button>
+export function RetentionNote() {
+  const empty = useChat(storyEmpty);
+  if (!empty) return null;
+  return (
+    <div className={SCRIPT_FRAME}>
+      <p className="max-w-empty pb-2 text-pretty text-note text-reed transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
+        {RETENTION}
+      </p>
     </div>
   );
-  const retention = <p className="max-w-empty text-pretty text-note text-reed">{RETENTION}</p>;
+}
+
+/**
+ * The empty story, one composition on the story's own column. On a first
+ * run (no character chosen) it opens with choosing a model while none is
+ * chosen (ModelStep), in room left above the invitation: the step sits at
+ * the room's foot, so once a model is chosen nothing else moves. Then the
+ * invitation in the story's own voice, and choosing a character, optional.
+ * With a character the presence beside it is the welcome, and a missing
+ * model is the notice's above the composer (ModelNotice).
+ */
+function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
+  const character = useChatCharacter();
+  const chosen = useSetting((settings) => settings.characterId) !== null;
   return (
-    <div
-      className={cn(
-        "grid content-start justify-items-start transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0",
-        character === undefined ? "gap-3 pt-[14dvh]" : "gap-2",
-      )}
-    >
-      {character ? (
+    <div className="grid content-start justify-items-start transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
+      {character === undefined ? (
         <>
-          <p className="text-pretty text-ink text-lead">Write the first line.</p>
-          {retention}
-          {choose && <div className="mt-3">{choose}</div>}
-        </>
-      ) : (
-        <>
-          <p className="text-pretty text-ink text-lead">
+          <div className="grid min-h-[max(14dvh,--spacing(40))] content-end self-stretch">
+            {!chosen && <ModelStep composer={composer} />}
+          </div>
+          <p className="voice-story text-heading tablet:text-title-phone">
             Write the first line, or choose a character.
           </p>
-          {choose}
-          {retention}
+          <Button variant="outline" className="mt-4" onClick={() => setSessionOpen(true)}>
+            Choose a character
+          </Button>
         </>
+      ) : (
+        <p className="voice-story text-heading tablet:text-title-phone">Write the first line.</p>
       )}
     </div>
   );

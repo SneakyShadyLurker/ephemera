@@ -183,16 +183,25 @@ const QUIET_WHEN = "[[aria-busy=true]_&]:invisible [li:has(+li[data-reply-action
  * A turn's one More button. Tablet and desktop: just outside the story's
  * right edge, level with the first line, revealed by hover or focus within
  * the turn on fine pointers (and while its menu is open), always shown on
- * touch. Phones: at the trailing edge, tight under the text, so it belongs
- * to the turn rather than the gap after it.
+ * touch. Phones (`inPlate`): in the nameplate's row, at the end of the
+ * character's hairline or beside the owner's name, so it sticks with the
+ * name and a short turn is not followed by a row of its own. Its height
+ * hangs outside the row, which keeps the name's line height.
  */
-export function TurnActions({ id, speaker }: { id: string; speaker: string }) {
-  const phone = useFormFactor() === "phone";
+export function TurnActions({
+  id,
+  speaker,
+  inPlate = false,
+}: {
+  id: string;
+  speaker: string;
+  inPlate?: boolean;
+}) {
   return (
     <div
       className={cn(
-        phone
-          ? "-mt-0.5 -mb-3 flex justify-end touch:-mt-1.5 touch:-mb-5"
+        inPlate
+          ? "-my-1.5 flex shrink-0 touch:-my-2.5"
           : "absolute top-0.5 -right-11 opacity-0 transition-opacity duration-(--duration-quick) ease-fade group-focus-within:opacity-100 group-hover:opacity-100 has-data-popup-open:opacity-100 touch:opacity-100",
         QUIET_WHEN,
       )}

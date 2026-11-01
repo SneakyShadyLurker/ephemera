@@ -21,7 +21,7 @@ import { Radio, RadioGroup } from "@/components/ui/radio-group";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { oneOf } from "@/lib/one-of.ts";
-import { readBuiltIn } from "../palettes/derive.ts";
+import { readBuiltIn, SCHEME_CLASS } from "../palettes/derive.ts";
 import {
   closeDraft,
   currentDraft,
@@ -60,18 +60,17 @@ function paletteColours(id: PaletteChoice, customs: readonly CustomPalette[]) {
 
 /**
  * One scheme of a palette in miniature: a slip of text on its canvas, its
- * accent and three highlight tones. The swatch scopes the palette's tokens
- * (styles.css), so it reads the `-base` surfaces rather than the app's
- * tinted ones.
+ * accent and three highlight tones. Each half scopes the palette's tokens
+ * itself, beside its own `color-scheme`: the production build rewrites
+ * `light-dark()` into variables that resolve where a token is declared, so
+ * tokens declared on a shared parent would follow the window's scheme in
+ * both halves. It reads the `-base` surfaces rather than the app's tinted ones.
  */
-function Scheme({ scheme }: { scheme: "light" | "dark" }) {
+function Scheme({ palette, scheme }: { palette: PaletteChoice; scheme: "light" | "dark" }) {
   return (
     <div
-      className={
-        scheme === "light"
-          ? "grid content-center gap-1.5 bg-(--canvas-base) p-2 [color-scheme:light]"
-          : "grid content-center gap-1.5 bg-(--canvas-base) p-2 [color-scheme:dark]"
-      }
+      data-palette={palette}
+      className={cn(SCHEME_CLASS[scheme], "grid content-center gap-1.5 bg-(--canvas-base) p-2")}
     >
       <div className="grid gap-1 rounded-sm bg-(--surface-base) p-1.5">
         <span className="h-1 w-4/5 rounded-full bg-ink" />
@@ -87,16 +86,15 @@ function Scheme({ scheme }: { scheme: "light" | "dark" }) {
   );
 }
 
-/** A palette's day and night side by side, in its own colours. */
+/** A palette's day and night side by side, each in its own colours. */
 function Swatch({ palette }: { palette: PaletteChoice }) {
   return (
     <div
-      data-palette={palette}
       aria-hidden="true"
-      className="grid aspect-[16/9] grid-cols-2 overflow-hidden rounded-lg border border-(--rush-base)"
+      className="grid aspect-[16/9] grid-cols-2 overflow-hidden rounded-lg border border-rush"
     >
-      <Scheme scheme="light" />
-      <Scheme scheme="dark" />
+      <Scheme palette={palette} scheme="light" />
+      <Scheme palette={palette} scheme="dark" />
     </div>
   );
 }

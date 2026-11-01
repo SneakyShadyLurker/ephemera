@@ -915,6 +915,11 @@ function untouchedGreeting(messages: ChatMessage[]): AssistantMessage | undefine
     : undefined;
 }
 
+/** Nothing in the story yet, not even a greeting or a deletion's tombstone: the empty story shows. */
+export function storyEmpty(state: ChatState): boolean {
+  return state.messages.length === 0 && state.deleted === null;
+}
+
 /**
  * Whether the chat holds anything of the user's: a greeting nobody touched is
  * the card's, not theirs; an open edit of it is theirs, saved or not.

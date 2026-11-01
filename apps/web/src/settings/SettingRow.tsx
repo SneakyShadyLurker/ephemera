@@ -4,13 +4,34 @@ import { cn } from "@/lib/cn";
 
 /*
  * The one row grammar of Settings: the label on the leading edge with its
- * infotip, a one-line hint under it, and the control on the trailing edge,
- * hairlines between rows. Each row is a container: below 30rem of its own
- * width the control drops under the label, so a narrow tablet panel and a
- * phone share one rule.
+ * infotip, a one-line hint under it, and the control placed by its kind,
+ * hairlines between rows. A single control (a switch, a select, a number)
+ * keeps the trailing edge, where every such row lines up; a group of
+ * choices follows its label, so short label and wide group read as one;
+ * a panel of choices takes the row's width under its label. Each row is a
+ * container: below 30rem of its own width the control drops under the
+ * label, so a narrow tablet panel and a phone share one rule.
  */
 
 export const HINT = "text-pretty text-note text-reed";
+
+/**
+ * A Settings panel's actions (Save, Cancel), stuck to the bottom of the
+ * scroller on phones above the home indicator, in the flow from tablets on.
+ * The panel pads 1rem, which the footer spans.
+ */
+export const PANEL_FOOTER =
+  "sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-rush border-t bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tablet:static tablet:mx-0 tablet:mb-0 tablet:border-0 tablet:bg-transparent tablet:p-0";
+
+/** Where a row's control sits: see the row grammar above. */
+type RowControl = "single" | "choices" | "panel";
+
+const ROW_GRID: Record<RowControl, string> = {
+  single: "@min-[30rem]:grid-cols-[minmax(0,1fr)_auto] @min-[30rem]:items-center",
+  choices:
+    "@min-[30rem]:grid-cols-[auto_minmax(0,auto)] @min-[30rem]:items-center @min-[30rem]:justify-start @min-[30rem]:gap-x-8",
+  panel: "",
+};
 
 /** A select or model picker in a row: one shared width, capped like every field. */
 export const ROW_SELECT = "w-full max-w-sm @min-[30rem]:w-60";
@@ -37,9 +58,11 @@ function LabelLine({
  * One setting. `label` names the control: through `labelId` (a select or a
  * combobox, `aria-labelledby`), `htmlFor` (a native input), or the control's
  * own label (a number field), shown here all the same. `hint` describes it
- * through `hintId`; `problem` turns it Ember. `wide` keeps the control under
- * the label at the panel's width (the palette tiles); `below` follows the
- * row at full width (a window note, the palette editor).
+ * through `hintId`; `problem` turns it Ember. `control` names the control's
+ * kind, which places it: a `single` control (the default), a group of
+ * `choices` (the theme) or a `panel` of them at the row's width (the palette
+ * tiles). `below` follows the row at full width (a window note, the palette
+ * editor).
  */
 export function SettingRow({
   label,
@@ -50,7 +73,7 @@ export function SettingRow({
   hintId,
   problem = false,
   live = false,
-  wide = false,
+  control = "single",
   below,
   children,
 }: {
@@ -63,19 +86,14 @@ export function SettingRow({
   problem?: boolean;
   /** The hint is announced when it changes (a field's problem line). */
   live?: boolean;
-  wide?: boolean;
+  control?: RowControl;
   below?: ReactNode;
   children: ReactNode;
 }) {
   const text = "font-medium text-ink text-ui";
   return (
     <div className="@container grid gap-2 py-3.5">
-      <div
-        className={cn(
-          "grid gap-x-6 gap-y-2",
-          !wide && "@min-[30rem]:grid-cols-[minmax(0,1fr)_auto] @min-[30rem]:items-center",
-        )}
-      >
+      <div className={cn("grid gap-x-6 gap-y-2", ROW_GRID[control])}>
         <div className="grid content-start gap-0.5">
           <LabelLine label={label} about={about}>
             {htmlFor === undefined ? (
@@ -98,7 +116,11 @@ export function SettingRow({
             </p>
           )}
         </div>
-        <div className={wide ? "grid min-w-0" : "flex min-w-0 flex-wrap items-center gap-2"}>
+        <div
+          className={
+            control === "panel" ? "grid min-w-0" : "flex min-w-0 flex-wrap items-center gap-2"
+          }
+        >
           {children}
         </div>
       </div>
