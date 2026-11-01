@@ -239,7 +239,7 @@ Version 1.0 holds everything below.
   are, the saved
   model writes it at its default effort, and the card is kept on arrival
   with the image as its portrait. The clothing in the image is one outfit,
-  so the card takes only the style of dress it suggests.
+  so the description takes only the style of dress it suggests.
 
 **AI Rework**
 - From a saved character's sheet, **AI Rework** in the header (an icon on
@@ -282,9 +282,12 @@ Version 1.0 holds everything below.
   alternate greetings keep their form. On a subject
   card the place and time play begins in stay in the opening alone: the
   description loses any it holds, and so does the scenario field unless
-  they are all it holds. A set outfit or list of garments in any field
-  the model reads becomes the general style or habit of dress it shows,
-  and an attached portrait's clothing never enters the card. A single subject
+  they are all it holds. A set outfit or list of garments in a
+  character's lasting text (description, personality, overrides, the
+  Character's Note and lorebook entries) becomes the general style or
+  habit of dress it shows, its lorebook keywords kept, while what someone
+  wears in an opening's scene stays; an attached portrait's clothing never
+  enters the card. A single subject
   is called `{{char}}` in the card's text, everyone else by name. Speech
   it writes sounds like the character talking, not prose.
 - The model answers with changes, each naming its field, the

@@ -441,10 +441,10 @@ describe("creator requests and events", () => {
     }
     // A picture shows one outfit; the card takes only the style it suggests.
     expect(imageCardPrompt("subject", null, null)).toContain(
-      "Their clothing in it is one outfit: take from it only the general style it suggests, never the outfit itself.",
+      "Their clothing in it is one outfit: the description takes from it only the general style it suggests, never the outfit itself.",
     );
     expect(imageCardPrompt("group", null, null)).toContain(
-      "Each person's clothing in it is one outfit: take from it only the general style it suggests, never the outfit itself.",
+      "Each person's clothing in it is one outfit: the description takes from it only the general style it suggests, never the outfit itself.",
     );
   });
 
@@ -1251,7 +1251,7 @@ describe("image card", () => {
       [
         "Create the subject shown in the attached image. The image is the player's description.",
         "Read the person's apparent age, apparent ethnicity and phenotype, build, skin, face, eyes, hair and hairstyle, expression, visible marks, posture, setting and mood from it, and keep everything you write about their appearance consistent with what the image shows.",
-        "Their clothing in it is one outfit: take from it only the general style it suggests, never the outfit itself.",
+        "Their clothing in it is one outfit: the description takes from it only the general style it suggests, never the outfit itself.",
         "Fill in everything the image cannot show, such as name, origin, history, personality, sexuality and way of speaking, with specific, coherent choices that fit the person in the image.",
       ].join(" "),
     );
