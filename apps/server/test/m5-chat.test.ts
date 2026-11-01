@@ -73,7 +73,7 @@ describe("POST /api/chat with prompt assembly", () => {
     const prompt = promptPart(all);
     const sent = upstream.records[0]?.body as { messages: { role: string; content: string }[] };
     expect(prompt.messages.map(({ role, content }) => ({ role, content }))).toEqual(sent.messages);
-    expect(sent.messages[0]?.content).toContain("with one adult player, who plays Aria.");
+    expect(sent.messages[0]?.content).toContain("with one player, who plays Aria.");
     expect(sent.messages.map((m) => m.content)).toContainEqual(
       expect.stringMatching(/^<persona>\n.*\n\nAria keeps receipts\.\n<\/persona>$/s),
     );
@@ -121,7 +121,7 @@ describe("POST /api/chat with prompt assembly", () => {
       )
     ).text();
     const sent = upstream.records[0]?.body as { messages: { content: string }[] };
-    expect(sent.messages[0]?.content).toContain("with one adult player, who plays User.");
+    expect(sent.messages[0]?.content).toContain("with one player, who plays User.");
   });
 
   it("trims the oldest turns to fit the model's window", async () => {

@@ -38,7 +38,7 @@ Metric units throughout. Each detail appears once: build never mentions the ches
 
 /** The keeper instructions' first sentence, for the mock upstream to know the call by. */
 export const KEEPER_OPENING =
-  "You keep the cast register of a private adult roleplay; you do not write the story.";
+  "You keep the cast register of a private roleplay; you do not write the story.";
 
 const KEEPER_INSTRUCTIONS = `${KEEPER_OPENING} The model that tells the story reads the register with every reply in place of describing people again, so the register keeps every detail of every person consistent for the rest of the story.
 
