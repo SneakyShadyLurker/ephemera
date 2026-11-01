@@ -34,6 +34,31 @@ const textLength = (node: Nodes): number =>
 type SmartypantsTransformer = Exclude<ReturnType<typeof remarkSmartypants>, void>;
 
 /**
+ * SmartyPants curls a quotation mark as a closing one where it opens speech
+ * after a space and before an ellipsis (`she waits. "...Why?"`), or straight
+ * after an action or highlight (`*smiles*"Hi"`). Read through a block in
+ * order, a closing mark with no quote open and text right after it opens one.
+ */
+function reopenQuotes(node: Nodes, quote: { open: boolean }): void {
+  if (node.type === "text") {
+    let value = "";
+    for (let i = 0; i < node.value.length; i++) {
+      let char = node.value[i] ?? "";
+      if (char === "“") quote.open = true;
+      else if (char === "”") {
+        const opens = !quote.open && /\S/.test(node.value[i + 1] ?? "");
+        if (opens) char = "“";
+        quote.open = opens;
+      }
+      value += char;
+    }
+    node.value = value;
+  } else if ("children" in node) {
+    for (const child of node.children) reopenQuotes(child, quote);
+  }
+}
+
+/**
  * remark-smartypants, run on one block at a time and only on blocks up to
  * SMARTYPANTS_BLOCK_LIMIT. Each block is given to it under a root of its own,
  * so it still starts afresh as it would in the whole document: quotes are
@@ -48,6 +73,7 @@ function remarkBoundedSmartypants(this: ThisParameterType<typeof remarkSmartypan
         if (textLength(node) <= SMARTYPANTS_BLOCK_LIMIT) {
           const root: Root = { type: "root", children: [node as RootContent] };
           smarten(root, file, () => {});
+          reopenQuotes(node, { open: false });
         }
       } else if ("children" in node) {
         for (const child of node.children) visit(child);
