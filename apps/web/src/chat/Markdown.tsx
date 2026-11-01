@@ -11,7 +11,7 @@ import {
 import { QUICK } from "@/app/motion.tsx";
 import { highlightRemarkPlugins, streamingFrom, withHighlights } from "./highlight.ts";
 import { rehypeInert } from "./inert.ts";
-import { rehypeVoices } from "./voices.ts";
+import { CLOSERS, type Quote, rehypeVoices } from "./voices.ts";
 
 /**
  * Above this many characters of text, a paragraph, heading or table cell
@@ -33,6 +33,38 @@ const textLength = (node: Nodes): number =>
 
 type SmartypantsTransformer = Exclude<ReturnType<typeof remarkSmartypants>, void>;
 
+/** Elements the voice pass seals (voices.ts `SEALED`): highlights, inert links, actions outside speech. */
+const sealed = (node: Nodes, quote: Quote) =>
+  node.type === "textDirective" ||
+  node.type === "link" ||
+  node.type === "linkReference" ||
+  (node.type === "emphasis" && quote.closers === null);
+
+/**
+ * SmartyPants curls a quotation mark as a closing one where it opens speech
+ * after a space and before an ellipsis (`she waits. "...Why?"`), or straight
+ * after an action or highlight (`*smiles*"Hi"`). Read through a block in
+ * order, as the voice pass reads it, a closing mark with no quote open and
+ * text right after it opens one.
+ */
+function reopenQuotes(node: Nodes, quote: Quote): void {
+  if (node.type === "text") {
+    let value = "";
+    for (let i = 0; i < node.value.length; i++) {
+      let char = node.value[i] ?? "";
+      if (quote.closers === null) {
+        if (char === "”" && /\S/.test(node.value[i + 1] ?? "")) char = "“";
+        quote.closers = CLOSERS[char] ?? null;
+      } else if (quote.closers.includes(char)) quote.closers = null;
+      value += char;
+    }
+    node.value = value;
+  } else if ("children" in node) {
+    const inner = sealed(node, quote) ? { closers: null } : quote;
+    for (const child of node.children) reopenQuotes(child, inner);
+  }
+}
+
 /**
  * remark-smartypants, run on one block at a time and only on blocks up to
  * SMARTYPANTS_BLOCK_LIMIT. Each block is given to it under a root of its own,
@@ -48,6 +80,7 @@ function remarkBoundedSmartypants(this: ThisParameterType<typeof remarkSmartypan
         if (textLength(node) <= SMARTYPANTS_BLOCK_LIMIT) {
           const root: Root = { type: "root", children: [node as RootContent] };
           smarten(root, file, () => {});
+          reopenQuotes(node, { closers: null });
         }
       } else if ("children" in node) {
         for (const child of node.children) visit(child);

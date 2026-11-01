@@ -18,7 +18,7 @@ import { textOf } from "./inert.ts";
  */
 
 /** Closing marks for each opening mark of speech; single quotes and apostrophes never open it. */
-const CLOSERS: Record<string, string> = {
+export const CLOSERS: Record<string, string> = {
   "“": '”"',
   "„": "“”",
   "«": "»",
@@ -29,7 +29,7 @@ const CLOSERS: Record<string, string> = {
 const SEALED = new Set(["em", "span", "code"]);
 
 /** The marks that close the quotation still open, carried across the elements it runs through. */
-interface Quote {
+export interface Quote {
   closers: string | null;
 }
 
@@ -48,9 +48,6 @@ const span = (properties: Element["properties"], children: ElementContent[]): El
 
 const speech = (children: ElementContent[]) => span({ dataVoice: "speech" }, children);
 
-/** smartypants curls a quotation mark written straight after an action or highlight as a closing one. */
-const opensAfterSealed = (value: string) => /^[”"]\S/.test(value);
-
 /**
  * Wraps each run from an opening quotation mark to its closing one, quotes
  * included, across sibling nodes; a quote still open at the end runs to it.
@@ -60,7 +57,6 @@ const opensAfterSealed = (value: string) => /^[”"]\S/.test(value);
 function speak(children: ElementContent[], quote: Quote): ElementContent[] {
   const out: ElementContent[] = [];
   let run: ElementContent[] | null = quote.closers === null ? null : [];
-  let afterSealed = false;
   const flush = () => {
     if (run?.length) out.push(speech(run));
     run = null;
@@ -72,8 +68,7 @@ function speak(children: ElementContent[], quote: Quote): ElementContent[] {
       for (let i = 0; i < value.length; i++) {
         const char = value[i] ?? "";
         if (run === null) {
-          const opened =
-            CLOSERS[char] ?? (i === 0 && afterSealed && opensAfterSealed(value) ? '”"' : undefined);
+          const opened = CLOSERS[char];
           if (opened === undefined) continue;
           if (i > from) out.push(text(value.slice(from, i)));
           run = [];
@@ -87,15 +82,12 @@ function speak(children: ElementContent[], quote: Quote): ElementContent[] {
         }
       }
       if (from < value.length) (run ?? out).push(text(value.slice(from)));
-      afterSealed = false;
     } else if (child.type === "element" && !sealed(child, quote)) {
       flush();
       out.push({ ...child, children: speak(child.children, quote) });
       if (quote.closers !== null) run = [];
-      afterSealed = false;
     } else {
       (run ?? out).push(child);
-      afterSealed = child.type === "element";
     }
   }
   flush();

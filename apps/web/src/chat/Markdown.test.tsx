@@ -443,8 +443,36 @@ describe("Markdown scene voices", () => {
 
   it("starts speech written straight after an action or a highlight", () => {
     for (const markdown of ['*smiles*"Hello," she says.', ':rose[kisses him]"Hello," she says.']) {
-      expect(render(markdown)).toMatch(/<span data-voice="speech">[”"]Hello,”<\/span> she says\./);
+      expect(render(markdown)).toMatch(/<span data-voice="speech">“Hello,”<\/span> she says\./);
     }
+  });
+
+  it.each([
+    ["after an action", 'Camila (18): *pockets the phone* "...Why?"'],
+    ["after narration", 'She waits. "…Why?"'],
+    ["after a cue", 'Camila (18): "...Alright. Yeah."'],
+    ["written curled the wrong way", "She waits. ”…Why?”"],
+  ])("opens speech that starts with an ellipsis %s", (_label, markdown) => {
+    expect(render(markdown)).toMatch(/<span data-voice="speech">“…[A-Z][^<”]*”<\/span><\/p>/);
+  });
+
+  it("keeps a closing quote that follows an open one", () => {
+    const out = render('"Wait..." she says. "Now."');
+    expect(out).toContain('<span data-voice="speech">“Wait…”</span> she says.');
+    expect(out).toContain('<span data-voice="speech">“Now.”</span>');
+  });
+
+  it("keeps a highlight's own quotes out of the speech around it", () => {
+    const out = render("“She called me :rose[“darling”]”, she says.");
+    expect(out).toContain(
+      '<span data-voice="speech">“She called me <span data-tone="rose">“darling”</span>”</span>, she says.',
+    );
+  });
+
+  it("opens speech after an action once a low-high quote has closed", () => {
+    expect(render('„Hello“ she says. *smiles*"Hello," she says.')).toMatch(
+      /<\/em><span data-voice="speech">“Hello,”<\/span> she says\./,
+    );
   });
 
   it("keeps a cue's name visible while its words fade in", () => {
