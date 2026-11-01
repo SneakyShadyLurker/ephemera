@@ -86,8 +86,12 @@ function FrameGlow() {
   );
 }
 
-/** A light gliding along the frame's lower edge in step with the lamp (styles.css `frame-drift`). */
-function FrameDrift() {
+/**
+ * A light gliding along the lower edge of its positioned parent in step with
+ * the lamp (styles.css `frame-drift`): the frame's, or the brainstorm row
+ * being written.
+ */
+export function FrameDrift() {
   const drift = useRef<HTMLSpanElement>(null);
   useLampStep(drift, useCreatorWriting());
   return <span ref={drift} aria-hidden="true" className="frame-drift" />;

@@ -49,6 +49,17 @@ describe("the ideas list", () => {
     expect(settled[0]?.key).not.toBe(dimmed[0]?.key);
   });
 
+  it("arrives an idea moved to another place as new there, never moving a row", () => {
+    // The model wrote idea 3 of list a first: row 1 replaces its idea, row 3 waits for its own.
+    const moved = [idea(3, "a"), ...list("b").slice(1)];
+    const dimmed = ideaRows({ before: list("a"), fresh: [], shown: 0, running: true });
+    const writing = ideaRows({ before: list("a"), fresh: moved, shown: 1, running: true });
+    expect(writing[0]).toMatchObject({ state: "new", gone: idea(1, "a").pitch });
+    expect(dimmed.map((row) => row.key)).not.toContain(writing[0]?.key);
+    expect(writing[2]?.key).toBe(dimmed[2]?.key);
+    expect(new Set(writing.map((row) => row.key)).size).toBe(10);
+  });
+
   it("leaves the previous list listed through a failed round", () => {
     const rows = ideaRows({ before: list("a"), fresh: list("a"), shown: 10, running: false });
     expect(rows.map((row) => row.state)).toEqual(Array(10).fill("kept"));
@@ -73,6 +84,40 @@ describe("the ideas list", () => {
     expect(settled).toContain('aria-busy="false"');
     expect(settled.match(/<button/g)).toHaveLength(10);
     expect(settled).toContain(`aria-label="3. ${idea(3).pitch}"`);
+  });
+
+  it("washes the rows a round rewrote, not the kept ones or a first list's", () => {
+    const html_ = (before: BrainstormOption[], busy: boolean) =>
+      html(
+        <IdeaList
+          rows={ideaRows({ before, fresh: tuned(), shown: 10, running: false })}
+          busy={busy}
+          picked={null}
+          onPick={() => {}}
+        />,
+      );
+    // Eight of ten rewritten, rows 3 and 7 kept; the wash holds through the settle into buttons.
+    expect(html_(list("a"), true).match(/data-rework-wash/g)).toHaveLength(8);
+    expect(html_(list("a"), false).match(/data-rework-wash/g)).toHaveLength(8);
+    expect(html_([], true)).not.toContain("data-rework-wash");
+  });
+
+  it("marks the row being written with the light along its edge, and only while one is", () => {
+    const rows = ideaRows({
+      before: list("a"),
+      fresh: tuned().slice(0, 3),
+      shown: 3,
+      running: true,
+    });
+    const writing = html(
+      <IdeaList rows={rows} busy={true} edge={3} picked={null} onPick={() => {}} />,
+    );
+    expect(writing.match(/frame-drift/g)).toHaveLength(1);
+    const lit = writing.split("<li").filter((row) => row.includes("frame-drift"));
+    expect(lit).toHaveLength(1);
+    expect(lit[0]).toContain(idea(4).pitch);
+    const waiting = html(<IdeaList rows={rows} busy={true} picked={null} onPick={() => {}} />);
+    expect(waiting).not.toContain("frame-drift");
   });
 
   it("marks the picked row as current", () => {
