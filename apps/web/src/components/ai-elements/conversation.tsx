@@ -19,8 +19,8 @@ type ConversationProps = ComponentProps<typeof StickToBottom>;
 /**
  * While the story is locked to the bottom, a scroller that gets shorter keeps the bottom in
  * view. The lock is the library's live `state.isAtBottom`: any scroll up by the owner clears it,
- * even a slight one, and Latest or a send sets it again. (The context's `isAtBottom` also holds
- * near the bottom, and `escapedFromLock` can outlast a return through Latest.)
+ * even a slight one, and Latest or a send sets it again. The context's `isAtBottom` is no lock:
+ * it also holds a little way up, near the bottom.
  */
 function KeepTail() {
   const { scrollRef, state, scrollToBottom } = useStickToBottomContext();
