@@ -1469,31 +1469,16 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
- * The sheet's name joins its header once the name field scrolls beneath it.
- * It is fully opaque within the first few pixels of its range, so a scroll
- * that comes to rest partway leaves a readable title; the rise takes the
- * whole range.
+ * The sheet's name joins its header once the name field has scrolled beneath
+ * it: scrolling past the threshold triggers a timed rise, and scrolling back
+ * reverses it, so the title never rests half faded. A sheet too short to
+ * scroll keeps its name in the field.
  */
-@keyframes name-in {
-  from {
-    opacity: 0;
-    translate: 0 var(--rise);
-  }
-  10% {
-    opacity: 1;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-
-/* Hidden until scrolling drives it in; a sheet too short to scroll keeps its name in the field. */
 @utility title-in {
   opacity: 0;
-  animation: name-in linear both;
-  animation-timeline: --thread;
-  animation-range: 3rem 5.5rem;
+  timeline-trigger: --title-in --thread 4rem normal;
+  animation: title-in var(--duration-arrive) var(--ease-spring) both;
+  animation-trigger: --title-in play-forwards play-backwards;
 }
 
 /*

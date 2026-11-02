@@ -2781,3 +2781,40 @@ test("an address that leads nowhere says so and leads back to the story", async 
   await expect(page).toHaveURL((url) => url.pathname === "/");
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });
+
+test("a sheet's header title rises in once the name scrolls away and never rests half faded", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const name = uniqueName("Title");
+  const id = await createCharacterViaApi(page.request, name, {
+    description: Array.from(
+      { length: 80 },
+      (_, line) => `Line ${line} of a long description.`,
+    ).join("\n"),
+  });
+  await page.goto(`/characters/${id}`);
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
+  const title = page.locator("header h1", { hasText: name });
+  const opacity = () => title.evaluate((node) => Number(getComputedStyle(node).opacity));
+  const scrollTo = (top: number) =>
+    page.evaluate((y) => {
+      const scroller = [...document.querySelectorAll<HTMLElement>("main *")].find((node) =>
+        getComputedStyle(node).scrollTimelineName.includes("--thread"),
+      );
+      if (scroller === undefined) throw new Error("No sheet scroller");
+      scroller.scrollTo({ top: y, behavior: "instant" });
+      // Two frames, so scroll-linked styles reflect the new position before a read.
+      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, top);
+  expect(await opacity()).toBe(0);
+  // Resting anywhere around the threshold, where a scroll-linked fade would sit part way.
+  for (let top = 40; top <= 120; top += 2) {
+    await scrollTo(top);
+    await expect.poll(async () => [0, 1].includes(await opacity())).toBe(true);
+  }
+  await scrollTo(400);
+  await expect.poll(opacity).toBe(1);
+  await scrollTo(0);
+  await expect.poll(opacity).toBe(0);
+});
