@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `palette` text DEFAULT 'lamplight' NOT NULL;

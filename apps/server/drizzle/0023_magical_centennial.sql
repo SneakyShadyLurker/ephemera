@@ -1,0 +1,1 @@
+ALTER TABLE `settings` DROP COLUMN `trim_in_blocks`;

@@ -1,0 +1,21 @@
+# Admits only what infra/docker/Dockerfile copies. A deploy can build from a
+# `git archive` of the deployed commit; this list also keeps ignored files
+# (env files, data, build output) out of a build from a working tree. Test
+# files stay in: Tailwind scans the sources, so the SPA equals the tested build.
+*
+!package.json
+!bun.lock
+!tsconfig.base.json
+!apps/server/package.json
+!apps/server/src/
+!apps/server/drizzle/
+!apps/web/
+!packages/core/package.json
+!packages/core/tsconfig.json
+!packages/core/src/
+!infra/docker/package.json
+!infra/docker/healthcheck.ts
+**/node_modules/
+**/dist/
+**/.env
+**/.env.*

@@ -1,0 +1,75 @@
+{
+  "name": "ephemera",
+  "networks": {
+    "default": {
+      "name": "ephemera_default",
+      "ipam": {}
+    }
+  },
+  "services": {
+    "ephemera": {
+      "build": {
+        "context": "/tmp/ephemera-fixture/ctx",
+        "dockerfile": "infra/docker/Dockerfile",
+        "args": {
+          "VCS_REF": "unknown"
+        }
+      },
+      "cap_drop": ["ALL"],
+      "command": null,
+      "entrypoint": null,
+      "environment": {
+        "EPHEMERA_DATA_DIR": "<placeholder>",
+        "EPHEMERA_DATA_KEY": "<placeholder>",
+        "EPHEMERA_DATA_VOLUME_UUID": "<placeholder>",
+        "EPHEMERA_HOST": "<placeholder>",
+        "EPHEMERA_ORIGIN": "<placeholder>",
+        "EPHEMERA_PROXY_KEY": "<placeholder>",
+        "EPHEMERA_STATIC_DIR": "<placeholder>",
+        "EPHEMERA_UPSTREAM_API_KEY": "<placeholder>",
+        "EPHEMERA_UPSTREAM_BASE_URL": "<placeholder>",
+        "EPHEMERA_WORKFLOWS_DIR": "<placeholder>"
+      },
+      "healthcheck": {
+        "test": ["CMD", "bun", "infra/docker/healthcheck.ts"],
+        "timeout": "5s",
+        "interval": "30s",
+        "retries": 3,
+        "start_period": "1m0s",
+        "start_interval": "2s"
+      },
+      "image": "ephemera:latest",
+      "init": true,
+      "logging": {
+        "driver": "none"
+      },
+      "networks": {
+        "default": null
+      },
+      "pids_limit": 256,
+      "read_only": true,
+      "restart": "unless-stopped",
+      "security_opt": ["no-new-privileges:true"],
+      "tmpfs": ["/tmp:size=64m,mode=1777,noexec,nosuid,nodev"],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/tmp/ephemera-fixture/data",
+          "target": "/data",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/tmp/ephemera-fixture/ctx/infra/docker/no-workflows",
+          "target": "/run/workflows",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    }
+  }
+}

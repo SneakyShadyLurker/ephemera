@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `image_prompt_model` text;

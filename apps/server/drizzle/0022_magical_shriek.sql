@@ -1,0 +1,1 @@
+ALTER TABLE `memory_notebooks` ADD `cast` text DEFAULT '[]' NOT NULL;
