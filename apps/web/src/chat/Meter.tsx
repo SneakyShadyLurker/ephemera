@@ -86,7 +86,7 @@ export function Waterline() {
         >
           <span
             className={cn(
-              "absolute inset-0 origin-left transition-transform duration-(--duration-panel-in) ease-spring",
+              "absolute inset-0 origin-left transition-transform duration-(--duration-panel-in) ease-spring motion-reduce:transition-none",
               full ? "bg-ink" : "bg-dusk",
             )}
             style={{ transform: `scaleX(${used / value.window})` }}

@@ -100,7 +100,7 @@ export function CardFrame({
         {typeof progress === "number" && (
           <span
             aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-dusk transition-[scale] duration-(--duration-panel-in) ease-fade"
+            className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-dusk transition-[scale] duration-(--duration-panel-in) ease-fade motion-reduce:transition-none"
             style={{ scale: `${Math.min(1, Math.max(0, progress))} 1` }}
           />
         )}

@@ -163,7 +163,7 @@ function Alternates({
           disabled={locked}
           onClick={(event) => onChoose(index, event.currentTarget)}
           className={cn(
-            "press relative aspect-[2/3] overflow-hidden rounded-xs transition-[box-shadow,filter] duration-(--duration-quick) ease-fade hover:brightness-[1.04] disabled:cursor-default",
+            "press relative aspect-[2/3] overflow-hidden rounded-xs hover:brightness-[1.04] disabled:cursor-default",
             LEAF_EDGE,
             GLIDE,
             index === selected && "shadow-[0_0_0_2px_var(--canvas),0_0_0_4px_var(--dusk)]",

@@ -12,8 +12,8 @@ import { reworkStore } from "./session.ts";
  * and a button that opens the AI Rework composer with the request written
  * (one the owner typed is kept). Derived from the live description, so it
  * leaves once the blocks do (Apply, a hand edit) and returns with them
- * (Undo); it opens and closes its height with a fade, a fade alone under
- * reduced motion. The button waits on the same gates as the header's AI
+ * (Undo); it opens and closes its height with a fade, a fade at full height
+ * under reduced motion, then gone. The button waits on the same gates as the header's AI
  * Rework, and on a description too long for Rework to take.
  */
 export function LegacyBlocksNotice({
@@ -51,7 +51,7 @@ export function LegacyBlocksNotice({
           setShown(null);
       }}
       className={cn(
-        "grid transition-[grid-template-rows,opacity] duration-(--duration-panel-in) ease-spring motion-reduce:transition-opacity starting:grid-rows-[0fr] starting:opacity-0",
+        "grid transition-[grid-template-rows,opacity] duration-(--duration-panel-in) ease-spring motion-reduce:transition-[opacity,grid-template-rows] motion-reduce:[transition-duration:var(--duration-quick),0s] motion-reduce:[transition-delay:0s,var(--duration-quick)] starting:grid-rows-[0fr] starting:opacity-0",
         leaving ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]",
       )}
     >

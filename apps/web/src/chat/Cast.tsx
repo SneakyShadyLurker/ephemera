@@ -1044,7 +1044,7 @@ function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
       <button
         type="button"
         onClick={() => chatStore.getState().revertCast(entry.id, field)}
-        className="press flex items-center font-sans text-meta text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink touch:min-h-11"
+        className="press flex items-center font-sans text-meta text-reed hover:text-ink touch:min-h-11"
       >
         Revert {CAST_FIELD_LABELS[field].toLowerCase()}
       </button>

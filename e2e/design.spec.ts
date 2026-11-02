@@ -417,6 +417,10 @@ test("reduced motion removes movement and keeps fades short", async ({ page }) =
       rise: root.getPropertyValue("--rise").trim(),
       panelShift: root.getPropertyValue("--panel-shift").trim(),
       pressScale: root.getPropertyValue("--press-scale").trim(),
+      swipeShift: root.getPropertyValue("--swipe-shift").trim(),
+      // A badge arrives at its own size, and a brainstorm's rows fill at once.
+      arriveScale: root.getPropertyValue("--arrive-scale").trim(),
+      revealGap: Number.parseFloat(root.getPropertyValue("--reveal-gap")),
       // Siblings arrive together and what follows another arrival does not wait.
       staggerStep: Number.parseFloat(root.getPropertyValue("--stagger-step")),
       delayFollow: Number.parseFloat(root.getPropertyValue("--delay-follow")),
@@ -427,10 +431,16 @@ test("reduced motion removes movement and keeps fades short", async ({ page }) =
     rise: "0px",
     panelShift: "0px",
     pressScale: "1",
+    swipeShift: "0px",
+    arriveScale: "1",
+    revealGap: 0,
     staggerStep: 0,
     delayFollow: 0,
     caretAnimation: "none",
   });
+  // The context level jumps to its new place: a level, like words, appears at once.
+  const fill = page.getByRole("meter", { name: "Context" }).locator("[style*='scaleX']");
+  await expect(fill).toHaveCSS("transition-property", "none");
   // Streamed words appear at once.
   const word = page.locator('[data-status="streaming"] [data-sd-animate]').first();
   await expect(word).toHaveCSS("animation-name", "none");

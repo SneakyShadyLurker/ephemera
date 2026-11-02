@@ -991,6 +991,69 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
   await expect(bar).toHaveCount(0);
 });
 
+test("reduced motion fades a rejected new entry at full height, then folds it at once", async ({
+  page,
+  request,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const id = await createReworkCharacter(request, "motion-rework-new-entry");
+  const block = (field: string, replace: string) =>
+    `<change>\n<field>${field}</field>\n<why>The scene needs her.</why>\n<find></find>\n<replace>${replace}</replace>\n</change>`;
+  const answer = [
+    block("entry_new_1_name", "Night porter"),
+    block("entry_new_1_keys", "porter, night"),
+    block("entry_new_1", "The night porter locks the archive at ten and keeps the only key."),
+    "<summary>Adds the night porter.</summary>",
+  ].join("\n");
+  await page.route("**/api/creator/rework", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson; charset=utf-8",
+      body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+    }),
+  );
+  await page.goto(`/characters/${id}`);
+  await openRework(page);
+  await submitRework(page, { request: "Add the night porter.", model: "mock-fast" });
+  const reject = page.getByRole("button", { name: "Reject new entry: Night porter" });
+  const body = page
+    .getByRole("group", { name: "New entry: Night porter", exact: true })
+    .locator(".tracked-fold");
+  await expect(body).toContainText("keeps the only key");
+  await body.scrollIntoViewIfNeeded();
+  // The body stays in the sheet, folded to its padding; sample its content height until it has collapsed.
+  const folding = body.evaluate(
+    (element) =>
+      new Promise<{ height: number; opacity: number }[]>((resolve) => {
+        const frames: { height: number; opacity: number }[] = [];
+        const sample = () => {
+          const style = getComputedStyle(element);
+          const frame = {
+            height:
+              element.getBoundingClientRect().height -
+              Number.parseFloat(style.paddingTop) -
+              Number.parseFloat(style.paddingBottom),
+            opacity: Number.parseFloat(style.opacity),
+          };
+          frames.push(frame);
+          if (frame.height < 0.5) return resolve(frames);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+  await reject.click();
+  const frames = await folding;
+  // The first frame is the open body, sampled before the click.
+  const height = frames[0]?.height ?? 0;
+  expect(height).toBeGreaterThan(0);
+  const fading = frames.filter(({ opacity }) => opacity > 0.05 && opacity < 0.95);
+  expect(fading.length).toBeGreaterThan(0);
+  for (const frame of fading) expect(frame.height).toBeCloseTo(height, 0);
+  expect(frames.at(-1)?.height).toBeCloseTo(0, 0);
+  await expect(page.getByRole("button", { name: "Restore new entry: Night porter" })).toBeFocused();
+});
+
 test("normal-motion Rework grows and folds its real layout slot while the sheet scroller resizes", async ({
   page,
   request,

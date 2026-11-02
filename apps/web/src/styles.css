@@ -278,6 +278,9 @@
   --duration-fade-out: 300ms;
   /* How long a wait stays quiet before it shows, so quick work never flickers. */
   --delay-pending: 300ms;
+  /* A tooltip or infotip opens after this hover, and closes a beat late so the pointer can cross into it. */
+  --delay-tip: 400ms;
+  --delay-tip-close: 100ms;
   /* How long a reply stays without text before it says it is still awaited. */
   --delay-silence: 6s;
   /* What follows another arrival waits this beat: a greeting after its presence, the room's lean after a reveal. */
@@ -309,7 +312,11 @@
   --duration-wash: 1200ms;
   --rise: 4px;
   --panel-shift: 12px;
+  /* How far a dragged alternate travels; the keyed nudge is `--panel-shift`. */
+  --swipe-shift: 64px;
   --press-scale: 0.98;
+  /* A badge's starting scale as it arrives. */
+  --arrive-scale: 0.75;
 }
 
 /*
@@ -391,9 +398,12 @@
     --duration-develop: var(--duration-quick);
     --delay-follow: 0ms;
     --stagger-step: 0ms;
+    --reveal-gap: 0ms;
     --rise: 0px;
     --panel-shift: 0px;
+    --swipe-shift: 0px;
     --press-scale: 1;
+    --arrive-scale: 1;
   }
 }
 
@@ -432,6 +442,8 @@
    */
   --container-story: 38rem;
   --container-portrait: 20rem;
+  /* The floating portrait's tallest, so a short reply stays in view beside it. */
+  --portrait-tallest: 46dvh;
   /* Between the floating portrait and the prose beside it, from desktop or a story wide enough for a column. */
   --gap-presence: 2.5rem;
   /*
@@ -796,16 +808,13 @@
   background: none;
   padding: 0;
   cursor: pointer;
-  transition: scale var(--duration-press) var(--ease-fade);
+  @apply press;
   &::-webkit-color-swatch-wrapper {
     padding: 2px;
   }
   &::-webkit-color-swatch {
     border: none;
     border-radius: 9999px;
-  }
-  &:active {
-    scale: 0.94;
   }
   &:focus-visible {
     outline-offset: 3px;
@@ -1494,17 +1503,23 @@ details[open] > summary .disclosure-chevron {
   animation-timing-function: var(--ease-spring);
 }
 
-/* Press feedback: a quick press, a spring release; colors fade. */
+/*
+ * Press feedback: a quick press, a spring release; colors, shadow and
+ * brightness fade, so a control needs no transition of its own.
+ */
 @utility press {
   transition:
     scale var(--duration-release) var(--ease-spring),
     background-color var(--duration-tint) var(--ease-fade),
     border-color var(--duration-tint) var(--ease-fade),
-    color var(--duration-tint) var(--ease-fade);
+    color var(--duration-tint) var(--ease-fade),
+    box-shadow var(--duration-tint) var(--ease-fade),
+    filter var(--duration-tint) var(--ease-fade);
   &:active:not(:disabled, [data-disabled]) {
     scale: var(--press-scale);
     transition-duration:
-      var(--duration-press), var(--duration-tint), var(--duration-tint), var(--duration-tint);
+      var(--duration-press), var(--duration-tint), var(--duration-tint), var(--duration-tint),
+      var(--duration-tint), var(--duration-tint);
   }
 }
 
@@ -1553,14 +1568,21 @@ details[open] > summary .disclosure-chevron {
  * How something new arrives: a short rise on the spring and a fade, from its
  * starting style. A turn, a name on the cast roster, a notice or a revealed
  * field arrive this way. Reduced motion zeroes the rise, leaving the fade;
- * a horizontal translate the element carries stays.
+ * a horizontal translate the element carries stays. Hidden, it leaves the
+ * way it came and is gone when the fade ends.
  */
 @utility arrive {
   /* Longhands, so `stagger` can set the delay beside it. */
-  transition-property: opacity, translate;
+  transition-property: opacity, translate, display;
   transition-duration: var(--duration-arrive);
   transition-timing-function: var(--ease-spring);
+  transition-behavior: allow-discrete;
   @starting-style {
+    opacity: 0;
+    translate: var(--tw-translate-x, 0) var(--rise);
+  }
+  &[hidden] {
+    display: none;
     opacity: 0;
     translate: var(--tw-translate-x, 0) var(--rise);
   }
@@ -1694,7 +1716,10 @@ details[open] > summary .disclosure-chevron {
     box-shadow var(--duration-quick) var(--ease-fade);
 }
 
-/* Whole new parts (a new entry) fold away when rejected; reduced motion fades only. */
+/*
+ * Whole new parts (a new entry) fold away when rejected; reduced motion
+ * fades them at full size, then they collapse at once.
+ */
 @utility tracked-fold {
   interpolate-size: allow-keywords;
   overflow-y: clip;
@@ -1702,7 +1727,9 @@ details[open] > summary .disclosure-chevron {
     block-size var(--duration-panel-in) var(--ease-spring),
     opacity var(--duration-quick) var(--ease-fade);
   @media (prefers-reduced-motion: reduce) {
-    transition: opacity var(--duration-quick) var(--ease-fade);
+    transition:
+      opacity var(--duration-quick) var(--ease-fade),
+      block-size 0s var(--duration-quick);
   }
 }
 
