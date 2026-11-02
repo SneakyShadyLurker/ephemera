@@ -214,13 +214,28 @@ describe("streamReply", () => {
     [
       "an error chunk, even before finish",
       [...text, { type: "error", errorText: "x" }, { type: "finish" }],
-      "stream",
+      "provider",
     ],
     ["a stream cut before finish", text, "stream"],
+    ["a stream cut before any text", [{ type: "start" }], "stream"],
     ["a server abort", [...text, { type: "abort" }], "aborted"],
   ])("fails on %s", async (_label, chunks, reason) => {
     vi.stubGlobal("fetch", async () => sseResponse(chunks));
     await expect(collect()).rejects.toMatchObject({ name: "GenerationError", reason });
+  });
+
+  it("tells a body that breaks off apart from the provider's error", async () => {
+    const encoder = new TextEncoder();
+    vi.stubGlobal("fetch", async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "start" })}\n\n`));
+          controller.error(new TypeError("network error"));
+        },
+      });
+      return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
+    });
+    await expect(collect()).rejects.toMatchObject({ reason: "stream", busy: false });
   });
 
   it("fails as signed out when the sign-in redirect answers", async () => {
@@ -308,7 +323,7 @@ describe("streamReply", () => {
           // Nothing to read before the error.
         }
       })(),
-    ).rejects.toMatchObject({ reason: "stream", busy });
+    ).rejects.toMatchObject({ reason: "provider", busy });
   });
 
   it("yields the prompt sent even when the reply fails before any output", async () => {
@@ -326,7 +341,7 @@ describe("streamReply", () => {
           seen.push(update);
         }
       })(),
-    ).rejects.toMatchObject({ reason: "stream" });
+    ).rejects.toMatchObject({ reason: "provider" });
     expect(seen.at(-1)?.prompt).toEqual(prompt);
   });
 
@@ -420,10 +435,12 @@ describe("partial reply footer", () => {
       "No reply: the model's provider answered with an error. Try again.",
     ],
     [
-      { failure: "stream", text: "" },
+      { failure: "provider", text: "" },
       "No reply: the model's provider answered with an error. Try again.",
     ],
+    [{ failure: "stream", text: "" }, "No reply: the connection dropped. Try again."],
     [{ failure: "stream" }, "The reply was cut off: the connection dropped."],
+    [{ failure: "provider" }, "The reply was cut off: the connection dropped."],
     [{ failure: "unreachable" }, "The reply was cut off: the connection dropped."],
     [{ text: "" }, "No reply."],
   ] satisfies [Partial<Reply>, string][])("says why a reply failed: %j", (change, text) => {

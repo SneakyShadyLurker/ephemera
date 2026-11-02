@@ -1364,9 +1364,10 @@ details[open] > summary .disclosure-chevron {
  * type `creator-complete`): two different text layouts, so the page fades
  * through, the writing out over the glide's first half and the card in over
  * its second, while the frame and the name glide the whole way. The screen
- * header is its own group, on its ground and above the gliding ones, so what
- * travels from a scrolled place passes beneath it. Under reduced motion the
- * halves follow the shortened glide.
+ * header is its own group, on its ground and stacked above the gliding ones
+ * (groups otherwise paint in the elements' order), so what travels from a
+ * scrolled place passes beneath it. Under reduced motion the halves follow
+ * the shortened glide.
  */
 :active-view-transition-type(creator-complete)::view-transition-old(root),
 :active-view-transition-type(creator-complete)::view-transition-new(root) {
@@ -1378,9 +1379,10 @@ details[open] > summary .disclosure-chevron {
 }
 :active-view-transition-type(creator-complete) main[data-creator] > header {
   view-transition-name: creator-header;
-  /* Above what is raised inside the scroller, so its group is painted over theirs. */
-  z-index: var(--z-float);
   background-color: var(--canvas);
+}
+:active-view-transition-type(creator-complete)::view-transition-group(creator-header) {
+  z-index: var(--z-float);
 }
 
 /*
@@ -1577,8 +1579,8 @@ details[open] > summary .disclosure-chevron {
  * How something new arrives: a short rise on the spring and a fade, from its
  * starting style. A turn, a name on the cast roster, a notice or a revealed
  * field arrive this way. Reduced motion zeroes the rise, leaving the fade;
- * a horizontal translate the element carries stays. Hidden, it leaves the
- * way it came and is gone when the fade ends.
+ * a horizontal translate the element carries stays. Hidden, it fades out
+ * in place and is gone when the fade ends; shown again, it rises in anew.
  */
 @utility arrive {
   /* Longhands, so `stagger` can set the delay beside it. */
@@ -1593,7 +1595,6 @@ details[open] > summary .disclosure-chevron {
   &[hidden] {
     display: none;
     opacity: 0;
-    translate: var(--tw-translate-x, 0) var(--rise);
   }
 }
 

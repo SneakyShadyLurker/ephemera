@@ -298,6 +298,11 @@ describe("chat store", () => {
     reply.finish(new DOMException("aborted", "AbortError"));
     await sending;
     expect(last(store.getState())).toMatchObject({ text: "half a", status: "stopped" });
+    // The abort's DOMException code is no refusal, so the reply's note says Stopped.
+    const message = store.getState().messages.at(-1);
+    const stopped = message?.role === "assistant" ? shownReply(message) : undefined;
+    expect(stopped).toMatchObject({ status: "stopped" });
+    expect(stopped).not.toHaveProperty("refusal");
   });
 
   it("Stop wins when the aborted stream ends without an error", async () => {
@@ -331,8 +336,9 @@ describe("chat store", () => {
   it.each([
     ["the server out of reach", new TypeError("Failed to fetch"), { failure: "unreachable" }],
     ["an error answer", new GenerationError("http"), { failure: "server" }],
-    ["a broken stream", new GenerationError("stream"), { failure: "stream" }],
-    ["a busy provider", new GenerationError("stream", undefined, true), { busy: true }],
+    ["a provider's error event", new GenerationError("provider"), { failure: "provider" }],
+    ["a dropped stream", new GenerationError("stream"), { failure: "stream" }],
+    ["a busy provider", new GenerationError("provider", undefined, true), { busy: true }],
     [
       "a refusal",
       new GenerationError("refused", "prompt_too_long"),

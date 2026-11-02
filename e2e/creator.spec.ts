@@ -84,15 +84,30 @@ test("Describe's field starts empty with a one-line cue, its example under it, a
   page,
 }) => {
   const cues = {
-    subject: "Describe who they are, what they want and how they speak.",
-    scenario: "Describe the place, the time and who is there.",
+    subject: "Who they are and what they want.",
+    scenario: "The place, the time, who is there.",
   } as const;
+  // The narrowest phone: each cue still sets on one line.
+  await page.setViewportSize({ width: 360, height: 780 });
   for (const kind of ["subject", "scenario"] as const) {
     await page.goto("/characters/create");
     await page.locator(`[data-kind="${kind}"]`).click();
     const field = page.getByRole("textbox", { name: COPY[kind].field });
     await expect(field).toHaveValue("");
     await expect(field).toHaveAttribute("placeholder", cues[kind]);
+    const fit = await field.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const cue = getComputedStyle(node, "::placeholder");
+      const context = document.createElement("canvas").getContext("2d");
+      if (context === null || !(node instanceof HTMLTextAreaElement)) return Number.NaN;
+      context.font = cue.font || style.font;
+      const room =
+        node.clientWidth -
+        Number.parseFloat(style.paddingLeft) -
+        Number.parseFloat(style.paddingRight);
+      return room - context.measureText(node.placeholder).width;
+    });
+    expect(fit).toBeGreaterThanOrEqual(0);
     await expect(field).toHaveAccessibleDescription(/^For example: \S/);
     await expect(page.getByText(/^For example: /)).toBeVisible();
     await choose(page, "Model", "mock-fast");

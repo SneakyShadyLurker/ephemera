@@ -318,6 +318,7 @@ test("creator completion transitions the scrolled writing into the top of the sh
       typed: false,
       parts: [] as string[],
       spans: {} as Record<string, { start: number; end: number }>,
+      layers: {} as Record<string, string>,
     };
     Object.assign(window, { completionTransitions: state });
     document.startViewTransition = (options) => {
@@ -329,6 +330,12 @@ test("creator completion transitions the scrolled writing into the top of the sh
         state.typed = document.documentElement.matches(
           ":active-view-transition-type(creator-complete)",
         );
+        // Each group's stacking as painted, not as the elements stood when captured.
+        for (const name of ["creator-header", "creator-frame", "creator-heading", "root"])
+          state.layers[name] = getComputedStyle(
+            document.documentElement,
+            `::view-transition-group(${name})`,
+          ).zIndex;
         for (const animation of document.getAnimations()) {
           const effect = animation.effect;
           if (!(effect instanceof KeyframeEffect) || effect.pseudoElement === null) continue;
@@ -359,12 +366,13 @@ test("creator completion transitions the scrolled writing into the top of the sh
               typed: boolean;
               parts: string[];
               spans: Record<string, { start: number; end: number }>;
+              layers: Record<string, string>;
             };
           }
         ).completionTransitions,
     );
   await expect.poll(async () => (await transitions()).parts.length).toBeGreaterThan(0);
-  const { calls, types, typed, parts, spans } = await transitions();
+  const { calls, types, typed, parts, spans, layers } = await transitions();
   expect(calls).toBe(1);
   expect(types).toEqual(["creator-complete"]);
   expect(typed).toBe(true);
@@ -376,6 +384,14 @@ test("creator completion transitions the scrolled writing into the top of the sh
   expect(into?.start).toBeGreaterThanOrEqual(out?.end ?? Infinity);
   // The screen header is its own part for this transition, so what glides passes beneath it.
   expect(parts).toContain("::view-transition-group(creator-header)");
+  // Its group is stacked above every gliding group, whatever order the elements paint in.
+  const layer = (name: string) => {
+    const value = layers[name];
+    return value === undefined || value === "auto" ? 0 : Number(value);
+  };
+  expect(layers["creator-header"]).toMatch(/^\d+$/);
+  for (const name of ["creator-frame", "creator-heading", "root"])
+    expect(layer("creator-header")).toBeGreaterThan(layer(name));
   // The frame and the name each glide as one shared element: a group that moves, holding
   // the old and the new image, so neither is drawn twice in two places.
   for (const name of ["creator-frame", "creator-heading"]) {
@@ -1412,24 +1428,31 @@ for (const reduced of [false, true]) {
 function latestFrames(wrapper: Locator) {
   return wrapper.evaluate(
     (element) =>
-      new Promise<{ hidden: boolean; inert: boolean; shown: boolean; opacity: number }[]>(
-        (resolve) => {
-          const frames: { hidden: boolean; inert: boolean; shown: boolean; opacity: number }[] = [];
-          const sample = () => {
-            const style = getComputedStyle(element);
-            const shown = element.isConnected && style.display !== "none";
-            frames.push({
-              hidden: element.hasAttribute("hidden"),
-              inert: element.closest("[inert]") !== null,
-              shown,
-              opacity: Number.parseFloat(style.opacity),
-            });
-            if (!shown || frames.length > 600) return resolve(frames);
-            requestAnimationFrame(sample);
-          };
-          sample();
-        },
-      ),
+      new Promise<
+        { hidden: boolean; inert: boolean; shown: boolean; opacity: number; top: number }[]
+      >((resolve) => {
+        const frames: {
+          hidden: boolean;
+          inert: boolean;
+          shown: boolean;
+          opacity: number;
+          top: number;
+        }[] = [];
+        const sample = () => {
+          const style = getComputedStyle(element);
+          const shown = element.isConnected && style.display !== "none";
+          frames.push({
+            hidden: element.hasAttribute("hidden"),
+            inert: element.closest("[inert]") !== null,
+            shown,
+            opacity: Number.parseFloat(style.opacity),
+            top: element.getBoundingClientRect().top,
+          });
+          if (!shown || frames.length > 600) return resolve(frames);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
   );
 }
 
@@ -1458,6 +1481,9 @@ test("Latest fades out in place and rises back in", async ({ page }) => {
   expect(fading.length).toBeGreaterThan(1);
   for (const frame of fading) expect(frame.inert).toBe(true);
   expect(fading.some((frame) => frame.opacity > 0 && frame.opacity < 1)).toBe(true);
+  // In place: it fades where it stood, without drifting.
+  const resting = frames[0]?.top ?? Number.NaN;
+  for (const frame of fading) expect(Math.abs(frame.top - resting)).toBeLessThan(0.5);
   expect(frames.at(-1)?.shown).toBe(false);
   await expect(wrapper).toHaveCount(1);
   await expect(latest).toBeHidden();

@@ -38,21 +38,21 @@ const COPY: Record<
 > = {
   subject: {
     heading: "Who do you want to meet?",
-    placeholder: "Describe who they are, what they want and how they speak.",
+    placeholder: "Who they are and what they want.",
     example:
       "A lighthouse keeper's daughter in her thirties who has never left the island. Sharp-tongued, quietly kind, and writing letters to a stranger on the mainland she has never met.",
     create: "Create character",
   },
   group: {
     heading: "Who do you want to meet?",
-    placeholder: "Describe who they are, what they want and how they speak.",
+    placeholder: "Who they are and what they want.",
     example:
       "Two sisters who run a failing vineyard in the hills, one back from ten years in the city, one who never left. They love each other and keep score of everything.",
     create: "Create characters",
   },
   scenario: {
     heading: "Where do you want to go?",
-    placeholder: "Describe the place, the time and who is there.",
+    placeholder: "The place, the time, who is there.",
     example:
       "A rain-soaked harbour town in the 1920s, where a smuggler, a tired harbour master and a newly arrived detective all want the same ledger. Slow-burning, foggy, morally grey.",
     create: "Create scenario",

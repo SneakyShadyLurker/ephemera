@@ -3,7 +3,7 @@ import { offeredEfforts } from "@ephemera/core";
 import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useId, useState } from "react";
-import { useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
+import { canDock, useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
 import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
 import { CloseIcon } from "@/components/icons";
@@ -113,7 +113,11 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
       swipeDirection={phone ? "down" : "right"}
       showSwipeHandle={phone}
     >
-      <DrawerContent data-session-sheet="">
+      {/*
+       * Gone because the window now docks Session, the sheet leaves focus to the dock
+       * (`useFocusAcrossLayout`) instead of returning it to the toggle after it.
+       */}
+      <DrawerContent data-session-sheet="" finalFocus={() => !canDock()}>
         <DrawerHeader>
           <DrawerTitle>Session</DrawerTitle>
           <DrawerCloseIcon label="Close Session" />

@@ -292,6 +292,24 @@ test("a file read and not saved asks before it is left", async ({ comfy, page })
   await expect(page.getByRole("heading", { level: 1, name: "Presets" })).toBeVisible();
 });
 
+test("a discarded import lets a navigation through while it folds away", async ({
+  comfy,
+  page,
+}) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const panel = await openImport(page, cleanUiFile());
+  await expect(panel.getByRole("status")).toHaveText(READY);
+  const guard = page.getByRole("alertdialog", { name: "Discard this import?" });
+  await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+  await guard.getByRole("button", { name: "Discard", exact: true }).click();
+  // At once, while the panel is still folding away: nothing is left to guard.
+  await page.getByRole("link", { name: "Presets" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Presets" })).toBeVisible();
+  await expect(page).toHaveURL(/\/presets/);
+  await expect(guard).toHaveCount(0);
+});
+
 test("an import in progress survives a look at another Settings category", async ({
   comfy,
   page,

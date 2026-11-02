@@ -72,7 +72,7 @@ import {
 
 export type MessageStatus = "complete" | "streaming" | "stopped" | "failed" | "waiting";
 
-export type ReplyFailure = "unreachable" | "server" | "stream";
+export type ReplyFailure = "unreachable" | "server" | "provider" | "stream";
 
 /** One alternate reply (a swipe). Chat content: lives only in this in-memory store (PRINCIPLES.md 1). */
 export interface Reply {
@@ -117,7 +117,8 @@ export interface Reply {
   busy?: true;
   /**
    * Why it failed, for its note: the request never reached the server, the
-   * server answered with an error, or the stream broke. A status like `busy`,
+   * server answered with an error, the provider's error came down the stream,
+   * or the stream broke off. A status like `busy`,
    * never content, and kept nowhere but this store.
    */
   failure?: ReplyFailure;
@@ -1037,16 +1038,16 @@ interface Target {
 const isSignedOut = (error: unknown) => (error as { reason?: string }).reason === "signed_out";
 
 /**
- * Why a request failed, from the transport's error: its `http` and `stream`
- * reasons, or none at all when `fetch` itself threw (the server was never
- * reached). Its other reasons say nothing more than "failed".
+ * Why a request failed, from the transport's error: its `http`, `provider`
+ * and `stream` reasons, or none at all when `fetch` itself threw (the server
+ * was never reached). Its other reasons say nothing more than "failed".
  */
 const failureOf = (error: unknown): ReplyFailure | undefined => {
   const reason = (error as { reason?: string }).reason;
   return reason === "http"
     ? "server"
-    : reason === "stream"
-      ? "stream"
+    : reason === "provider" || reason === "stream"
+      ? reason
       : reason === undefined
         ? "unreachable"
         : undefined;
@@ -1908,7 +1909,11 @@ export function createChatStore(
           (error as { reason?: string }).reason !== "refused"
         )
           unknownUsage = controller.signal.aborted ? "aborted" : "failed";
-        const code = (error as { code?: RefusalCode }).code;
+        // Only a refusal carries a refusal code; an abort's DOMException has a numeric `code` too.
+        const code =
+          (error as { reason?: string }).reason === "refused"
+            ? (error as { code?: RefusalCode }).code
+            : undefined;
         const busy = (error as { busy?: boolean }).busy === true;
         if (current() && !arrived && isSignedOut(error) && !controller.signal.aborted) {
           target.wait();

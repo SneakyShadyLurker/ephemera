@@ -123,6 +123,29 @@ for (const { name, width, height } of FORM_FACTORS) {
   });
 }
 
+test("focus in the Session sheet stays in Session when it docks on a wider window", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openChat(page, "mock-fast");
+  await page.getByRole("button", { name: "Session", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Session" });
+  const model = sheet.getByRole("combobox", { name: "Model", exact: true });
+  await model.focus();
+  await expect(model).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const dock = page.getByRole("complementary", { name: "Session" });
+  await expect(dock).toBeVisible();
+  const focusInDock = () =>
+    page.evaluate(() => (document.activeElement?.closest("[data-session-dock]") ?? null) !== null);
+  await expect.poll(focusInDock).toBe(true);
+  // Still there once the sheet's own focus return has had its turn.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  expect(await focusInDock()).toBe(true);
+});
+
 test.describe("on a touch phone", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
@@ -157,6 +180,31 @@ test.describe("on a touch phone", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect.poll(gap).toBeLessThan(4);
     await expect.poll(tailInView).toBeLessThanOrEqual(1);
+  });
+
+  test("a story scrolled up a little keeps its place when the viewport shrinks", async ({
+    page,
+  }) => {
+    await openChat(page, "mock-long");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    const thread = scroller(page);
+    const gap = () =>
+      thread.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight);
+    await expect.poll(gap).toBeLessThan(4);
+    // Less than the near-bottom margin, so the story still counts as at the bottom.
+    await thread.evaluate((node) => {
+      node.scrollTop -= 40;
+    });
+    const kept = await thread.evaluate((node) => node.scrollTop);
+    await expect.poll(gap).toBeGreaterThan(30);
+    await page.setViewportSize({ width: 390, height: 544 });
+    await expect.poll(() => thread.evaluate((node) => node.clientHeight)).toBeLessThan(500);
+    // A frame for any snap to land, then the owner's place is where they left it.
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    expect(Math.abs((await thread.evaluate((node) => node.scrollTop)) - kept)).toBeLessThan(2);
   });
 
   test("a lorebook's description and a linked book's name are 44px tall to the finger", async ({

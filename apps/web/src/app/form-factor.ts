@@ -53,8 +53,11 @@ export function useFormFactor(): FormFactor {
   return useSyncExternalStore(subscribe, formFactor);
 }
 
+/** Whether Session can dock beside the thread, read now. */
+export const canDock = (): boolean => queries().dock.matches;
+
 export function useCanDock(): boolean {
-  return useSyncExternalStore(subscribe, () => queries().dock.matches);
+  return useSyncExternalStore(subscribe, canDock);
 }
 
 /** Whether the primary pointer is touch, read now. */

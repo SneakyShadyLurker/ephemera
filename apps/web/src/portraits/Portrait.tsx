@@ -50,18 +50,26 @@ export function Portrait({
   // blur once they paint, and a replacement keeps the art it replaces until then.
   const [drawn, setDrawn] = useState(arriving ? null : src);
   if (!arriving && drawn !== src) setDrawn(src);
+  // The probe starts once the leaf comes on screen, so arrivals off screen fetch nothing yet.
   useEffect(() => {
-    if (!arriving || src === null) return;
+    const leaf = frame.current;
+    if (!arriving || src === null || leaf === null) return;
     let current = true;
-    const probe = new Image();
-    probe.src = src;
     // A refused decode shows the image anyway; the element reports its own failure.
     const show = () => {
       if (current) setDrawn(src);
     };
-    probe.decode().then(show, show);
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      const probe = new Image();
+      probe.src = src;
+      probe.decode().then(show, show);
+    });
+    observer.observe(leaf);
     return () => {
       current = false;
+      observer.disconnect();
     };
   }, [arriving, src]);
   return (

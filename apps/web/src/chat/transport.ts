@@ -28,7 +28,11 @@ import { SignedOut } from "../signin/signin.ts";
 
 const refusalSchema = z.object({ error: refusalCodeSchema });
 
-type FailureReason = "http" | "stream" | "aborted" | "refused" | "signed_out";
+/**
+ * `provider`: the stream carried the provider's error event; `stream`: the body broke off or
+ * ended without the server's finish (the connection dropped).
+ */
+type FailureReason = "http" | "provider" | "stream" | "aborted" | "refused" | "signed_out";
 
 export class GenerationError extends Error {
   override name = "GenerationError";
@@ -172,9 +176,8 @@ export async function* streamReply(
   // The server ended the generation, e.g. at its lifetime bound.
   if (seen.abort) throw new GenerationError("aborted");
   // A reply is complete only when the server said so; a cut stream is a failure.
-  if (failed || seen.error || !seen.finish) {
-    throw new GenerationError("stream", undefined, seen.busy);
-  }
+  if (seen.error) throw new GenerationError("provider", undefined, seen.busy);
+  if (failed || !seen.finish) throw new GenerationError("stream");
   yield { text, reasoning, ...extra };
 }
 

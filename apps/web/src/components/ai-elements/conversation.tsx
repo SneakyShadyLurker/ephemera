@@ -4,7 +4,7 @@
  * is our labelled Latest control, and growth while streaming is followed
  * instantly so the view never lags behind the text. use-stick-to-bottom
  * watches only the content's size, so a scroller that shrinks (the phone
- * keyboard opening) keeps its tail in view through `KeepTail`.
+ * keyboard opening) keeps its tail in view through `KeepTail` while the story is locked.
  */
 
 import { type ComponentProps, useEffect } from "react";
@@ -16,21 +16,28 @@ import { cn } from "@/lib/cn";
 
 type ConversationProps = ComponentProps<typeof StickToBottom>;
 
-/** While the story is at the bottom, a scroller that gets shorter keeps the bottom in view. */
+/**
+ * While the story is locked to the bottom, a scroller that gets shorter keeps the bottom in
+ * view. The context's `isAtBottom` also holds a little way up (near the bottom), so the lock is
+ * `escapedFromLock`: an owner who scrolled up even slightly keeps their place.
+ */
 function KeepTail() {
-  const { scrollRef, isAtBottom, scrollToBottom } = useStickToBottomContext();
+  const { scrollRef, isAtBottom, escapedFromLock, state, scrollToBottom } =
+    useStickToBottomContext();
+  const locked = isAtBottom && !escapedFromLock;
   useEffect(() => {
     const scroller = scrollRef.current;
-    if (!isAtBottom || scroller === null) return;
+    if (!locked || scroller === null) return;
     let height = scroller.clientHeight;
     const observer = new ResizeObserver(() => {
       const next = scroller.clientHeight;
-      if (next < height) void scrollToBottom("instant");
+      // The lock is read live too: a scroll just before the resize may not have rendered yet.
+      if (next < height && !state.escapedFromLock) void scrollToBottom("instant");
       height = next;
     });
     observer.observe(scroller);
     return () => observer.disconnect();
-  }, [scrollRef, isAtBottom, scrollToBottom]);
+  }, [scrollRef, locked, state, scrollToBottom]);
   return null;
 }
 

@@ -7,6 +7,7 @@ import {
 } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
+import { useIsPresent } from "motion/react";
 import {
   type ReactNode,
   type RefObject,
@@ -145,16 +146,18 @@ export function ImportPanel({
   const names: ListNames = { yours, server: servers };
   const address = useSetting((settings) => settings.comfyuiBaseUrl);
   const notReached = useNotReached();
-  const dirty = isDirty(state);
+  // Closed, the panel stays a moment while it folds away; leaving, it guards nothing.
+  const present = useIsPresent();
+  const dirty = present && isDirty(state);
 
-  // Whether the panel is still on screen, for answers that arrive after it closed.
+  // Whether the panel is still on screen and not leaving, for answers that arrive after it closed.
   const mounted = useRef(true);
   useEffect(() => {
-    mounted.current = true;
+    mounted.current = present;
     return () => {
       mounted.current = false;
     };
-  }, []);
+  }, [present]);
 
   // Opening moves focus to the heading, without summoning a keyboard.
   useEffect(() => {
@@ -180,8 +183,8 @@ export function ImportPanel({
       },
       signal,
     );
-    // A cancelled request answers unreachable; the panel has moved on from it.
-    if (signal.aborted) return;
+    // A cancelled request answers unreachable; the panel has moved on from it, or is leaving.
+    if (signal.aborted || !mounted.current) return;
     dispatch(
       result.ok
         ? { type: "inspected", request, inspection: result.value, target }
