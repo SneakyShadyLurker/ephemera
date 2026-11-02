@@ -2,7 +2,15 @@ import type { Locator, Page } from "@playwright/test";
 import { uniqueName } from "./support/cards.ts";
 import { castEntry, openRecord } from "./support/cast.ts";
 import { keeperWoman } from "./support/cast-fixtures.ts";
-import { headerAction, openChat } from "./support/chat.ts";
+import {
+  chooseModel,
+  headerAction,
+  lastReply,
+  openChat,
+  replyActions,
+  replyCounter,
+  send,
+} from "./support/chat.ts";
 import {
   BRAINSTORM_COPY,
   brainstorm,
@@ -19,6 +27,7 @@ import {
   patchSettings,
   setLorebookViaApi,
 } from "./support/entities.ts";
+import { canary } from "./support/env.ts";
 import { createReworkCharacter, dock, openRework, submitRework } from "./support/rework.ts";
 import { ownerRequest } from "./support/rework-fixtures.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
@@ -1213,4 +1222,128 @@ test("the palette editor leaves inert and folded, with its last contents", async
   }
   expect(frames.some((frame) => frame.height > 1 && frame.height < height - 1)).toBe(true);
   await expect(editor).toHaveCount(0);
+});
+
+/**
+ * The last reply's actions row, as its distance below the top of the reply's prose, each frame
+ * from now until it has moved and then held still for a while.
+ */
+function rowOffsets(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const prose = [...document.querySelectorAll('[data-role="assistant"] [data-prose]')].at(-1);
+        const row = document.querySelector("[data-reply-actions]");
+        if (prose === undefined || row === null) return resolve([]);
+        const offsets: number[] = [];
+        let held = 0;
+        const sample = () => {
+          const offset = Math.round(
+            row.getBoundingClientRect().top - prose.getBoundingClientRect().top,
+          );
+          held = offset === offsets.at(-1) ? held + 1 : 0;
+          offsets.push(offset);
+          const moved = offsets.some((value) => value !== offsets[0]);
+          if ((moved && held > 20) || offsets.length > 600) return resolve(offsets);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+}
+
+for (const reduced of [false, true]) {
+  test(`an alternate of another length ${reduced ? "moves the row below it in one step under reduced motion" : "eases the row below it"}`, async ({
+    page,
+  }) => {
+    if (reduced) await page.emulateMedia({ reducedMotion: "reduce" });
+    await openChat(page, "mock-fast");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    // A second alternate of several paragraphs, against the first's one line.
+    await chooseModel(page, "mock-hostile");
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const pager = (name: "Previous reply" | "Next reply") =>
+      replyCounter(page).getByRole("button", { name });
+    const frame = lastReply(page).locator("[data-prose] > div").first();
+    await pager("Previous reply").click();
+    await expect(frame).toContainText("Reply:");
+    await expect(frame).toHaveCSS("opacity", "1");
+    // Back to the long one, and settled there before stepping to the short one.
+    const growing = rowOffsets(page);
+    await pager("Next reply").click();
+    await growing;
+    await expect(frame).toContainText("She smiles.");
+    const moving = rowOffsets(page);
+    await pager("Previous reply").click();
+    const offsets = await moving;
+    await expect(replyCounter(page)).toContainText("1 / 2");
+    const distinct = new Set(offsets);
+    // The row ends higher, as the shorter alternate is.
+    expect(offsets.at(-1)).toBeLessThan(offsets[0] ?? Number.NaN);
+    if (reduced) expect(distinct.size).toBe(2);
+    else expect(distinct.size).toBeGreaterThan(2);
+  });
+}
+
+/** Latest's wrapper each frame from now until it no longer shows. */
+function latestFrames(wrapper: Locator) {
+  return wrapper.evaluate(
+    (element) =>
+      new Promise<{ hidden: boolean; inert: boolean; shown: boolean; opacity: number }[]>(
+        (resolve) => {
+          const frames: { hidden: boolean; inert: boolean; shown: boolean; opacity: number }[] = [];
+          const sample = () => {
+            const style = getComputedStyle(element);
+            const shown = element.isConnected && style.display !== "none";
+            frames.push({
+              hidden: element.hasAttribute("hidden"),
+              inert: element.closest("[inert]") !== null,
+              shown,
+              opacity: Number.parseFloat(style.opacity),
+            });
+            if (!shown || frames.length > 600) return resolve(frames);
+            requestAnimationFrame(sample);
+          };
+          sample();
+        },
+      ),
+  );
+}
+
+test("Latest fades out in place and rises back in", async ({ page }) => {
+  await openChat(page, "mock-long");
+  await send(page, canary("in"));
+  const thread = page.getByRole("log").locator(":scope > div").first();
+  await expect
+    .poll(() => thread.evaluate((node) => node.scrollHeight > node.clientHeight * 2))
+    .toBe(true);
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0);
+  await thread.hover();
+  await page.mouse.wheel(0, -600);
+  const latest = page.getByRole("button", { name: "Latest" });
+  await expect(latest).toBeVisible();
+  const wrapper = page
+    .getByRole("button", { name: "Latest", includeHidden: true })
+    .locator("xpath=..");
+  await expect.poll(() => wrapper.evaluate((node) => node.getAnimations().length)).toBe(0);
+  const leaving = latestFrames(wrapper);
+  await latest.click();
+  const frames = await leaving;
+  // Still drawn after it was hidden, fading and out of reach, then gone: it was never removed.
+  const fading = frames.filter((frame) => frame.hidden && frame.shown);
+  expect(fading.length).toBeGreaterThan(1);
+  for (const frame of fading) expect(frame.inert).toBe(true);
+  expect(fading.some((frame) => frame.opacity > 0 && frame.opacity < 1)).toBe(true);
+  expect(frames.at(-1)?.shown).toBe(false);
+  await expect(wrapper).toHaveCount(1);
+  await expect(latest).toBeHidden();
+  // Scrolled away again, the same control rises back in.
+  await thread.hover();
+  await page.mouse.wheel(0, -600);
+  await expect(latest).toBeVisible();
+  await expect(wrapper).not.toHaveAttribute("hidden");
 });

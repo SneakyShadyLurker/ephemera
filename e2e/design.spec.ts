@@ -132,6 +132,31 @@ test.describe("on a touch phone", () => {
     await expectComposerAndActionsFit(page, 390);
   });
 
+  test("the story's tail stays in view when the viewport shrinks", async ({ page }) => {
+    await openChat(page, "mock-long");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    const thread = scroller(page);
+    const gap = () =>
+      thread.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight);
+    await expect.poll(gap).toBeLessThan(4);
+    const lastLine = lastReply(page).locator("[data-prose] p").last();
+    const tailInView = async () => {
+      const line = await lastLine.boundingBox();
+      const view = await thread.boundingBox();
+      return (line?.y ?? Number.NaN) + (line?.height ?? 0) - ((view?.y ?? 0) + (view?.height ?? 0));
+    };
+    // The on-screen keyboard takes 300px of the window, as `resizes-content` reports it.
+    await page.setViewportSize({ width: 390, height: 544 });
+    await expect.poll(() => thread.evaluate((node) => node.clientHeight)).toBeLessThan(500);
+    await expect.poll(tailInView).toBeLessThanOrEqual(1);
+    await expect.poll(gap).toBeLessThan(4);
+    // Closing it keeps the bottom.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(gap).toBeLessThan(4);
+    await expect.poll(tailInView).toBeLessThanOrEqual(1);
+  });
+
   test("a lorebook's description and a linked book's name are 44px tall to the finger", async ({
     page,
   }) => {
@@ -1220,7 +1245,9 @@ test("without a character the empty chat invites the first line, then offers a c
   const story = page.getByRole("log", { name: "Story" });
   await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
+    // What the story shows: Latest waits hidden while the story is at its end.
     [...node.querySelectorAll("p, button, a")]
+      .filter((element) => element.closest("[hidden]") === null)
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
@@ -1258,7 +1285,9 @@ test("the first run asks for a model first, in the empty story, and once it is c
   // An empty library: the way forward is the gallery.
   await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
+    // What the story shows: Latest waits hidden while the story is at its end.
     [...node.querySelectorAll("p, button, a")]
+      .filter((element) => element.closest("[hidden]") === null)
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
@@ -1738,6 +1767,9 @@ test("on a wide window the character's prose keeps to its measure, and the portr
       (element) => element.getBoundingClientRect(),
     );
     const portrait = document.querySelector("[data-presence]")?.getBoundingClientRect();
+    const leaf = document
+      .querySelector('[data-presence] button[aria-label$=": show larger"]')
+      ?.getBoundingClientRect();
     return {
       measure:
         Number.parseFloat(
@@ -1749,6 +1781,8 @@ test("on a wide window the character's prose keeps to its measure, and the portr
       portraitRight: portrait?.right ?? Number.NaN,
       portraitWidth: portrait?.width ?? 0,
       minimum: 10 * rem,
+      leafHeight: leaf?.height ?? Number.NaN,
+      window: innerHeight,
     };
   });
   // No reply's prose runs past the measure, though the story is wider.
@@ -1757,6 +1791,8 @@ test("on a wide window the character's prose keeps to its measure, and the portr
   // The portrait grew past its narrowest column, and the latest reply keeps a column beside it.
   expect(laid.portraitWidth).toBeGreaterThan(laid.minimum);
   expect(laid.latestLeft).toBeGreaterThan(laid.portraitRight);
+  // It is never taller than about half the window, so a short reply stays in view beside it.
+  expect(laid.leafHeight).toBeLessThanOrEqual(0.46 * laid.window + 1);
 });
 
 test("while a character's nameplate is stuck under the header, the header's title gives way and stays the heading", async ({
