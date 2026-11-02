@@ -79,8 +79,11 @@ function sessionWidths(page: Page, opening: boolean) {
     (open) =>
       new Promise<number[]>((resolve) => {
         const main = document.querySelector("main");
-        const toggle = document.querySelector<HTMLButtonElement>('button[aria-label="Session"]');
-        if (main === null || toggle === null) throw new Error("Chat is not mounted");
+        const toggle = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) =>
+            (button.getAttribute("aria-label") ?? button.textContent?.trim()) === "Session",
+        );
+        if (main === null || toggle === undefined) throw new Error("Chat is not mounted");
         const widths = [main.getBoundingClientRect().width];
         const sample = () => {
           widths.push(main.getBoundingClientRect().width);
@@ -146,8 +149,11 @@ test("Session opens and closes its layout slot continuously, including a reverse
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {
-        const toggle = document.querySelector<HTMLButtonElement>('button[aria-label="Session"]');
-        if (toggle === null) throw new Error("No Session toggle");
+        const toggle = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) =>
+            (button.getAttribute("aria-label") ?? button.textContent?.trim()) === "Session",
+        );
+        if (toggle === undefined) throw new Error("No Session toggle");
         toggle.click();
         const reverse = () => {
           const panel = document.querySelector('aside[aria-labelledby="session-title"]');
@@ -186,8 +192,11 @@ test("reduced-motion Session keeps its width while its closing fade is visible",
     () =>
       new Promise<{ width: number; opacity: number }[]>((resolve) => {
         const panel = document.querySelector<HTMLElement>('aside[aria-labelledby="session-title"]');
-        const toggle = document.querySelector<HTMLButtonElement>('button[aria-label="Session"]');
-        if (panel === null || toggle === null) throw new Error("Session is not open");
+        const toggle = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) =>
+            (button.getAttribute("aria-label") ?? button.textContent?.trim()) === "Session",
+        );
+        if (panel === null || toggle === undefined) throw new Error("Session is not open");
         const samples: { width: number; opacity: number }[] = [];
         const sample = () => {
           if (!panel.isConnected) return resolve(samples);

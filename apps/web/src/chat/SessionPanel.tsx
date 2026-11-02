@@ -3,7 +3,7 @@ import { offeredEfforts } from "@ephemera/core";
 import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useId, useState } from "react";
-import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
+import { useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
 import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
 import { CloseIcon } from "@/components/icons";
@@ -51,6 +51,9 @@ import { useStartChat } from "./StartChat.tsx";
 
 /** Session's sheet, below the docked width. */
 export const SESSION_SHEET = "[data-session-sheet]";
+/** Session docked beside the thread. */
+const SESSION_DOCK = "[data-session-dock]";
+const FIRST_CONTROL = 'button, [tabindex="0"], select, input, textarea';
 
 /**
  * Session settings for this chat. Docked beside the thread on wide desktops,
@@ -60,6 +63,12 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
   const open = useUi((state) => state.sessionOpen);
   const formFactor = useFormFactor();
   const docked = useCanDock();
+  // Docking swaps the aside for a sheet, or back: focus inside Session stays inside it.
+  useFocusAcrossLayout(docked, (lost) => {
+    if (lost.closest(`${SESSION_DOCK}, ${SESSION_SHEET}`) === null) return null;
+    const panel = document.querySelector<HTMLElement>(docked ? SESSION_DOCK : SESSION_SHEET);
+    return panel?.querySelector<HTMLElement>(FIRST_CONTROL);
+  });
 
   if (docked) {
     return (
@@ -67,6 +76,7 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
         <Collapsible.Panel
           render={<aside />}
           aria-labelledby="session-title"
+          data-session-dock=""
           data-leaving={open ? undefined : ""}
           inert={!open}
           className="dock-side shrink-0 overflow-clip"

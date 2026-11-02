@@ -438,32 +438,40 @@ export function LorebookEditor<Saved extends { revision: number }>({
         )}
       </SheetHeader>
       <div className="contents" inert={leavingScreen}>
-        {split ? (
-          <div className="flex min-h-0 flex-1">
-            <div
-              data-skip-target=""
-              tabIndex={-1}
-              className="w-entries shrink-0 overflow-y-auto border-rush border-r outline-none"
-            >
-              {list}
-            </div>
-            <div className={cn("min-w-0 flex-1 overflow-y-auto", SCROLL_GUTTER_END)}>
-              {editor ??
-                (entries.length > 0 && (
-                  <p className="px-10 pt-16 text-reed text-ui">Choose an entry to edit it.</p>
-                ))}
-            </div>
-          </div>
-        ) : (
+        {/*
+         * One tree in every layout, so crossing the desktop breakpoint restyles the panes
+         * instead of remounting them and focus stays where it was. On desktop the list and
+         * the editor sit side by side; narrower, the pane in use scrolls alone and the
+         * other is hidden.
+         */}
+        <div className="flex min-h-0 flex-1">
           <div
             ref={scroller}
-            data-skip-target=""
+            data-skip-target={split || !inEntry ? "" : undefined}
             tabIndex={-1}
-            className={cn("min-h-0 flex-1 overflow-y-auto outline-none", SCROLL_GUTTERS)}
+            className={cn(
+              "overflow-y-auto outline-none",
+              split
+                ? "w-entries shrink-0 border-rush border-r"
+                : cn("min-h-0 min-w-0 flex-1", SCROLL_GUTTERS, inEntry && "hidden"),
+            )}
           >
-            {inEntry ? editor : <div className="mx-auto max-w-column">{list}</div>}
+            <div className={split ? "contents" : "mx-auto max-w-column"}>{list}</div>
           </div>
-        )}
+          <div
+            data-skip-target={inEntry ? "" : undefined}
+            tabIndex={inEntry ? -1 : undefined}
+            className={cn(
+              "min-w-0 flex-1 overflow-y-auto outline-none",
+              split ? SCROLL_GUTTER_END : cn("min-h-0", SCROLL_GUTTERS, !inEntry && "hidden"),
+            )}
+          >
+            {editor ??
+              (split && entries.length > 0 && (
+                <p className="px-10 pt-16 text-reed text-ui">Choose an entry to edit it.</p>
+              ))}
+          </div>
+        </div>
         {autosave.status.kind === "conflict" && (
           <ConflictNotice
             noun={source.noun}

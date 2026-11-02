@@ -167,6 +167,36 @@ test.describe("on a touch phone", () => {
     await link.scrollIntoViewIfNeeded();
     await expect.poll(() => hitBox(link)).toEqual({ tall: true, misses: [] });
   });
+
+  test("the sheet's portrait has New art and its More on one row under it", async ({ page }) => {
+    const id = await createCharacterViaApi(page.request, uniqueName("Plate"));
+    await setPortraitViaApi(page.request, id, solidPng([90, 110, 130]));
+    await page.goto(`/characters/${id}`);
+    const identity = page.locator("#s-identity");
+    const portrait = identity.locator('img[src*="/portrait/image"]');
+    const newArt = identity.getByRole("button", { name: "New art" });
+    const more = identity.getByRole("button", { name: "Portrait actions" });
+    await expect(portrait).toBeVisible();
+    await expect(more).toBeVisible();
+    const [frame, art, actions] = await Promise.all(
+      [portrait, newArt, more].map(async (target) => {
+        const box = await target.boundingBox();
+        if (box === null) throw new Error("not laid out");
+        return box;
+      }),
+    );
+    if (frame === undefined || art === undefined || actions === undefined)
+      throw new Error("no box");
+    expect(frame.width).toBeCloseTo(120, 0);
+    const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
+    expect(Math.abs(middle(art) - middle(actions))).toBeLessThanOrEqual(2);
+    expect(actions.height).toBeGreaterThanOrEqual(44);
+    // Both under the portrait, inside its column.
+    expect(art.y).toBeGreaterThan(frame.y + frame.height - 1);
+    expect(actions.x + actions.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
+    // The tags read as the nameplate's chips: no visible word, the field still named.
+    await expect(identity.getByRole("textbox", { name: "Tags" })).toBeVisible();
+  });
 });
 
 /** The computed type of the first element `selector` matches inside `scope`. */

@@ -414,7 +414,7 @@ function SheetEditor({
         <section
           id="s-identity"
           aria-label="Identity"
-          className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
+          className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
           {/* From tablet the portrait spans the identity and its details beside it. */}
           <div className="tablet:row-span-2">

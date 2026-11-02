@@ -1,4 +1,4 @@
-import { type CSSProperties, useRef } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { GLIDE } from "@/app/glide.ts";
 import { useOnScreen } from "@/app/KeptScroll.tsx";
 import { MarkIcon } from "@/components/icons";
@@ -45,6 +45,25 @@ export function Portrait({
   const shown = useOnScreen(frame, transition);
   const style: CSSProperties | undefined =
     transition && shown ? { viewTransitionName: PORTRAIT_TRANSITION } : undefined;
+  const src = version === null ? null : portraitUrl(owner, id, version, size);
+  // The art on the leaf. Arriving art waits for its pixels, so it surfaces out of
+  // blur once they paint, and a replacement keeps the art it replaces until then.
+  const [drawn, setDrawn] = useState(arriving ? null : src);
+  if (!arriving && drawn !== src) setDrawn(src);
+  useEffect(() => {
+    if (!arriving || src === null) return;
+    let current = true;
+    const probe = new Image();
+    probe.src = src;
+    // A refused decode shows the image anyway; the element reports its own failure.
+    const show = () => {
+      if (current) setDrawn(src);
+    };
+    probe.decode().then(show, show);
+    return () => {
+      current = false;
+    };
+  }, [arriving, src]);
   return (
     <div
       ref={frame}
@@ -56,20 +75,21 @@ export function Portrait({
         className,
       )}
     >
-      {version !== null ? (
+      {version === null ? (
+        <div className="flex size-full items-end p-[9%]">
+          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
+        </div>
+      ) : drawn === null ? null : (
+        // A new version is a new node, so a replacement surfaces again.
         <img
-          key={renewals}
-          src={portraitUrl(owner, id, version, size)}
+          key={`${renewals}:${drawn}`}
+          src={drawn}
           alt=""
           loading="lazy"
           decoding="async"
           draggable={false}
           className={cn("size-full object-cover object-top", arriving && "surface-in")}
         />
-      ) : (
-        <div className="flex size-full items-end p-[9%]">
-          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
-        </div>
       )}
     </div>
   );

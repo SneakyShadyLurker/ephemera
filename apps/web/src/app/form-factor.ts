@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 /**
  * Three form factors, chosen by available width rather than device, so a
@@ -62,4 +62,35 @@ export const isCoarsePointer = (): boolean => coarse().matches;
 
 export function useCoarsePointer(): boolean {
   return useSyncExternalStore(subscribe, isCoarsePointer);
+}
+
+/**
+ * Keeps focus when `layout` changes and a component swaps one tree for
+ * another (docked or overlaid, say): if the element focused last left the
+ * document with the swap, focus moves to the new element with its `id`, or
+ * else to what `fallback` picks given the element that left, still inside
+ * its detached tree. A swap that leaves the focused element in place changes
+ * nothing. Removal fires no focus event, so the last `focusin` names it.
+ */
+export function useFocusAcrossLayout(
+  layout: unknown,
+  fallback?: (lost: Element) => HTMLElement | null | undefined,
+): void {
+  const last = useRef<Element | null>(null);
+  useEffect(() => {
+    const note = (event: FocusEvent) => {
+      last.current = event.target instanceof Element ? event.target : null;
+    };
+    document.addEventListener("focusin", note);
+    return () => document.removeEventListener("focusin", note);
+  }, []);
+  const previous = useRef(layout);
+  useLayoutEffect(() => {
+    if (Object.is(previous.current, layout)) return;
+    previous.current = layout;
+    const lost = last.current;
+    if (lost === null || lost.isConnected) return;
+    const twin = lost.id === "" ? null : document.getElementById(lost.id);
+    (twin ?? fallback?.(lost))?.focus();
+  });
 }
