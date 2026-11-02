@@ -1308,6 +1308,70 @@ function rowOffsets(page: Page) {
   );
 }
 
+test("New reply removes the outgoing alternate under normal motion, including repeated fast replies", async ({
+  page,
+}) => {
+  await openChat(page, "mock-fast");
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  const frame = lastReply(page).locator("[data-prose] > div").first();
+  for (const model of ["mock-fast", "mock-fast", "mock-slow"] as const) {
+    await chooseModel(page, model);
+    const outgoing = await frame.elementHandle();
+    if (outgoing === null) throw new Error("No outgoing reply frame");
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    await expect.poll(() => outgoing.evaluate((element) => element.isConnected)).toBe(false);
+    await expect(frame).toContainText("Reply:");
+    await expect(frame).toHaveCSS("opacity", "1");
+    if (model === "mock-slow") {
+      await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+      await page.getByRole("button", { name: "Stop", exact: true }).click();
+    } else await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  }
+});
+
+test("New reply shows growing streaming prose without clipping", async ({ page }) => {
+  await openChat(page, "mock-fast");
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await chooseModel(page, "mock-long");
+  const sampling = page.evaluate(
+    () =>
+      new Promise<{ text: string; opacity: number; x: string; clipped: number }[]>((resolve) => {
+        const frames: { text: string; opacity: number; x: string; clipped: number }[] = [];
+        const start = performance.now();
+        const sample = () => {
+          const frame = document.querySelector<HTMLElement>(
+            '[data-message][data-role="assistant"]:last-of-type [data-prose] > div',
+          );
+          if (frame) {
+            const style = getComputedStyle(frame);
+            frames.push({
+              text: frame.textContent ?? "",
+              opacity: Number.parseFloat(style.opacity),
+              x: style.transform,
+              clipped: frame.scrollHeight - frame.clientHeight,
+            });
+          }
+          if (performance.now() - start > 1500) resolve(frames);
+          else requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+  await replyActions(page).getByRole("button", { name: "New reply" }).click();
+  const frames = await sampling;
+  const arriving = frames.filter(({ text, opacity }) => text.includes("Line 1") && opacity > 0);
+  expect(arriving, JSON.stringify(frames.slice(-5))).not.toHaveLength(0);
+  expect(
+    arriving
+      .filter(({ clipped }) => clipped > 1)
+      .map(({ clipped, x, opacity }) => ({ clipped, x, opacity })),
+  ).toEqual([]);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+});
+
 for (const reduced of [false, true]) {
   test(`an alternate of another length ${reduced ? "moves the row below it in one step under reduced motion" : "eases the row below it"}`, async ({
     page,

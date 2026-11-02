@@ -360,7 +360,7 @@ function ReplyTurn({
               showHidden && reply.hiddenMs !== undefined && <HiddenReasoning ms={reply.hiddenMs} />
             )}
             <div data-prose="" data-voice="story" className="voice-story voice-scene">
-              <SwipeFrame replyId={reply.id} swipeable={last}>
+              <SwipeFrame replyId={reply.id} swipeable={last} streaming={streaming}>
                 <Prose text={formatLocationLine(reply.text)} streaming={streaming} />
               </SwipeFrame>
               <ReplyNote reply={reply} last={last} />
