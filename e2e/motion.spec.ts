@@ -312,20 +312,34 @@ test("creator completion transitions the scrolled writing into the top of the sh
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.evaluate(() => {
     const start = document.startViewTransition.bind(document);
-    const state = { calls: 0, parts: [] as string[] };
+    const state = {
+      calls: 0,
+      types: [] as string[],
+      typed: false,
+      parts: [] as string[],
+      spans: {} as Record<string, { start: number; end: number }>,
+    };
     Object.assign(window, { completionTransitions: state });
     document.startViewTransition = (options) => {
       state.calls++;
       const transition = start(options);
-      // Once the pseudo-element tree is built: the name of each animated part.
+      // Once the pseudo-element tree is built: the type, and each animated part with its span.
       void transition.ready.then(() => {
-        state.parts = document
-          .getAnimations()
-          .flatMap((animation) =>
-            animation.effect instanceof KeyframeEffect && animation.effect.pseudoElement !== null
-              ? [animation.effect.pseudoElement]
-              : [],
-          );
+        state.types = [...transition.types];
+        state.typed = document.documentElement.matches(
+          ":active-view-transition-type(creator-complete)",
+        );
+        for (const animation of document.getAnimations()) {
+          const effect = animation.effect;
+          if (!(effect instanceof KeyframeEffect) || effect.pseudoElement === null) continue;
+          state.parts.push(effect.pseudoElement);
+          const timing = effect.getComputedTiming();
+          const start = Number(timing.delay ?? 0);
+          state.spans[effect.pseudoElement] = {
+            start,
+            end: start + Number(timing.activeDuration ?? 0),
+          };
+        }
       });
       return transition;
     };
@@ -337,12 +351,31 @@ test("creator completion transitions the scrolled writing into the top of the sh
   const transitions = () =>
     page.evaluate(
       () =>
-        (window as unknown as { completionTransitions: { calls: number; parts: string[] } })
-          .completionTransitions,
+        (
+          window as unknown as {
+            completionTransitions: {
+              calls: number;
+              types: string[];
+              typed: boolean;
+              parts: string[];
+              spans: Record<string, { start: number; end: number }>;
+            };
+          }
+        ).completionTransitions,
     );
   await expect.poll(async () => (await transitions()).parts.length).toBeGreaterThan(0);
-  const { calls, parts } = await transitions();
+  const { calls, types, typed, parts, spans } = await transitions();
   expect(calls).toBe(1);
+  expect(types).toEqual(["creator-complete"]);
+  expect(typed).toBe(true);
+  // The page fades through: the writing has left before the card arrives, so the two
+  // text layouts are never drawn over each other.
+  const out = spans["::view-transition-old(root)"];
+  const into = spans["::view-transition-new(root)"];
+  expect(out?.end).toBeGreaterThan(0);
+  expect(into?.start).toBeGreaterThanOrEqual(out?.end ?? Infinity);
+  // The screen header is its own part for this transition, so what glides passes beneath it.
+  expect(parts).toContain("::view-transition-group(creator-header)");
   // The frame and the name each glide as one shared element: a group that moves, holding
   // the old and the new image, so neither is drawn twice in two places.
   for (const name of ["creator-frame", "creator-heading"]) {

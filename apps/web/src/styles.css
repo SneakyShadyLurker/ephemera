@@ -1360,6 +1360,30 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
+ * The creator's finished card replacing its writing (creator/transition.ts,
+ * type `creator-complete`): two different text layouts, so the page fades
+ * through, the writing out over the glide's first half and the card in over
+ * its second, while the frame and the name glide the whole way. The screen
+ * header is its own group, on its ground and above the gliding ones, so what
+ * travels from a scrolled place passes beneath it. Under reduced motion the
+ * halves follow the shortened glide.
+ */
+:active-view-transition-type(creator-complete)::view-transition-old(root),
+:active-view-transition-type(creator-complete)::view-transition-new(root) {
+  animation-duration: calc(var(--duration-panel-in) / 2);
+  animation-fill-mode: both;
+}
+:active-view-transition-type(creator-complete)::view-transition-new(root) {
+  animation-delay: calc(var(--duration-panel-in) / 2);
+}
+:active-view-transition-type(creator-complete) main[data-creator] > header {
+  view-transition-name: creator-header;
+  /* Above what is raised inside the scroller, so its group is painted over theirs. */
+  z-index: var(--z-float);
+  background-color: var(--canvas);
+}
+
+/*
  * The engraved illustrations (components/illustration.tsx): each piece is a
  * grayscale luminance mask, white where it is drawn, filled with the
  * palette's roles, so every palette recolours it in both schemes. By day
