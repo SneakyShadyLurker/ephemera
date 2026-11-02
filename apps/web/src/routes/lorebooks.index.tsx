@@ -4,9 +4,16 @@ import { LibraryScreen } from "../lorebooks/LibraryScreen.tsx";
 import { libraryQuery } from "../lorebooks/queries.ts";
 
 export const Route = createFileRoute("/lorebooks/")({
-  loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(libraryQuery);
-    void context.queryClient.prefetchQuery(charactersQuery);
+  // The library arrives with the screen. A failure renders at once (no retries here, so a click never stalls); the screen shows it and retries.
+  loader: async ({ context }) => {
+    await Promise.all([
+      context.queryClient
+        .query({ ...libraryQuery, staleTime: "static", retry: false })
+        .catch(() => undefined),
+      context.queryClient
+        .query({ ...charactersQuery, staleTime: "static", retry: false })
+        .catch(() => undefined),
+    ]);
   },
   component: LibraryScreen,
 });

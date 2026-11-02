@@ -33,6 +33,7 @@ import {
 import { PaletteEditor } from "../palettes/PaletteEditor.tsx";
 import { customPalettesQuery } from "../palettes/queries.ts";
 import { BUILT_IN_NAMES } from "../palettes/roles.ts";
+import { NoticeSlot } from "./NoticeCard.tsx";
 import { useScheme, useTheme } from "./theme.tsx";
 
 /**
@@ -302,15 +303,19 @@ export function PalettePicker({ labelId }: { labelId: string }) {
           </Collapsible.Panel>
         </Collapsible.Root>
       </ViewTransition>
-      {draft !== null && (
-        <PaletteEditor
-          key={draft.session}
-          customs={customs}
-          onClose={closeEditor}
-          coloursOf={(base) => paletteColours(base, customs)}
-          nameOf={(base) => paletteName(base, customs)}
-        />
-      )}
+      {/* Closed or saved, the editor folds away with its last contents, inert at once. */}
+      <NoticeSlot value={draft}>
+        {(shown) => (
+          <PaletteEditor
+            key={shown.session}
+            draft={shown}
+            customs={customs}
+            onClose={closeEditor}
+            coloursOf={(base) => paletteColours(base, customs)}
+            nameOf={(base) => paletteName(base, customs)}
+          />
+        )}
+      </NoticeSlot>
       <ConfirmDialog
         open={pending !== null}
         onOpenChange={(next) => !next && setPending(null)}

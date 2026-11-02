@@ -1,6 +1,8 @@
 import { CARD_FIELD_LABELS, CARD_LIMITS } from "@ephemera/core";
-import { m } from "motion/react";
-import { useId, useRef, useState } from "react";
+import { AnimatePresence, m, useIsPresent } from "motion/react";
+import { type ReactNode, useId, useRef, useState } from "react";
+import { fade, spring } from "@/app/motion.tsx";
+import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Unfold } from "@/components/ui/disclosure";
@@ -43,14 +45,17 @@ export function Greetings({
 }) {
   const [keys, setKeys] = useState(() => alternates.map(newKey));
   // Every change made here keys its rows with it; a list that changed from outside (an AI
-  // Rework's Apply or Undo) has rows of its own.
-  if (keys.length !== alternates.length) setKeys(alternates.map(newKey));
+  // Rework's Apply or Undo) has rows of its own, which replace the old ones without folding.
+  const [outside, setOutside] = useState(0);
+  if (keys.length !== alternates.length) {
+    setKeys(alternates.map(newKey));
+    setOutside(outside + 1);
+  }
   const [open, setOpen] = useState<string | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
   const [removed, setRemoved] = useState<{ key: string; text: string; index: number } | null>(null);
   const firstId = useId();
   const list = useRef<HTMLOListElement>(null);
-  const glide = useGlide();
   const locked = useReworkLocked();
   const review = useReview();
   const settled = useSettled("alternateGreetings");
@@ -161,13 +166,14 @@ export function Greetings({
             Add alternate
           </Button>
         </div>
-        {alternates.length > 0 && (
-          <Glides>
-            <ol
-              ref={list}
-              data-settle={settled ? "" : undefined}
-              className="settle-glow grid grid-cols-[minmax(0,1fr)] border-rush border-t"
-            >
+        <Glides>
+          {/* Kept while a removed last row folds away; empty, it draws no line. */}
+          <ol
+            ref={list}
+            data-settle={settled ? "" : undefined}
+            className="settle-glow grid grid-cols-[minmax(0,1fr)] border-rush border-t empty:hidden"
+          >
+            <AnimatePresence key={outside} initial={false}>
               {alternates.map((text, index) => {
                 const key = keys[index] ?? String(index);
                 const number = index + 1;
@@ -177,12 +183,7 @@ export function Greetings({
                     item.change.field.kind === "alternate" && item.change.field.index === index,
                 );
                 return (
-                  <m.li
-                    key={key}
-                    data-key={key}
-                    className="border-rush border-b bg-canvas"
-                    {...glide}
-                  >
+                  <GreetingRow key={key} rowKey={key}>
                     {base !== null && tracked.length > 0 ? (
                       <div className="grid gap-2 py-3">
                         <div className="flex items-center gap-1">
@@ -299,12 +300,12 @@ export function Greetings({
                         </Unfold>
                       </>
                     )}
-                  </m.li>
+                  </GreetingRow>
                 );
               })}
-            </ol>
-          </Glides>
-        )}
+            </AnimatePresence>
+          </ol>
+        </Glides>
         {base !== null && added.length > 0 && (
           <ol
             aria-label="New alternates"
@@ -336,5 +337,32 @@ export function Greetings({
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * One alternate's row: it glides to a new place, grows in when added back,
+ * and folds away when removed, with its last contents and inert at once.
+ * Under reduced motion it keeps its height through the fade.
+ */
+function GreetingRow({ rowKey, children }: { rowKey: string; children: ReactNode }) {
+  const present = useIsPresent();
+  const reduced = useReducedMotion();
+  const glide = useGlide();
+  const duration = present ? "--duration-panel-in" : "--duration-panel-out";
+  return (
+    <m.li
+      data-key={rowKey}
+      inert={!present}
+      aria-hidden={!present || undefined}
+      layout={glide.layout}
+      initial={{ height: reduced ? "auto" : 0, opacity: 0, overflow: "clip" }}
+      animate={{ height: "auto", opacity: 1, transitionEnd: { overflow: "visible" } }}
+      exit={{ height: reduced ? "auto" : 0, opacity: 0, overflow: "clip" }}
+      transition={{ ...glide.transition, height: spring(duration), opacity: fade(duration) }}
+      className="border-rush border-b bg-canvas"
+    >
+      {children}
+    </m.li>
   );
 }

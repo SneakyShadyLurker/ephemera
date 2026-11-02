@@ -505,6 +505,26 @@ test("an empty library invites an import on the populated gallery's edges", asyn
   await expect(body.getByRole("button", { name: "Import cards" })).toBeVisible();
 });
 
+test("Create with AI shows once on a phone's gallery, under the search", async ({ page }) => {
+  await createCharacterViaApi(page.request, uniqueName("Once"));
+  const header = page.locator("main header");
+  const body = page.locator("main [data-skip-target]");
+  for (const width of [390, 820]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/characters");
+    await expect(page.getByRole("list", { name: "Characters" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Import cards" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "New character" })).toBeVisible();
+    // Phones name it under the search; from tablet up the header carries it.
+    await expect(header.getByRole("button", { name: "Create with AI" })).toHaveCount(
+      width < 720 ? 0 : 1,
+    );
+    await expect(body.getByRole("button", { name: "Create with AI" })).toHaveCount(
+      width < 720 ? 1 : 0,
+    );
+  }
+});
+
 test("an empty gallery shows its engraving, loaded from the app itself", async ({ page }) => {
   await page.goto("/characters");
   await expect(page.getByRole("heading", { name: "No characters yet" })).toBeVisible();

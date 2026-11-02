@@ -34,11 +34,11 @@ import {
   draftInput,
   markSaved,
   moveDraft,
+  type PaletteDraft,
   renameDraft,
   showScheme,
   startOver,
   stillOpen,
-  usePaletteDraft,
 } from "./draft.ts";
 import { deleteCustomPalette, saveCustomPalette } from "./queries.ts";
 import {
@@ -71,17 +71,19 @@ const fieldId = (slot: number, role: PaletteRole) => `palette-${slot}-${role}`;
  * until Save; Cancel or Escape puts the saved palette back.
  */
 export function PaletteEditor({
+  draft,
   customs,
   onClose,
   coloursOf,
   nameOf,
 }: {
+  /** The open draft; once closed, the last one, so the leaving editor keeps its contents. */
+  draft: PaletteDraft;
   customs: readonly CustomPalette[];
   onClose: () => void;
   coloursOf: (base: PaletteChoice) => Record<Scheme, PaletteScheme>;
   nameOf: (base: PaletteChoice) => string;
 }) {
-  const draft = usePaletteDraft();
   const { palette, setPalette, followPalette } = useTheme();
   const heading = useRef<HTMLHeadingElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -114,7 +116,6 @@ export function PaletteEditor({
     withResolver: true,
   });
 
-  if (draft === null) return null;
   const { scheme, slot } = draft;
   const id = customPaletteId(slot);
   const shortfalls = {

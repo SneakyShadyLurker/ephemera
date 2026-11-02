@@ -1,6 +1,7 @@
 import { settingsSchema, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
+import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { queryClient } from "@/app/query.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
@@ -153,35 +154,38 @@ export function Pictures() {
           offer(workflow === null ? { mode: "import", file } : { mode: "replace", workflow, file });
         }}
       />
-      {draft !== null && (
-        <ImportPanel
-          draft={draft}
-          incoming={incoming}
-          onIncoming={(take) => {
-            if (take && incoming !== null) setDraft(incoming);
-            setIncoming(null);
-          }}
-          onClose={() => {
-            const replaced = draft.mode === "replace" ? draft.workflow.id : null;
-            setDraft(null);
-            setIncoming(null);
-            (replaced === null
-              ? importButton.current
-              : rowPart(root.current, replaced, "actions")
-            )?.focus();
-          }}
-          onChooseFile={() => choose(draft.mode === "replace" ? draft.workflow : null)}
-          onSaved={(id, checked) => {
-            setDraft(null);
-            setUnchecked(!checked);
-            setSaved(id);
-          }}
-          onEditAddress={() => {
-            address.current?.focus({ preventScroll: true });
-            address.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
-          }}
-        />
-      )}
+      {/* Closed or saved, the panel folds away with its last contents, inert at once. */}
+      <NoticeSlot value={draft}>
+        {(shown) => (
+          <ImportPanel
+            draft={shown}
+            incoming={incoming}
+            onIncoming={(take) => {
+              if (take && incoming !== null) setDraft(incoming);
+              setIncoming(null);
+            }}
+            onClose={() => {
+              const replaced = shown.mode === "replace" ? shown.workflow.id : null;
+              setDraft(null);
+              setIncoming(null);
+              (replaced === null
+                ? importButton.current
+                : rowPart(root.current, replaced, "actions")
+              )?.focus();
+            }}
+            onChooseFile={() => choose(shown.mode === "replace" ? shown.workflow : null)}
+            onSaved={(id, checked) => {
+              setDraft(null);
+              setUnchecked(!checked);
+              setSaved(id);
+            }}
+            onEditAddress={() => {
+              address.current?.focus({ preventScroll: true });
+              address.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
+            }}
+          />
+        )}
+      </NoticeSlot>
       <DropOverlay
         shown={dragging}
         title="Import this workflow"

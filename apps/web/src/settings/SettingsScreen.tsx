@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { NoticeCard } from "@/app/NoticeCard.tsx";
+import { NoticeCard, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { PalettePicker } from "@/app/PalettePicker.tsx";
 import { SCROLL_GUTTERS, ScreenHeader, SETTINGS_FRAME } from "@/app/Screen.tsx";
 import { ThemeSwitch } from "@/app/ThemeSwitch.tsx";
@@ -264,32 +264,33 @@ function SaveAlerts() {
   const failed = useFailedSettingsSave();
   const refused = useRefusedSettingsSave();
   const notReachedText = useNotReached();
-  if (failed) {
-    return (
-      <NoticeCard
-        placement="dock"
-        role="alert"
-        title="Not saved"
-        body={`${sentence(notReachedText)}. This tab keeps your choice.`}
-        actions={
-          <Button variant="outline" onClick={() => void retryFailedSettings()}>
-            Try again
-          </Button>
-        }
-      />
-    );
-  }
-  if (refused) {
-    return (
-      <NoticeCard
-        placement="dock"
-        role="alert"
-        title="Not saved"
-        body="A character, persona, preset or workflow you chose no longer exists. This tab keeps the choice until you pick another."
-      />
-    );
-  }
-  return null;
+  // Cleared, the alert folds away with its last words, inert at once.
+  return (
+    <NoticeSlot value={failed ? "failed" : refused ? "refused" : null}>
+      {(alert) =>
+        alert === "failed" ? (
+          <NoticeCard
+            placement="dock"
+            role="alert"
+            title="Not saved"
+            body={`${sentence(notReachedText)}. This tab keeps your choice.`}
+            actions={
+              <Button variant="outline" onClick={() => void retryFailedSettings()}>
+                Try again
+              </Button>
+            }
+          />
+        ) : (
+          <NoticeCard
+            placement="dock"
+            role="alert"
+            title="Not saved"
+            body="A character, persona, preset or workflow you chose no longer exists. This tab keeps the choice until you pick another."
+          />
+        )
+      }
+    </NoticeSlot>
+  );
 }
 
 function AppearanceSettings() {

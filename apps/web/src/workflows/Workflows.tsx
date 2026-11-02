@@ -2,6 +2,7 @@ import { userWorkflowId, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, type RefObject, useId, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { ImportIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Infotip } from "@/components/ui/infotip";
@@ -94,21 +95,23 @@ export function Workflows({
           {WORKFLOWS_FULL}
         </p>
       )}
-      {failed && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p role="status" className={HELP}>
-            {listFailedLine(notReached)}
-          </p>
-          <Button
-            size="text"
-            variant="outline"
-            className="text-ink"
-            onClick={() => void refreshWorkflows()}
-          >
-            Try again
-          </Button>
-        </div>
-      )}
+      <NoticeSlot value={failed ? "failed" : null}>
+        {() => (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p role="status" className={HELP}>
+              {listFailedLine(notReached)}
+            </p>
+            <Button
+              size="text"
+              variant="outline"
+              className="text-ink"
+              onClick={() => void refreshWorkflows()}
+            >
+              Try again
+            </Button>
+          </div>
+        )}
+      </NoticeSlot>
       {notice !== null && (
         <p role="status" className={HELP}>
           {notice}

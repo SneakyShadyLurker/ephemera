@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { uniqueName } from "./support/cards.ts";
 import { castEntry, openRecord } from "./support/cast.ts";
 import { keeperWoman } from "./support/cast-fixtures.ts";
 import { headerAction, openChat } from "./support/chat.ts";
@@ -1094,4 +1095,113 @@ test("normal-motion Rework grows and folds its real layout slot while the sheet 
   for (const frame of leaving) expect(frame.dock + frame.scroller).toBeCloseTo(before, 0);
   expect(leaving.at(-1)?.dock).toBe(0);
   expect(leaving.at(-1)?.scroller).toBeCloseTo(before, 0);
+});
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`list screens arrive with their lists on a cold visit at ${viewport.width}px`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize(viewport);
+    const name = uniqueName("Cold arrival");
+    await createCharacterViaApi(request, name);
+    // Presets never asks for the characters, so the gallery's list is cold.
+    await page.goto("/presets");
+    const previous = page.locator("main h1");
+    await expect(previous).toHaveText(/^Presets/);
+    await page.route("**/api/characters", async (route) => {
+      if (route.request().method() === "GET") await new Promise((done) => setTimeout(done, 1500));
+      await route.continue();
+    });
+    let nav = page.getByRole("navigation", { name: "Main" });
+    if (viewport.width < 720) {
+      await page.getByRole("button", { name: "Open navigation" }).click();
+      nav = page.getByRole("dialog", { name: "Ephemera" });
+    }
+    // The first frame that shows the gallery's heading or a card, and how long it took.
+    const arrival = page.evaluate(
+      () =>
+        new Promise<{ heading: boolean; card: boolean; waited: number }>((resolve) => {
+          const start = performance.now();
+          const sample = () => {
+            const heading = [...document.querySelectorAll("main h1")].some((title) =>
+              title.textContent?.startsWith("Characters"),
+            );
+            const card = document.querySelector('[aria-label="Characters"] li') !== null;
+            if (heading || card) resolve({ heading, card, waited: performance.now() - start });
+            else requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    await nav.getByRole("link", { name: "Characters", exact: true }).click();
+    await page.waitForTimeout(1000);
+    await expect(previous).toHaveText(/^Presets/);
+    const first = await arrival;
+    expect(first).toMatchObject({ heading: true, card: true });
+    expect(first.waited).toBeGreaterThanOrEqual(1000);
+    await expect(page.getByRole("list", { name: "Characters" })).toContainText(name);
+  });
+}
+
+test("a removed greeting retains its row while leaving, and the last leaves no line", async ({
+  page,
+  request,
+}) => {
+  const id = await createCharacterViaApi(request, uniqueName("Greeter"), {
+    firstMessage: "Opening.",
+    alternateGreetings: ["The tide is out."],
+  });
+  await page.goto(`/characters/${id}`);
+  await page.getByText("Card details", { exact: true }).click();
+  await page.getByRole("button", { name: /^Alternate 1: The tide/ }).click();
+  const row = page.locator("#s-greetings li[data-key]");
+  await expect(row).toHaveCount(1);
+  await expect.poll(() => row.evaluate((element) => element.getAnimations().length)).toBe(0);
+  const height = (await row.boundingBox())?.height ?? 0;
+  await page.getByRole("button", { name: "More for Alternate 1" }).click();
+  const menu = page.getByRole("menuitem", { name: "Remove" });
+  await expect(menu).toBeVisible();
+  const leaving = exitFrames(row);
+  await menu.click();
+  const frames = (await leaving).filter(({ inert }) => inert);
+  expect(frames.length).toBeGreaterThan(1);
+  for (const frame of frames) {
+    expect(frame.hidden).toBe(true);
+    expect(frame.text).toContain("The tide is out.");
+  }
+  // It folds: its height shrinks through the exit instead of dropping in one step.
+  expect(frames.some((frame) => frame.height > 1 && frame.height < height - 1)).toBe(true);
+  await expect(row).toHaveCount(0);
+  await expect(page.locator("#s-greetings ol").first()).toBeHidden();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("textbox", { name: "Alternate 1" })).toHaveValue("The tide is out.");
+});
+
+test("the palette editor leaves inert and folded, with its last contents", async ({ page }) => {
+  await page.goto("/settings?section=appearance");
+  // The editor's sample scene needs the preloaded Markdown renderer (app/preload.ts).
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: /^Your palettes/ }).click();
+  await page.getByRole("button", { name: "New palette" }).click();
+  await page.getByRole("menuitem", { name: "Nord" }).click();
+  const editor = page.getByRole("region", { name: "New palette" });
+  await expect(editor).toBeVisible();
+  // The slot around the editor is what folds.
+  const slot = editor.locator("xpath=..");
+  await expect.poll(() => slot.evaluate((element) => element.getAnimations().length)).toBe(0);
+  const height = (await slot.boundingBox())?.height ?? 0;
+  const leaving = exitFrames(slot);
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  const frames = (await leaving).filter(({ inert }) => inert);
+  expect(frames.length).toBeGreaterThan(1);
+  for (const frame of frames) {
+    expect(frame.hidden).toBe(true);
+    expect(frame.text).toContain("New palette");
+  }
+  expect(frames.some((frame) => frame.height > 1 && frame.height < height - 1)).toBe(true);
+  await expect(editor).toHaveCount(0);
 });
