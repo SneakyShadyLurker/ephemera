@@ -75,7 +75,7 @@ function ChoiceList({
                 aria-busy={choice.pending || undefined}
                 className={cn(
                   "flex min-h-11 items-center gap-2.5 rounded-sm px-2.5 py-1 touch:min-h-12",
-                  choice.disabled ? "cursor-default" : "cursor-pointer hover:bg-surface-hover",
+                  choice.disabled ? "cursor-default" : "row cursor-pointer",
                 )}
               >
                 <Checkbox

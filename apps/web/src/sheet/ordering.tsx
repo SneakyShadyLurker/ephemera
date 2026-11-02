@@ -85,7 +85,7 @@ export function CloseRow({ onClose, children }: { onClose: () => void; children:
       type="button"
       aria-expanded
       onClick={onClose}
-      className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-sm text-left font-medium text-ink text-ui hover:bg-surface-hover touch:min-h-11"
+      className="flex min-h-9 min-w-0 flex-1 items-center gap-2 row rounded-sm text-left font-medium text-ink text-ui touch:min-h-11"
     >
       <span className="truncate">{children}</span>
       <ChevronUpIcon size={16} className="shrink-0 text-reed" />
@@ -112,7 +112,7 @@ export function OpenRow({
       aria-label={label}
       onClick={onOpen}
       className={cn(
-        "flex min-h-11 w-full min-w-0 items-center gap-3 rounded-sm text-left hover:bg-surface-hover touch:min-h-12",
+        "flex min-h-11 w-full min-w-0 items-center gap-3 rounded-sm text-left row touch:min-h-12",
         className,
       )}
     >

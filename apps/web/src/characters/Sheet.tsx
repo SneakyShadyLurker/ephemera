@@ -820,7 +820,7 @@ function SheetIndex({ count }: { count: number }) {
                 event.preventDefault();
                 goToSection(key);
               }}
-              className="-ml-px block border-transparent border-l-2 py-1.5 pl-4 text-note text-reed transition-colors duration-(--duration-tint) hover:text-ink aria-[current=location]:border-ink aria-[current=location]:text-ink"
+              className="-ml-px block border-transparent border-l-2 py-1.5 pl-4 text-note text-reed transition-colors duration-(--duration-tint) ease-fade hover:text-ink aria-[current=location]:border-ink aria-[current=location]:text-ink"
             >
               {label}
               {key === "greetings" && (

@@ -71,7 +71,7 @@ export function PortraitTile({
         version={version}
         arriving={arriving}
         transition={transition}
-        className="transition-[filter] duration-(--duration-tint) group-hover:brightness-[1.04] group-active:brightness-95"
+        className="transition-[filter] duration-(--duration-tint) ease-fade group-hover:brightness-[1.04] group-active:brightness-95"
       />
       <span className="grid gap-0.5 px-0.5">
         <span className="line-clamp-2 text-pretty break-words font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">

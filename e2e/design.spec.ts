@@ -20,8 +20,10 @@ import {
 } from "./support/chat.ts";
 import {
   createCharacterViaApi,
+  createLorebookViaApi,
   expectNoOverflow,
   FORM_FACTORS,
+  linkLorebookViaApi,
   loreEntry,
   seriousAxeViolations,
   setLorebookViaApi,
@@ -126,6 +128,42 @@ test.describe("on a touch phone", () => {
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expectComposerAndActionsFit(page, 390);
+  });
+
+  test("a lorebook's description and a linked book's name are 44px tall to the finger", async ({
+    page,
+  }) => {
+    const character = uniqueName("Reach");
+    const characterId = await createCharacterViaApi(page.request, character);
+    const book = uniqueName("Harbour lore");
+    const id = await createLorebookViaApi(page.request, book, {
+      description: "Tides and bells.",
+      entries: [],
+    });
+    await linkLorebookViaApi(page.request, id, characterId);
+    // The hit box: the element's own box, and what a finger at its top and bottom edges lands on.
+    const hitBox = (target: Locator) =>
+      target.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const x = box.left + Math.min(box.width / 2, 8);
+        const misses = [box.top + 1, box.bottom - 1].flatMap((y) => {
+          const hit = document.elementFromPoint(x, y);
+          return node.contains(hit) ? [] : [`${hit?.tagName} ${hit?.className}`];
+        });
+        return { tall: box.height >= 44, misses };
+      });
+
+    await page.goto(`/lorebooks/${id}`);
+    const description = page.getByRole("button", { name: "Edit description: Tides and bells." });
+    await expect(description).toBeVisible();
+    await expect.poll(() => hitBox(description)).toEqual({ tall: true, misses: [] });
+
+    await page.goto(`/characters/${characterId}`);
+    const link = page
+      .getByRole("list", { name: "Linked lorebooks" })
+      .getByRole("link", { name: book });
+    await link.scrollIntoViewIfNeeded();
+    await expect.poll(() => hitBox(link)).toEqual({ tall: true, misses: [] });
   });
 });
 
@@ -2102,6 +2140,81 @@ test("reduced motion keeps the lorebook's rows to fades", async ({ page }) => {
     };
   });
   expect(motion).toEqual({ panel: "opacity", chevron: "none", thumb: "background-color" });
+});
+
+/** How `property` transitions on `node` now: its duration in seconds and its curve. */
+const transitionOf = (target: Locator, property: string) =>
+  target.evaluate((node, property) => {
+    const style = getComputedStyle(node);
+    const properties = style.transitionProperty.split(", ");
+    const durations = style.transitionDuration.split(", ");
+    const curves = style.transitionTimingFunction.split(/, (?![^(]*\))/);
+    const at = properties.indexOf(property);
+    return at === -1
+      ? null
+      : {
+          duration: Number.parseFloat(durations[at % durations.length] ?? "0"),
+          curve: curves[at % curves.length],
+        };
+  }, property);
+
+const tokenSeconds = (page: Page, token: string) =>
+  page.evaluate((token) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+    return Number.parseFloat(value) / (value.endsWith("ms") ? 1000 : 1);
+  }, token);
+
+test("hovered rows ease their ground on the tint timing, and a palette tile presses and springs back", async ({
+  page,
+}) => {
+  const character = uniqueName("Hover");
+  const characterId = await createCharacterViaApi(page.request, character, {
+    firstMessage: "Opening.",
+    alternateGreetings: ["One"],
+  });
+  const book = uniqueName("Hover lore");
+  await createLorebookViaApi(page.request, book);
+  await page.goto(`/characters/${characterId}`);
+  const tint = await tokenSeconds(page, "--duration-tint");
+  expect(tint).toBeGreaterThan(0);
+
+  // A greetings row.
+  const greeting = page.getByRole("button", { name: /^Alternate 1:/ });
+  await greeting.hover();
+  expect(await transitionOf(greeting, "background-color")).toMatchObject({ duration: tint });
+
+  // A checklist label in the link picker.
+  await page.getByRole("button", { name: "Link a lorebook" }).click();
+  const label = page.locator("label").filter({ hasText: book });
+  await label.hover();
+  expect(await transitionOf(label, "background-color")).toMatchObject({ duration: tint });
+  await page.keyboard.press("Escape");
+
+  // A palette tile, pressed and let go away from it so the setting stays.
+  await page.goto("/settings");
+  const tile = page
+    .getByRole("radiogroup", { name: "Palette", exact: true })
+    .locator("label")
+    .first();
+  const pressScale = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--press-scale")),
+  );
+  // Its edge, ground and ring ease on the tint timing, as a button's colours do.
+  for (const property of ["background-color", "border-color", "box-shadow"]) {
+    expect((await transitionOf(tile, property))?.duration).toBe(tint);
+  }
+  await tile.hover();
+  await page.mouse.down();
+  await expect
+    .poll(() => tile.evaluate((node) => Number.parseFloat(getComputedStyle(node).scale)))
+    .toBe(pressScale);
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+  await expect.poll(() => tile.evaluate((node) => getComputedStyle(node).scale)).toBe("none");
+  // Let go, it springs back on the release timing.
+  const release = await transitionOf(tile, "scale");
+  expect(release?.duration).toBe(await tokenSeconds(page, "--duration-release"));
+  expect(release?.curve).toMatch(/^linear\(/);
 });
 
 /** A PNG of one solid colour, built in memory. */

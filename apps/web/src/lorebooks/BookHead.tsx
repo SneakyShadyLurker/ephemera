@@ -134,7 +134,7 @@ function Description({ value, onChange }: { value: string; onChange: (value: str
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="focus-ring-inset -mx-1.5 rounded-md px-1.5 py-1 text-left hover:bg-surface-hover"
+        className="focus-ring-inset -mx-1.5 rounded-md px-1.5 py-1 text-left hover:bg-surface-hover touch:min-h-11"
       >
         <span className="sr-only">Edit description: </span>
         <span className="line-clamp-2 text-pretty text-narration text-ui">{value}</span>

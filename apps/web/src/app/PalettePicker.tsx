@@ -99,8 +99,7 @@ function Swatch({ palette }: { palette: PaletteChoice }) {
   );
 }
 
-const TILE =
-  "grid gap-2 rounded-xl border border-rush bg-surface p-1.5 pb-2 transition-[background-color,border-color,box-shadow,scale] duration-(--duration-quick) ease-fade";
+const TILE = "grid gap-2 rounded-xl border border-rush bg-surface p-1.5 pb-2";
 
 /** A choosable palette: its swatch, radio and name, the whole tile one label. */
 function PaletteTile({
@@ -119,7 +118,7 @@ function PaletteTile({
       <label
         className={cn(
           TILE,
-          "cursor-pointer hover:bg-surface-hover active:scale-(--press-scale) has-data-checked:border-dusk-line has-data-checked:shadow-[0_0_0_1px_var(--dusk-line)]",
+          "press cursor-pointer hover:bg-surface-hover has-data-checked:border-dusk-line has-data-checked:shadow-[0_0_0_1px_var(--dusk-line)]",
           editing && "border-dashed border-dusk-line",
         )}
       >
@@ -365,10 +364,7 @@ function NewTile({
     <Menu>
       <MenuTrigger
         onKeyDown={keepArrows}
-        className={cn(
-          TILE,
-          "cursor-pointer text-left hover:bg-surface-hover active:scale-(--press-scale)",
-        )}
+        className={cn(TILE, "press cursor-pointer text-left hover:bg-surface-hover")}
       >
         <span
           aria-hidden="true"

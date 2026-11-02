@@ -50,7 +50,7 @@ function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: Re
   const one = unplaced.length === 1;
   return (
     <details className="disclosure">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink [&::-webkit-details-marker]:hidden">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:-my-1 touch:min-h-11 [&::-webkit-details-marker]:hidden">
         {one
           ? "1 change could not be matched. It won't be applied."
           : `${unplaced.length} changes could not be matched. They won't be applied.`}

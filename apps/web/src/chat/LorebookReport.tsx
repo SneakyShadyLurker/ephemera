@@ -236,7 +236,7 @@ function Row({
                 title={entry.title}
                 // The visible words lead the name, so speech input finds the link by them.
                 label={`${origin.name}: edit ${entry.title}`}
-                className="min-w-0 max-w-[60%] shrink truncate rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-3 hover:text-ink"
+                className="min-w-0 max-w-[60%] shrink truncate rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-3 hover:text-ink touch:relative touch:-my-3.5 touch:py-3.5"
               >
                 {origin.name}
               </EntryLink>
