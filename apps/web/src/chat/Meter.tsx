@@ -1,9 +1,9 @@
 import { Meter } from "@base-ui/react/meter";
 import { useState } from "react";
 import { useShallow } from "zustand/shallow";
+import { HeaderAction } from "@/app/Browse.tsx";
 import { useUi } from "@/app/ui.ts";
 import { InspectIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { countOf, formatCount } from "@/lib/text";
@@ -110,7 +110,7 @@ export function useMeterFigures(): string | null {
     : `${compact.format(value.estimate)} of ${compact.format(value.window)}`;
 }
 
-/** Opens the inspector; its tooltip always carries the meter's figures. */
+/** Opens the inspector, labelled from tablet up; its tooltip always carries the meter's figures. */
 export function PromptButton() {
   const { value } = useMeter();
   const unavailable = useUi((state) => state.inspectorUnavailable);
@@ -121,15 +121,13 @@ export function PromptButton() {
       : `Prompt: ${spoken(value)}`;
   return (
     <Tooltip label={label} side="bottom">
-      <Button
-        size="icon"
-        aria-label="Prompt"
+      <HeaderAction
+        label="Prompt"
+        icon={InspectIcon}
         aria-haspopup="dialog"
         aria-describedby={value === null ? undefined : METER_ID}
         onClick={() => void openInspector()}
-      >
-        <InspectIcon />
-      </Button>
+      />
     </Tooltip>
   );
 }

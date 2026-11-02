@@ -1,6 +1,7 @@
 import { formatLocationLine } from "@ephemera/core";
 import { Component, lazy, type ReactNode, Suspense } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { cn } from "@/lib/cn";
 import { MODEL_BUSY } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
@@ -42,9 +43,23 @@ function PlainText({ text }: { text: string }) {
 
 const STATUS_NOTE: Partial<Record<MessageStatus, string>> = {
   stopped: "Stopped.",
-  failed: "Reply interrupted.",
   waiting: "Not sent yet: waiting for you to sign in.",
 };
+
+/**
+ * A failed reply says what happened, apart from a stop: cut off once text
+ * had arrived, else whether the server was out of reach or the provider
+ * answered with an error (a stream that broke before any text carries the
+ * provider's error event).
+ */
+const failedNote = (reply: Reply) =>
+  reply.text !== ""
+    ? "The reply was cut off: the connection dropped."
+    : reply.failure === "unreachable"
+      ? "No reply: the server couldn't be reached. Check the connection, then try again."
+      : reply.failure === undefined
+        ? "No reply."
+        : "No reply: the model's provider answered with an error. Try again.";
 
 /**
  * Who speaks, named at the start of each turn in the voice that follows: the
@@ -241,19 +256,22 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
       ? REFUSAL_NOTE[reply.refusal]
       : reply.busy && reply.status === "failed"
         ? MODEL_BUSY
-        : (STATUS_NOTE[reply.status] ?? partial);
-  return note ? (
-    <p
-      className={cn(
-        "mt-2 font-sans text-meta",
-        reply.status === "failed" || (note === partial && reply.finishReason === "content-filter")
-          ? "text-ember"
-          : "text-reed",
+        : reply.status === "failed"
+          ? failedNote(reply)
+          : (STATUS_NOTE[reply.status] ?? partial);
+  const ember =
+    reply.status === "failed" || (note === partial && reply.finishReason === "content-filter");
+  const windowRefusal = !reply.failed && reply.refusal === "context_window_unknown";
+  // In a slot, so it folds away when a Continue or Replace clears it.
+  return (
+    <NoticeSlot value={note ? { note, ember, windowRefusal } : null}>
+      {(shown) => (
+        <p className={cn("pt-2 font-sans text-meta", shown.ember ? "text-ember" : "text-reed")}>
+          {shown.windowRefusal ? <WindowRefusal /> : shown.note}
+        </p>
       )}
-    >
-      {!reply.failed && reply.refusal === "context_window_unknown" ? <WindowRefusal /> : note}
-    </p>
-  ) : null;
+    </NoticeSlot>
+  );
 }
 
 /**

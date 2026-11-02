@@ -404,11 +404,39 @@ describe("partial reply footer", () => {
     "renders %j",
     (change, last, text, tone) => {
       const out = render(change, last);
-      expect(out).toBe(
-        `<p class="mt-2 font-sans text-meta ${tone}">${text.replaceAll("'", "&#x27;")}</p>`,
+      expect(out).toContain(
+        `<p class="pt-2 font-sans text-meta ${tone}">${text.replaceAll("'", "&#x27;")}</p>`,
       );
     },
   );
+
+  it.each([
+    [
+      { failure: "unreachable", text: "" },
+      "No reply: the server couldn't be reached. Check the connection, then try again.",
+    ],
+    [
+      { failure: "server", text: "" },
+      "No reply: the model's provider answered with an error. Try again.",
+    ],
+    [
+      { failure: "stream", text: "" },
+      "No reply: the model's provider answered with an error. Try again.",
+    ],
+    [{ failure: "stream" }, "The reply was cut off: the connection dropped."],
+    [{ failure: "unreachable" }, "The reply was cut off: the connection dropped."],
+    [{ text: "" }, "No reply."],
+  ] satisfies [Partial<Reply>, string][])("says why a reply failed: %j", (change, text) => {
+    expect(render({ ...change, status: "failed" })).toContain(
+      `<p class="pt-2 font-sans text-meta text-ember">${text.replaceAll("'", "&#x27;")}</p>`,
+    );
+  });
+
+  it("keeps a stop apart from a failure", () => {
+    expect(render({ status: "stopped" })).toContain(
+      '<p class="pt-2 font-sans text-meta text-reed">Stopped.</p>',
+    );
+  });
 
   it("keeps failure, refusal and busy notices ahead of partial endings", () => {
     for (const failed of ["continue", "replace"] as const) {

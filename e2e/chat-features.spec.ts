@@ -282,6 +282,35 @@ test("swipes: New reply writes another, arrows and keys step, Replace swaps only
   expect(await upstreamRecords(line)).toHaveLength(3);
 });
 
+test("a failed reply says why and Try again replaces it in place", async ({ page }) => {
+  await openChat(page, "mock-fast");
+  // The first request never reaches the server; the next one goes through.
+  let refused = false;
+  await page.route("**/api/chat", async (route) => {
+    if (refused) return route.continue();
+    refused = true;
+    return route.abort("connectionfailed");
+  });
+  const line = canary("in");
+  await send(page, line);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
+  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+    "No reply: the server couldn't be reached. Check the connection, then try again.",
+  );
+  // Try again leads the row, in place of New reply, which would keep the empty one.
+  const actions = replyActions(page);
+  await expect(actions.getByRole("button", { name: "New reply" })).toHaveCount(0);
+  await expect(actions.getByRole("button").first()).toHaveText("Try again");
+  await actions.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await expect(lastReply(page)).toContainText(line.replace("-in-", "-out-"));
+  // Replaced in place: one reply, so no pager, and the note is gone.
+  await expect(replyCounter(page)).toHaveCount(0);
+  await expect(lastReply(page).getByText(/^No reply/)).toHaveCount(0);
+  await expect(actions.getByRole("button", { name: "New reply" })).toBeVisible();
+  expect(await upstreamRecords(line)).toHaveLength(1);
+});
+
 test("edit by keyboard reaches the next request; delete leaves an Undo in its place", async ({
   page,
 }) => {

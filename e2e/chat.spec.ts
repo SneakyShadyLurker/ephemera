@@ -14,7 +14,9 @@ test("an upstream error shows a failed reply without upstream text", async ({ pa
   await openChat(page, "mock-error");
   await send(page, input);
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
-  await expect(lastReply(page).locator("[data-prose]")).toHaveText("Reply interrupted.");
+  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+    "No reply: the model's provider answered with an error. Try again.",
+  );
 });
 
 test("Clear asks first, keeps the chat when declined, then empties it", async ({ page }) => {

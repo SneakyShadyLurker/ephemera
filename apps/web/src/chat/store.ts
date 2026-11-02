@@ -72,6 +72,8 @@ import {
 
 export type MessageStatus = "complete" | "streaming" | "stopped" | "failed" | "waiting";
 
+export type ReplyFailure = "unreachable" | "server" | "stream";
+
 /** One alternate reply (a swipe). Chat content: lives only in this in-memory store (PRINCIPLES.md 1). */
 export interface Reply {
   id: string;
@@ -113,6 +115,12 @@ export interface Reply {
   refusal?: RefusalCode;
   /** It failed because the model's provider stayed busy through the server's retries. */
   busy?: true;
+  /**
+   * Why it failed, for its note: the request never reached the server, the
+   * server answered with an error, or the stream broke. A status like `busy`,
+   * never content, and kept nowhere but this store.
+   */
+  failure?: ReplyFailure;
   /** The last Continue or Replace failed; the reply is as it was before it. */
   failed?: "continue" | "replace";
   /**
@@ -1017,6 +1025,7 @@ interface Target {
     status: "complete" | "stopped" | "failed";
     refusal?: RefusalCode;
     busy?: true;
+    failure?: ReplyFailure;
     finishReason?: PartialReplyFinishReason;
   }) => void;
   /** Refused as signed out before anything arrived: undo what the start showed, wait. */
@@ -1026,6 +1035,22 @@ interface Target {
 
 /** The transport's error for a request the sign-in redirect answered. */
 const isSignedOut = (error: unknown) => (error as { reason?: string }).reason === "signed_out";
+
+/**
+ * Why a request failed, from the transport's error: its `http` and `stream`
+ * reasons, or none at all when `fetch` itself threw (the server was never
+ * reached). Its other reasons say nothing more than "failed".
+ */
+const failureOf = (error: unknown): ReplyFailure | undefined => {
+  const reason = (error as { reason?: string }).reason;
+  return reason === "http"
+    ? "server"
+    : reason === "stream"
+      ? "stream"
+      : reason === undefined
+        ? "unreachable"
+        : undefined;
+};
 
 export function createChatStore(
   streamReply: StreamReply,
@@ -1892,10 +1917,14 @@ export function createChatStore(
           retryNow = signedIn() && (deps.resumable?.() ?? true);
         } else if (current()) {
           ended = controller.signal.aborted ? "stopped" : "failed";
+          // A refusal and a busy provider have notes of their own.
+          const failure =
+            controller.signal.aborted || code !== undefined || busy ? undefined : failureOf(error);
           target.end({
             status: ended,
             ...(code === undefined ? {} : { refusal: code }),
             ...(busy && !controller.signal.aborted ? { busy: true as const } : {}),
+            ...(failure === undefined ? {} : { failure }),
           });
         }
       } finally {
@@ -1960,7 +1989,13 @@ export function createChatStore(
       let raw = "";
       let sent: InspectedPrompt | undefined;
       /** The reply's end: status and macros filled once; a failed Replace puts the old one back. */
-      const endReply = ({ status, refusal, busy, finishReason }: Parameters<Target["end"]>[0]) => {
+      const endReply = ({
+        status,
+        refusal,
+        busy,
+        failure,
+        finishReason,
+      }: Parameters<Target["end"]>[0]) => {
         if (status === "failed" && replaced !== undefined) {
           const previous = replaced;
           patchMessage(messageId, (message) =>
@@ -1979,6 +2014,7 @@ export function createChatStore(
           status,
           ...(refusal === undefined ? {} : { refusal }),
           ...(busy === undefined ? {} : { busy }),
+          ...(failure === undefined ? {} : { failure }),
           ...(finishReason === undefined ? {} : { finishReason }),
         };
         if (thinkingFrom !== null && !thought) patch.thoughtMs = now() - thinkingFrom;
@@ -2564,6 +2600,7 @@ export function createChatStore(
               const {
                 refusal: _refusal,
                 busy: _busy,
+                failure: _failure,
                 failed: _failed,
                 finishReason: _finishReason,
                 ...rest

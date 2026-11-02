@@ -883,7 +883,9 @@ test("an empty failed alternate hides an older keeper failure over covered cast,
   await replyActions(page).getByRole("button", { name: "New reply" }).click();
   await expect(replyCounter(page)).toContainText("2 / 2");
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
-  await expect(lastReply(page).locator("[data-prose]")).toHaveText("Reply interrupted.");
+  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+    "No reply: the model's provider answered with an error. Try again.",
+  );
   await expect(again).toHaveCount(0);
   await expect(castStatus(page)).toHaveText("");
   await expect(castEntry(page, womanOf(covered))).toBeVisible();
@@ -913,7 +915,9 @@ test("an empty failed alternate hides an older keeper failure over covered cast,
 
   await replyCounter(page).getByRole("button", { name: "Next reply" }).click();
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
-  await expect(lastReply(page).locator("[data-prose]")).toHaveText("Reply interrupted.");
+  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+    "No reply: the model's provider answered with an error. Try again.",
+  );
   await expect(castEntry(page, womanOf(covered))).toBeVisible();
   await expect(castEntry(page, womanOf(uncovered))).toHaveCount(0);
   await expect(again).toHaveCount(0);

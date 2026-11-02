@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { MarkIcon } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
+import { MoreButton } from "@/components/more-button.tsx";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { useChat } from "../chat/session.ts";
@@ -101,9 +102,12 @@ export function ScreenHeader({
           )}
         >
           {phone && (
-            <Button size="icon" aria-label="Open navigation" onClick={() => setNavOpen(true)}>
-              <MarkIcon dripping writing={writing} size={24} />
-            </Button>
+            // The mark on a plate, so it reads as the control that opens the navigation.
+            <MoreButton
+              aria-label="Open navigation"
+              onClick={() => setNavOpen(true)}
+              mark={<MarkIcon dripping writing={writing} size={20} />}
+            />
           )}
           {lead}
           <h1

@@ -1,6 +1,5 @@
 import {
   Component,
-  type ComponentProps,
   lazy,
   type ReactNode,
   type RefObject,
@@ -9,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { HeaderAction } from "@/app/Browse.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { useScheme } from "@/app/theme.tsx";
@@ -153,39 +153,42 @@ function ChatHeader({
             {/* The roster scrolls away with the band; this keeps the cast in reach. */}
             <CastHeaderControl />
             <ChatMenu composer={composer} empty={empty} />
+            <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
+              <Button
+                ref={sessionToggle}
+                size="icon"
+                aria-label="Session"
+                aria-pressed={sessionOpen}
+                onClick={toggleSession}
+              >
+                <SessionIcon />
+              </Button>
+            </Tooltip>
           </>
         ) : (
           <>
             <MeterFigures />
             <MemoryMark />
-            <ClearChat composer={composer} trigger={<ClearTrigger disabled={empty} />} />
+            <ClearChat
+              composer={composer}
+              trigger={<HeaderAction label="Clear chat" icon={ClearIcon} disabled={empty} />}
+            />
             <PromptButton />
+            {/* Labelled from tablet up; the tooltip still teaches its shortcut. */}
+            <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
+              <HeaderAction
+                ref={sessionToggle}
+                label="Session"
+                icon={SessionIcon}
+                aria-pressed={sessionOpen}
+                onClick={toggleSession}
+                className="aria-pressed:bg-surface-selected aria-pressed:text-ink"
+              />
+            </Tooltip>
           </>
         )}
-        <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
-          <Button
-            ref={sessionToggle}
-            size="icon"
-            aria-label="Session"
-            aria-pressed={sessionOpen}
-            onClick={toggleSession}
-          >
-            <SessionIcon />
-          </Button>
-        </Tooltip>
       </div>
     </ScreenHeader>
-  );
-}
-
-/** Clear's icon button; the dialog trigger's props and ref reach the button under its tooltip. */
-function ClearTrigger(props: ComponentProps<typeof Button>) {
-  return (
-    <Tooltip label="Clear chat" side="bottom">
-      <Button size="icon" aria-label="Clear chat" {...props}>
-        <ClearIcon />
-      </Button>
-    </Tooltip>
   );
 }
 

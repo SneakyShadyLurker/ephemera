@@ -19,12 +19,14 @@ import {
   turns,
 } from "./support/chat.ts";
 import {
+  closeSession,
   createCharacterViaApi,
   createLorebookViaApi,
   expectNoOverflow,
   FORM_FACTORS,
   linkLorebookViaApi,
   loreEntry,
+  openSession,
   seriousAxeViolations,
   setLorebookViaApi,
   setPortraitViaApi,
@@ -1181,11 +1183,14 @@ test("on a short window a long greeting menu scrolls within the window, its last
 
 test("without a character the empty chat invites the first line, then offers a character, and the composer says nothing is kept", async ({
   page,
+  request,
 }) => {
+  await createCharacterViaApi(request, `Offered ${crypto.randomUUID().slice(0, 6)}`);
   await openChat(page, "mock-fast");
   const story = page.getByRole("log", { name: "Story" });
+  await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
-    [...node.querySelectorAll("p, button")]
+    [...node.querySelectorAll("p, button, a")]
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
@@ -1220,15 +1225,17 @@ test("the first run asks for a model first, in the empty story, and once it is c
   const step = story.getByRole("status").filter({ hasText: "Choose a model to begin" });
   await expect(step).toBeVisible();
   // One composition: the model's step comes first, then the invitation and the character.
+  // An empty library: the way forward is the gallery.
+  await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
-    [...node.querySelectorAll("p, button")]
+    [...node.querySelectorAll("p, button, a")]
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
   expect(said[0]).toBe("Choose a model to begin");
   expect(said.slice(-2)).toEqual([
     "Write the first line, or choose a character.",
-    "Choose a character",
+    "Create a character",
   ]);
   // The story holds the step, so no notice over the composer repeats it.
   await expect(page.locator("[data-model-notice]")).toHaveCount(1);
@@ -1240,7 +1247,28 @@ test("the first run asks for a model first, in the empty story, and once it is c
   await expect(step).toHaveCount(0);
   await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
   expect(await invitation.boundingBox()).toEqual(before);
-  await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
+  await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
+});
+
+test("with no characters saved, the empty story and Session both lead to the gallery", async ({
+  page,
+}) => {
+  await openChat(page, "mock-fast");
+  const story = page.getByRole("log", { name: "Story" });
+  await expect(story.getByRole("button", { name: "Choose a character" })).toHaveCount(0);
+  await openSession(page);
+  const session = page
+    .getByRole("complementary", { name: "Session" })
+    .or(page.getByRole("dialog", { name: "Session" }));
+  await expect(session.getByText("No characters yet. Add one in Characters.")).toBeVisible();
+  await expect(session.getByRole("link", { name: "Characters", exact: true })).toHaveAttribute(
+    "href",
+    "/characters",
+  );
+  await closeSession(page);
+  await story.getByRole("link", { name: "Create a character" }).click();
+  await expect(page).toHaveURL(/\/characters$/);
+  await expect(page.getByRole("heading", { name: "Characters", level: 1 })).toBeVisible();
 });
 
 test("a long unbroken word in the owner's line wraps inside its slip and leaves the story's width alone", async ({
@@ -1880,13 +1908,34 @@ test("the header shows no meter figures while the window has room, and keeps its
   await openChat(page, "mock-fast");
   const prompt = page.getByRole("button", { name: "Prompt", exact: true });
   const figures = page.locator("header [data-meter-figures]");
-  // At rest only the icons show; the figures keep their room, hidden, before the actions.
+  // At rest only the actions show, each with its word; the figures keep their room, hidden, before them.
   await expect(figures).toBeHidden();
   await expect(page.locator("header")).not.toContainText(" of ", { useInnerText: true });
+  const session = page.getByRole("button", { name: "Session", exact: true });
+  for (const [action, word] of [
+    [page.getByRole("button", { name: "Clear chat", exact: true }), "Clear chat"],
+    [prompt, "Prompt"],
+    [session, "Session"],
+  ] as const)
+    await expect(action).toHaveText(word);
   const before = await prompt.boundingBox();
   const clear = await page.getByRole("button", { name: "Clear chat" }).boundingBox();
   // Clear, Prompt and Session are one group, 4px apart.
   expect((before?.x ?? 0) - ((clear?.x ?? 0) + (clear?.width ?? 0))).toBe(4);
+  const sessionBox = await session.boundingBox();
+  expect((sessionBox?.x ?? 0) - ((before?.x ?? 0) + (before?.width ?? 0))).toBe(4);
+  // Open, Session shows its pressed ground; found by CSS, since an open sheet hides the header
+  // from the accessibility tree.
+  const toggle = page.locator("header button[aria-pressed]");
+  const ground = () => toggle.evaluate((node) => getComputedStyle(node).backgroundColor);
+  const rest = await ground();
+  await session.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.move(0, 0);
+  await expect.poll(ground).not.toBe(rest);
+  await closeSession(page);
+  if ((await toggle.getAttribute("aria-pressed")) === "true") await session.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await send(page, `${"word ".repeat(1_100)}${canary("in")}`);
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   await expect(figures).toBeHidden();
