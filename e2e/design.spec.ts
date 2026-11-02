@@ -207,6 +207,31 @@ test.describe("on a touch phone", () => {
     expect(Math.abs((await thread.evaluate((node) => node.scrollTop)) - kept)).toBeLessThan(2);
   });
 
+  test("back at the bottom through Latest, the story keeps its tail when the viewport shrinks", async ({
+    page,
+  }) => {
+    await openChat(page, "mock-long");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    const thread = scroller(page);
+    const gap = () =>
+      thread.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight);
+    await expect.poll(gap).toBeLessThan(4);
+    // Well away from the bottom, then back through Latest.
+    await thread.evaluate((node) => {
+      node.scrollTop -= 600;
+    });
+    const latest = page.getByRole("button", { name: /Latest/ });
+    await expect(latest).toBeVisible();
+    // Pressed where it is: a pointer click would first scroll the thread to reach it.
+    await latest.evaluate((button: HTMLButtonElement) => button.click());
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(latest).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 544 });
+    await expect.poll(() => thread.evaluate((node) => node.clientHeight)).toBeLessThan(500);
+    await expect.poll(gap).toBeLessThan(4);
+  });
+
   test("a lorebook's description and a linked book's name are 44px tall to the finger", async ({
     page,
   }) => {

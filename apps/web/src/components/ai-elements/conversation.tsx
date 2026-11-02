@@ -18,26 +18,24 @@ type ConversationProps = ComponentProps<typeof StickToBottom>;
 
 /**
  * While the story is locked to the bottom, a scroller that gets shorter keeps the bottom in
- * view. The context's `isAtBottom` also holds a little way up (near the bottom), so the lock is
- * `escapedFromLock`: an owner who scrolled up even slightly keeps their place.
+ * view. The lock is the library's live `state.isAtBottom`: any scroll up by the owner clears it,
+ * even a slight one, and Latest or a send sets it again. (The context's `isAtBottom` also holds
+ * near the bottom, and `escapedFromLock` can outlast a return through Latest.)
  */
 function KeepTail() {
-  const { scrollRef, isAtBottom, escapedFromLock, state, scrollToBottom } =
-    useStickToBottomContext();
-  const locked = isAtBottom && !escapedFromLock;
+  const { scrollRef, state, scrollToBottom } = useStickToBottomContext();
   useEffect(() => {
     const scroller = scrollRef.current;
-    if (!locked || scroller === null) return;
+    if (scroller === null) return;
     let height = scroller.clientHeight;
     const observer = new ResizeObserver(() => {
       const next = scroller.clientHeight;
-      // The lock is read live too: a scroll just before the resize may not have rendered yet.
-      if (next < height && !state.escapedFromLock) void scrollToBottom("instant");
+      if (next < height && state.isAtBottom) void scrollToBottom("instant");
       height = next;
     });
     observer.observe(scroller);
     return () => observer.disconnect();
-  }, [scrollRef, locked, state, scrollToBottom]);
+  }, [scrollRef, state, scrollToBottom]);
   return null;
 }
 
