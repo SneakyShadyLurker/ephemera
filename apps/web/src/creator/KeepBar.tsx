@@ -115,10 +115,11 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
             : `Keep ${noun}`;
 
   return (
-    // The scroller's gutters above it, so the bar's frame keeps the content's edges.
+    // The scroller's gutters above it, so the bar's frame keeps the content's edges. Its own
+    // view-transition group: it fades in over the card's arrival, not mixed into the text.
     <div
       className={cn(
-        "shrink-0 overflow-hidden border-rush border-t bg-canvas pb-[env(safe-area-inset-bottom)]",
+        "shrink-0 overflow-hidden border-rush border-t bg-canvas pb-[env(safe-area-inset-bottom)] [view-transition-name:creator-keep]",
         SCROLL_GUTTERS,
       )}
     >

@@ -80,6 +80,29 @@ test("the three kinds sit on aligned tracks, each label on one line, Brainstorm 
   expect(brainstorm?.y ?? 0).toBeGreaterThan((subject?.y ?? 0) + (subject?.height ?? 0));
 });
 
+test("Describe's field starts empty with a one-line cue, its example under it, and Create waits for text", async ({
+  page,
+}) => {
+  const cues = {
+    subject: "Describe who they are, what they want and how they speak.",
+    scenario: "Describe the place, the time and who is there.",
+  } as const;
+  for (const kind of ["subject", "scenario"] as const) {
+    await page.goto("/characters/create");
+    await page.locator(`[data-kind="${kind}"]`).click();
+    const field = page.getByRole("textbox", { name: COPY[kind].field });
+    await expect(field).toHaveValue("");
+    await expect(field).toHaveAttribute("placeholder", cues[kind]);
+    await expect(field).toHaveAccessibleDescription(/^For example: \S/);
+    await expect(page.getByText(/^For example: /)).toBeVisible();
+    await choose(page, "Model", "mock-fast");
+    const create = page.getByRole("button", { name: COPY[kind].create });
+    await expect(create).toBeDisabled();
+    await field.fill("A quiet archivist.");
+    await expect(create).toBeEnabled();
+  }
+});
+
 /** The gallery's confirmation after Keep. */
 const keptNote = (page: Page, name: string) =>
   page.getByRole("status").filter({ hasText: `Kept ${name}` });

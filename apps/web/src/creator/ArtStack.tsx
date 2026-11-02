@@ -34,7 +34,7 @@ import {
   useArtSessionHost,
 } from "./art-session.tsx";
 import type { ArtRun } from "./art-slice.ts";
-import { CardFrame, NameLeaf } from "./CardLayout.tsx";
+import { CardFrame, FRAME_GLIDE, NameLeaf } from "./CardLayout.tsx";
 import { CompositionChoice } from "./CompositionChoice.tsx";
 import { stepOption } from "./choice.ts";
 import { LookChoice } from "./LookChoice.tsx";
@@ -880,6 +880,7 @@ export function ArtStack({
           className={cn(
             "@container relative grid aspect-[2/3] w-24 overflow-hidden rounded-lg bg-surface",
             !phone && "@card:w-40",
+            FRAME_GLIDE,
           )}
         >
           <NameLeaf name={name} />

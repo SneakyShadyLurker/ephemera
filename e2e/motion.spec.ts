@@ -312,24 +312,47 @@ test("creator completion transitions the scrolled writing into the top of the sh
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.evaluate(() => {
     const start = document.startViewTransition.bind(document);
-    const state = { calls: 0 };
+    const state = { calls: 0, parts: [] as string[] };
     Object.assign(window, { completionTransitions: state });
     document.startViewTransition = (options) => {
       state.calls++;
-      return start(options);
+      const transition = start(options);
+      // Once the pseudo-element tree is built: the name of each animated part.
+      void transition.ready.then(() => {
+        state.parts = document
+          .getAnimations()
+          .flatMap((animation) =>
+            animation.effect instanceof KeyframeEffect && animation.effect.pseudoElement !== null
+              ? [animation.effect.pseudoElement]
+              : [],
+          );
+      });
+      return transition;
     };
   });
   await expect(page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT })).toBeVisible({
     timeout: 20_000,
   });
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(0);
-  expect(
-    await page.evaluate(
+  const transitions = () =>
+    page.evaluate(
       () =>
-        (window as unknown as { completionTransitions: { calls: number } }).completionTransitions
-          .calls,
-    ),
-  ).toBe(1);
+        (window as unknown as { completionTransitions: { calls: number; parts: string[] } })
+          .completionTransitions,
+    );
+  await expect.poll(async () => (await transitions()).parts.length).toBeGreaterThan(0);
+  const { calls, parts } = await transitions();
+  expect(calls).toBe(1);
+  // The frame and the name each glide as one shared element: a group that moves, holding
+  // the old and the new image, so neither is drawn twice in two places.
+  for (const name of ["creator-frame", "creator-heading"]) {
+    expect(parts).toContain(`::view-transition-group(${name})`);
+    expect(parts).toContain(`::view-transition-old(${name})`);
+    expect(parts).toContain(`::view-transition-new(${name})`);
+  }
+  // The Keep bar is new: it fades in as its own part, not inside the text's crossfade.
+  expect(parts).toContain("::view-transition-new(creator-keep)");
+  expect(parts).not.toContain("::view-transition-old(creator-keep)");
 });
 
 test("creator completion in a hidden document finishes without starting a view transition", async ({

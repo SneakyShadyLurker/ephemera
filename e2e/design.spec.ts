@@ -18,6 +18,8 @@ import {
   send,
   turns,
 } from "./support/chat.ts";
+import { createCard, KEEP_WITHOUT_PORTRAIT } from "./support/creator.ts";
+import { cardName, keptBase, ownerDescription } from "./support/creator-fixtures.ts";
 import {
   closeSession,
   createCharacterViaApi,
@@ -2715,6 +2717,40 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
   const sheet = page.getByRole("dialog", { name: "Filter and order" });
   await sheet.getByRole("button", { name: "Close filter and order" }).click();
   await expect(sheet).toHaveCount(0);
+});
+
+test("at 360px the kept note keeps its words on one line and Chat with Dismiss together", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  const base = keptBase();
+  const name = cardName("subject", base);
+  await createCard(page, {
+    kind: "subject",
+    description: ownerDescription(base),
+    model: "mock-fast",
+  });
+  await page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT }).click();
+  const note = page.getByRole("status").filter({ hasText: `Kept ${name}` });
+  await expect(note).toBeVisible({ timeout: 20_000 });
+  const words = note.getByText(`Kept ${name}`, { exact: true });
+  const chat = note.getByRole("button", { name: "Chat" });
+  const dismiss = note.getByRole("button", { name: "Dismiss" });
+  const box = async (part: Locator) => {
+    const laid = await part.boundingBox();
+    if (laid === null) throw new Error("A part of the kept note is not laid out");
+    return laid;
+  };
+  const text = await box(words);
+  const chatBox = await box(chat);
+  const dismissBox = await box(dismiss);
+  const leading = await words.evaluate((element) =>
+    Number.parseFloat(getComputedStyle(element).lineHeight),
+  );
+  expect(Math.round(text.height / leading)).toBe(1);
+  // One row: the outlined Chat is taller than the text-only Dismiss, so compare their middles.
+  expect(dismissBox.y + dismissBox.height / 2).toBeCloseTo(chatBox.y + chatBox.height / 2, 0);
+  expect(chatBox.y).toBeGreaterThanOrEqual(text.y + text.height);
 });
 
 test("an engraving follows the scheme: the night file by night, the print by day", async ({

@@ -13,15 +13,20 @@ export function KeptNote() {
   if (kept === null) return null;
   return (
     <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-note arrive">
-      <CheckIcon size={16} className="text-reed" />
-      <p className="min-w-0 break-words text-ink">Kept {kept.name}</p>
-      <Button size="text" variant="outline" onClick={() => start(kept.id, kept.name)}>
-        <ChatIcon size={16} />
-        Chat
-      </Button>
-      <Button size="text" onClick={() => keptStore.setState({ kept: null })}>
-        Dismiss
-      </Button>
+      {/* Text first; the actions wrap as one to the next line when the row is narrow. */}
+      <div className="flex min-w-0 items-center gap-x-3">
+        <CheckIcon size={16} className="shrink-0 text-reed" />
+        <p className="min-w-0 break-words text-ink">Kept {kept.name}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-x-3">
+        <Button size="text" variant="outline" onClick={() => start(kept.id, kept.name)}>
+          <ChatIcon size={16} />
+          Chat
+        </Button>
+        <Button size="text" onClick={() => keptStore.setState({ kept: null })}>
+          Dismiss
+        </Button>
+      </div>
       {dialog}
     </div>
   );

@@ -1,4 +1,5 @@
 import { Component, lazy, type ReactNode, type Ref, Suspense } from "react";
+import { GLIDE } from "@/app/glide.ts";
 import { LamplightRim } from "@/components/lamplight.tsx";
 import { cn } from "@/lib/cn";
 import { LEAF_EDGE } from "../portraits/Portrait.tsx";
@@ -75,6 +76,15 @@ export function FrameEdge() {
 }
 
 /**
+ * Shared elements of the writing-to-showcase handoff (CreateScreen's view
+ * transition): the card's frame (with or without art) and its heading each
+ * render once per state, so each glides as one from where the card was
+ * written to its place on the showcase rather than crossfading in two places.
+ */
+export const FRAME_GLIDE = `[view-transition-name:creator-frame] ${GLIDE}`;
+const HEADING_GLIDE = `[view-transition-name:creator-heading] ${GLIDE}`;
+
+/**
  * The 2:3 frame on the surface, and `progress` (0 to 1) as a thin dusk line
  * along its lower edge (a stage without a measure, `pending`, draws none). While its work runs (`busy`) the rim travels its
  * edge; when the work ends it closes if the work finished (`settled`) and
@@ -94,7 +104,7 @@ export function CardFrame({
   children?: ReactNode;
 }) {
   return (
-    <div className="relative isolate">
+    <div className={cn("relative isolate", FRAME_GLIDE)}>
       <div className="@container relative grid aspect-[2/3] w-full overflow-hidden rounded-lg bg-surface">
         {children}
         {typeof progress === "number" && (
@@ -239,7 +249,7 @@ export function CardHeading({
     <span aria-hidden="true" className={cn("caret", after !== "" && "ml-1")} />
   );
   return (
-    <header className="relative grid gap-3">
+    <header className={cn("relative grid gap-3", HEADING_GLIDE)}>
       <h2
         ref={headingRef}
         tabIndex={-1}
