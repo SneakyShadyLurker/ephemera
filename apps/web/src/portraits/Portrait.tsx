@@ -10,6 +10,9 @@ import { type PortraitOwner, type PortraitSize, portraitUrl } from "./queries.ts
 export const LEAF_EDGE =
   "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:border after:border-[color-mix(in_oklab,var(--ink)_10%,transparent)]";
 
+/** Within one screen of view, around the viewport and around every scroller on the way. */
+const NEAR_SCREEN: IntersectionObserverInit = { rootMargin: "100% 0px", scrollMargin: "100% 0px" };
+
 /** The shared-element name that carries a portrait from a gallery into its sheet. */
 export const PORTRAIT_TRANSITION = "character-portrait";
 
@@ -50,7 +53,9 @@ export function Portrait({
   // blur once they paint, and a replacement keeps the art it replaces until then.
   const [drawn, setDrawn] = useState(arriving ? null : src);
   if (!arriving && drawn !== src) setDrawn(src);
-  // The probe starts once the leaf comes on screen, so arrivals off screen fetch nothing yet.
+  // The probe starts once the leaf comes within a screen of view (as native lazy loading does),
+  // so arrivals far off screen fetch nothing yet; `scrollMargin` widens the screen's own
+  // scroller, which clips the leaf before the viewport does.
   useEffect(() => {
     const leaf = frame.current;
     if (!arriving || src === null || leaf === null) return;
@@ -65,7 +70,7 @@ export function Portrait({
       const probe = new Image();
       probe.src = src;
       probe.decode().then(show, show);
-    });
+    }, NEAR_SCREEN);
     observer.observe(leaf);
     return () => {
       current = false;
