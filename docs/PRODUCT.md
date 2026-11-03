@@ -114,7 +114,8 @@ Version 1.0 holds everything below.
   without a portrait keeps a quiet cover with the mark's crescent and lamp.
   An empty gallery says so on the same edges as a full one and offers
   Import cards as the first step; New character and Create with AI stay in
-  the header. Empty screens carry an engraving drawn in the palette's
+  the header, except that a phone gallery with cards offers Create with AI
+  once, under the search. Empty screens carry an engraving drawn in the palette's
   colours: the first run, the empty characters, personas, library and
   memories, the not-found and error screens, and Create with AI's three
   kinds. Populated views, settings, editors and notices have none.
@@ -819,6 +820,11 @@ Version 1.0 holds everything below.
   room before any reply. Continue clears the old reason while it writes and
   uses the new attempt's reason afterwards. A partial continuation leaves
   its cast snapshot stale until a complete reply can be processed.
+- A failed reply says why in the footer: the server could not be reached,
+  the connection dropped, or the provider answered with an error. One that
+  failed before any text leads its actions with Try again, which replaces
+  it in place; one cut off mid-stream keeps its text. A reply you stop
+  says Stopped.
 - Prompt inspector: the exact prompt of the last request, with the model's
   own count, how much of it the provider's prompt cache served, and what
   the model wrote and how much of that was reasoning when the provider
@@ -889,7 +895,9 @@ Version 1.0 holds everything below.
   model is instead the empty story's first step, before its invitation to
   write. A choice made there
   folds the notice or step away and returns focus to the message, its
-  draft kept. Enter in the message leads to the picker until then. The cast waits for a usable model, saying what it waits for
+  draft kept. With no character saved yet, the empty story offers Create a
+  character, which opens the gallery, and Session's character field says
+  where to add one. Enter in the message leads to the picker until then. The cast waits for a usable model, saying what it waits for
   rather than failing, and reads the card as soon as one is chosen.
 - Settings also hold a context limit per model, 131,072 tokens unless set
   there. The context in use, which sets the token budget, is the smaller
