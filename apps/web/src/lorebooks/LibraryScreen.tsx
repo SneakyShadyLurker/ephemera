@@ -7,6 +7,7 @@ import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress, JSON_FILE_TYPES } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
+import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import { ImportIcon, PlusIcon } from "@/components/icons";
@@ -252,11 +253,13 @@ export function LibraryScreen() {
                 ? "Copying to library…"
                 : notice}
           </p>
-          {failure !== null && (
-            <p role="alert" className="text-pretty text-ember text-note">
-              {failure}
-            </p>
-          )}
+          <NoticeSlot value={failure}>
+            {(text) => (
+              <p role="alert" className="text-pretty text-ember text-note">
+                {text}
+              </p>
+            )}
+          </NoticeSlot>
           {reports.map((report) => (
             <ImportReportLine
               key={report.key}

@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { oneOf } from "@/lib/one-of.ts";
 import { countOf } from "@/lib/text";
-import { FIELD, HELP } from "../sheet/fields.ts";
+import { FIELD, HELP, TITLE_FIELD } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { activationChange, entryKeyProblems, isActivation, secondaryKeyProblems } from "./book.ts";
@@ -166,7 +166,7 @@ export function EntryEditor(props: EntryEditorProps) {
           maxLength={CARD_LIMITS.textLength}
           autoComplete="off"
           onChange={(event) => onChange({ comment: event.target.value })}
-          className="-mx-1.5 min-w-48 flex-1 basis-48 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-semibold text-heading text-ink outline-none transition-[border-color,background-color] duration-(--duration-tint) placeholder:text-reed hover:border-rush focus:border-dusk-line focus:bg-surface touch:border-b-rush"
+          className={cn(TITLE_FIELD, "min-w-48 flex-1 basis-48 py-0.5 text-heading")}
         />
         <div className="flex shrink-0 items-center gap-2">
           <label className="flex h-9 items-center gap-2 text-ink text-ui touch:h-11">

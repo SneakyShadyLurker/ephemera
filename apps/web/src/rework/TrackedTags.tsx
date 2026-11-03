@@ -3,14 +3,14 @@ import type { ReviewItem } from "./ReviewField.tsx";
 import { TrackedKeys } from "./TrackedKeys.tsx";
 
 /*
- * The card's tags under review, in the tags field's place: the field's
- * label, then each change as chips. The list after a change is what Apply
- * would write of it, computed by core's one owner of application.
+ * The card's tags under review, in the tags field's place and, like it,
+ * named for assistive technology only: each change as chips. The list
+ * after a change is what Apply would write of it, computed by core's one
+ * owner of application.
  */
 export function TrackedTags({ base, items }: { base: ReworkCard; items: ReviewItem[] }) {
   return (
-    <div className="grid gap-1.5">
-      <span className="text-note text-reed">Tags</span>
+    <fieldset aria-label="Tags" className="grid min-w-0 gap-1.5">
       {items.map((item) => (
         <TrackedKeys
           key={item.change.at}
@@ -21,6 +21,6 @@ export function TrackedTags({ base, items }: { base: ReworkCard; items: ReviewIt
           framed
         />
       ))}
-    </div>
+    </fieldset>
   );
 }

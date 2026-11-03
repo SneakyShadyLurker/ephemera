@@ -8,7 +8,7 @@ import {
   portraits,
   recordArt,
 } from "./support/creator.ts";
-import { keptBase, mark } from "./support/creator-fixtures.ts";
+import { keptBase, mark, portraitPng } from "./support/creator-fixtures.ts";
 import { choose, patchSettings } from "./support/entities.ts";
 import { openProfile, serverHopsHolding } from "./support/retention.ts";
 import { FRAGMENT_OFFSETS, filesContaining, imageFragments } from "./support/scan.ts";
@@ -530,4 +530,78 @@ test("under reduced motion the reveal completes", async ({ comfy, page, request 
   await expect(frame).toHaveCSS("filter", "none");
   await expect(frame).toHaveCSS("opacity", "1");
   await expect(portraits(page)).toHaveCSS("opacity", "1");
+});
+
+test("an uploaded portrait surfaces once its pixels are ready, and a replaced one surfaces again", async ({
+  page,
+  request,
+}) => {
+  const base = keptBase();
+  const id = await createArtCharacter(request, base);
+  await page.goto(`/characters/${id}`);
+  const identity = page.locator("#s-identity");
+  await expect(identity.getByRole("button", { name: "Add portrait" })).toBeEnabled();
+  // Every portrait node the sheet inserts, as it is inserted: whether its pixels are there and
+  // what its transition starts from, then the first node's fate once the second arrives.
+  const surfaced = identity.evaluate(
+    (root) =>
+      new Promise<{
+        samples: { drawn: boolean; filter: string; easing: string[] }[];
+        replaced: boolean;
+      }>((resolve) => {
+        const nodes: HTMLImageElement[] = [];
+        const samples: { drawn: boolean; filter: string; easing: string[] }[] = [];
+        const observer = new MutationObserver((records) => {
+          for (const record of records)
+            for (const added of record.addedNodes) {
+              if (!(added instanceof Element)) continue;
+              const images = added.matches("img") ? [added] : [...added.querySelectorAll("img")];
+              for (const image of images) {
+                if (!(image instanceof HTMLImageElement)) continue;
+                nodes.push(image);
+                samples.push({
+                  drawn: image.complete && image.naturalWidth > 0,
+                  filter: getComputedStyle(image).filter,
+                  easing: image
+                    .getAnimations()
+                    .flatMap((run) =>
+                      run instanceof CSSTransition ? [run.transitionProperty] : [],
+                    ),
+                });
+              }
+            }
+          if (nodes.length < 2) return;
+          observer.disconnect();
+          resolve({ samples, replaced: nodes[0] !== nodes[1] && !nodes[0]?.isConnected });
+        });
+        observer.observe(root, { childList: true, subtree: true });
+      }),
+  );
+  const picker = identity.locator('input[type="file"]');
+  const upload = (marker: string) =>
+    picker.setInputFiles({
+      name: "portrait.png",
+      mimeType: "image/png",
+      buffer: portraitPng(`${base}-${marker}`),
+    });
+  const portrait = identity.locator('img[src*="/portrait/image"]');
+  const actions = identity.getByRole("button", { name: "Portrait actions" });
+
+  await upload("first");
+  await expect(portrait).toHaveCSS("filter", "none");
+  await expect(actions).toBeEnabled();
+  const first = await portrait.getAttribute("src");
+  // Replace in the portrait's menu opens this same picker.
+  await upload("second");
+  const { samples, replaced } = await surfaced;
+  expect(replaced).toBe(true);
+  for (const sample of samples) {
+    // Inserted with its pixels decoded, starting from the blur it eases out of.
+    expect(sample.drawn).toBe(true);
+    expect(sample.filter).toContain("blur");
+    expect(sample.easing).toContain("filter");
+  }
+  await expect(portrait).toHaveCount(1);
+  await expect(portrait).not.toHaveAttribute("src", first ?? "");
+  await expect(portrait).toHaveCSS("filter", "none");
 });

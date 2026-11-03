@@ -20,7 +20,7 @@ import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import { portraitStatusLabel, portraitStatusLine } from "../settings/pictures.ts";
 import { useSetting, useSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
-import { REQUEST_FIELD } from "../sheet/fields.ts";
+import { HELP, REQUEST_FIELD } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { StatusDot } from "../workflows/WorkflowRow.tsx";
 import { COLUMN, KINDS } from "./Choose.tsx";
@@ -32,22 +32,28 @@ import { useCreator } from "./session.ts";
 import { inTransition, kindTransition } from "./transition.ts";
 import { WorkflowSelect } from "./WorkflowSelect.tsx";
 
-const COPY: Record<CreatorKind, { heading: string; placeholder: string; create: string }> = {
+const COPY: Record<
+  CreatorKind,
+  { heading: string; placeholder: string; example: string; create: string }
+> = {
   subject: {
     heading: "Who do you want to meet?",
-    placeholder:
+    placeholder: "Who they are and what they want.",
+    example:
       "A lighthouse keeper's daughter in her thirties who has never left the island. Sharp-tongued, quietly kind, and writing letters to a stranger on the mainland she has never met.",
     create: "Create character",
   },
   group: {
     heading: "Who do you want to meet?",
-    placeholder:
+    placeholder: "Who they are and what they want.",
+    example:
       "Two sisters who run a failing vineyard in the hills, one back from ten years in the city, one who never left. They love each other and keep score of everything.",
     create: "Create characters",
   },
   scenario: {
     heading: "Where do you want to go?",
-    placeholder:
+    placeholder: "The place, the time, who is there.",
+    example:
       "A rain-soaked harbour town in the 1920s, where a smuggler, a tired harbour master and a newly arrived detective all want the same ledger. Slow-burning, foggy, morally grey.",
     create: "Create scenario",
   },
@@ -111,6 +117,7 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
   const workflowLabel = useId();
   const portraits = useSetting((settings) => settings.comfyuiBaseUrl) !== "";
   const reason = useId();
+  const example = useId();
   const copy = COPY[kind];
   const { label, Icon } = KINDS[kind];
   const ready = description.trim() !== "" && model !== null;
@@ -168,20 +175,25 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
       >
         <label htmlFor={fieldId}>{copy.heading}</label>
       </h2>
-      <textarea
-        ref={field}
-        id={fieldId}
-        data-lamp-field=""
-        value={description}
-        onChange={(event) => setDescription(event.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={copy.placeholder}
-        maxLength={CREATOR_LIMITS.descriptionLength}
-        autoComplete="off"
-        translate="no"
-        aria-describedby={unavailable === null ? undefined : reason}
-        className={cn(REQUEST_FIELD, "max-h-[min(28rem,42dvh)] min-h-[calc(6*1.75rem+1.5rem)]")}
-      />
+      <div className="grid gap-2">
+        <textarea
+          ref={field}
+          id={fieldId}
+          data-lamp-field=""
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={copy.placeholder}
+          maxLength={CREATOR_LIMITS.descriptionLength}
+          autoComplete="off"
+          translate="no"
+          aria-describedby={unavailable === null ? example : `${example} ${reason}`}
+          className={cn(REQUEST_FIELD, "max-h-[min(28rem,42dvh)] min-h-[calc(6*1.75rem+1.5rem)]")}
+        />
+        <p id={example} className={HELP}>
+          For example: {copy.example}
+        </p>
+      </div>
       <div className="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
           <span id={modelLabel} className="font-medium text-ink text-ui">

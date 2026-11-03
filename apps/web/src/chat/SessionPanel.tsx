@@ -3,7 +3,8 @@ import { offeredEfforts } from "@ephemera/core";
 import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useId, useState } from "react";
-import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
+import { canDock, useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
+import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
 import { CloseIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
@@ -24,6 +25,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
+import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
 import { useContextWindow, useModelInfo, useModelOptions } from "../api.ts";
 import { charactersQuery } from "../characters/queries.ts";
@@ -49,6 +51,9 @@ import { useStartChat } from "./StartChat.tsx";
 
 /** Session's sheet, below the docked width. */
 export const SESSION_SHEET = "[data-session-sheet]";
+/** Session docked beside the thread. */
+const SESSION_DOCK = "[data-session-dock]";
+const FIRST_CONTROL = 'button, [tabindex="0"], select, input, textarea';
 
 /**
  * Session settings for this chat. Docked beside the thread on wide desktops,
@@ -58,6 +63,12 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
   const open = useUi((state) => state.sessionOpen);
   const formFactor = useFormFactor();
   const docked = useCanDock();
+  // Docking swaps the aside for a sheet, or back: focus inside Session stays inside it.
+  useFocusAcrossLayout(docked, (lost) => {
+    if (lost.closest(`${SESSION_DOCK}, ${SESSION_SHEET}`) === null) return null;
+    const panel = document.querySelector<HTMLElement>(docked ? SESSION_DOCK : SESSION_SHEET);
+    return panel?.querySelector<HTMLElement>(FIRST_CONTROL);
+  });
 
   if (docked) {
     return (
@@ -65,6 +76,7 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
         <Collapsible.Panel
           render={<aside />}
           aria-labelledby="session-title"
+          data-session-dock=""
           data-leaving={open ? undefined : ""}
           inert={!open}
           className="dock-side shrink-0 overflow-clip"
@@ -101,7 +113,11 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
       swipeDirection={phone ? "down" : "right"}
       showSwipeHandle={phone}
     >
-      <DrawerContent data-session-sheet="">
+      {/*
+       * Gone because the window now docks Session, the sheet leaves focus to the dock
+       * (`useFocusAcrossLayout`) instead of returning it to the toggle after it.
+       */}
+      <DrawerContent data-session-sheet="" finalFocus={() => !canDock()}>
         <DrawerHeader>
           <DrawerTitle>Session</DrawerTitle>
           <DrawerCloseIcon label="Close Session" />
@@ -163,9 +179,25 @@ function CharacterField() {
   const current = useChatCharacter();
   const { start, dialog } = useStartChat();
   const list = characters.data ?? [];
+  // An empty library has nothing to switch to: the note points to where characters come from.
+  const note =
+    characters.data?.length === 0 ? (
+      <>
+        No characters yet. Add one in{" "}
+        <Link
+          to="/characters"
+          className="underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
+        >
+          Characters
+        </Link>
+        .
+      </>
+    ) : (
+      "Switching starts a new chat."
+    );
 
   return (
-    <Field label="Character" note="Switching starts a new chat.">
+    <Field label="Character" note={note}>
       {(labelId) => (
         <>
           <Select
@@ -274,16 +306,29 @@ function PersonaField() {
           Always use with {character.name}
         </label>
       )}
-      {failed && (
-        <p role="alert" className="text-ember text-note">
-          Not changed: {notReachedText}.
-        </p>
-      )}
-      {moved && (
-        <p role="status" className="text-pretty text-note text-reed arrive">
-          {moved}
-        </p>
-      )}
+      {/* The grid's gap moves inside the slot, so it folds away with the line. */}
+      <NoticeSlot
+        className="-mt-2"
+        value={
+          failed
+            ? ({ kind: "alert", text: `Not changed: ${notReachedText}.` } as const)
+            : moved
+              ? ({ kind: "status", text: moved } as const)
+              : null
+        }
+      >
+        {(notice) => (
+          <p
+            role={notice.kind}
+            className={cn(
+              "text-pretty pt-2 text-note",
+              notice.kind === "alert" ? "text-ember" : "text-reed",
+            )}
+          >
+            {notice.text}
+          </p>
+        )}
+      </NoticeSlot>
     </div>
   );
 }

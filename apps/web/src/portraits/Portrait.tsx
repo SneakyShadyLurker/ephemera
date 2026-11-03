@@ -1,4 +1,4 @@
-import { type CSSProperties, useRef } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { GLIDE } from "@/app/glide.ts";
 import { useOnScreen } from "@/app/KeptScroll.tsx";
 import { MarkIcon } from "@/components/icons";
@@ -9,6 +9,9 @@ import { type PortraitOwner, type PortraitSize, portraitUrl } from "./queries.ts
 /** A 10% ink hairline inside the edge, so pale art keeps its shape on the canvas. */
 export const LEAF_EDGE =
   "after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:border after:border-[color-mix(in_oklab,var(--ink)_10%,transparent)]";
+
+/** Within one screen of view, around the viewport and around every scroller on the way. */
+const NEAR_SCREEN: IntersectionObserverInit = { rootMargin: "100% 0px", scrollMargin: "100% 0px" };
 
 /** The shared-element name that carries a portrait from a gallery into its sheet. */
 export const PORTRAIT_TRANSITION = "character-portrait";
@@ -45,6 +48,35 @@ export function Portrait({
   const shown = useOnScreen(frame, transition);
   const style: CSSProperties | undefined =
     transition && shown ? { viewTransitionName: PORTRAIT_TRANSITION } : undefined;
+  const src = version === null ? null : portraitUrl(owner, id, version, size);
+  // The art on the leaf. Arriving art waits for its pixels, so it surfaces out of
+  // blur once they paint, and a replacement keeps the art it replaces until then.
+  const [drawn, setDrawn] = useState(arriving ? null : src);
+  if (!arriving && drawn !== src) setDrawn(src);
+  // The probe starts once the leaf comes within a screen of view (as native lazy loading does),
+  // so arrivals far off screen fetch nothing yet; `scrollMargin` widens the screen's own
+  // scroller, which clips the leaf before the viewport does.
+  useEffect(() => {
+    const leaf = frame.current;
+    if (!arriving || src === null || leaf === null) return;
+    let current = true;
+    // A refused decode shows the image anyway; the element reports its own failure.
+    const show = () => {
+      if (current) setDrawn(src);
+    };
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      const probe = new Image();
+      probe.src = src;
+      probe.decode().then(show, show);
+    }, NEAR_SCREEN);
+    observer.observe(leaf);
+    return () => {
+      current = false;
+      observer.disconnect();
+    };
+  }, [arriving, src]);
   return (
     <div
       ref={frame}
@@ -56,20 +88,21 @@ export function Portrait({
         className,
       )}
     >
-      {version !== null ? (
+      {version === null ? (
+        <div className="flex size-full items-end p-[9%]">
+          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
+        </div>
+      ) : drawn === null ? null : (
+        // A new version is a new node, so a replacement surfaces again.
         <img
-          key={renewals}
-          src={portraitUrl(owner, id, version, size)}
+          key={`${renewals}:${drawn}`}
+          src={drawn}
           alt=""
           loading="lazy"
           decoding="async"
           draggable={false}
           className={cn("size-full object-cover object-top", arriving && "surface-in")}
         />
-      ) : (
-        <div className="flex size-full items-end p-[9%]">
-          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
-        </div>
       )}
     </div>
   );

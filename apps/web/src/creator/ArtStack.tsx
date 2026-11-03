@@ -34,7 +34,7 @@ import {
   useArtSessionHost,
 } from "./art-session.tsx";
 import type { ArtRun } from "./art-slice.ts";
-import { CardFrame, NameLeaf } from "./CardLayout.tsx";
+import { CardFrame, FRAME_GLIDE, NameLeaf } from "./CardLayout.tsx";
 import { CompositionChoice } from "./CompositionChoice.tsx";
 import { stepOption } from "./choice.ts";
 import { LookChoice } from "./LookChoice.tsx";
@@ -163,7 +163,7 @@ function Alternates({
           disabled={locked}
           onClick={(event) => onChoose(index, event.currentTarget)}
           className={cn(
-            "press relative aspect-[2/3] overflow-hidden rounded-xs transition-[box-shadow,filter] duration-(--duration-quick) ease-fade hover:brightness-[1.04] disabled:cursor-default",
+            "press relative aspect-[2/3] overflow-hidden rounded-xs hover:brightness-[1.04] disabled:cursor-default",
             LEAF_EDGE,
             GLIDE,
             index === selected && "shadow-[0_0_0_2px_var(--canvas),0_0_0_4px_var(--dusk)]",
@@ -880,6 +880,7 @@ export function ArtStack({
           className={cn(
             "@container relative grid aspect-[2/3] w-24 overflow-hidden rounded-lg bg-surface",
             !phone && "@card:w-40",
+            FRAME_GLIDE,
           )}
         >
           <NameLeaf name={name} />

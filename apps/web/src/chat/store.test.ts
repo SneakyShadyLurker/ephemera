@@ -50,7 +50,7 @@ import {
   shownReply,
   spanToRemember,
 } from "./store.ts";
-import type { PreviewResult, ReplyUpdate } from "./transport.ts";
+import { GenerationError, type PreviewResult, type ReplyUpdate } from "./transport.ts";
 
 const CLOCK = { now: Date.UTC(2026, 8, 29, 19, 42), timeZone: "Europe/Berlin" };
 
@@ -298,6 +298,11 @@ describe("chat store", () => {
     reply.finish(new DOMException("aborted", "AbortError"));
     await sending;
     expect(last(store.getState())).toMatchObject({ text: "half a", status: "stopped" });
+    // The abort's DOMException code is no refusal, so the reply's note says Stopped.
+    const message = store.getState().messages.at(-1);
+    const stopped = message?.role === "assistant" ? shownReply(message) : undefined;
+    expect(stopped).toMatchObject({ status: "stopped" });
+    expect(stopped).not.toHaveProperty("refusal");
   });
 
   it("Stop wins when the aborted stream ends without an error", async () => {
@@ -326,6 +331,28 @@ describe("chat store", () => {
     ]);
     reply.finish();
     await second;
+  });
+
+  it.each([
+    ["the server out of reach", new TypeError("Failed to fetch"), { failure: "unreachable" }],
+    ["an error answer", new GenerationError("http"), { failure: "server" }],
+    ["a provider's error event", new GenerationError("provider"), { failure: "provider" }],
+    ["a dropped stream", new GenerationError("stream"), { failure: "stream" }],
+    ["a busy provider", new GenerationError("provider", undefined, true), { busy: true }],
+    [
+      "a refusal",
+      new GenerationError("refused", "prompt_too_long"),
+      { refusal: "prompt_too_long" },
+    ],
+  ] as const)("records why a reply failed: %s", async (_, error, why) => {
+    const { store, reply } = readyStore();
+    const sending = store.getState().send();
+    reply.finish(error);
+    await sending;
+    const message = store.getState().messages.at(-1);
+    const failed = message?.role === "assistant" ? shownReply(message) : undefined;
+    expect(failed).toMatchObject({ status: "failed", ...why });
+    if (!("failure" in why)) expect(failed?.failure).toBeUndefined();
   });
 
   it("sends the chosen presets, character and persona with the model and the clock", async () => {

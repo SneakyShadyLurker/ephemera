@@ -30,6 +30,7 @@ import { Illustration } from "@/components/illustration.tsx";
 import { hasReport, ReportGroups } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Unfold } from "@/components/ui/disclosure";
 import {
   Drawer,
   DrawerCloseIcon,
@@ -112,7 +113,10 @@ export function GalleryScreen() {
       <ScreenHeader title={<GalleryTitle list={list} />} frame={frame} gutters={SCROLL_GUTTERS}>
         <HeaderAction label="Import cards" icon={ImportIcon} onClick={openPicker} />
         <HeaderAction label="New character" icon={PlusIcon} onClick={newCharacter} />
-        <HeaderAction label="Create with AI" icon={LampFlameIcon} onClick={createWithAi} />
+        {/* Phones name it under the search instead, while the cast shows. */}
+        {(!phone || characters.isError || empty) && (
+          <HeaderAction label="Create with AI" icon={LampFlameIcon} onClick={createWithAi} />
+        )}
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -211,7 +215,7 @@ function Toolbar({
       {tags.length > 0 && (
         <ul
           aria-label="Active tag filters"
-          className="flex flex-wrap items-center gap-1.5 transition-opacity duration-(--duration-quick) starting:opacity-0"
+          className="flex flex-wrap items-center gap-1.5 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
         >
           {tags.map((tag) => (
             <li key={tag} className="arrive">
@@ -375,6 +379,7 @@ function ImportReport() {
   const report = cardImports.use((state) => state.report);
   const importing = cardImports.use((state) => state.importing);
   const [details, setDetails] = useState(false);
+  const detailsId = useId();
   if (importing !== null) {
     return (
       <p role="status" className="text-note text-reed">
@@ -401,7 +406,7 @@ function ImportReport() {
         ? `${failed[0]?.file} was not imported: ${failed[0]?.reason}.`
         : `${failed.length} were not imported.`;
   return (
-    <div role="status" className="grid gap-2 arrive">
+    <div role="status" className="grid arrive">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-note">
         {imported.length > 0 && <CheckIcon size={16} className="text-reed" />}
         <p className="text-ink">
@@ -410,7 +415,12 @@ function ImportReport() {
           {failures && <span className="text-ember">{failures}</span>}
         </p>
         {(failed.length > 1 || imported.some(({ report }) => hasReport(report))) && (
-          <Button size="text" aria-expanded={details} onClick={() => setDetails(!details)}>
+          <Button
+            size="text"
+            aria-expanded={details}
+            aria-controls={detailsId}
+            onClick={() => setDetails(!details)}
+          >
             {details ? "Hide details" : "Show details"}
           </Button>
         )}
@@ -418,28 +428,28 @@ function ImportReport() {
           Dismiss
         </Button>
       </div>
-      {details &&
-        imported.map(
-          (outcome) =>
-            hasReport(outcome.report) && (
-              <div
-                key={outcome.id}
-                className="grid gap-3 border-rush border-l pl-4 text-note transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
-              >
-                <p className="font-medium text-ink">{outcome.name}</p>
-                <ReportGroups report={outcome.report} />
-              </div>
-            ),
-        )}
-      {details && failed.length > 0 && (
-        <ul className="grid max-h-48 gap-1 overflow-y-auto border-rush border-l pl-4 text-note">
-          {failed.map((outcome) => (
-            <li key={outcome.key} className="text-reed">
-              <span className="text-ink">{outcome.file}</span>: {outcome.reason}.
-            </li>
-          ))}
-        </ul>
-      )}
+      <Unfold show={details} id={detailsId}>
+        <div className="grid gap-2 pt-2">
+          {imported.map(
+            (outcome) =>
+              hasReport(outcome.report) && (
+                <div key={outcome.id} className="grid gap-3 border-rush border-l pl-4 text-note">
+                  <p className="font-medium text-ink">{outcome.name}</p>
+                  <ReportGroups report={outcome.report} />
+                </div>
+              ),
+          )}
+          {failed.length > 0 && (
+            <ul className="grid max-h-48 gap-1 overflow-y-auto border-rush border-l pl-4 text-note">
+              {failed.map((outcome) => (
+                <li key={outcome.key} className="text-reed">
+                  <span className="text-ink">{outcome.file}</span>: {outcome.reason}.
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Unfold>
     </div>
   );
 }

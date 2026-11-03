@@ -18,11 +18,17 @@ import {
   send,
   turns,
 } from "./support/chat.ts";
+import { createCard, KEEP_WITHOUT_PORTRAIT } from "./support/creator.ts";
+import { cardName, keptBase, ownerDescription } from "./support/creator-fixtures.ts";
 import {
+  closeSession,
   createCharacterViaApi,
+  createLorebookViaApi,
   expectNoOverflow,
   FORM_FACTORS,
+  linkLorebookViaApi,
   loreEntry,
+  openSession,
   seriousAxeViolations,
   setLorebookViaApi,
   setPortraitViaApi,
@@ -117,6 +123,29 @@ for (const { name, width, height } of FORM_FACTORS) {
   });
 }
 
+test("focus in the Session sheet stays in Session when it docks on a wider window", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openChat(page, "mock-fast");
+  await page.getByRole("button", { name: "Session", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Session" });
+  const model = sheet.getByRole("combobox", { name: "Model", exact: true });
+  await model.focus();
+  await expect(model).toBeFocused();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const dock = page.getByRole("complementary", { name: "Session" });
+  await expect(dock).toBeVisible();
+  const focusInDock = () =>
+    page.evaluate(() => (document.activeElement?.closest("[data-session-dock]") ?? null) !== null);
+  await expect.poll(focusInDock).toBe(true);
+  // Still there once the sheet's own focus return has had its turn.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  expect(await focusInDock()).toBe(true);
+});
+
 test.describe("on a touch phone", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
@@ -126,6 +155,147 @@ test.describe("on a touch phone", () => {
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expectComposerAndActionsFit(page, 390);
+  });
+
+  test("the story's tail stays in view when the viewport shrinks", async ({ page }) => {
+    await openChat(page, "mock-long");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    const thread = scroller(page);
+    const gap = () =>
+      thread.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight);
+    await expect.poll(gap).toBeLessThan(4);
+    const lastLine = lastReply(page).locator("[data-prose] p").last();
+    const tailInView = async () => {
+      const line = await lastLine.boundingBox();
+      const view = await thread.boundingBox();
+      return (line?.y ?? Number.NaN) + (line?.height ?? 0) - ((view?.y ?? 0) + (view?.height ?? 0));
+    };
+    // The on-screen keyboard takes 300px of the window, as `resizes-content` reports it.
+    await page.setViewportSize({ width: 390, height: 544 });
+    await expect.poll(() => thread.evaluate((node) => node.clientHeight)).toBeLessThan(500);
+    await expect.poll(tailInView).toBeLessThanOrEqual(1);
+    await expect.poll(gap).toBeLessThan(4);
+    // Closing it keeps the bottom.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(gap).toBeLessThan(4);
+    await expect.poll(tailInView).toBeLessThanOrEqual(1);
+  });
+
+  test("a story scrolled up a little keeps its place when the viewport shrinks", async ({
+    page,
+  }) => {
+    await openChat(page, "mock-long");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    const thread = scroller(page);
+    const gap = () =>
+      thread.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight);
+    await expect.poll(gap).toBeLessThan(4);
+    // Less than the near-bottom margin, so the story still counts as at the bottom.
+    await thread.evaluate((node) => {
+      node.scrollTop -= 40;
+    });
+    const kept = await thread.evaluate((node) => node.scrollTop);
+    await expect.poll(gap).toBeGreaterThan(30);
+    await page.setViewportSize({ width: 390, height: 544 });
+    await expect.poll(() => thread.evaluate((node) => node.clientHeight)).toBeLessThan(500);
+    // A frame for any snap to land, then the owner's place is where they left it.
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    expect(Math.abs((await thread.evaluate((node) => node.scrollTop)) - kept)).toBeLessThan(2);
+  });
+
+  test("back at the bottom through Latest, the story keeps its tail when the viewport shrinks", async ({
+    page,
+  }) => {
+    await openChat(page, "mock-long");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    const thread = scroller(page);
+    const gap = () =>
+      thread.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight);
+    await expect.poll(gap).toBeLessThan(4);
+    // Well away from the bottom, then back through Latest.
+    await thread.evaluate((node) => {
+      node.scrollTop -= 600;
+    });
+    const latest = page.getByRole("button", { name: /Latest/ });
+    await expect(latest).toBeVisible();
+    // Pressed where it is: a pointer click would first scroll the thread to reach it.
+    await latest.evaluate((button: HTMLButtonElement) => button.click());
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(latest).toBeHidden();
+    await page.setViewportSize({ width: 390, height: 544 });
+    await expect.poll(() => thread.evaluate((node) => node.clientHeight)).toBeLessThan(500);
+    await expect.poll(gap).toBeLessThan(4);
+  });
+
+  test("a lorebook's description and a linked book's name are 44px tall to the finger", async ({
+    page,
+  }) => {
+    const character = uniqueName("Reach");
+    const characterId = await createCharacterViaApi(page.request, character);
+    const book = uniqueName("Harbour lore");
+    const id = await createLorebookViaApi(page.request, book, {
+      description: "Tides and bells.",
+      entries: [],
+    });
+    await linkLorebookViaApi(page.request, id, characterId);
+    // The hit box: the element's own box, and what a finger at its top and bottom edges lands on.
+    const hitBox = (target: Locator) =>
+      target.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const x = box.left + Math.min(box.width / 2, 8);
+        const misses = [box.top + 1, box.bottom - 1].flatMap((y) => {
+          const hit = document.elementFromPoint(x, y);
+          return node.contains(hit) ? [] : [`${hit?.tagName} ${hit?.className}`];
+        });
+        return { tall: box.height >= 44, misses };
+      });
+
+    await page.goto(`/lorebooks/${id}`);
+    const description = page.getByRole("button", { name: "Edit description: Tides and bells." });
+    await expect(description).toBeVisible();
+    await expect.poll(() => hitBox(description)).toEqual({ tall: true, misses: [] });
+
+    await page.goto(`/characters/${characterId}`);
+    const link = page
+      .getByRole("list", { name: "Linked lorebooks" })
+      .getByRole("link", { name: book });
+    await link.scrollIntoViewIfNeeded();
+    await expect.poll(() => hitBox(link)).toEqual({ tall: true, misses: [] });
+  });
+
+  test("the sheet's portrait has New art and its More on one row under it", async ({ page }) => {
+    const id = await createCharacterViaApi(page.request, uniqueName("Plate"));
+    await setPortraitViaApi(page.request, id, solidPng([90, 110, 130]));
+    await page.goto(`/characters/${id}`);
+    const identity = page.locator("#s-identity");
+    const portrait = identity.locator('img[src*="/portrait/image"]');
+    const newArt = identity.getByRole("button", { name: "New art" });
+    const more = identity.getByRole("button", { name: "Portrait actions" });
+    await expect(portrait).toBeVisible();
+    await expect(more).toBeVisible();
+    const [frame, art, actions] = await Promise.all(
+      [portrait, newArt, more].map(async (target) => {
+        const box = await target.boundingBox();
+        if (box === null) throw new Error("not laid out");
+        return box;
+      }),
+    );
+    if (frame === undefined || art === undefined || actions === undefined)
+      throw new Error("no box");
+    expect(frame.width).toBeCloseTo(120, 0);
+    const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
+    expect(Math.abs(middle(art) - middle(actions))).toBeLessThanOrEqual(2);
+    expect(actions.height).toBeGreaterThanOrEqual(44);
+    // Both under the portrait, inside its column.
+    expect(art.y).toBeGreaterThan(frame.y + frame.height - 1);
+    expect(actions.x + actions.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
+    // The tags read as the nameplate's chips: no visible word, the field still named.
+    await expect(identity.getByRole("textbox", { name: "Tags" })).toBeVisible();
   });
 });
 
@@ -417,6 +587,10 @@ test("reduced motion removes movement and keeps fades short", async ({ page }) =
       rise: root.getPropertyValue("--rise").trim(),
       panelShift: root.getPropertyValue("--panel-shift").trim(),
       pressScale: root.getPropertyValue("--press-scale").trim(),
+      swipeShift: root.getPropertyValue("--swipe-shift").trim(),
+      // A badge arrives at its own size, and a brainstorm's rows fill at once.
+      arriveScale: root.getPropertyValue("--arrive-scale").trim(),
+      revealGap: Number.parseFloat(root.getPropertyValue("--reveal-gap")),
       // Siblings arrive together and what follows another arrival does not wait.
       staggerStep: Number.parseFloat(root.getPropertyValue("--stagger-step")),
       delayFollow: Number.parseFloat(root.getPropertyValue("--delay-follow")),
@@ -427,10 +601,16 @@ test("reduced motion removes movement and keeps fades short", async ({ page }) =
     rise: "0px",
     panelShift: "0px",
     pressScale: "1",
+    swipeShift: "0px",
+    arriveScale: "1",
+    revealGap: 0,
     staggerStep: 0,
     delayFollow: 0,
     caretAnimation: "none",
   });
+  // The context level jumps to its new place: a level, like words, appears at once.
+  const fill = page.getByRole("meter", { name: "Context" }).locator("[style*='scaleX']");
+  await expect(fill).toHaveCSS("transition-property", "none");
   // Streamed words appear at once.
   const word = page.locator('[data-status="streaming"] [data-sd-animate]').first();
   await expect(word).toHaveCSS("animation-name", "none");
@@ -1133,11 +1313,16 @@ test("on a short window a long greeting menu scrolls within the window, its last
 
 test("without a character the empty chat invites the first line, then offers a character, and the composer says nothing is kept", async ({
   page,
+  request,
 }) => {
+  await createCharacterViaApi(request, `Offered ${crypto.randomUUID().slice(0, 6)}`);
   await openChat(page, "mock-fast");
   const story = page.getByRole("log", { name: "Story" });
+  await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
-    [...node.querySelectorAll("p, button")]
+    // What the story shows: Latest waits hidden while the story is at its end.
+    [...node.querySelectorAll("p, button, a")]
+      .filter((element) => element.closest("[hidden]") === null)
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
@@ -1172,15 +1357,19 @@ test("the first run asks for a model first, in the empty story, and once it is c
   const step = story.getByRole("status").filter({ hasText: "Choose a model to begin" });
   await expect(step).toBeVisible();
   // One composition: the model's step comes first, then the invitation and the character.
+  // An empty library: the way forward is the gallery.
+  await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
-    [...node.querySelectorAll("p, button")]
+    // What the story shows: Latest waits hidden while the story is at its end.
+    [...node.querySelectorAll("p, button, a")]
+      .filter((element) => element.closest("[hidden]") === null)
       .map((element) => element.textContent?.trim() ?? "")
       .filter((text) => text !== ""),
   );
   expect(said[0]).toBe("Choose a model to begin");
   expect(said.slice(-2)).toEqual([
     "Write the first line, or choose a character.",
-    "Choose a character",
+    "Create a character",
   ]);
   // The story holds the step, so no notice over the composer repeats it.
   await expect(page.locator("[data-model-notice]")).toHaveCount(1);
@@ -1192,7 +1381,28 @@ test("the first run asks for a model first, in the empty story, and once it is c
   await expect(step).toHaveCount(0);
   await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
   expect(await invitation.boundingBox()).toEqual(before);
-  await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
+  await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
+});
+
+test("with no characters saved, the empty story and Session both lead to the gallery", async ({
+  page,
+}) => {
+  await openChat(page, "mock-fast");
+  const story = page.getByRole("log", { name: "Story" });
+  await expect(story.getByRole("button", { name: "Choose a character" })).toHaveCount(0);
+  await openSession(page);
+  const session = page
+    .getByRole("complementary", { name: "Session" })
+    .or(page.getByRole("dialog", { name: "Session" }));
+  await expect(session.getByText("No characters yet. Add one in Characters.")).toBeVisible();
+  await expect(session.getByRole("link", { name: "Characters", exact: true })).toHaveAttribute(
+    "href",
+    "/characters",
+  );
+  await closeSession(page);
+  await story.getByRole("link", { name: "Create a character" }).click();
+  await expect(page).toHaveURL(/\/characters$/);
+  await expect(page.getByRole("heading", { name: "Characters", level: 1 })).toBeVisible();
 });
 
 test("a long unbroken word in the owner's line wraps inside its slip and leaves the story's width alone", async ({
@@ -1632,6 +1842,9 @@ test("on a wide window the character's prose keeps to its measure, and the portr
       (element) => element.getBoundingClientRect(),
     );
     const portrait = document.querySelector("[data-presence]")?.getBoundingClientRect();
+    const leaf = document
+      .querySelector('[data-presence] button[aria-label$=": show larger"]')
+      ?.getBoundingClientRect();
     return {
       measure:
         Number.parseFloat(
@@ -1643,6 +1856,8 @@ test("on a wide window the character's prose keeps to its measure, and the portr
       portraitRight: portrait?.right ?? Number.NaN,
       portraitWidth: portrait?.width ?? 0,
       minimum: 10 * rem,
+      leafHeight: leaf?.height ?? Number.NaN,
+      window: innerHeight,
     };
   });
   // No reply's prose runs past the measure, though the story is wider.
@@ -1651,6 +1866,8 @@ test("on a wide window the character's prose keeps to its measure, and the portr
   // The portrait grew past its narrowest column, and the latest reply keeps a column beside it.
   expect(laid.portraitWidth).toBeGreaterThan(laid.minimum);
   expect(laid.latestLeft).toBeGreaterThan(laid.portraitRight);
+  // It is never taller than about half the window, so a short reply stays in view beside it.
+  expect(laid.leafHeight).toBeLessThanOrEqual(0.46 * laid.window + 1);
 });
 
 test("while a character's nameplate is stuck under the header, the header's title gives way and stays the heading", async ({
@@ -1832,13 +2049,34 @@ test("the header shows no meter figures while the window has room, and keeps its
   await openChat(page, "mock-fast");
   const prompt = page.getByRole("button", { name: "Prompt", exact: true });
   const figures = page.locator("header [data-meter-figures]");
-  // At rest only the icons show; the figures keep their room, hidden, before the actions.
+  // At rest only the actions show, each with its word; the figures keep their room, hidden, before them.
   await expect(figures).toBeHidden();
   await expect(page.locator("header")).not.toContainText(" of ", { useInnerText: true });
+  const session = page.getByRole("button", { name: "Session", exact: true });
+  for (const [action, word] of [
+    [page.getByRole("button", { name: "Clear chat", exact: true }), "Clear chat"],
+    [prompt, "Prompt"],
+    [session, "Session"],
+  ] as const)
+    await expect(action).toHaveText(word);
   const before = await prompt.boundingBox();
   const clear = await page.getByRole("button", { name: "Clear chat" }).boundingBox();
   // Clear, Prompt and Session are one group, 4px apart.
   expect((before?.x ?? 0) - ((clear?.x ?? 0) + (clear?.width ?? 0))).toBe(4);
+  const sessionBox = await session.boundingBox();
+  expect((sessionBox?.x ?? 0) - ((before?.x ?? 0) + (before?.width ?? 0))).toBe(4);
+  // Open, Session shows its pressed ground; found by CSS, since an open sheet hides the header
+  // from the accessibility tree.
+  const toggle = page.locator("header button[aria-pressed]");
+  const ground = () => toggle.evaluate((node) => getComputedStyle(node).backgroundColor);
+  const rest = await ground();
+  await session.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.move(0, 0);
+  await expect.poll(ground).not.toBe(rest);
+  await closeSession(page);
+  if ((await toggle.getAttribute("aria-pressed")) === "true") await session.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await send(page, `${"word ".repeat(1_100)}${canary("in")}`);
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   await expect(figures).toBeHidden();
@@ -2092,6 +2330,81 @@ test("reduced motion keeps the lorebook's rows to fades", async ({ page }) => {
     };
   });
   expect(motion).toEqual({ panel: "opacity", chevron: "none", thumb: "background-color" });
+});
+
+/** How `property` transitions on `node` now: its duration in seconds and its curve. */
+const transitionOf = (target: Locator, property: string) =>
+  target.evaluate((node, property) => {
+    const style = getComputedStyle(node);
+    const properties = style.transitionProperty.split(", ");
+    const durations = style.transitionDuration.split(", ");
+    const curves = style.transitionTimingFunction.split(/, (?![^(]*\))/);
+    const at = properties.indexOf(property);
+    return at === -1
+      ? null
+      : {
+          duration: Number.parseFloat(durations[at % durations.length] ?? "0"),
+          curve: curves[at % curves.length],
+        };
+  }, property);
+
+const tokenSeconds = (page: Page, token: string) =>
+  page.evaluate((token) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+    return Number.parseFloat(value) / (value.endsWith("ms") ? 1000 : 1);
+  }, token);
+
+test("hovered rows ease their ground on the tint timing, and a palette tile presses and springs back", async ({
+  page,
+}) => {
+  const character = uniqueName("Hover");
+  const characterId = await createCharacterViaApi(page.request, character, {
+    firstMessage: "Opening.",
+    alternateGreetings: ["One"],
+  });
+  const book = uniqueName("Hover lore");
+  await createLorebookViaApi(page.request, book);
+  await page.goto(`/characters/${characterId}`);
+  const tint = await tokenSeconds(page, "--duration-tint");
+  expect(tint).toBeGreaterThan(0);
+
+  // A greetings row.
+  const greeting = page.getByRole("button", { name: /^Alternate 1:/ });
+  await greeting.hover();
+  expect(await transitionOf(greeting, "background-color")).toMatchObject({ duration: tint });
+
+  // A checklist label in the link picker.
+  await page.getByRole("button", { name: "Link a lorebook" }).click();
+  const label = page.locator("label").filter({ hasText: book });
+  await label.hover();
+  expect(await transitionOf(label, "background-color")).toMatchObject({ duration: tint });
+  await page.keyboard.press("Escape");
+
+  // A palette tile, pressed and let go away from it so the setting stays.
+  await page.goto("/settings");
+  const tile = page
+    .getByRole("radiogroup", { name: "Palette", exact: true })
+    .locator("label")
+    .first();
+  const pressScale = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--press-scale")),
+  );
+  // Its edge, ground and ring ease on the tint timing, as a button's colours do.
+  for (const property of ["background-color", "border-color", "box-shadow"]) {
+    expect((await transitionOf(tile, property))?.duration).toBe(tint);
+  }
+  await tile.hover();
+  await page.mouse.down();
+  await expect
+    .poll(() => tile.evaluate((node) => Number.parseFloat(getComputedStyle(node).scale)))
+    .toBe(pressScale);
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+  await expect.poll(() => tile.evaluate((node) => getComputedStyle(node).scale)).toBe("none");
+  // Let go, it springs back on the release timing.
+  const release = await transitionOf(tile, "scale");
+  expect(release?.duration).toBe(await tokenSeconds(page, "--duration-release"));
+  expect(release?.curve).toMatch(/^linear\(/);
 });
 
 /** A PNG of one solid colour, built in memory. */
@@ -2479,6 +2792,40 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
   await expect(sheet).toHaveCount(0);
 });
 
+test("at 360px the kept note keeps its words on one line and Chat with Dismiss together", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  const base = keptBase();
+  const name = cardName("subject", base);
+  await createCard(page, {
+    kind: "subject",
+    description: ownerDescription(base),
+    model: "mock-fast",
+  });
+  await page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT }).click();
+  const note = page.getByRole("status").filter({ hasText: `Kept ${name}` });
+  await expect(note).toBeVisible({ timeout: 20_000 });
+  const words = note.getByText(`Kept ${name}`, { exact: true });
+  const chat = note.getByRole("button", { name: "Chat" });
+  const dismiss = note.getByRole("button", { name: "Dismiss" });
+  const box = async (part: Locator) => {
+    const laid = await part.boundingBox();
+    if (laid === null) throw new Error("A part of the kept note is not laid out");
+    return laid;
+  };
+  const text = await box(words);
+  const chatBox = await box(chat);
+  const dismissBox = await box(dismiss);
+  const leading = await words.evaluate((element) =>
+    Number.parseFloat(getComputedStyle(element).lineHeight),
+  );
+  expect(Math.round(text.height / leading)).toBe(1);
+  // One row: the outlined Chat is taller than the text-only Dismiss, so compare their middles.
+  expect(dismissBox.y + dismissBox.height / 2).toBeCloseTo(chatBox.y + chatBox.height / 2, 0);
+  expect(chatBox.y).toBeGreaterThanOrEqual(text.y + text.height);
+});
+
 test("an engraving follows the scheme: the night file by night, the print by day", async ({
   page,
 }) => {
@@ -2506,4 +2853,41 @@ test("an address that leads nowhere says so and leads back to the story", async 
   await page.getByRole("link", { name: "Back to the story" }).click();
   await expect(page).toHaveURL((url) => url.pathname === "/");
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
+});
+
+test("a sheet's header title rises in once the name scrolls away and never rests half faded", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const name = uniqueName("Title");
+  const id = await createCharacterViaApi(page.request, name, {
+    description: Array.from(
+      { length: 80 },
+      (_, line) => `Line ${line} of a long description.`,
+    ).join("\n"),
+  });
+  await page.goto(`/characters/${id}`);
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
+  const title = page.locator("header h1", { hasText: name });
+  const opacity = () => title.evaluate((node) => Number(getComputedStyle(node).opacity));
+  const scrollTo = (top: number) =>
+    page.evaluate((y) => {
+      const scroller = [...document.querySelectorAll<HTMLElement>("main *")].find((node) =>
+        getComputedStyle(node).scrollTimelineName.includes("--thread"),
+      );
+      if (scroller === undefined) throw new Error("No sheet scroller");
+      scroller.scrollTo({ top: y, behavior: "instant" });
+      // Two frames, so scroll-linked styles reflect the new position before a read.
+      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, top);
+  expect(await opacity()).toBe(0);
+  // Resting anywhere around the threshold, where a scroll-linked fade would sit part way.
+  for (let top = 40; top <= 120; top += 2) {
+    await scrollTo(top);
+    await expect.poll(async () => [0, 1].includes(await opacity())).toBe(true);
+  }
+  await scrollTo(400);
+  await expect.poll(opacity).toBe(1);
+  await scrollTo(0);
+  await expect.poll(opacity).toBe(0);
 });

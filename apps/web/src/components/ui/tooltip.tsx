@@ -1,9 +1,10 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import type { ReactElement, ReactNode } from "react";
+import { motionMs } from "@/app/motion-tokens.ts";
 import { KeyHint } from "@/components/ui/key-hint";
 
 function TooltipProvider(props: TooltipPrimitive.Provider.Props) {
-  return <TooltipPrimitive.Provider delay={400} {...props} />;
+  return <TooltipPrimitive.Provider delay={motionMs("--delay-tip")} {...props} />;
 }
 
 /**

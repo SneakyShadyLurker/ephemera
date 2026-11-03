@@ -57,7 +57,7 @@ export function CreateScreen() {
       // its beginning in the same snapshot that replaces the writing frame.
       setClosing(false);
       scroller.current?.scrollTo({ top: 0, behavior: "instant" });
-    });
+    }, "creator-complete");
   };
   // The navigation mark's drip quickens while ideas, the card or its art are in progress.
   const busy = status === "writing" || developing || ideas;
@@ -76,6 +76,7 @@ export function CreateScreen() {
 
   return (
     <main
+      data-creator=""
       data-writing={busy ? "" : undefined}
       className="relative flex min-w-0 flex-1 flex-col [timeline-scope:--thread]"
     >

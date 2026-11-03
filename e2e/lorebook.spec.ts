@@ -527,6 +527,27 @@ test.describe("review fixes", () => {
     await expect(entries(page).getByRole("button", { name: "Edit Three" })).toBeFocused();
   });
 
+  test("the entry title keeps focus across the editor layout swap", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const id = await createCharacterViaApi(page.request, uniqueName("Resize"));
+    await setLorebookViaApi(page.request, id, {
+      entries: [loreEntry({ comment: "Lantern", keys: ["lantern"] })],
+    });
+    await page.goto(`/characters/${id}/lorebook?entry=0`);
+    const title = page.getByRole("textbox", { name: "Title" });
+    await title.focus();
+    // Across the desktop breakpoint (75rem) both ways: the list leaves the side and returns.
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await expect(entries(page)).toBeHidden();
+    await expect(title).toBeFocused();
+    await page.keyboard.type(" Hall");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(entries(page)).toBeVisible();
+    await expect(title).toBeFocused();
+    await page.keyboard.type("s");
+    await expect(title).toHaveValue("Lantern Halls");
+  });
+
   test("an imported book's repeated keyword is removed once", async ({ page }) => {
     const id = await createCharacterViaApi(page.request, uniqueName("Repeats"));
     await setLorebookViaApi(page.request, id, {

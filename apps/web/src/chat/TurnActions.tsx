@@ -5,11 +5,11 @@ import {
   ChevronDownIcon,
   DeleteIcon,
   EditIcon,
-  MoreIcon,
   NextIcon,
   PreviousIcon,
   RegenerateIcon,
 } from "@/components/icons";
+import { MoreButton } from "@/components/more-button.tsx";
 import { Button } from "@/components/ui/button";
 import {
   DRAWER_ROW,
@@ -81,7 +81,6 @@ function MoreMenu({
   replace,
   alternates = false,
   className = ICON,
-  plate = false,
 }: {
   id: string;
   label: string;
@@ -90,8 +89,6 @@ function MoreMenu({
   replace?: { disabled: boolean };
   alternates?: boolean;
   className?: string;
-  /** A turn's own More: a small visible surface around the icon, so it reads as a control. */
-  plate?: boolean;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   // Cast takes focus to its own surface; the closing menu must not take it back.
@@ -104,26 +101,18 @@ function MoreMenu({
         if (open) toCast.current = false;
       }}
     >
+      {/* On its plate everywhere, so every More in the chat reads as the same control. */}
       <MenuTrigger
         render={
-          <Button
+          <MoreButton
             ref={trigger}
-            size="icon"
             aria-label={label}
             disabled={busy}
-            className={cn(className, plate && "group/more hover:bg-transparent")}
+            className={className}
             data-edit-for={id}
           />
         }
-      >
-        {plate ? (
-          <span className="grid h-6 w-7 place-items-center rounded-sm border border-rush bg-surface transition-colors duration-(--duration-quick) ease-fade group-hover/more:bg-surface-hover group-data-popup-open/more:bg-surface-hover">
-            <MoreIcon size={16} />
-          </span>
-        ) : (
-          <MoreIcon size={16} />
-        )}
-      </MenuTrigger>
+      />
       <MenuContent label={label} finalFocus={() => !toCast.current}>
         <MenuItem onClick={() => edit(id)}>
           <EditIcon size={16} />
@@ -207,7 +196,7 @@ export function TurnActions({
         QUIET_WHEN,
       )}
     >
-      <MoreMenu id={id} label={`More actions, ${speaker}`} className="size-9 touch:size-11" plate />
+      <MoreMenu id={id} label={`More actions, ${speaker}`} className="size-9 touch:size-11" />
     </div>
   );
 }
@@ -230,18 +219,31 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
   const count = message.replies.length;
   const atLast = message.shown === count - 1;
   const canContinue = reply.text !== "" && reply.status !== "failed";
-  const newReply = (
-    <Tooltip label="Write another reply">
-      <Button
-        variant="quiet"
-        disabled={busy || !canGenerate || !writable}
-        onClick={() => void swipe(1)}
-        className={LABELLED}
-      >
-        New reply
-      </Button>
-    </Tooltip>
-  );
+  // A reply that failed before any text is replaced in place: New reply would keep it as an empty alternate.
+  const newReply =
+    reply.status === "failed" && reply.text === "" ? (
+      <Tooltip label="Write this reply again" shortcut="Ctrl Enter">
+        <Button
+          variant="quiet"
+          disabled={busy || !canGenerate || !writable}
+          onClick={() => void chatStore.getState().regenerate()}
+          className={LABELLED}
+        >
+          Try again
+        </Button>
+      </Tooltip>
+    ) : (
+      <Tooltip label="Write another reply">
+        <Button
+          variant="quiet"
+          disabled={busy || !canGenerate || !writable}
+          onClick={() => void swipe(1)}
+          className={LABELLED}
+        >
+          New reply
+        </Button>
+      </Tooltip>
+    );
   return (
     <div className="flex flex-wrap items-center gap-0.5">
       {count > 1 ? (

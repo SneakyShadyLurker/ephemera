@@ -26,7 +26,7 @@ function ToggleGroupItem({
         "press rounded-sm text-reed hover:bg-surface-hover hover:text-ink data-pressed:bg-surface-selected data-pressed:text-ink",
         labelled
           ? "inline-flex h-8 items-center gap-2 px-3 text-ui touch:h-11"
-          : "grid size-8 place-items-center touch:size-10",
+          : "grid size-8 place-items-center touch:size-11",
         className,
       )}
       {...props}

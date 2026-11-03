@@ -14,7 +14,35 @@ test("an upstream error shows a failed reply without upstream text", async ({ pa
   await openChat(page, "mock-error");
   await send(page, input);
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
-  await expect(lastReply(page).locator("[data-prose]")).toHaveText("Reply interrupted.");
+  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+    "No reply: the model's provider answered with an error. Try again.",
+  );
+});
+
+test("a reply stopped after text arrived keeps its text and says Stopped under it", async ({
+  page,
+}) => {
+  await openChat(page, "mock-slow");
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toContainText("Reply:");
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(lastReply(page)).toHaveAttribute("data-status", "stopped");
+  const prose = lastReply(page).locator("[data-prose]");
+  await expect(prose).toContainText("Reply:");
+  const note = prose.getByText("Stopped.", { exact: true });
+  await expect(note).toBeVisible();
+  // Under the reply's text, and drawn in full once it has arrived.
+  const drawn = () =>
+    note.evaluate((node) => {
+      let opacity = 1;
+      for (let at: Element | null = node; at !== null; at = at.parentElement)
+        opacity *= Number.parseFloat(getComputedStyle(at).opacity);
+      return opacity;
+    });
+  await expect.poll(drawn).toBe(1);
+  const text = await prose.locator("p").first().boundingBox();
+  const under = await note.boundingBox();
+  expect(under?.y ?? 0).toBeGreaterThan(text?.y ?? Number.POSITIVE_INFINITY);
 });
 
 test("Clear asks first, keeps the chat when declined, then empties it", async ({ page }) => {

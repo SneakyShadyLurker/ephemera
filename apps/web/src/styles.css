@@ -278,6 +278,9 @@
   --duration-fade-out: 300ms;
   /* How long a wait stays quiet before it shows, so quick work never flickers. */
   --delay-pending: 300ms;
+  /* A tooltip or infotip opens after this hover, and closes a beat late so the pointer can cross into it. */
+  --delay-tip: 400ms;
+  --delay-tip-close: 100ms;
   /* How long a reply stays without text before it says it is still awaited. */
   --delay-silence: 6s;
   /* What follows another arrival waits this beat: a greeting after its presence, the room's lean after a reveal. */
@@ -309,7 +312,11 @@
   --duration-wash: 1200ms;
   --rise: 4px;
   --panel-shift: 12px;
+  /* How far a dragged alternate travels; the keyed nudge is `--panel-shift`. */
+  --swipe-shift: 64px;
   --press-scale: 0.98;
+  /* A badge's starting scale as it arrives. */
+  --arrive-scale: 0.75;
 }
 
 /*
@@ -391,9 +398,12 @@
     --duration-develop: var(--duration-quick);
     --delay-follow: 0ms;
     --stagger-step: 0ms;
+    --reveal-gap: 0ms;
     --rise: 0px;
     --panel-shift: 0px;
+    --swipe-shift: 0px;
     --press-scale: 1;
+    --arrive-scale: 1;
   }
 }
 
@@ -432,6 +442,8 @@
    */
   --container-story: 38rem;
   --container-portrait: 20rem;
+  /* The floating portrait's tallest, so a short reply stays in view beside it. */
+  --portrait-tallest: 46dvh;
   /* Between the floating portrait and the prose beside it, from desktop or a story wide enough for a column. */
   --gap-presence: 2.5rem;
   /*
@@ -796,16 +808,13 @@
   background: none;
   padding: 0;
   cursor: pointer;
-  transition: scale var(--duration-press) var(--ease-fade);
+  @apply press;
   &::-webkit-color-swatch-wrapper {
     padding: 2px;
   }
   &::-webkit-color-swatch {
     border: none;
     border-radius: 9999px;
-  }
-  &:active {
-    scale: 0.94;
   }
   &:focus-visible {
     outline-offset: 3px;
@@ -1351,6 +1360,32 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
+ * The creator's finished card replacing its writing (creator/transition.ts,
+ * type `creator-complete`): two different text layouts, so the page fades
+ * through, the writing out over the glide's first half and the card in over
+ * its second, while the frame and the name glide the whole way. The screen
+ * header is its own group, on its ground and stacked above the gliding ones
+ * (groups otherwise paint in the elements' order), so what travels from a
+ * scrolled place passes beneath it. Under reduced motion the halves follow
+ * the shortened glide.
+ */
+:active-view-transition-type(creator-complete)::view-transition-old(root),
+:active-view-transition-type(creator-complete)::view-transition-new(root) {
+  animation-duration: calc(var(--duration-panel-in) / 2);
+  animation-fill-mode: both;
+}
+:active-view-transition-type(creator-complete)::view-transition-new(root) {
+  animation-delay: calc(var(--duration-panel-in) / 2);
+}
+:active-view-transition-type(creator-complete) main[data-creator] > header {
+  view-transition-name: creator-header;
+  background-color: var(--canvas);
+}
+:active-view-transition-type(creator-complete)::view-transition-group(creator-header) {
+  z-index: var(--z-float);
+}
+
+/*
  * The engraved illustrations (components/illustration.tsx): each piece is a
  * grayscale luminance mask, white where it is drawn, filled with the
  * palette's roles, so every palette recolours it in both schemes. By day
@@ -1436,31 +1471,16 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
- * The sheet's name joins its header once the name field scrolls beneath it.
- * It is fully opaque within the first few pixels of its range, so a scroll
- * that comes to rest partway leaves a readable title; the rise takes the
- * whole range.
+ * The sheet's name joins its header once the name field has scrolled beneath
+ * it: scrolling past the threshold triggers a timed rise, and scrolling back
+ * reverses it, so the title never rests half faded. A sheet too short to
+ * scroll keeps its name in the field.
  */
-@keyframes name-in {
-  from {
-    opacity: 0;
-    translate: 0 var(--rise);
-  }
-  10% {
-    opacity: 1;
-  }
-  to {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-
-/* Hidden until scrolling drives it in; a sheet too short to scroll keeps its name in the field. */
 @utility title-in {
   opacity: 0;
-  animation: name-in linear both;
-  animation-timeline: --thread;
-  animation-range: 3rem 5.5rem;
+  timeline-trigger: --title-in --thread 4rem normal;
+  animation: title-in var(--duration-arrive) var(--ease-spring) both;
+  animation-trigger: --title-in play-forwards play-backwards;
 }
 
 /*
@@ -1494,17 +1514,23 @@ details[open] > summary .disclosure-chevron {
   animation-timing-function: var(--ease-spring);
 }
 
-/* Press feedback: a quick press, a spring release; colors fade. */
+/*
+ * Press feedback: a quick press, a spring release; colors, shadow and
+ * brightness fade, so a control needs no transition of its own.
+ */
 @utility press {
   transition:
     scale var(--duration-release) var(--ease-spring),
     background-color var(--duration-tint) var(--ease-fade),
     border-color var(--duration-tint) var(--ease-fade),
-    color var(--duration-tint) var(--ease-fade);
+    color var(--duration-tint) var(--ease-fade),
+    box-shadow var(--duration-tint) var(--ease-fade),
+    filter var(--duration-tint) var(--ease-fade);
   &:active:not(:disabled, [data-disabled]) {
     scale: var(--press-scale);
     transition-duration:
-      var(--duration-press), var(--duration-tint), var(--duration-tint), var(--duration-tint);
+      var(--duration-press), var(--duration-tint), var(--duration-tint), var(--duration-tint),
+      var(--duration-tint), var(--duration-tint);
   }
 }
 
@@ -1553,16 +1579,22 @@ details[open] > summary .disclosure-chevron {
  * How something new arrives: a short rise on the spring and a fade, from its
  * starting style. A turn, a name on the cast roster, a notice or a revealed
  * field arrive this way. Reduced motion zeroes the rise, leaving the fade;
- * a horizontal translate the element carries stays.
+ * a horizontal translate the element carries stays. Hidden, it fades out
+ * in place and is gone when the fade ends; shown again, it rises in anew.
  */
 @utility arrive {
   /* Longhands, so `stagger` can set the delay beside it. */
-  transition-property: opacity, translate;
+  transition-property: opacity, translate, display;
   transition-duration: var(--duration-arrive);
   transition-timing-function: var(--ease-spring);
+  transition-behavior: allow-discrete;
   @starting-style {
     opacity: 0;
     translate: var(--tw-translate-x, 0) var(--rise);
+  }
+  &[hidden] {
+    display: none;
+    opacity: 0;
   }
 }
 
@@ -1694,7 +1726,10 @@ details[open] > summary .disclosure-chevron {
     box-shadow var(--duration-quick) var(--ease-fade);
 }
 
-/* Whole new parts (a new entry) fold away when rejected; reduced motion fades only. */
+/*
+ * Whole new parts (a new entry) fold away when rejected; reduced motion
+ * fades them at full size, then they collapse at once.
+ */
 @utility tracked-fold {
   interpolate-size: allow-keywords;
   overflow-y: clip;
@@ -1702,7 +1737,9 @@ details[open] > summary .disclosure-chevron {
     block-size var(--duration-panel-in) var(--ease-spring),
     opacity var(--duration-quick) var(--ease-fade);
   @media (prefers-reduced-motion: reduce) {
-    transition: opacity var(--duration-quick) var(--ease-fade);
+    transition:
+      opacity var(--duration-quick) var(--ease-fade),
+      block-size 0s var(--duration-quick);
   }
 }
 

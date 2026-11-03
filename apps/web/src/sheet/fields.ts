@@ -43,7 +43,7 @@ export const REQUEST_FIELD = cn(BOXED, "px-4 py-3 text-story leading-7");
  */
 export const TITLE_FIELD = cn(
   FIELD_FACE,
-  "-mx-1.5 border-transparent bg-transparent px-1.5 font-semibold transition-[border-color,background-color] duration-(--duration-tint) hover:border-rush focus:bg-surface touch:border-b-rush",
+  "-mx-1.5 border-transparent bg-transparent px-1.5 font-semibold transition-[border-color,background-color] duration-(--duration-tint) ease-fade hover:border-rush focus:bg-surface touch:border-b-rush",
 );
 
 /** The focus of a field made of several parts (tokens, a search box with its icon, the composer). */

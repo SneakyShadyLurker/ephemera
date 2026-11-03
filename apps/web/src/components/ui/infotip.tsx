@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { motionMs } from "@/app/motion-tokens.ts";
 import { InfoIcon } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
@@ -23,8 +24,8 @@ export function Infotip({
     <Popover>
       <PopoverTrigger
         openOnHover
-        delay={300}
-        closeDelay={100}
+        delay={motionMs("--delay-tip")}
+        closeDelay={motionMs("--delay-tip-close")}
         aria-label={`About ${label}`}
         className={cn(
           // 24px hit area (44 on touch) around a 14px icon, pulled in so the line keeps its rhythm.

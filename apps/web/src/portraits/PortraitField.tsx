@@ -1,5 +1,7 @@
 import { type ReactNode, useId, useRef, useState } from "react";
-import { DeleteIcon, ImportIcon, MoreIcon, PlusIcon } from "@/components/icons";
+import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { DeleteIcon, ImportIcon, PlusIcon } from "@/components/icons";
+import { MoreButton } from "@/components/more-button";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -96,7 +98,7 @@ export function PortraitField({
           disabled={id === null || busy || locked}
           aria-describedby={id === null ? `${errorId}-hint` : undefined}
           onClick={() => picker.current?.click()}
-          className="grid aspect-[2/3] w-full place-items-center content-center gap-1 rounded-lg border border-control-edge border-dashed text-reed hover:bg-surface-hover hover:text-ink disabled:cursor-default disabled:border-rush disabled:text-text-disabled disabled:hover:bg-transparent"
+          className="press grid aspect-[2/3] w-full place-items-center content-center gap-1 rounded-lg border border-control-edge border-dashed text-reed hover:bg-surface-hover hover:text-ink disabled:cursor-default disabled:border-rush disabled:text-text-disabled disabled:hover:bg-transparent"
         >
           <PlusIcon size={20} />
           <span className="text-note">{busy ? "Adding" : "Add portrait"}</span>
@@ -115,23 +117,14 @@ export function PortraitField({
        * One row, its primary action first in one place whether or not a
        * portrait is stored, so a first portrait keeps what it holds mounted.
        */}
-      <div className="flex flex-wrap items-center gap-1 pt-1 empty:hidden">
+      <div className="flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap">
         {primary?.({ busy })}
         {version !== null &&
           (primary ? (
             <Menu>
               <MenuTrigger
-                render={
-                  <Button
-                    size="icon"
-                    className="size-8 touch:size-11"
-                    aria-label="Portrait actions"
-                    disabled={busy || locked}
-                  />
-                }
-              >
-                <MoreIcon size={16} />
-              </MenuTrigger>
+                render={<MoreButton aria-label="Portrait actions" disabled={busy || locked} />}
+              />
               <MenuContent label="Portrait actions" align="start">
                 <MenuItem onClick={() => picker.current?.click()}>
                   <ImportIcon size={16} />
@@ -162,19 +155,30 @@ export function PortraitField({
             </>
           ))}
       </div>
-      {busy && version !== null && (
-        <p role="status" className="px-2 text-meta text-reed">
-          Saving the portrait
-        </p>
-      )}
+      <NoticeSlot
+        value={
+          busy && version !== null
+            ? { kind: "status" as const, text: "Saving the portrait" }
+            : error
+              ? { kind: "alert" as const, text: error }
+              : null
+        }
+      >
+        {(notice) =>
+          notice.kind === "status" ? (
+            <p role="status" className="px-2 text-meta text-reed">
+              {notice.text}
+            </p>
+          ) : (
+            <p role="alert" className="text-pretty text-ember text-meta">
+              {notice.text}
+            </p>
+          )
+        }
+      </NoticeSlot>
       {id === null && (
         <p id={`${errorId}-hint`} className="sr-only">
           Add a name first; the portrait can be added once the {noun} is saved.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-pretty text-ember text-meta">
-          {error}
         </p>
       )}
     </div>

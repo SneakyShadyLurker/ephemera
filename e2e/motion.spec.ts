@@ -1,7 +1,16 @@
 import type { Locator, Page } from "@playwright/test";
+import { uniqueName } from "./support/cards.ts";
 import { castEntry, openRecord } from "./support/cast.ts";
 import { keeperWoman } from "./support/cast-fixtures.ts";
-import { headerAction, openChat } from "./support/chat.ts";
+import {
+  chooseModel,
+  headerAction,
+  lastReply,
+  openChat,
+  replyActions,
+  replyCounter,
+  send,
+} from "./support/chat.ts";
 import {
   BRAINSTORM_COPY,
   brainstorm,
@@ -18,6 +27,7 @@ import {
   patchSettings,
   setLorebookViaApi,
 } from "./support/entities.ts";
+import { canary } from "./support/env.ts";
 import { createReworkCharacter, dock, openRework, submitRework } from "./support/rework.ts";
 import { ownerRequest } from "./support/rework-fixtures.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
@@ -78,8 +88,11 @@ function sessionWidths(page: Page, opening: boolean) {
     (open) =>
       new Promise<number[]>((resolve) => {
         const main = document.querySelector("main");
-        const toggle = document.querySelector<HTMLButtonElement>('button[aria-label="Session"]');
-        if (main === null || toggle === null) throw new Error("Chat is not mounted");
+        const toggle = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) =>
+            (button.getAttribute("aria-label") ?? button.textContent?.trim()) === "Session",
+        );
+        if (main === null || toggle === undefined) throw new Error("Chat is not mounted");
         const widths = [main.getBoundingClientRect().width];
         const sample = () => {
           widths.push(main.getBoundingClientRect().width);
@@ -145,8 +158,11 @@ test("Session opens and closes its layout slot continuously, including a reverse
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {
-        const toggle = document.querySelector<HTMLButtonElement>('button[aria-label="Session"]');
-        if (toggle === null) throw new Error("No Session toggle");
+        const toggle = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) =>
+            (button.getAttribute("aria-label") ?? button.textContent?.trim()) === "Session",
+        );
+        if (toggle === undefined) throw new Error("No Session toggle");
         toggle.click();
         const reverse = () => {
           const panel = document.querySelector('aside[aria-labelledby="session-title"]');
@@ -185,8 +201,11 @@ test("reduced-motion Session keeps its width while its closing fade is visible",
     () =>
       new Promise<{ width: number; opacity: number }[]>((resolve) => {
         const panel = document.querySelector<HTMLElement>('aside[aria-labelledby="session-title"]');
-        const toggle = document.querySelector<HTMLButtonElement>('button[aria-label="Session"]');
-        if (panel === null || toggle === null) throw new Error("Session is not open");
+        const toggle = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+          (button) =>
+            (button.getAttribute("aria-label") ?? button.textContent?.trim()) === "Session",
+        );
+        if (panel === null || toggle === undefined) throw new Error("Session is not open");
         const samples: { width: number; opacity: number }[] = [];
         const sample = () => {
           if (!panel.isConnected) return resolve(samples);
@@ -293,24 +312,96 @@ test("creator completion transitions the scrolled writing into the top of the sh
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await page.evaluate(() => {
     const start = document.startViewTransition.bind(document);
-    const state = { calls: 0 };
+    const state = {
+      calls: 0,
+      types: [] as string[],
+      typed: false,
+      parts: [] as string[],
+      spans: {} as Record<string, { start: number; end: number }>,
+      layers: {} as Record<string, string>,
+    };
     Object.assign(window, { completionTransitions: state });
     document.startViewTransition = (options) => {
       state.calls++;
-      return start(options);
+      const transition = start(options);
+      // Once the pseudo-element tree is built: the type, and each animated part with its span.
+      void transition.ready.then(() => {
+        state.types = [...transition.types];
+        state.typed = document.documentElement.matches(
+          ":active-view-transition-type(creator-complete)",
+        );
+        // Each group's stacking as painted, not as the elements stood when captured.
+        for (const name of ["creator-header", "creator-frame", "creator-heading", "root"])
+          state.layers[name] = getComputedStyle(
+            document.documentElement,
+            `::view-transition-group(${name})`,
+          ).zIndex;
+        for (const animation of document.getAnimations()) {
+          const effect = animation.effect;
+          if (!(effect instanceof KeyframeEffect) || effect.pseudoElement === null) continue;
+          state.parts.push(effect.pseudoElement);
+          const timing = effect.getComputedTiming();
+          const start = Number(timing.delay ?? 0);
+          state.spans[effect.pseudoElement] = {
+            start,
+            end: start + Number(timing.activeDuration ?? 0),
+          };
+        }
+      });
+      return transition;
     };
   });
   await expect(page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT })).toBeVisible({
     timeout: 20_000,
   });
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(0);
-  expect(
-    await page.evaluate(
+  const transitions = () =>
+    page.evaluate(
       () =>
-        (window as unknown as { completionTransitions: { calls: number } }).completionTransitions
-          .calls,
-    ),
-  ).toBe(1);
+        (
+          window as unknown as {
+            completionTransitions: {
+              calls: number;
+              types: string[];
+              typed: boolean;
+              parts: string[];
+              spans: Record<string, { start: number; end: number }>;
+              layers: Record<string, string>;
+            };
+          }
+        ).completionTransitions,
+    );
+  await expect.poll(async () => (await transitions()).parts.length).toBeGreaterThan(0);
+  const { calls, types, typed, parts, spans, layers } = await transitions();
+  expect(calls).toBe(1);
+  expect(types).toEqual(["creator-complete"]);
+  expect(typed).toBe(true);
+  // The page fades through: the writing has left before the card arrives, so the two
+  // text layouts are never drawn over each other.
+  const out = spans["::view-transition-old(root)"];
+  const into = spans["::view-transition-new(root)"];
+  expect(out?.end).toBeGreaterThan(0);
+  expect(into?.start).toBeGreaterThanOrEqual(out?.end ?? Infinity);
+  // The screen header is its own part for this transition, so what glides passes beneath it.
+  expect(parts).toContain("::view-transition-group(creator-header)");
+  // Its group is stacked above every gliding group, whatever order the elements paint in.
+  const layer = (name: string) => {
+    const value = layers[name];
+    return value === undefined || value === "auto" ? 0 : Number(value);
+  };
+  expect(layers["creator-header"]).toMatch(/^\d+$/);
+  for (const name of ["creator-frame", "creator-heading", "root"])
+    expect(layer("creator-header")).toBeGreaterThan(layer(name));
+  // The frame and the name each glide as one shared element: a group that moves, holding
+  // the old and the new image, so neither is drawn twice in two places.
+  for (const name of ["creator-frame", "creator-heading"]) {
+    expect(parts).toContain(`::view-transition-group(${name})`);
+    expect(parts).toContain(`::view-transition-old(${name})`);
+    expect(parts).toContain(`::view-transition-new(${name})`);
+  }
+  // The Keep bar is new: it fades in as its own part, not inside the text's crossfade.
+  expect(parts).toContain("::view-transition-new(creator-keep)");
+  expect(parts).not.toContain("::view-transition-old(creator-keep)");
 });
 
 test("creator completion in a hidden document finishes without starting a view transition", async ({
@@ -991,6 +1082,69 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
   await expect(bar).toHaveCount(0);
 });
 
+test("reduced motion fades a rejected new entry at full height, then folds it at once", async ({
+  page,
+  request,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const id = await createReworkCharacter(request, "motion-rework-new-entry");
+  const block = (field: string, replace: string) =>
+    `<change>\n<field>${field}</field>\n<why>The scene needs her.</why>\n<find></find>\n<replace>${replace}</replace>\n</change>`;
+  const answer = [
+    block("entry_new_1_name", "Night porter"),
+    block("entry_new_1_keys", "porter, night"),
+    block("entry_new_1", "The night porter locks the archive at ten and keeps the only key."),
+    "<summary>Adds the night porter.</summary>",
+  ].join("\n");
+  await page.route("**/api/creator/rework", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson; charset=utf-8",
+      body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+    }),
+  );
+  await page.goto(`/characters/${id}`);
+  await openRework(page);
+  await submitRework(page, { request: "Add the night porter.", model: "mock-fast" });
+  const reject = page.getByRole("button", { name: "Reject new entry: Night porter" });
+  const body = page
+    .getByRole("group", { name: "New entry: Night porter", exact: true })
+    .locator(".tracked-fold");
+  await expect(body).toContainText("keeps the only key");
+  await body.scrollIntoViewIfNeeded();
+  // The body stays in the sheet, folded to its padding; sample its content height until it has collapsed.
+  const folding = body.evaluate(
+    (element) =>
+      new Promise<{ height: number; opacity: number }[]>((resolve) => {
+        const frames: { height: number; opacity: number }[] = [];
+        const sample = () => {
+          const style = getComputedStyle(element);
+          const frame = {
+            height:
+              element.getBoundingClientRect().height -
+              Number.parseFloat(style.paddingTop) -
+              Number.parseFloat(style.paddingBottom),
+            opacity: Number.parseFloat(style.opacity),
+          };
+          frames.push(frame);
+          if (frame.height < 0.5) return resolve(frames);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+  await reject.click();
+  const frames = await folding;
+  // The first frame is the open body, sampled before the click.
+  const height = frames[0]?.height ?? 0;
+  expect(height).toBeGreaterThan(0);
+  const fading = frames.filter(({ opacity }) => opacity > 0.05 && opacity < 0.95);
+  expect(fading.length).toBeGreaterThan(0);
+  for (const frame of fading) expect(frame.height).toBeCloseTo(height, 0);
+  expect(frames.at(-1)?.height).toBeCloseTo(0, 0);
+  await expect(page.getByRole("button", { name: "Restore new entry: Night porter" })).toBeFocused();
+});
+
 test("normal-motion Rework grows and folds its real layout slot while the sheet scroller resizes", async ({
   page,
   request,
@@ -1031,4 +1185,311 @@ test("normal-motion Rework grows and folds its real layout slot while the sheet 
   for (const frame of leaving) expect(frame.dock + frame.scroller).toBeCloseTo(before, 0);
   expect(leaving.at(-1)?.dock).toBe(0);
   expect(leaving.at(-1)?.scroller).toBeCloseTo(before, 0);
+});
+
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`list screens arrive with their lists on a cold visit at ${viewport.width}px`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize(viewport);
+    const name = uniqueName("Cold arrival");
+    await createCharacterViaApi(request, name);
+    // Presets never asks for the characters, so the gallery's list is cold.
+    await page.goto("/presets");
+    const previous = page.locator("main h1");
+    await expect(previous).toHaveText(/^Presets/);
+    await page.route("**/api/characters", async (route) => {
+      if (route.request().method() === "GET") await new Promise((done) => setTimeout(done, 1500));
+      await route.continue();
+    });
+    let nav = page.getByRole("navigation", { name: "Main" });
+    if (viewport.width < 720) {
+      await page.getByRole("button", { name: "Open navigation" }).click();
+      nav = page.getByRole("dialog", { name: "Ephemera" });
+    }
+    // The first frame that shows the gallery's heading or a card, and how long it took.
+    const arrival = page.evaluate(
+      () =>
+        new Promise<{ heading: boolean; card: boolean; waited: number }>((resolve) => {
+          const start = performance.now();
+          const sample = () => {
+            const heading = [...document.querySelectorAll("main h1")].some((title) =>
+              title.textContent?.startsWith("Characters"),
+            );
+            const card = document.querySelector('[aria-label="Characters"] li') !== null;
+            if (heading || card) resolve({ heading, card, waited: performance.now() - start });
+            else requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    await nav.getByRole("link", { name: "Characters", exact: true }).click();
+    await page.waitForTimeout(1000);
+    await expect(previous).toHaveText(/^Presets/);
+    const first = await arrival;
+    expect(first).toMatchObject({ heading: true, card: true });
+    expect(first.waited).toBeGreaterThanOrEqual(1000);
+    await expect(page.getByRole("list", { name: "Characters" })).toContainText(name);
+  });
+}
+
+test("a removed greeting retains its row while leaving, and the last leaves no line", async ({
+  page,
+  request,
+}) => {
+  const id = await createCharacterViaApi(request, uniqueName("Greeter"), {
+    firstMessage: "Opening.",
+    alternateGreetings: ["The tide is out."],
+  });
+  await page.goto(`/characters/${id}`);
+  await page.getByText("Card details", { exact: true }).click();
+  await page.getByRole("button", { name: /^Alternate 1: The tide/ }).click();
+  const row = page.locator("#s-greetings li[data-key]");
+  await expect(row).toHaveCount(1);
+  await expect.poll(() => row.evaluate((element) => element.getAnimations().length)).toBe(0);
+  const height = (await row.boundingBox())?.height ?? 0;
+  await page.getByRole("button", { name: "More for Alternate 1" }).click();
+  const menu = page.getByRole("menuitem", { name: "Remove" });
+  await expect(menu).toBeVisible();
+  const leaving = exitFrames(row);
+  await menu.click();
+  const frames = (await leaving).filter(({ inert }) => inert);
+  expect(frames.length).toBeGreaterThan(1);
+  for (const frame of frames) {
+    expect(frame.hidden).toBe(true);
+    expect(frame.text).toContain("The tide is out.");
+  }
+  // It folds: its height shrinks through the exit instead of dropping in one step.
+  expect(frames.some((frame) => frame.height > 1 && frame.height < height - 1)).toBe(true);
+  await expect(row).toHaveCount(0);
+  await expect(page.locator("#s-greetings ol").first()).toBeHidden();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("textbox", { name: "Alternate 1" })).toHaveValue("The tide is out.");
+});
+
+test("the palette editor leaves inert and folded, with its last contents", async ({ page }) => {
+  await page.goto("/settings?section=appearance");
+  // The editor's sample scene needs the preloaded Markdown renderer (app/preload.ts).
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: /^Your palettes/ }).click();
+  await page.getByRole("button", { name: "New palette" }).click();
+  await page.getByRole("menuitem", { name: "Nord" }).click();
+  const editor = page.getByRole("region", { name: "New palette" });
+  await expect(editor).toBeVisible();
+  // The slot around the editor is what folds.
+  const slot = editor.locator("xpath=..");
+  await expect.poll(() => slot.evaluate((element) => element.getAnimations().length)).toBe(0);
+  const height = (await slot.boundingBox())?.height ?? 0;
+  const leaving = exitFrames(slot);
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  const frames = (await leaving).filter(({ inert }) => inert);
+  expect(frames.length).toBeGreaterThan(1);
+  for (const frame of frames) {
+    expect(frame.hidden).toBe(true);
+    expect(frame.text).toContain("New palette");
+  }
+  expect(frames.some((frame) => frame.height > 1 && frame.height < height - 1)).toBe(true);
+  await expect(editor).toHaveCount(0);
+});
+
+/**
+ * The last reply's actions row, as its distance below the top of the reply's prose, each frame
+ * from now until it has moved and then held still for a while.
+ */
+function rowOffsets(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const prose = [...document.querySelectorAll('[data-role="assistant"] [data-prose]')].at(-1);
+        const row = document.querySelector("[data-reply-actions]");
+        if (prose === undefined || row === null) return resolve([]);
+        const offsets: number[] = [];
+        let held = 0;
+        const sample = () => {
+          const offset = Math.round(
+            row.getBoundingClientRect().top - prose.getBoundingClientRect().top,
+          );
+          held = offset === offsets.at(-1) ? held + 1 : 0;
+          offsets.push(offset);
+          const moved = offsets.some((value) => value !== offsets[0]);
+          if ((moved && held > 20) || offsets.length > 600) return resolve(offsets);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+}
+
+test("New reply removes the outgoing alternate under normal motion, including repeated fast replies", async ({
+  page,
+}) => {
+  await openChat(page, "mock-fast");
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  const frame = lastReply(page).locator("[data-prose] > div").first();
+  for (const model of ["mock-fast", "mock-fast", "mock-slow"] as const) {
+    await chooseModel(page, model);
+    const outgoing = await frame.elementHandle();
+    if (outgoing === null) throw new Error("No outgoing reply frame");
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    await expect.poll(() => outgoing.evaluate((element) => element.isConnected)).toBe(false);
+    await expect(frame).toContainText("Reply:");
+    await expect(frame).toHaveCSS("opacity", "1");
+    if (model === "mock-slow") {
+      await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+      await page.getByRole("button", { name: "Stop", exact: true }).click();
+    } else await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  }
+});
+
+test("New reply shows growing streaming prose without clipping", async ({ page }) => {
+  await openChat(page, "mock-fast");
+  await send(page, canary("in"));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await chooseModel(page, "mock-long");
+  const sampling = page.evaluate(
+    () =>
+      new Promise<{ text: string; opacity: number; x: string; clipped: number }[]>((resolve) => {
+        const frames: { text: string; opacity: number; x: string; clipped: number }[] = [];
+        const start = performance.now();
+        const sample = () => {
+          const frame = document.querySelector<HTMLElement>(
+            '[data-message][data-role="assistant"]:last-of-type [data-prose] > div',
+          );
+          if (frame) {
+            const style = getComputedStyle(frame);
+            frames.push({
+              text: frame.textContent ?? "",
+              opacity: Number.parseFloat(style.opacity),
+              x: style.transform,
+              clipped: frame.scrollHeight - frame.clientHeight,
+            });
+          }
+          if (performance.now() - start > 1500) resolve(frames);
+          else requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+  await replyActions(page).getByRole("button", { name: "New reply" }).click();
+  const frames = await sampling;
+  const arriving = frames.filter(({ text, opacity }) => text.includes("Line 1") && opacity > 0);
+  expect(arriving, JSON.stringify(frames.slice(-5))).not.toHaveLength(0);
+  expect(
+    arriving
+      .filter(({ clipped }) => clipped > 1)
+      .map(({ clipped, x, opacity }) => ({ clipped, x, opacity })),
+  ).toEqual([]);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+});
+
+for (const reduced of [false, true]) {
+  test(`an alternate of another length ${reduced ? "moves the row below it in one step under reduced motion" : "eases the row below it"}`, async ({
+    page,
+  }) => {
+    if (reduced) await page.emulateMedia({ reducedMotion: "reduce" });
+    await openChat(page, "mock-fast");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    // A second alternate of several paragraphs, against the first's one line.
+    await chooseModel(page, "mock-hostile");
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const pager = (name: "Previous reply" | "Next reply") =>
+      replyCounter(page).getByRole("button", { name });
+    const frame = lastReply(page).locator("[data-prose] > div").first();
+    await pager("Previous reply").click();
+    await expect(frame).toContainText("Reply:");
+    await expect(frame).toHaveCSS("opacity", "1");
+    // Back to the long one, and settled there before stepping to the short one.
+    const growing = rowOffsets(page);
+    await pager("Next reply").click();
+    await growing;
+    await expect(frame).toContainText("She smiles.");
+    const moving = rowOffsets(page);
+    await pager("Previous reply").click();
+    const offsets = await moving;
+    await expect(replyCounter(page)).toContainText("1 / 2");
+    const distinct = new Set(offsets);
+    // The row ends higher, as the shorter alternate is.
+    expect(offsets.at(-1)).toBeLessThan(offsets[0] ?? Number.NaN);
+    if (reduced) expect(distinct.size).toBe(2);
+    else expect(distinct.size).toBeGreaterThan(2);
+  });
+}
+
+/** Latest's wrapper each frame from now until it no longer shows. */
+function latestFrames(wrapper: Locator) {
+  return wrapper.evaluate(
+    (element) =>
+      new Promise<
+        { hidden: boolean; inert: boolean; shown: boolean; opacity: number; top: number }[]
+      >((resolve) => {
+        const frames: {
+          hidden: boolean;
+          inert: boolean;
+          shown: boolean;
+          opacity: number;
+          top: number;
+        }[] = [];
+        const sample = () => {
+          const style = getComputedStyle(element);
+          const shown = element.isConnected && style.display !== "none";
+          frames.push({
+            hidden: element.hasAttribute("hidden"),
+            inert: element.closest("[inert]") !== null,
+            shown,
+            opacity: Number.parseFloat(style.opacity),
+            top: element.getBoundingClientRect().top,
+          });
+          if (!shown || frames.length > 600) return resolve(frames);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+}
+
+test("Latest fades out in place and rises back in", async ({ page }) => {
+  await openChat(page, "mock-long");
+  await send(page, canary("in"));
+  const thread = page.getByRole("log").locator(":scope > div").first();
+  await expect
+    .poll(() => thread.evaluate((node) => node.scrollHeight > node.clientHeight * 2))
+    .toBe(true);
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(page.getByRole("button", { name: "Stop" })).toHaveCount(0);
+  await thread.hover();
+  await page.mouse.wheel(0, -600);
+  const latest = page.getByRole("button", { name: "Latest" });
+  await expect(latest).toBeVisible();
+  const wrapper = page
+    .getByRole("button", { name: "Latest", includeHidden: true })
+    .locator("xpath=..");
+  await expect.poll(() => wrapper.evaluate((node) => node.getAnimations().length)).toBe(0);
+  const leaving = latestFrames(wrapper);
+  await latest.click();
+  const frames = await leaving;
+  // Still drawn after it was hidden, fading and out of reach, then gone: it was never removed.
+  const fading = frames.filter((frame) => frame.hidden && frame.shown);
+  expect(fading.length).toBeGreaterThan(1);
+  for (const frame of fading) expect(frame.inert).toBe(true);
+  expect(fading.some((frame) => frame.opacity > 0 && frame.opacity < 1)).toBe(true);
+  // In place: it fades where it stood, without drifting.
+  const resting = frames[0]?.top ?? Number.NaN;
+  for (const frame of fading) expect(Math.abs(frame.top - resting)).toBeLessThan(0.5);
+  expect(frames.at(-1)?.shown).toBe(false);
+  await expect(wrapper).toHaveCount(1);
+  await expect(latest).toBeHidden();
+  // Scrolled away again, the same control rises back in.
+  await thread.hover();
+  await page.mouse.wheel(0, -600);
+  await expect(latest).toBeVisible();
+  await expect(wrapper).not.toHaveAttribute("hidden");
 });

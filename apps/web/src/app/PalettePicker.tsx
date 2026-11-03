@@ -33,6 +33,7 @@ import {
 import { PaletteEditor } from "../palettes/PaletteEditor.tsx";
 import { customPalettesQuery } from "../palettes/queries.ts";
 import { BUILT_IN_NAMES } from "../palettes/roles.ts";
+import { NoticeSlot } from "./NoticeCard.tsx";
 import { useScheme, useTheme } from "./theme.tsx";
 
 /**
@@ -99,8 +100,7 @@ function Swatch({ palette }: { palette: PaletteChoice }) {
   );
 }
 
-const TILE =
-  "grid gap-2 rounded-xl border border-rush bg-surface p-1.5 pb-2 transition-[background-color,border-color,box-shadow,scale] duration-(--duration-quick) ease-fade";
+const TILE = "grid gap-2 rounded-xl border border-rush bg-surface p-1.5 pb-2";
 
 /** A choosable palette: its swatch, radio and name, the whole tile one label. */
 function PaletteTile({
@@ -119,7 +119,7 @@ function PaletteTile({
       <label
         className={cn(
           TILE,
-          "cursor-pointer hover:bg-surface-hover active:scale-(--press-scale) has-data-checked:border-dusk-line has-data-checked:shadow-[0_0_0_1px_var(--dusk-line)]",
+          "press cursor-pointer hover:bg-surface-hover has-data-checked:border-dusk-line has-data-checked:shadow-[0_0_0_1px_var(--dusk-line)]",
           editing && "border-dashed border-dusk-line",
         )}
       >
@@ -303,15 +303,19 @@ export function PalettePicker({ labelId }: { labelId: string }) {
           </Collapsible.Panel>
         </Collapsible.Root>
       </ViewTransition>
-      {draft !== null && (
-        <PaletteEditor
-          key={draft.session}
-          customs={customs}
-          onClose={closeEditor}
-          coloursOf={(base) => paletteColours(base, customs)}
-          nameOf={(base) => paletteName(base, customs)}
-        />
-      )}
+      {/* Closed or saved, the editor folds away with its last contents, inert at once. */}
+      <NoticeSlot value={draft}>
+        {(shown) => (
+          <PaletteEditor
+            key={shown.session}
+            draft={shown}
+            customs={customs}
+            onClose={closeEditor}
+            coloursOf={(base) => paletteColours(base, customs)}
+            nameOf={(base) => paletteName(base, customs)}
+          />
+        )}
+      </NoticeSlot>
       <ConfirmDialog
         open={pending !== null}
         onOpenChange={(next) => !next && setPending(null)}
@@ -365,10 +369,7 @@ function NewTile({
     <Menu>
       <MenuTrigger
         onKeyDown={keepArrows}
-        className={cn(
-          TILE,
-          "cursor-pointer text-left hover:bg-surface-hover active:scale-(--press-scale)",
-        )}
+        className={cn(TILE, "press cursor-pointer text-left hover:bg-surface-hover")}
       >
         <span
           aria-hidden="true"

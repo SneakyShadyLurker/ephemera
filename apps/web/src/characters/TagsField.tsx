@@ -27,8 +27,9 @@ export function TagsField({
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
-      <span id={labelId} className="text-note text-reed">
+    <div className="grid grid-cols-[minmax(0,1fr)]">
+      {/* The identity block is a nameplate: the chips and "Add a tag" name the field on screen. */}
+      <span id={labelId} className="sr-only">
         Tags
       </span>
       <TokenField

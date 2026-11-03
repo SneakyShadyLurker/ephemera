@@ -134,7 +134,7 @@ function EpisodeRow({
       type="button"
       data-episode={episode.id}
       onClick={() => onOpen(episode.id, members)}
-      className="press -mx-3 grid w-[calc(100%+1.5rem)] min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 rounded-lg px-3 py-4 text-left transition-colors duration-(--duration-quick) ease-fade [overflow-wrap:anywhere] hover:bg-surface-hover"
+      className="press -mx-3 grid w-[calc(100%+1.5rem)] min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 rounded-lg px-3 py-4 text-left [overflow-wrap:anywhere] hover:bg-surface-hover"
     >
       <span className="font-semibold font-story text-ink text-name">{episode.title}</span>
       <span className="line-clamp-4 whitespace-pre-line font-story text-reed text-turn">

@@ -3,14 +3,13 @@ import { Link } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import { MemoryIcon } from "@/components/icons";
 import { buttonVariants } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { memoryOnIn, memoryQuery } from "../memory/queries.ts";
 import { useSetting } from "../settings/settings.ts";
 import { useChat } from "./session.ts";
 import { foldedTurns, heldTurns } from "./store.ts";
 
-/** The remembered count in a corner of the mark: short enough for four figures ("1.2K"). */
+/** The remembered count, after the word or in a corner of the phone's menu button: short enough for four figures ("1.2K"). */
 const n = new Intl.NumberFormat("en", { notation: "compact" });
 
 /**
@@ -60,7 +59,7 @@ export function RememberedCount({ count }: { count: number }) {
       key={count}
       aria-hidden="true"
       data-remembered-count=""
-      className="pointer-events-none absolute top-0.5 right-0 min-w-4 rounded-full bg-surface-selected px-1 text-center font-medium text-ink text-tag tabular-nums transition-[opacity,scale] duration-(--duration-arrive) ease-spring starting:scale-75 starting:opacity-0 touch:top-1 touch:right-0.5"
+      className="pointer-events-none absolute top-0.5 right-0 min-w-4 rounded-full bg-surface-selected px-1 text-center font-medium text-ink text-tag tabular-nums transition-[opacity,scale] duration-(--duration-arrive) ease-spring starting:scale-(--arrive-scale) starting:opacity-0 touch:top-1 touch:right-0.5"
     >
       {n.format(count)}
     </span>
@@ -68,28 +67,34 @@ export function RememberedCount({ count }: { count: number }) {
 }
 
 /**
- * Beside the meter while the chat's character has memory on: a small page
- * with its corner turned down, and how many turns are remembered in its
- * corner. It opens the character's memory screen, whose Back returns to
- * the chat.
+ * From tablet up, beside the meter while the chat's character has memory on:
+ * a quiet labelled link like the header's other actions, with how many turns
+ * are remembered after the word. It opens the character's memory screen,
+ * whose Back returns to the chat.
  */
 export function MemoryMark() {
   const status = useMemoryStatus();
   if (status === null) return null;
   return (
-    <Tooltip label="Memory" side="bottom">
-      <MemoryLink
-        characterId={status.characterId}
-        aria-label="Memory"
-        data-memory-mark=""
-        className={cn(
-          buttonVariants({ size: "icon" }),
-          "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
-        )}
-      >
-        <MemoryIcon />
-        <RememberedCount count={status.remembered} />
-      </MemoryLink>
-    </Tooltip>
+    <MemoryLink
+      characterId={status.characterId}
+      aria-label="Memory"
+      data-memory-mark=""
+      className={cn(
+        buttonVariants(),
+        "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
+      )}
+    >
+      <MemoryIcon size={16} />
+      Memory
+      {status.remembered > 0 && (
+        <span
+          key={status.remembered}
+          className="text-meta text-reed tabular-nums transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+        >
+          {n.format(status.remembered)}
+        </span>
+      )}
+    </MemoryLink>
   );
 }

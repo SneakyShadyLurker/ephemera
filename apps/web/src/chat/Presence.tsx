@@ -13,11 +13,12 @@ import { useChat } from "./session.ts";
 /**
  * The portrait's column in each placement: the button under it takes the same width. Once the
  * story is wider than the prose's measure, the float grows into the width the measure leaves,
- * less the gap, up to its widest column.
+ * less the gap, up to its widest column. The float is never wider than a 2:3 leaf
+ * `--portrait-tallest` high, so a short reply beside it stays in view.
  */
 const COLUMN = {
   float:
-    "w-28 desktop:w-40 @story-column/story:w-[clamp(--spacing(40),calc(100cqi-var(--container-story)-var(--gap-presence)),var(--container-portrait))]",
+    "w-[min(--spacing(28),calc(var(--portrait-tallest)*2/3))] desktop:w-[min(--spacing(40),calc(var(--portrait-tallest)*2/3))] @story-column/story:w-[min(clamp(--spacing(40),calc(100cqi-var(--container-story)-var(--gap-presence)),var(--container-portrait)),calc(var(--portrait-tallest)*2/3))]",
   band: "w-24",
 } as const;
 

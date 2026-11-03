@@ -414,7 +414,7 @@ function SheetEditor({
         <section
           id="s-identity"
           aria-label="Identity"
-          className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
+          className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
           {/* From tablet the portrait spans the identity and its details beside it. */}
           <div className="tablet:row-span-2">
@@ -820,7 +820,7 @@ function SheetIndex({ count }: { count: number }) {
                 event.preventDefault();
                 goToSection(key);
               }}
-              className="-ml-px block border-transparent border-l-2 py-1.5 pl-4 text-note text-reed transition-colors duration-(--duration-tint) hover:text-ink aria-[current=location]:border-ink aria-[current=location]:text-ink"
+              className="-ml-px block border-transparent border-l-2 py-1.5 pl-4 text-note text-reed transition-colors duration-(--duration-tint) ease-fade hover:text-ink aria-[current=location]:border-ink aria-[current=location]:text-ink"
             >
               {label}
               {key === "greetings" && (

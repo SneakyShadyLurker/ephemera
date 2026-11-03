@@ -2,10 +2,12 @@
  * Adapted from AI Elements' Conversation (registry, 2026-09-28): the
  * transcript download is removed (chats are never saved), the scroll button
  * is our labelled Latest control, and growth while streaming is followed
- * instantly so the view never lags behind the text.
+ * instantly so the view never lags behind the text. use-stick-to-bottom
+ * watches only the content's size, so a scroller that shrinks (the phone
+ * keyboard opening) keeps its tail in view through `KeepTail` while the story is locked.
  */
 
-import type { ComponentProps } from "react";
+import { type ComponentProps, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { LatestIcon } from "@/components/icons";
@@ -14,15 +16,45 @@ import { cn } from "@/lib/cn";
 
 type ConversationProps = ComponentProps<typeof StickToBottom>;
 
+/**
+ * While the story is locked to the bottom, a scroller that gets shorter keeps the bottom in
+ * view. The lock is the library's live `state.isAtBottom`: any scroll up by the owner clears it,
+ * even a slight one, and Latest or a send sets it again. The context's `isAtBottom` is no lock:
+ * it also holds a little way up, near the bottom.
+ */
+function KeepTail() {
+  const { scrollRef, state, scrollToBottom } = useStickToBottomContext();
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (scroller === null) return;
+    let height = scroller.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const next = scroller.clientHeight;
+      if (next < height && state.isAtBottom) void scrollToBottom("instant");
+      height = next;
+    });
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [scrollRef, state, scrollToBottom]);
+  return null;
+}
+
 /** The one scroll owner for the thread: follows the bottom until the owner scrolls away. */
-export const Conversation = ({ className, ...props }: ConversationProps) => (
+export const Conversation = ({ className, children, ...props }: ConversationProps) => (
   <StickToBottom
     className={cn("relative min-h-0 flex-1", className)}
     initial="instant"
     resize="instant"
     role="log"
     {...props}
-  />
+  >
+    {(context) => (
+      <>
+        <KeepTail />
+        {typeof children === "function" ? children(context) : children}
+      </>
+    )}
+  </StickToBottom>
 );
 
 export const ConversationContent = ({
@@ -42,9 +74,11 @@ export const ConversationScrollButton = ({
   onKeyboardUse?: () => void;
 }) => {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
-  if (isAtBottom) return null;
+  // Always rendered, so at the bottom it leaves on `arrive`'s hidden state and returns from its start.
   return (
     <div
+      hidden={isAtBottom}
+      inert={isAtBottom}
       className={cn(
         // Above the turns' sticky nameplates, which pass behind it while the story scrolls.
         "absolute bottom-3 left-1/2 z-(--z-raised) -translate-x-1/2 arrive",

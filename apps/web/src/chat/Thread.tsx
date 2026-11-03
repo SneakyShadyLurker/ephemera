@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Fragment, type RefObject, useEffect, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { useShallow } from "zustand/shallow";
@@ -12,8 +14,9 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Illustration } from "@/components/illustration.tsx";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { charactersQuery } from "../characters/queries.ts";
 import { useSetting } from "../settings/settings.ts";
 import { useChatCharacter } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
@@ -322,13 +325,15 @@ export function RetentionNote() {
  * then choosing a model while none is
  * chosen (ModelStep), in room left above the invitation: the step sits at
  * the room's foot, so once a model is chosen nothing else moves. Then the
- * invitation in the story's own voice, and choosing a character, optional.
+ * invitation in the story's own voice, and choosing a character, optional;
+ * with none saved yet, creating one in the gallery instead.
  * With a character the presence beside it is the welcome, and a missing
  * model is the notice's above the composer (ModelNotice).
  */
 function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
   const character = useChatCharacter();
   const chosen = useSetting((settings) => settings.characterId) !== null;
+  const characters = useQuery(charactersQuery);
   return (
     <div className="grid content-start justify-items-start transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
       {character === undefined ? (
@@ -340,9 +345,18 @@ function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | nu
           <p className="voice-story text-heading tablet:text-title-phone">
             Write the first line, or choose a character.
           </p>
-          <Button variant="outline" className="mt-4" onClick={() => setSessionOpen(true)}>
-            Choose a character
-          </Button>
+          {/* Arrives once the library has answered, so its words never change under the eye. */}
+          <div className="arrive mt-4" hidden={characters.isPending}>
+            {characters.data?.length === 0 ? (
+              <Link to="/characters" className={buttonVariants({ variant: "outline" })}>
+                Create a character
+              </Link>
+            ) : (
+              <Button variant="outline" onClick={() => setSessionOpen(true)}>
+                Choose a character
+              </Button>
+            )}
+          </div>
         </>
       ) : (
         <p className="voice-story text-heading tablet:text-title-phone">Write the first line.</p>
