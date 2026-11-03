@@ -1,4 +1,4 @@
-import { importCards, jsonCard, tile, uniqueName, v3 } from "./support/cards.ts";
+import { editTile, importCards, jsonCard, uniqueName, v3 } from "./support/cards.ts";
 import { chooseCharacter, chooseModel, clearChat, lastReply, send } from "./support/chat.ts";
 import { canary } from "./support/env.ts";
 import { expect, test } from "./support/test.ts";
@@ -31,7 +31,7 @@ test("a book of 5,000 entries opens, finds, and is scanned within its bound", as
   await expect(page.getByRole("status").filter({ hasText: `Imported ${name}.` })).toBeVisible();
 
   await page.getByRole("searchbox", { name: "Search characters" }).fill(name);
-  await tile(page, name).click();
+  await editTile(page, name).click();
   await expect(page.locator("#s-lorebook")).toContainText("5,000 entries");
   const opened = Date.now();
   await page.getByRole("link", { name: "Open lorebook" }).click();

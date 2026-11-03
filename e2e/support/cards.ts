@@ -40,8 +40,18 @@ export async function importCards(page: Page, files: CardFile[]) {
   await expect(page.getByRole("button", { name: "Dismiss" })).toBeVisible();
 }
 
+/** A character's card in the gallery: its portrait, name and caption, and its Edit. */
 export const tile = (page: Page, name: string) =>
-  page.getByRole("list", { name: "Characters" }).getByRole("link", { name, exact: false });
+  page
+    .getByRole("list", { name: "Characters" })
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("button", { name: `Chat with ${name}`, exact: false }) });
+
+/** A card's Edit, which opens the character's sheet; the rest of the card starts a chat. */
+export const editTile = (page: Page, name: string) =>
+  page
+    .getByRole("list", { name: "Characters" })
+    .getByRole("link", { name: `Edit ${name}`, exact: false });
 
 /**
  * Opens the character's sheet from the gallery's search. `navigate` reaches
@@ -58,6 +68,6 @@ export async function openSheet(page: Page, name: string, { navigate = false } =
     await page.goto("/characters");
   }
   await page.getByRole("searchbox", { name: "Search characters" }).fill(name);
-  await tile(page, name).click();
+  await editTile(page, name).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
 }

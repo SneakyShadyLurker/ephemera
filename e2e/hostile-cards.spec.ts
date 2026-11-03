@@ -9,7 +9,7 @@ import {
   svg,
 } from "../apps/server/test/image-fixtures.ts";
 import { blankCard, CARD_LIMITS } from "../packages/core/src/index.ts";
-import { importCards, jsonCard, pngCard, tile, uniqueName, v3 } from "./support/cards.ts";
+import { editTile, importCards, jsonCard, pngCard, tile, uniqueName, v3 } from "./support/cards.ts";
 import { beacons, chooseCharacter, chooseModel, lastReply, send } from "./support/chat.ts";
 import { loreEntry } from "./support/entities.ts";
 import { canary, UPSTREAM_PORT } from "./support/env.ts";
@@ -79,7 +79,7 @@ test("a hostile card stays inert text everywhere and fetches nothing", async ({ 
   await expect(tile(page, marker)).toContainText("<script>alert(1)</script>");
 
   // Sheet: every field holds its text exactly, the folded fields as tagged blocks of plain text.
-  await tile(page, marker).click();
+  await editTile(page, marker).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
   await expect(page.getByLabel("Description", { exact: true })).toHaveValue(
     [
@@ -162,7 +162,7 @@ test("a card whose image inflates to 300 MB imports without inflating it", async
 test("portraits are re-encoded without metadata and refuse SVG", async ({ page }) => {
   const name = uniqueName("Portrait");
   await importCards(page, [jsonCard("p.json", v3({ name }))]);
-  await tile(page, name).click();
+  await editTile(page, name).click();
   const picker = page.locator('#s-identity input[type="file"]');
 
   await picker.setInputFiles({
@@ -220,7 +220,7 @@ test("a hostile lorebook stays inert in the sheet, the lorebook screen and the i
   const before = await beacons();
   await importCards(page, [jsonCard("hostile-lore.json", card)]);
   await page.getByRole("searchbox", { name: "Search characters" }).fill(marker);
-  await tile(page, marker).click();
+  await editTile(page, marker).click();
   await page.getByRole("link", { name: "Open lorebook" }).click();
   await expect(page.getByRole("list", { name: "Entries in prompt order" })).toContainText(
     "<script>alert(1)</script>",
