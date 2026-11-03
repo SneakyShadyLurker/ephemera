@@ -112,9 +112,12 @@ Version 1.0 holds everything below.
   "Noir" and "noir" are one tag, on a card, in the gallery and in event
   scopes. Every card names its character once, below the cover; a card
   without a portrait keeps a quiet cover with the mark's crescent and lamp.
-  The gallery is where a chat's character is chosen: each card's Chat
-  starts a chat with it, asking first when that clears the open chat, and
-  the empty chat's Choose a character and Session's character row open it.
+  The gallery is where a chat's character is chosen: a card itself starts
+  a chat with its character, asking first when that clears the open chat,
+  and the empty chat's Choose a character and Session's character row open
+  it. A card's Edit, in the portrait's corner, opens its sheet: with a
+  mouse it shows on hover or keyboard focus, on touch it stays as its pen.
+  A persona's card opens its sheet.
   An empty gallery says so on the same edges as a full one and offers
   Import cards as the first step; New character and Create with AI stay in
   the header, except that a phone gallery with cards offers Create with AI
