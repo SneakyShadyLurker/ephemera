@@ -138,9 +138,9 @@ export function PortraitTile({
           aria-label={`Edit ${name}`}
           className={cn(
             buttonVariants({ variant: "outline", size: "text" }),
-            "gap-1.5 border-rush bg-surface/85 shadow-[0_1px_3px_var(--shadow-overlay)] backdrop-blur-md hover:bg-surface",
-            // Touch: the pen alone on a 36px plate, its target grown to 44px.
-            "touch:size-9 touch:px-0 touch:after:absolute touch:after:-inset-1",
+            "gap-1.5 border-rush bg-surface shadow-[0_1px_3px_var(--shadow-overlay)]",
+            // Touch: the pen alone on a 36px plate, its target grown past the border to 44px.
+            "touch:size-9 touch:px-0 touch:after:absolute touch:after:-inset-[calc(--spacing(1)+1px)]",
           )}
         >
           <EditIcon size={16} />

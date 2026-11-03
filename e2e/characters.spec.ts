@@ -517,19 +517,20 @@ test.describe("on touch", () => {
     const edit = editTile(page, name);
     await expect(edit).toBeVisible();
     await expect.poll(() => editShown(page, name)).toBe("1");
-    // The word is read, not drawn: the pen alone on its plate.
+    // The word is read, not drawn: the pen alone on a 36px plate, its target 44px.
     await expect(edit).toHaveAccessibleName(`Edit ${name}`);
-    await expect(edit.getByText("Edit")).toHaveClass(/sr-only/);
-    const target = await edit.evaluate((link) => {
-      const plate = link.getBoundingClientRect();
+    const plate = await edit.evaluate((link) => {
+      const box = link.getBoundingClientRect();
       const reach = getComputedStyle(link, "::after");
+      const word = link.querySelector("span");
       return {
-        width: plate.width - 2 * Number.parseFloat(reach.left),
-        height: plate.height - 2 * Number.parseFloat(reach.top),
+        width: box.width,
+        height: box.height,
+        reach: [Number.parseFloat(reach.width), Number.parseFloat(reach.height)],
+        word: word === null ? null : getComputedStyle(word).position,
       };
     });
-    expect(target.width).toBeGreaterThanOrEqual(44);
-    expect(target.height).toBeGreaterThanOrEqual(44);
+    expect(plate).toEqual({ width: 36, height: 36, reach: [44, 44], word: "absolute" });
 
     await tile(page, name)
       .getByRole("button", { name: `Chat with ${name}`, exact: true })
@@ -682,19 +683,15 @@ test("the gallery and sheet work from the keyboard", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Tags" })).toBeFocused();
 
-  // A card's Chat comes first; Tab reaches its Edit, which keyboard focus shows.
+  // A card's Chat comes first, and its keyboard focus shows the Edit; Tab reaches it.
   const edit = editTile(page, name);
   await tile(page, name)
     .getByRole("button", { name: `Chat with ${name}` })
     .focus();
-  await expect
-    .poll(() => edit.evaluate((link) => getComputedStyle(link.parentElement as Element).opacity))
-    .toBe("0");
+  await expect.poll(() => editShown(page, name)).toBe("1");
   await page.keyboard.press("Tab");
   await expect(edit).toBeFocused();
-  await expect
-    .poll(() => edit.evaluate((link) => getComputedStyle(link.parentElement as Element).opacity))
-    .toBe("1");
+  await expect.poll(() => editShown(page, name)).toBe("1");
   await page.keyboard.press("Enter");
   const nameField = page.getByRole("textbox", { name: "Name", exact: true });
   await expect(nameField).toHaveValue(name);
