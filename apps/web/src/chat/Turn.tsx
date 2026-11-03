@@ -48,19 +48,30 @@ const STATUS_NOTE: Partial<Record<MessageStatus, string>> = {
 
 /**
  * A failed reply says what happened, apart from a stop: cut off once text
- * had arrived, else whether the server was out of reach, the connection
- * dropped, or the provider answered with an error.
+ * had arrived, and why (the rest could not be read, the provider answered
+ * with an error, else the connection dropped); before any text, whether the
+ * server was out of reach, the connection dropped, the reply could not be
+ * read, or the provider answered with an error.
  */
+const cutNote = (reply: Reply) =>
+  reply.failure === "unreadable"
+    ? "The reply was cut off: the rest could not be read."
+    : reply.failure === "provider"
+      ? "The reply was cut off: the model's provider answered with an error."
+      : "The reply was cut off: the connection dropped.";
+
 const failedNote = (reply: Reply) =>
   reply.text !== ""
-    ? "The reply was cut off: the connection dropped."
+    ? cutNote(reply)
     : reply.failure === "unreachable"
       ? "No reply: the server couldn't be reached. Check the connection, then try again."
       : reply.failure === "stream"
         ? "No reply: the connection dropped. Try again."
-        : reply.failure === undefined
-          ? "No reply."
-          : "No reply: the model's provider answered with an error. Try again.";
+        : reply.failure === "unreadable"
+          ? "No reply: the reply could not be read. Try again."
+          : reply.failure === undefined
+            ? "No reply."
+            : "No reply: the model's provider answered with an error. Try again.";
 
 /**
  * Who speaks, named at the start of each turn in the voice that follows: the

@@ -3,6 +3,7 @@ import type { APIRequestContext, Page, Route } from "@playwright/test";
 import { CONTINUED_SCENE, NEW_SCENE, STORY_HEADING } from "../packages/core/src/memory/prompt.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
+  characterRow,
   chatMenuButton,
   chooseCharacter,
   chooseModel,
@@ -401,8 +402,8 @@ test("Remember and start new writes the ending, newest turns included, and the n
   expect(await upstreamRecords(first, "memory")).toEqual([]);
 
   await page.getByRole("button", { name: "Session", exact: true }).click();
-  await page.getByRole("combobox", { name: "Character" }).click();
-  await page.getByRole("option", { name: other, exact: true }).click();
+  await characterRow(page).click();
+  await page.getByRole("button", { name: `Chat with ${other}`, exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: `Start a new chat with ${other}?` });
   await expect(dialog).toContainText(`as a memory of ${name}`);
   await expect(dialog.getByRole("button", { name: "Start new without remembering" })).toBeVisible();

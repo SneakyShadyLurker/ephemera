@@ -16,9 +16,12 @@ import {
 import {
   isReasoningUIPart,
   isTextUIPart,
+  JSONParseError,
   parseJsonEventStream,
   readUIMessageStream,
+  TypeValidationError,
   type UIMessageChunk,
+  UIMessageStreamError,
   uiMessageChunkSchema,
 } from "ai";
 import { z } from "zod";
@@ -30,9 +33,17 @@ const refusalSchema = z.object({ error: refusalCodeSchema });
 
 /**
  * `provider`: the stream carried the provider's error event; `stream`: the body broke off or
- * ended without the server's finish (the connection dropped).
+ * ended without the server's finish (the connection dropped); `unreadable`: a chunk or data
+ * part failed validation, or the chunks did not make a message.
  */
-type FailureReason = "http" | "provider" | "stream" | "aborted" | "refused" | "signed_out";
+type FailureReason =
+  | "http"
+  | "provider"
+  | "stream"
+  | "unreadable"
+  | "aborted"
+  | "refused"
+  | "signed_out";
 
 export class GenerationError extends Error {
   override name = "GenerationError";
@@ -76,6 +87,13 @@ type ParsedChunk =
   ReturnType<typeof parseJsonEventStream<UIMessageChunk>> extends ReadableStream<infer T>
     ? T
     : never;
+
+/** The stream arrived but could not be read: bad JSON, a chunk or data part off its schema, or chunks out of order. */
+const isUnreadable = (error: unknown) =>
+  JSONParseError.isInstance(error) ||
+  TypeValidationError.isInstance(error) ||
+  UIMessageStreamError.isInstance(error) ||
+  error instanceof z.ZodError;
 
 async function refusal(response: Response): Promise<RefusalCode | undefined> {
   const parsed = refusalSchema.safeParse(await response.json().catch(() => undefined));
@@ -148,10 +166,12 @@ export async function* streamReply(
 
   // readUIMessageStream ends quietly on stream errors, aborts included; record them instead.
   let failed = false;
+  let unreadable = false;
   const messages = readUIMessageStream({
     stream: chunks,
-    onError: () => {
+    onError: (error) => {
       failed = true;
+      unreadable ||= isUnreadable(error);
     },
   });
   let text = "";
@@ -177,6 +197,7 @@ export async function* streamReply(
   if (seen.abort) throw new GenerationError("aborted");
   // A reply is complete only when the server said so; a cut stream is a failure.
   if (seen.error) throw new GenerationError("provider", undefined, seen.busy);
+  if (unreadable) throw new GenerationError("unreadable");
   if (failed || !seen.finish) throw new GenerationError("stream");
   yield { text, reasoning, ...extra };
 }

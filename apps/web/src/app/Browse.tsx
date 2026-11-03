@@ -37,13 +37,19 @@ export function HeaderAction({
   );
 }
 
-/** A gallery's tile: the portrait, the name and one quiet caption line; it opens the sheet. */
+/**
+ * A gallery's tile: the portrait, the name and one quiet caption line, which
+ * open the sheet. An `action` (a character's Chat) takes its own cell at the
+ * caption's end, outside the link, so the portrait and the name keep the
+ * tile's whole width and the sheet's hover and press stay the link's own.
+ */
 export function PortraitTile({
   owner,
   id,
   name,
   version,
   caption,
+  action,
   arriving = false,
   transition,
   onOpen,
@@ -53,33 +59,38 @@ export function PortraitTile({
   name: string;
   version: number | null;
   caption: ReactNode;
+  action?: ReactNode;
   arriving?: boolean;
   /** Carries the portrait morph to and from the sheet. */
   transition: boolean;
   onOpen: () => void;
 }) {
   return (
-    <Link
-      to={owner === "characters" ? "/characters/$id" : "/personas/$id"}
-      params={{ id }}
-      onClick={onOpen}
-      className="group grid gap-2.5 rounded-lg outline-offset-4"
-    >
-      <Portrait
-        owner={owner}
-        id={id}
-        version={version}
-        arriving={arriving}
-        transition={transition}
-        className="transition-[filter] duration-(--duration-tint) ease-fade group-hover:brightness-[1.04] group-active:brightness-95"
-      />
-      <span className="grid gap-0.5 px-0.5">
-        <span className="line-clamp-2 text-pretty break-words font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto_auto]">
+      <Link
+        to={owner === "characters" ? "/characters/$id" : "/personas/$id"}
+        params={{ id }}
+        onClick={onOpen}
+        className="group col-span-full row-span-full grid grid-cols-subgrid grid-rows-subgrid rounded-lg outline-offset-4"
+      >
+        <Portrait
+          owner={owner}
+          id={id}
+          version={version}
+          arriving={arriving}
+          transition={transition}
+          className="col-span-full transition-[filter] duration-(--duration-tint) ease-fade group-hover:brightness-[1.04] group-active:brightness-95"
+        />
+        <span className="col-span-full line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
           {name}
         </span>
-        <span className="min-h-4 truncate text-meta text-reed">{caption}</span>
-      </span>
-    </Link>
+        <span className="col-start-1 min-h-4 truncate px-0.5 pt-0.5 text-meta text-reed">
+          {caption}
+        </span>
+      </Link>
+      {/* Centred on the caption's line, its hover surface ending with the portrait. */}
+      {action && <div className="col-start-2 row-start-3 -mt-1.5 pl-1 touch:-mt-3">{action}</div>}
+    </div>
   );
 }
 

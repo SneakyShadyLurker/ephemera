@@ -6,6 +6,7 @@ import { CONTRAST_FLOORS, paletteProperty, WASH_OPACITY } from "../packages/core
 import { importCards, pngCard, uniqueName, v3 } from "./support/cards.ts";
 import {
   browserStorage,
+  characterRow,
   chatMenuButton,
   chooseCharacter,
   chooseModel,
@@ -1318,7 +1319,7 @@ test("without a character the empty chat invites the first line, then offers a c
   await createCharacterViaApi(request, `Offered ${crypto.randomUUID().slice(0, 6)}`);
   await openChat(page, "mock-fast");
   const story = page.getByRole("log", { name: "Story" });
-  await expect(story.getByRole("button", { name: "Choose a character" })).toBeVisible();
+  await expect(story.getByRole("link", { name: "Choose a character" })).toBeVisible();
   const said = await story.evaluate((node) =>
     // What the story shows: Latest waits hidden while the story is at its end.
     [...node.querySelectorAll("p, button, a")]
@@ -1347,6 +1348,35 @@ test("without a character the empty chat invites the first line, then offers a c
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   await expect(message).toHaveAttribute("placeholder", "Write your reply");
   await expect(note).toHaveCount(0);
+});
+
+test("Choose a character opens the gallery, where a card's Chat starts the chat, and a Session sheet does not come back over it", async ({
+  page,
+  request,
+}) => {
+  const name = uniqueName("Chosen");
+  await createCharacterViaApi(request, name, { firstMessage: `${name} looks up.` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openChat(page, "mock-fast");
+  await page
+    .getByRole("log", { name: "Story" })
+    .getByRole("link", { name: "Choose a character" })
+    .click();
+  await expect(page.getByRole("heading", { name: /^Characters/, level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  await expect(lastReply(page)).toContainText(`${name} looks up.`);
+
+  // Session's row leads to the gallery too; its sheet closes on the way and stays closed.
+  await openSession(page);
+  const sheet = page.getByRole("dialog", { name: "Session" });
+  await expect(characterRow(page)).toContainText(name);
+  await characterRow(page).click();
+  await expect(sheet).toHaveCount(0);
+  // Chat with the character already chosen goes straight back to the open chat.
+  await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+  await expect(lastReply(page)).toContainText(`${name} looks up.`);
+  await expect(sheet).toHaveCount(0);
 });
 
 test("the first run asks for a model first, in the empty story, and once it is chosen the rest stays put", async ({
@@ -1389,7 +1419,7 @@ test("with no characters saved, the empty story and Session both lead to the gal
 }) => {
   await openChat(page, "mock-fast");
   const story = page.getByRole("log", { name: "Story" });
-  await expect(story.getByRole("button", { name: "Choose a character" })).toHaveCount(0);
+  await expect(story.getByRole("link", { name: "Choose a character" })).toHaveCount(0);
   await openSession(page);
   const session = page
     .getByRole("complementary", { name: "Session" })
@@ -2806,6 +2836,10 @@ test("at 360px the kept note keeps its words on one line and Chat with Dismiss t
   await page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT }).click();
   const note = page.getByRole("status").filter({ hasText: `Kept ${name}` });
   await expect(note).toBeVisible({ timeout: 20_000 });
+  // The note rises into place: measure its parts once it has settled, not mid-rise.
+  await expect
+    .poll(() => note.evaluate((element) => element.getAnimations({ subtree: true }).length))
+    .toBe(0);
   const words = note.getByText(`Kept ${name}`, { exact: true });
   const chat = note.getByRole("button", { name: "Chat" });
   const dismiss = note.getByRole("button", { name: "Dismiss" });

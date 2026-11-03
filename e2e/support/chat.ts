@@ -18,9 +18,16 @@ export async function chooseModel(page: Page, model: MockModel) {
 const START_WITHOUT_REMEMBERING = /^Start new (chat|without remembering)$/;
 const CLEAR_WITHOUT_REMEMBERING = /^Clear( without remembering)?$/;
 
+/** Session's Character row, which opens the gallery. */
+export const characterRow = (page: Page) =>
+  page.getByRole("link", { name: /^Character .+ (Change|Choose)$/ });
+
 /**
- * Chooses the chat's character in Session. `confirm` answers the "Start a new
- * chat" question that a non-empty chat asks; leave it out when none is expected.
+ * Chooses the chat's character as the owner does: Session's Character row
+ * opens the gallery, where the card's Chat starts the chat; "No character" is
+ * Session's own action. `confirm` answers the "Start a new chat" question that
+ * a non-empty chat asks; leave it out when none is expected. Declined, the
+ * owner goes back to the chat from the gallery.
  */
 export async function chooseCharacter(
   page: Page,
@@ -28,16 +35,22 @@ export async function chooseCharacter(
   { confirm }: { confirm?: boolean } = {},
 ) {
   await openSession(page);
-  const combobox = page.getByRole("combobox", { name: "Character" });
-  await combobox.click();
-  await page.getByRole("option", { name, exact: true }).click();
+  const none = name === "No character";
+  if (none) {
+    await page.getByRole("button", { name: "No character", exact: true }).click();
+  } else {
+    await characterRow(page).click();
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+  }
   if (confirm !== undefined) {
     const dialog = page.getByRole("alertdialog", { name: /^Start a new chat/ });
     await dialog
       .getByRole("button", { name: confirm ? START_WITHOUT_REMEMBERING : "Keep chatting" })
       .click();
     await expect(dialog).toHaveCount(0);
+    if (!confirm && !none) await page.goBack();
   }
+  await page.waitForURL((url) => url.pathname === "/");
   await closeSession(page);
 }
 

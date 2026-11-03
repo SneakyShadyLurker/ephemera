@@ -81,6 +81,8 @@ export function useStartChat() {
 
   const start = (id: string | null, name: string) => {
     if (currentSettings().characterId === id) {
+      // Staying with the chat's character is a choice too: one still loading gives way to it.
+      newStart();
       void navigate({ to: "/" });
     } else if (hasChatContent(chatStore.getState())) {
       setPending({ id, name });

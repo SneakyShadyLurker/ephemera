@@ -3,6 +3,7 @@ import { defaultPromptPreset } from "../packages/core/src/preset/prompt.ts";
 import { uniqueName } from "./support/cards.ts";
 import {
   beacons,
+  characterRow,
   chooseCharacter,
   chooseModel,
   clearChat,
@@ -128,7 +129,7 @@ test("a character's greetings open the chat, switch by arrows and picker, and th
   // Clear closes the character, back to the chat without one; choosing it again restarts on the first greeting.
   await clearChat(page);
   await expect(messages(page)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Choose a character" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Choose a character" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Clear/ })).toBeDisabled();
   await chooseCharacter(page, name);
   await expect(lastReply(page)).toContainText("Hello, User. First greeting.");
@@ -156,7 +157,7 @@ test("Clear on a chat with only its untouched greeting closes it without asking"
   await page.getByRole("button", { name: /^Clear/ }).click();
   await expect(messages(page)).toHaveCount(0);
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Choose a character" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Choose a character" })).toBeVisible();
   await expect(composer(page)).toBeFocused();
 });
 
@@ -197,22 +198,47 @@ test("a character chosen while the persona list loads gives way to a later choic
     await route.continue();
   });
   const heading = page.getByRole("heading", { level: 1 });
+  /** A card's Chat in the gallery, reached from Session; the chat returns once the list answers. */
+  const pick = async (name: string) => {
+    if (new URL(page.url()).pathname !== "/characters") {
+      await openSession(page);
+      await characterRow(page).click();
+    }
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+  };
 
   // Two choices before the list arrives: the later one stands.
   hold();
   await page.goto("/");
   await expect(heading).toHaveText(first);
-  await chooseCharacter(page, second);
-  await chooseCharacter(page, third);
+  await pick(second);
+  await pick(third);
   open();
   await expect(heading).toHaveText(third);
   await expect(lastReply(page)).toContainText(`${third} waits.`);
+
+  // Choosing the chat's own character after another stands too: the other does not arrive later.
+  hold();
+  await page.reload();
+  await expect(heading).toHaveText(third);
+  await pick(first);
+  await pick(third);
+  await page.waitForURL((url) => url.pathname === "/");
+  const kept = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/personas",
+  );
+  open();
+  await kept;
+  // Long enough for the waiting choice to have gone through, had it still been taken.
+  await page.waitForTimeout(500);
+  await expect(heading).toHaveText(third);
 
   // An edit of the greeting begun while a choice waits stands: the choice does not discard it.
   hold();
   await page.reload();
   await expect(heading).toHaveText(third);
-  await chooseCharacter(page, second);
+  await pick(second);
+  await page.goBack();
   await lastReply(page)
     .getByRole("button", { name: /^More actions/ })
     .click();
@@ -235,7 +261,9 @@ test("a character chosen while the persona list loads gives way to a later choic
   hold();
   await page.reload();
   await expect(heading).toHaveText(third);
-  await chooseCharacter(page, first);
+  await pick(first);
+  await page.goBack();
+  await closeSession(page);
   // Only the greeting is there, so Clear does not ask.
   await page.getByRole("button", { name: /^Clear/ }).click();
   const answered = page.waitForResponse(
@@ -247,7 +275,7 @@ test("a character chosen while the persona list loads gives way to a later choic
   await page.waitForTimeout(500);
   await expect(heading).toHaveText("Chat");
   await expect(messages(page)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Choose a character" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Choose a character" })).toBeVisible();
 });
 
 test("swipes: New reply writes another, arrows and keys step, Replace swaps only the shown one", async ({

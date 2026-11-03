@@ -17,6 +17,7 @@ import {
 } from "@/app/Screen.tsx";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import {
+  ChatIcon,
   CheckIcon,
   ChevronDownIcon,
   CloseIcon,
@@ -50,6 +51,7 @@ import { RadioSegment, RadioSegments } from "@/components/ui/radio-group";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 import { fold, matches } from "@/lib/find";
+import { useStartChat } from "../chat/StartChat.tsx";
 import { KeptNote } from "../creator/KeptNote.tsx";
 import { filterCharacters, type Order, repeatedNames, tagCounts } from "./filter.ts";
 import {
@@ -84,6 +86,8 @@ export function GalleryScreen() {
   };
   const newCharacter = () => void navigate({ to: "/characters/$id", params: { id: "new" } });
   const createWithAi = () => void navigate({ to: "/characters/create" });
+  // One start for every tile's Chat, and one confirmation.
+  const { start, dialog } = useStartChat();
 
   const { dragging, dropTarget } = useFileDrop(importFiles);
 
@@ -142,10 +146,11 @@ export function GalleryScreen() {
             <Toolbar list={list} phone={phone} onCreate={createWithAi} />
             <KeptNote />
             <ImportReport />
-            <Cast list={list} pending={characters.isPending} />
+            <Cast list={list} pending={characters.isPending} onChat={start} />
           </div>
         )}
       </div>
+      {dialog}
       <DropOverlay
         shown={dragging}
         title="Drop cards to import"
@@ -454,7 +459,16 @@ function ImportReport() {
   );
 }
 
-function Cast({ list, pending }: { list: CharacterSummary[]; pending: boolean }) {
+function Cast({
+  list,
+  pending,
+  onChat,
+}: {
+  list: CharacterSummary[];
+  pending: boolean;
+  /** Starts a chat with the character, asking first when that clears the open chat. */
+  onChat: (id: string, name: string) => void;
+}) {
   const { query, tags, order } = useShownFilters();
   const arrived = useGallery((state) => state.arrived);
   const opened = useGallery((state) => state.opened);
@@ -491,6 +505,16 @@ function Cast({ list, pending }: { list: CharacterSummary[]; pending: boolean })
               arriving={arrived.includes(character.id)}
               transition={opened === character.id}
               onOpen={() => setOpened(character.id)}
+              action={
+                <Button
+                  size="text"
+                  aria-label={`Chat with ${character.name}`}
+                  onClick={() => onChat(character.id, character.name)}
+                >
+                  <ChatIcon size={16} />
+                  Chat
+                </Button>
+              }
               caption={[
                 repeated.has(fold(character.name)) ? character.creator : "",
                 character.tags.join(", "),
