@@ -1515,6 +1515,18 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
+ * The portrait travels alone (portraits/PortraitViewer.tsx, type
+ * `portrait-viewer`): every other named element (the creator's heading,
+ * frame and Keep bar, the nav marker) stays in the page's crossfade, beneath
+ * the veil. As a group of its own it would paint above the veil, and above
+ * the art wherever it comes later in the page, until the morph ends.
+ */
+:active-view-transition-type(portrait-viewer) :not([data-portrait-travel]) {
+  /* biome-ignore lint/complexity/noImportantStyles: some of the names it clears are inline styles. */
+  view-transition-name: none !important;
+}
+
+/*
  * Press feedback: a quick press, a spring release; colors, shadow and
  * brightness fade, so a control needs no transition of its own.
  */

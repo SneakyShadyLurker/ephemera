@@ -1014,6 +1014,27 @@ test("the chosen portrait opens larger and lays back in its place by Close or a 
   const trigger = page.locator(`button[aria-label="${label}: show larger"]`);
   const viewer = page.getByRole("dialog", { name: label });
   const frame = await trigger.boundingBox();
+  // Each morph's named groups, once its pseudo-element tree is built.
+  await page.evaluate(() => {
+    const start = document.startViewTransition.bind(document);
+    const morphs: string[][] = [];
+    Object.assign(window, { viewerMorphs: morphs });
+    document.startViewTransition = (options) => {
+      const transition = start(options);
+      void transition.ready.then(() => {
+        const groups = new Set<string>();
+        for (const animation of document.getAnimations()) {
+          const part = (animation.effect as KeyframeEffect | null)?.pseudoElement ?? "";
+          const group = /^::view-transition-(?:group|old|new|image-pair)\((.+)\)$/.exec(part)?.[1];
+          if (group !== undefined) groups.add(group);
+        }
+        morphs.push([...groups].sort());
+      });
+      return transition;
+    };
+  });
+  const morphs = () =>
+    page.evaluate(() => (window as unknown as { viewerMorphs: string[][] }).viewerMorphs);
 
   await trigger.click();
   await expect(viewer).toBeVisible();
@@ -1026,6 +1047,13 @@ test("the chosen portrait opens larger and lays back in its place by Close or a 
   await expect(viewer).toHaveCount(0);
   await expect(trigger).toHaveCSS("visibility", "visible");
   await expect(trigger).toBeFocused();
+  // The art travels alone over the page's crossfade: the card's heading, frame and Keep bar
+  // keep their place beneath the veil rather than lifting above the art as groups of their own.
+  await expect.poll(async () => (await morphs()).length).toBe(2);
+  expect(await morphs()).toEqual([
+    ["portrait-viewer", "root"],
+    ["portrait-viewer", "root"],
+  ]);
 
   await trigger.click();
   await expect(viewer).toBeVisible();
