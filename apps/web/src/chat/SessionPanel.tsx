@@ -24,6 +24,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  TRIGGER,
 } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
@@ -53,7 +54,7 @@ import { useStartChat } from "./StartChat.tsx";
 export const SESSION_SHEET = "[data-session-sheet]";
 /** Session docked beside the thread. */
 const SESSION_DOCK = "[data-session-dock]";
-const FIRST_CONTROL = 'button, [tabindex="0"], select, input, textarea';
+const FIRST_CONTROL = 'a[href], button, [tabindex="0"], select, input, textarea';
 
 /**
  * Session settings for this chat. Docked beside the thread on wide desktops,
@@ -171,87 +172,75 @@ function Field({
   );
 }
 
-const NO_CHARACTER = "none";
+/** Leaving for the gallery: a sheet over the chat closes, so it does not reopen over the next one. */
+const leaveSession = () => {
+  if (!canDock()) setSessionOpen(false);
+};
 
-/** Who the chat is with. Switching starts a new chat, asking first if this one has content. */
+/**
+ * Who the chat is with, chosen in the gallery: the row shows the character
+ * and opens the gallery, where each card's Chat starts a chat with it. No
+ * character starts a chat without one, asking first as any switch does.
+ */
 function CharacterField() {
   const characters = useQuery(charactersQuery);
   const current = useChatCharacter();
   const { start, dialog } = useStartChat();
-  const list = characters.data ?? [];
+  const rowId = useId();
   // An empty library has nothing to switch to: the note points to where characters come from.
-  const note =
-    characters.data?.length === 0 ? (
-      <>
-        No characters yet. Add one in{" "}
-        <Link
-          to="/characters"
-          className="underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
-        >
-          Characters
-        </Link>
-        .
-      </>
-    ) : (
-      "Switching starts a new chat."
-    );
+  const empty = characters.data?.length === 0;
 
   return (
-    <Field label="Character" note={note}>
+    <Field label="Character">
       {(labelId) => (
         <>
-          <Select
-            value={current?.id ?? NO_CHARACTER}
-            onValueChange={(value) => {
-              if (typeof value !== "string") return;
-              const next = list.find((character) => character.id === value);
-              start(next?.id ?? null, next?.name ?? "");
-            }}
+          <Link
+            to="/characters"
+            onClick={leaveSession}
+            aria-labelledby={`${labelId} ${rowId}`}
+            className={cn(TRIGGER, current && LEAF_TRIGGER.trigger)}
           >
-            <SelectTrigger
-              aria-labelledby={labelId}
-              placeholder="No character"
-              className={LEAF_TRIGGER.trigger}
-            >
-              <span className="flex min-w-0 flex-1 items-center gap-3">
-                {current && (
-                  <PortraitLeaf
-                    id={current.id}
-                    name={current.name}
-                    version={current.portrait}
-                    className={LEAF_TRIGGER.leaf}
-                  />
-                )}
-                <span className="truncate">{current?.name ?? "No character"}</span>
+            <span id={rowId} className="flex min-w-0 flex-1 items-center gap-3">
+              {current && (
+                <PortraitLeaf
+                  id={current.id}
+                  name={current.name}
+                  version={current.portrait}
+                  className={LEAF_TRIGGER.leaf}
+                />
+              )}
+              <span className={cn("min-w-0 flex-1 truncate", !current && "text-reed")}>
+                {current?.name ?? "No character"}
               </span>
-            </SelectTrigger>
-            <SelectContent label="Characters">
-              <SelectItem value={NO_CHARACTER}>
-                <span className="flex items-center gap-3">
-                  <span aria-hidden="true" className="w-6 shrink-0" />
-                  <span className="truncate">No character</span>
-                </span>
-              </SelectItem>
-              {list.map((character) => (
-                <SelectItem
-                  key={character.id}
-                  value={character.id}
-                  label={character.name}
-                  className="h-12 touch:h-14"
-                >
-                  <span className="flex items-center gap-3">
-                    <PortraitLeaf
-                      id={character.id}
-                      name={character.name}
-                      version={character.portrait}
-                      className="w-6"
-                    />
-                    <span className="truncate">{character.name}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <span className="shrink-0 pr-1 text-note text-reed">
+                {current ? "Change" : "Choose"}
+              </span>
+            </span>
+          </Link>
+          <div className="flex flex-wrap items-center justify-between gap-x-3">
+            <p className="text-pretty text-note text-reed">
+              {empty ? (
+                <>
+                  No characters yet. Add one in{" "}
+                  <Link
+                    to="/characters"
+                    onClick={leaveSession}
+                    className="underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
+                  >
+                    Characters
+                  </Link>
+                  .
+                </>
+              ) : (
+                "Switching starts a new chat."
+              )}
+            </p>
+            {current && (
+              <Button size="text" className="-mr-2" onClick={() => start(null, "")}>
+                No character
+              </Button>
+            )}
+          </div>
           {dialog}
         </>
       )}

@@ -338,6 +338,7 @@ describe("chat store", () => {
     ["an error answer", new GenerationError("http"), { failure: "server" }],
     ["a provider's error event", new GenerationError("provider"), { failure: "provider" }],
     ["a dropped stream", new GenerationError("stream"), { failure: "stream" }],
+    ["an unreadable stream", new GenerationError("unreadable"), { failure: "unreadable" }],
     ["a busy provider", new GenerationError("provider", undefined, true), { busy: true }],
     [
       "a refusal",

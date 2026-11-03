@@ -345,16 +345,31 @@ describe("streamReply", () => {
     expect(seen.at(-1)?.prompt).toEqual(prompt);
   });
 
-  it("fails on a prompt part that is not a prompt", async () => {
-    vi.stubGlobal("fetch", async () =>
-      sseResponse([
-        { type: "start" },
-        { type: "data-prompt", data: { model: 1 } },
-        ...text.slice(1),
-        { type: "finish" },
-      ]),
+  it.each([
+    [
+      "a prompt part that is not a prompt",
+      [{ type: "start" }, { type: "data-prompt", data: { model: 1 } }, ...text.slice(1)],
+    ],
+    ["a usage part that is not usage", [...text, { type: "data-usage", data: { calls: "many" } }]],
+    ["a chunk of no known type", [...text, { type: "text-flood", id: "t" }]],
+  ])("tells %s apart from a dropped connection", async (_label, chunks) => {
+    vi.stubGlobal("fetch", async () => sseResponse([...chunks, { type: "finish" }]));
+    await expect(collect()).rejects.toMatchObject({
+      name: "GenerationError",
+      reason: "unreadable",
+    });
+  });
+
+  it("tells a chunk that is not JSON apart from a dropped connection", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(
+          `data: ${JSON.stringify({ type: "start" })}\n\ndata: {"type":\n\ndata: ${JSON.stringify({ type: "finish" })}\n\n`,
+          { headers: { "Content-Type": "text/event-stream" } },
+        ),
     );
-    await expect(collect()).rejects.toMatchObject({ reason: "stream" });
+    await expect(collect()).rejects.toMatchObject({ reason: "unreadable" });
   });
 
   it.each([
@@ -439,8 +454,13 @@ describe("partial reply footer", () => {
       "No reply: the model's provider answered with an error. Try again.",
     ],
     [{ failure: "stream", text: "" }, "No reply: the connection dropped. Try again."],
+    [{ failure: "unreadable", text: "" }, "No reply: the reply could not be read. Try again."],
     [{ failure: "stream" }, "The reply was cut off: the connection dropped."],
-    [{ failure: "provider" }, "The reply was cut off: the connection dropped."],
+    [
+      { failure: "provider" },
+      "The reply was cut off: the model's provider answered with an error.",
+    ],
+    [{ failure: "unreadable" }, "The reply was cut off: the rest could not be read."],
     [{ failure: "unreachable" }, "The reply was cut off: the connection dropped."],
     [{ text: "" }, "No reply."],
   ] satisfies [Partial<Reply>, string][])("says why a reply failed: %j", (change, text) => {

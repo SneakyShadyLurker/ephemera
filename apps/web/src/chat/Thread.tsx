@@ -7,14 +7,13 @@ import { ART_WIDTH } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { MotionScope } from "@/app/motion.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { setSessionOpen } from "@/app/ui.ts";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import { Illustration } from "@/components/illustration.tsx";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { charactersQuery } from "../characters/queries.ts";
 import { useSetting } from "../settings/settings.ts";
@@ -325,8 +324,8 @@ export function RetentionNote() {
  * then choosing a model while none is
  * chosen (ModelStep), in room left above the invitation: the step sits at
  * the room's foot, so once a model is chosen nothing else moves. Then the
- * invitation in the story's own voice, and choosing a character, optional;
- * with none saved yet, creating one in the gallery instead.
+ * invitation in the story's own voice, and choosing a character in the
+ * gallery, optional; with none saved yet, creating one there instead.
  * With a character the presence beside it is the welcome, and a missing
  * model is the notice's above the composer (ModelNotice).
  */
@@ -347,15 +346,9 @@ function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | nu
           </p>
           {/* Arrives once the library has answered, so its words never change under the eye. */}
           <div className="arrive mt-4" hidden={characters.isPending}>
-            {characters.data?.length === 0 ? (
-              <Link to="/characters" className={buttonVariants({ variant: "outline" })}>
-                Create a character
-              </Link>
-            ) : (
-              <Button variant="outline" onClick={() => setSessionOpen(true)}>
-                Choose a character
-              </Button>
-            )}
+            <Link to="/characters" className={buttonVariants({ variant: "outline" })}>
+              {characters.data?.length === 0 ? "Create a character" : "Choose a character"}
+            </Link>
           </div>
         </>
       ) : (

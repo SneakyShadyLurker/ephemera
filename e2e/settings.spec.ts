@@ -8,6 +8,7 @@ import { plainPromptPreset } from "../packages/core/test-fixtures/preset.ts";
 import { uniqueName } from "./support/cards.ts";
 import {
   browserStorage,
+  characterRow,
   chooseCharacter,
   chooseModel,
   lastReply,
@@ -611,13 +612,14 @@ test("after a reload the app comes back with its selection and an empty chat", a
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(character);
   await openSession(page);
   await expect(page.getByRole("combobox", { name: "Model", exact: true })).toHaveText("mock-slow");
-  await expect(page.getByRole("combobox", { name: "Character" })).toContainText(character);
+  await expect(characterRow(page)).toContainText(character);
   await expect(page.getByRole("combobox", { name: "Persona" })).toContainText(persona);
   await expect(page.getByRole("combobox", { name: "Sampler preset" })).toContainText(sampler);
   await expect(page.getByRole("combobox", { name: "Prompt preset" })).toContainText(prompt);
-  // The five pickers share one trigger: a portrait beside a name does not make it taller.
-  const heights = new Set<number | undefined>();
-  for (const name of ["Character", "Persona", "Sampler preset", "Model", "Prompt preset"]) {
+  // The character's row and the four pickers share one trigger: a portrait beside a name does
+  // not make it taller.
+  const heights = new Set([(await characterRow(page).boundingBox())?.height]);
+  for (const name of ["Persona", "Sampler preset", "Model", "Prompt preset"]) {
     const box = await page.getByRole("combobox", { name, exact: true }).boundingBox();
     heights.add(box?.height);
   }
@@ -633,28 +635,6 @@ test("after a reload the app comes back with its selection and an empty chat", a
   expect(list?.y).toBeGreaterThanOrEqual(11.5);
   expect((list?.y ?? 0) + (list?.height ?? 0)).toBeLessThanOrEqual((viewport?.height ?? 0) - 11.5);
   await page.getByRole("option", { name: "mock-slow", exact: true }).click();
-  await expect(page.getByRole("listbox")).toHaveCount(0);
-  // A character without a portrait shows its initial in the leaf's place, and every name in
-  // the list, "No character" included, starts at the same x.
-  await page.getByRole("combobox", { name: "Character", exact: true }).click();
-  const row = page.getByRole("option", { name: character, exact: true });
-  await expect(row.locator('[aria-hidden="true"]').first()).toHaveText(character[0] ?? "");
-  const nameX = async (option: string, name: string) =>
-    (
-      await page
-        .getByRole("option", { name: option, exact: true })
-        .getByText(name, { exact: true })
-        .boundingBox()
-    )?.x;
-  const noneX = (await nameX("No character", "No character")) ?? Number.NaN;
-  const characterX = (await nameX(character, character)) ?? Number.NaN;
-  expect(Math.abs(characterX - noneX)).toBeLessThan(1);
-  // Typing a name finds it past another of the same initial: the leaf's initial is not part of
-  // what typing matches. "R" moves on from the chosen Restore to Rover; "Re" must come back,
-  // which it could not if the label read "RRestore".
-  await page.keyboard.type("Re");
-  await expect(row).toHaveAttribute("data-highlighted");
-  await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await closeSession(page);
 
