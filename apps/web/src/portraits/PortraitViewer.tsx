@@ -6,7 +6,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { LEAF_EDGE } from "./Portrait.tsx";
 
-/** The shared-element name that carries a portrait out of its place into the viewer and back. */
+/**
+ * The shared-element name that carries a portrait out of its place into the
+ * viewer and back, and the type of that view transition (styles.css), under
+ * which the portrait is the only named element.
+ */
 const VIEWER_TRANSITION = "portrait-viewer";
 
 /**
@@ -50,10 +54,13 @@ export function PortraitViewer({
     }
     const run = ++runs.current;
     if (next) source.style.viewTransitionName = VIEWER_TRANSITION;
-    const transition = document.startViewTransition(() => {
-      source.style.viewTransitionName = next ? "" : VIEWER_TRANSITION;
-      flushSync(() => setOpen(next));
-      if (!next) source.focus({ preventScroll: true });
+    const transition = document.startViewTransition({
+      update: () => {
+        source.style.viewTransitionName = next ? "" : VIEWER_TRANSITION;
+        flushSync(() => setOpen(next));
+        if (!next) source.focus({ preventScroll: true });
+      },
+      types: [VIEWER_TRANSITION],
     });
     void transition.finished.finally(() => {
       if (runs.current === run) source.style.viewTransitionName = "";
@@ -67,6 +74,7 @@ export function PortraitViewer({
         type="button"
         aria-label={`${label}: show larger`}
         aria-haspopup="dialog"
+        data-portrait-travel=""
         disabled={disabled}
         onClick={() => morph(true)}
         className={cn(
@@ -95,6 +103,7 @@ export function PortraitViewer({
             {open && (
               <>
                 <div
+                  data-portrait-travel=""
                   style={{ viewTransitionName: VIEWER_TRANSITION }}
                   className={cn(
                     "pointer-events-auto relative isolate aspect-[2/3] w-[min(100%,calc((100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))*2/3))] overflow-hidden rounded-xl bg-surface-hover shadow-overlay tablet:w-[min(100%,calc((100dvh-5rem)*2/3))]",
