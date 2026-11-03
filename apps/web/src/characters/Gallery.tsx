@@ -17,7 +17,6 @@ import {
 } from "@/app/Screen.tsx";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import {
-  ChatIcon,
   CheckIcon,
   ChevronDownIcon,
   CloseIcon,
@@ -505,16 +504,7 @@ function Cast({
               arriving={arrived.includes(character.id)}
               transition={opened === character.id}
               onOpen={() => setOpened(character.id)}
-              action={
-                <Button
-                  size="text"
-                  aria-label={`Chat with ${character.name}`}
-                  onClick={() => onChat(character.id, character.name)}
-                >
-                  <ChatIcon size={16} />
-                  Chat
-                </Button>
-              }
+              onChat={() => onChat(character.id, character.name)}
               caption={[
                 repeated.has(fold(character.name)) ? character.creator : "",
                 character.tags.join(", "),

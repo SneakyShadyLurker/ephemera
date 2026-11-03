@@ -1,7 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import type { Page } from "@playwright/test";
 import { pngText, svg } from "../apps/server/test/image-fixtures.ts";
 import { FOLDED_SENTENCE } from "../packages/core/src/card/import.ts";
 import {
+  editTile,
   importCards,
   jsonCard,
   openSheet,
@@ -139,7 +141,7 @@ test("search, tag filter and order narrow the gallery; a tag filter or order gli
   const filtered = await transitions();
   expect(filtered).toBeGreaterThan(0);
   const shownNames = async () =>
-    (await page.getByRole("list", { name: "Characters" }).getByRole("link").allInnerTexts()).map(
+    (await page.getByRole("list", { name: "Characters" }).getByRole("button").allInnerTexts()).map(
       (text) => text.split("\n")[0],
     );
   const before = await shownNames();
@@ -233,7 +235,7 @@ test("a new character is saved once named, and every field and greeting persists
   // Back to the gallery and in again, without a reload: the sheet shows the saved character.
   await page.getByRole("link", { name: "Characters" }).first().click();
   await page.getByRole("searchbox", { name: "Search characters" }).fill(name);
-  await tile(page, name).click();
+  await editTile(page, name).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
   await expect(page.getByLabel("First message", { exact: true })).toHaveValue("Two");
 
@@ -340,7 +342,7 @@ test("duplicate, export and delete, with a chat draft that is never at risk", as
     .getByRole("link", { name: "Characters" })
     .click();
   await page.getByRole("searchbox", { name: "Search characters" }).fill(name);
-  await tile(page, name).click();
+  await editTile(page, name).click();
 
   for (const format of ["PNG", "JSON"] as const) {
     await page.getByRole("button", { name: "More actions" }).click();
@@ -473,6 +475,70 @@ test("the chat speaks as the chosen character, and switching asks first", async 
   expect(await lastReply(page).evaluate((turn) => turn.textContent)).toMatch(/^Model: /);
 });
 
+/** How shown a card's Edit is: its plate's opacity, settled. */
+const editShown = (page: Page, name: string) =>
+  editTile(page, name).evaluate((link) => getComputedStyle(link.parentElement as Element).opacity);
+
+test("with a hover, a card's portrait starts the chat and its Edit shows only on hover", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const name = uniqueName("Hover");
+  await createCharacterViaApi(page.request, name, { firstMessage: `${name} looks up.` });
+  await page.goto("/characters");
+  const card = tile(page, name);
+  const edit = editTile(page, name);
+  await expect(card).toBeVisible();
+  // No Chat beside the caption: the card itself is the chat.
+  await expect(card.getByRole("button")).toHaveCount(1);
+  await page.mouse.move(0, 0);
+  await expect.poll(() => editShown(page, name)).toBe("0");
+  await card.locator("img, svg[data-icon='Mark']").first().hover();
+  await expect.poll(() => editShown(page, name)).toBe("1");
+  await expect(edit).toHaveText("Edit");
+
+  await edit.click();
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
+  await page.goBack();
+  await card.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  await expect(lastReply(page)).toContainText(`${name} looks up.`);
+});
+
+test.describe("on touch", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("a card's Edit stays shown as its pen, a 44px target, and a tap on the portrait starts the chat", async ({
+    page,
+  }) => {
+    const name = uniqueName("Touch");
+    await createCharacterViaApi(page.request, name, { firstMessage: `${name} looks up.` });
+    await page.goto("/characters");
+    const edit = editTile(page, name);
+    await expect(edit).toBeVisible();
+    await expect.poll(() => editShown(page, name)).toBe("1");
+    // The word is read, not drawn: the pen alone on its plate.
+    await expect(edit).toHaveAccessibleName(`Edit ${name}`);
+    await expect(edit.getByText("Edit")).toHaveClass(/sr-only/);
+    const target = await edit.evaluate((link) => {
+      const plate = link.getBoundingClientRect();
+      const reach = getComputedStyle(link, "::after");
+      return {
+        width: plate.width - 2 * Number.parseFloat(reach.left),
+        height: plate.height - 2 * Number.parseFloat(reach.top),
+      };
+    });
+    expect(target.width).toBeGreaterThanOrEqual(44);
+    expect(target.height).toBeGreaterThanOrEqual(44);
+
+    await tile(page, name)
+      .getByRole("button", { name: `Chat with ${name}`, exact: true })
+      .tap();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+    await expect(lastReply(page)).toContainText(`${name} looks up.`);
+  });
+});
+
 test("an empty library invites an import on the populated gallery's edges", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await createCharacterViaApi(page.request, uniqueName("Edges"));
@@ -543,9 +609,9 @@ test("a card without a portrait names its character once, below the cover", asyn
   await page.goto("/characters");
   const card = tile(page, name);
   await expect(card).toBeVisible();
-  // The link is still named by the character, and the cover holds no second name.
-  await expect(card).toHaveAccessibleName(new RegExp(`^${name}`));
-  expect(await card.evaluate((link, text) => link.textContent?.split(text).length ?? 0, name)).toBe(
+  // The card still says the character's name, and the cover holds no second one.
+  const chat = card.getByRole("button", { name: `Chat with ${name}`, exact: true });
+  expect(await chat.evaluate((button, text) => button.textContent?.split(text).length, name)).toBe(
     2,
   );
   await expect(card.locator("svg[data-icon='Mark']")).toBeVisible();
@@ -616,7 +682,19 @@ test("the gallery and sheet work from the keyboard", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Tags" })).toBeFocused();
 
-  await tile(page, name).focus();
+  // A card's Chat comes first; Tab reaches its Edit, which keyboard focus shows.
+  const edit = editTile(page, name);
+  await tile(page, name)
+    .getByRole("button", { name: `Chat with ${name}` })
+    .focus();
+  await expect
+    .poll(() => edit.evaluate((link) => getComputedStyle(link.parentElement as Element).opacity))
+    .toBe("0");
+  await page.keyboard.press("Tab");
+  await expect(edit).toBeFocused();
+  await expect
+    .poll(() => edit.evaluate((link) => getComputedStyle(link.parentElement as Element).opacity))
+    .toBe("1");
   await page.keyboard.press("Enter");
   const nameField = page.getByRole("textbox", { name: "Name", exact: true });
   await expect(nameField).toHaveValue(name);
