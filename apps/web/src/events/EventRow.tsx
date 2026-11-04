@@ -9,9 +9,10 @@ import {
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { ROW_META, rowLayout } from "@/components/ui/row-layout";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
-import { NoticeCard } from "../app/NoticeCard.tsx";
+import { InlineStatus, NoticeCard } from "../app/NoticeCard.tsx";
 import { isFailure, type SaveStatus, saveStatusText, useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
 import { type EventSaveFields, eventSaving, fromSaveFields, toSaveFields } from "./autosave.ts";
@@ -278,7 +279,10 @@ function EventRowBody({
             data-disclosure=""
             aria-labelledby={instructionId}
             aria-describedby={`${ruleId} ${scopeId}`}
-            className="group/row grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-sm px-1 py-3 text-left row touch:py-3.5"
+            className={cn(
+              rowLayout("collection"),
+              "group/row grid-cols-[minmax(0,1fr)_auto] items-start",
+            )}
           >
             <span
               id={instructionId}
@@ -296,7 +300,7 @@ function EventRowBody({
               className="mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
             />
             {/* Chance and scope share one metadata line, wrapping only when it runs out. */}
-            <span className="col-span-2 flex flex-wrap gap-x-3 text-note text-reed">
+            <span className={cn(ROW_META, "col-span-2")}>
               <span id={ruleId} className="text-pretty">
                 <RuleText rule={rule} lively={lively} />
               </span>
@@ -339,13 +343,15 @@ function EventRowBody({
           </div>
         )}
         {!orphaned && status.kind === "needs-name" && (
-          <p className="px-1 pb-3 text-note text-reed">Write the instruction to save this event.</p>
+          <InlineStatus as="p" role="presentation" className="px-1 pb-3">
+            Write the instruction to save this event.
+          </InlineStatus>
         )}
         {failure !== null && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-3">
-            <p role="alert" className="text-pretty text-ember text-note">
+            <InlineStatus tone="error" as="p" role="alert">
               {failure}
-            </p>
+            </InlineStatus>
             <Button
               variant="outline"
               onClick={() => {

@@ -13,7 +13,7 @@ import { NoticeCard, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { PalettePicker } from "@/app/PalettePicker.tsx";
 import { SCROLL_GUTTERS, ScreenHeader, SETTINGS_FRAME } from "@/app/Screen.tsx";
 import { ThemeSwitch } from "@/app/ThemeSwitch.tsx";
-import { BackIcon, NextIcon } from "@/components/icons";
+import { NextIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { Infotip } from "@/components/ui/infotip";
@@ -23,6 +23,7 @@ import { SwitchField } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { cn } from "@/lib/cn";
 import { formatCount, sentence } from "@/lib/text";
+import { FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
 import { useModelOptions } from "../api.ts";
 import { ReasoningSelect, useEffortChoice } from "../creator/ReasoningSelect.tsx";
 import { PersonaOptions } from "../personas/PersonaSelect.tsx";
@@ -93,12 +94,10 @@ export function SettingsScreen({
       <ScreenHeader
         title={phone && category !== null ? category.label : "Settings"}
         storyTitle={false}
-        lead={
-          phone && category !== null ? (
-            <Button size="icon" aria-label="Back to settings" onClick={() => back(fromList)}>
-              <BackIcon />
-            </Button>
-          ) : undefined
+        back={
+          phone && category !== null
+            ? { label: "Settings", onBack: () => back(fromList), iconOnly: true }
+            : undefined
         }
         frame={SETTINGS_FRAME}
         gutters={SCROLL_GUTTERS}
@@ -128,9 +127,7 @@ export function SettingsScreen({
                       className="press grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-3"
                     >
                       <span className="grid gap-0.5">
-                        <span className="font-medium text-ink text-ui">
-                          {SECTION_TEXT[section].label}
-                        </span>
+                        <span className={FIELD_LABEL}>{SECTION_TEXT[section].label}</span>
                         <span className="text-pretty text-note text-reed">
                           {SECTION_TEXT[section].purpose}
                         </span>
@@ -703,7 +700,7 @@ function KeptSettings() {
       <div className="grid gap-8 tablet:grid-cols-2">
         {KEPT.map(({ title, lines }) => (
           <section key={title} className="grid content-start gap-3">
-            <h3 className="font-semibold text-ink text-lead">{title}</h3>
+            <h3 className={SECTION_HEADING}>{title}</h3>
             <ul className="grid gap-2 text-pretty text-note text-reed">
               {lines.map(([lead, rest]) => (
                 <li key={lead}>

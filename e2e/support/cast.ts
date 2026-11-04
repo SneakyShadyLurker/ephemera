@@ -50,7 +50,7 @@ export async function openRecord(page: Page, name: string): Promise<Locator> {
 export async function recordValue(record: Locator, field: CastField): Promise<Locator> {
   const value = record.locator(`[data-cast-edit="${field}"]`);
   if (!(await value.isVisible())) {
-    await record.locator("summary").filter({ hasText: "More details" }).click();
+    await value.locator("xpath=ancestor::details[1]").locator("summary").click();
   }
   return value;
 }

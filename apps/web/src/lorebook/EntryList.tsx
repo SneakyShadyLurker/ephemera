@@ -13,6 +13,7 @@ import { NextIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron } from "@/components/ui/disclosure";
 import { NumberField } from "@/components/ui/number-field";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { SearchField } from "@/components/ui/search-field";
 import { Switch, SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
@@ -457,12 +458,12 @@ function Row({
         aria-current={open ? "true" : undefined}
         onFocus={() => onFocus(index)}
         onClick={() => onOpen(index)}
-        className="grid min-h-14 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-2 rounded-sm py-2 pl-3 text-left row tablet:pl-4"
+        className={cn(rowLayout("entry"), "grid-cols-[2.25rem_minmax(0,1fr)_auto]")}
       >
         <span className="self-baseline pt-px text-right text-meta text-reed tabular-nums">
           {entry.insertionOrder}
         </span>
-        <span className="grid min-w-0">
+        <span className={ROW_CONTENT}>
           <span
             className={cn(
               "truncate text-ui transition-colors duration-(--duration-quick) ease-fade",

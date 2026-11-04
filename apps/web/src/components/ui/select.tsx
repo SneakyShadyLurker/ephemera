@@ -17,7 +17,7 @@ const TRIGGER =
  * the control above the line.
  */
 const INLINE_TRIGGER =
-  "press relative -mx-1 inline-flex h-5 min-w-0 items-center gap-0.5 rounded-sm px-1 text-left text-ink text-note hover:bg-surface-hover data-popup-open:bg-surface-hover after:absolute after:-inset-x-1 after:-inset-y-1 touch:after:-top-3 touch:after:-bottom-3.5";
+  "press relative -mx-1 inline-flex h-5 min-w-0 items-center gap-2 rounded-sm border border-control-edge bg-surface px-1 text-left text-ink text-note hover:bg-surface-hover data-popup-open:bg-surface-hover focus-visible:border-dusk-line after:absolute after:-inset-x-1 after:-inset-y-1 touch:after:-top-3 touch:after:-bottom-3.5";
 
 /** The trigger's chevron, turning while the list is open. */
 const TRIGGER_ICON =

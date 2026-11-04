@@ -13,10 +13,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { countOf, formatCount } from "@/lib/text";
+import { FIELD_LABEL } from "@/sheet/fields.ts";
 import { inChatText } from "../lorebook/copy.ts";
 import { personasQuery } from "../personas/queries.ts";
 import { REASONING_LABELS } from "../presets/queries.ts";
@@ -637,13 +639,13 @@ function HistoryBand({
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => setOpen(!open)}
-          className="row flex min-h-12 w-full items-center gap-3 rounded-md pr-5 pl-1 text-left touch:min-h-14"
+          className={cn(rowLayout("diagnostic"), "w-full grid-cols-[auto_minmax(0,1fr)_auto_auto]")}
         >
           <span className="grid w-7 place-items-center text-reed" aria-hidden="true">
             <ChatIcon size={16} />
           </span>
-          <span className="grid min-w-0 flex-1">
-            <span className="font-medium text-ink text-ui italic">Chat history</span>
+          <span className={ROW_CONTENT}>
+            <span className={cn(FIELD_LABEL, "italic")}>Chat history</span>
             <span className="text-meta text-reed">
               {turns === 0
                 ? parts.hasDraft
@@ -728,7 +730,8 @@ function Entry({
     <li
       ref={item}
       className={cn(
-        "grid gap-x-4 border-rush border-b py-3 pr-5 [content-visibility:auto] last:border-b-0 tablet:grid-cols-[5.5rem_minmax(0,1fr)]",
+        rowLayout("diagnostic", false),
+        "border-rush border-b [content-visibility:auto] last:border-b-0 tablet:grid-cols-[5.5rem_minmax(0,1fr)]",
         inBand ? "pl-3 tablet:pl-0" : "pl-5 tablet:pl-0",
       )}
     >
@@ -799,7 +802,7 @@ function SentWith({ prompt }: { prompt: InspectedPrompt }) {
   if (processed !== null) entries.push(["Post-processing", processed]);
   return (
     <section aria-label="Sent with" className="grid gap-2 px-5 pt-5">
-      <h3 className="font-medium text-ink text-ui">Sent with</h3>
+      <h3 className={FIELD_LABEL}>Sent with</h3>
       {entries.length === 0 ? (
         <p className="text-note text-reed">Every sampling value was left to the model.</p>
       ) : (

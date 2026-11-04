@@ -22,18 +22,20 @@ import {
 import { useFormFactor } from "@/app/form-factor.ts";
 import { fade, MotionScope } from "@/app/motion.tsx";
 import { staggerStep } from "@/app/motion-tokens.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { BackIcon, CastIcon, CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { EditorBody, EditorFooter, EditorHeader } from "@/components/ui/editor-shell";
 import { Popover, PopoverContent, PopoverTitle } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
 import { useContextWindow } from "../api.ts";
 import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
-import { PROSE_FIELD } from "../sheet/fields.ts";
+import { COMPACT_LABEL, GROUP_HEADING, PROSE_FACE, PROSE_FIELD } from "../sheet/fields.ts";
 import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
   busyOf,
@@ -95,7 +97,7 @@ const SECTIONS: readonly (readonly [string, readonly TextField[]])[] = [
 ];
 
 /** A section's quiet label: a heading in reading mode, a legend in edit mode. */
-const SECTION_LABEL = "font-medium font-sans text-meta text-reed";
+const SECTION_LABEL = cn(COMPACT_LABEL, "font-sans");
 
 const isAnchorField = (field: TextField): field is CastAnchorField =>
   !(CAST_STATE_FIELDS as readonly string[]).includes(field);
@@ -202,17 +204,29 @@ function Updating({
 }) {
   const busy = useChat(busyOf);
   if (!shown && !live) return null;
-  return (
-    <span aria-live={live ? "polite" : undefined} className={cn(shown ? className : "sr-only")}>
-      <MotionScope>
-        <AnimatePresence initial={false}>
-          {busy && (
-            <m.span key="updating" data-cast-updating="" {...fading()}>
-              Updating…
-            </m.span>
-          )}
-        </AnimatePresence>
-      </MotionScope>
+  const content = (
+    <MotionScope>
+      <AnimatePresence initial={false}>
+        {busy && (
+          <m.span key="updating" data-cast-updating="" {...fading()}>
+            Updating…
+          </m.span>
+        )}
+      </AnimatePresence>
+    </MotionScope>
+  );
+  return shown ? (
+    <InlineStatus
+      as="span"
+      role="presentation"
+      aria-live={live ? "polite" : undefined}
+      className={className}
+    >
+      {content}
+    </InlineStatus>
+  ) : (
+    <span aria-live={live ? "polite" : undefined} className="sr-only">
+      {content}
     </span>
   );
 }
@@ -268,12 +282,12 @@ function Status({ className }: { className?: string }) {
   const failed = useChat((state) => state.cast.status === "failed" && keeperTargetUncovered(state));
   const unread = useChat(sheetUnread);
   return (
-    <div className={cn("flex flex-wrap items-baseline gap-x-2 font-sans text-meta", className)}>
+    <InlineStatus
+      role="presentation"
+      className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 font-sans text-meta", className)}
+    >
       <p data-cast-status="" aria-live="polite" className="text-reed">
-        {/* Keyed by its words, so each new line fades in; the live region itself stays. */}
-        <span key={text} className="change-arrive">
-          {text}
-        </span>
+        {text}
       </p>
       {(failed || unread) && (
         <Button
@@ -288,14 +302,16 @@ function Status({ className }: { className?: string }) {
           Try again
         </Button>
       )}
-    </div>
+    </InlineStatus>
   );
 }
 
 /** What Remove from cast leaves where the entry was: her name, removed, and Undo. */
 function RemovalLine({ removal }: { removal: CastRemoval }) {
   return (
-    <span
+    <InlineStatus
+      as="span"
+      role="presentation"
       data-cast-removed=""
       className="flex flex-wrap items-baseline gap-x-2 py-0.5 font-sans text-meta touch:min-h-11 touch:items-center"
     >
@@ -312,7 +328,7 @@ function RemovalLine({ removal }: { removal: CastRemoval }) {
       >
         Undo
       </Button>
-    </span>
+    </InlineStatus>
   );
 }
 
@@ -388,7 +404,7 @@ function Entry({
           open ? "opacity-100" : "opacity-0",
         )}
       />
-      <span className="break-words font-semibold text-ink text-ui">
+      <span className={cn(GROUP_HEADING, "break-words")}>
         {entry.anchor.name}
         {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
       </span>
@@ -644,13 +660,13 @@ export function CastHeaderControl() {
   if (!visible) return null;
   return (
     <Button
-      size="icon"
       aria-label="Show the cast"
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={(event) => openCast(null, event.currentTarget)}
     >
-      <CastIcon />
+      <CastIcon size={16} />
+      Cast
     </Button>
   );
 }
@@ -750,8 +766,8 @@ function Title({
   const className = cn(
     "min-w-0 flex-1 break-words outline-none",
     quiet
-      ? "py-2.5 font-normal font-sans text-meta text-reed"
-      : "py-1.5 font-semibold font-story text-ink text-lead",
+      ? "font-semibold font-sans text-ink text-lead"
+      : "font-semibold font-story text-ink text-lead",
   );
   return drawer ? (
     <DrawerTitle ref={heading} tabIndex={-1} className={className}>
@@ -766,14 +782,11 @@ function Title({
 
 function CloseControl() {
   return (
-    <DrawerClose render={<Button size="icon" aria-label="Close the cast" className="-mr-2" />}>
+    <DrawerClose render={<Button size="icon" aria-label="Close the cast" />}>
       <CloseIcon />
     </DrawerClose>
   );
 }
-
-const HEADER = "relative flex shrink-0 items-start gap-1 px-5 pt-3 pb-2";
-const BODY = "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5";
 
 /**
  * The surface header's part while the cast updates: "Updating…" after the
@@ -833,7 +846,7 @@ function RosterView({
           onClick={() => showCastEntry(entry.id)}
           className="group press -mx-1.5 grid w-[calc(100%+0.75rem)] rounded-sm px-1.5 py-1 text-left touch:min-h-11"
         >
-          <span className="font-semibold text-ink text-ui">
+          <span className={GROUP_HEADING}>
             {entry.anchor.name}
             {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
           </span>
@@ -848,14 +861,24 @@ function RosterView({
   };
   return (
     <>
-      <header className={HEADER}>
-        <Title drawer={drawer} heading={heading} quiet>
-          Cast
-        </Title>
-        <SurfaceUpdating drawer={drawer} />
-        {drawer && <CloseControl />}
-      </header>
-      <div className={cn(BODY, "grid content-start gap-3 font-story")}>
+      <EditorHeader
+        title={
+          <Title drawer={drawer} heading={heading} quiet>
+            Cast
+          </Title>
+        }
+        actions={<SurfaceUpdating drawer={drawer} />}
+        close={
+          drawer ? (
+            <CloseControl />
+          ) : (
+            <Button size="icon" aria-label="Close the cast" onClick={closeCast}>
+              <CloseIcon />
+            </Button>
+          )
+        }
+      />
+      <EditorBody className="grid content-start gap-3 font-story pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {present.length > 0 && (
           <ul aria-label="Present" className="grid gap-1">
             {present.map(row)}
@@ -868,7 +891,7 @@ function RosterView({
           </section>
         )}
         <Status />
-      </div>
+      </EditorBody>
     </>
   );
 }
@@ -901,34 +924,48 @@ function RecordView({
 
   return (
     <>
-      <header className={HEADER}>
-        {fromRoster && (
-          <Button
-            size="icon"
-            aria-label="Back to the cast"
-            onClick={() => showCastEntry(null)}
-            className="-ml-2"
-          >
-            <BackIcon />
-          </Button>
-        )}
-        <Title drawer={drawer} heading={heading}>
-          {entry.anchor.name}
-          {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
-        </Title>
-        <SurfaceUpdating drawer={drawer} />
-        {drawer && <CloseControl />}
-      </header>
-      <div className={BODY}>
+      <EditorHeader
+        back={
+          fromRoster && (
+            <Button
+              size="icon"
+              aria-label="Back to the cast"
+              onClick={() => showCastEntry(null)}
+              className="-ml-2"
+            >
+              <BackIcon />
+            </Button>
+          )
+        }
+        title={
+          <Title drawer={drawer} heading={heading}>
+            {entry.anchor.name}
+            {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
+          </Title>
+        }
+        actions={<SurfaceUpdating drawer={drawer} />}
+        close={
+          drawer ? (
+            <CloseControl />
+          ) : (
+            <Button size="icon" aria-label="Close the cast" onClick={closeCast}>
+              <CloseIcon />
+            </Button>
+          )
+        }
+      />
+      <EditorBody>
         <RecordText entry={entry} />
+      </EditorBody>
+      <EditorFooter>
         <Button
           variant="quiet"
           onClick={() => removeFromCast(entry)}
-          className="mt-4 -ml-2 px-2 hover:text-ember"
+          className="-ml-2 justify-self-start px-2 hover:text-ember"
         >
           Remove from cast
         </Button>
-      </div>
+      </EditorFooter>
     </>
   );
 }
@@ -1062,7 +1099,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
     const now = index === 0;
     const lead = now && shown[0] === "activity";
     const rows = lead ? shown.slice(1) : shown;
-    return (
+    const content = (
       <section
         key={title}
         className={cn(
@@ -1073,7 +1110,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
         <h3 className={SECTION_LABEL}>{now && !entry.state.present ? "Last seen" : title}</h3>
         {lead && <div className="text-ink text-lead">{value("activity")}</div>}
         {rows.length > 0 && (
-          <dl className="grid grid-cols-1 gap-y-2 @[20rem]:grid-cols-[6.5rem_minmax(0,1fr)] @[20rem]:gap-x-3">
+          <dl className="grid grid-cols-1 gap-y-1 @[20rem]:grid-cols-[5.5rem_minmax(0,1fr)] @[20rem]:gap-x-2">
             {rows.map((field) => (
               <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
                 <dt className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</dt>
@@ -1084,10 +1121,21 @@ export function RecordText({ entry }: { entry: CastEntry }) {
         )}
       </section>
     );
+    return title === "Looks" || title === "Intimate" ? (
+      <details key={title} className="disclosure">
+        <summary className={cn(SUMMARY_LINE, "font-sans")}>
+          {title}
+          <DisclosureChevron />
+        </summary>
+        <div className="pt-2">{content}</div>
+      </details>
+    ) : (
+      content
+    );
   });
   const unrecorded = SECTIONS.flatMap(([, fields]) => fields.filter((field) => !shows(field)));
   return (
-    <div className="@container grid gap-5 font-story">
+    <div className="@container grid gap-3 font-story">
       {sections.length > 0 ? (
         sections
       ) : (
@@ -1144,6 +1192,7 @@ function EditableValue({
   const button = useRef<HTMLButtonElement>(null);
   const settled = useRef(false);
   const refocus = useRef(false);
+  const [saved, setSaved] = useState(false);
   useLayoutEffect(() => {
     if (draft !== null || !refocus.current) return;
     refocus.current = false;
@@ -1152,19 +1201,27 @@ function EditableValue({
 
   if (draft === null) {
     return (
-      <button
-        ref={button}
-        type="button"
-        data-cast-edit={field}
-        onClick={() => {
-          settled.current = false;
-          setDraft({ initial: current, text: current });
-        }}
-        className={EDITABLE_AT_REST}
-      >
-        <span className="sr-only">Correct {label.toLowerCase()}: </span>
-        {children}
-      </button>
+      <>
+        <button
+          ref={button}
+          type="button"
+          data-cast-edit={field}
+          onClick={() => {
+            settled.current = false;
+            setSaved(false);
+            setDraft({ initial: current, text: current });
+          }}
+          className={EDITABLE_AT_REST}
+        >
+          <span className="sr-only">Correct {label.toLowerCase()}: </span>
+          {children}
+        </button>
+        {saved && (
+          <InlineStatus as="span" className="font-sans">
+            Saved
+          </InlineStatus>
+        )}
+      </>
     );
   }
 
@@ -1181,6 +1238,7 @@ function EditableValue({
             ? { anchor: { [field]: value } as Partial<CastAnchor> }
             : { state: { [field]: value } as Partial<CastState> },
         );
+      setSaved(true);
     }
     refocus.current = keepFocus;
     setDraft(null);
@@ -1212,15 +1270,22 @@ function EditableValue({
         onKeyDown={onKeyDown}
         className={cn(PROSE_FIELD, "-mx-2 w-[calc(100%+1rem)] text-ink")}
       />
+      <Button
+        variant="outline"
+        className="hidden justify-self-start font-sans touch:inline-flex"
+        onPointerDown={(event) => event.preventDefault()}
+        onClick={() => finish(true, true)}
+      >
+        Save
+      </Button>
       {current !== draft.initial && (
-        <span role="status" className="font-sans text-meta text-reed">
+        <InlineStatus as="span" role="status" className="font-sans text-meta">
           Updated behind this edit
-        </span>
+        </InlineStatus>
       )}
     </span>
   );
 }
 
 /** A value at rest: the prose field's open face, so it reads as something to correct. */
-const EDITABLE_AT_REST =
-  "-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-md border border-transparent px-2 py-1 text-left touch:min-h-11 transition-[border-color,background-color] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover touch:border-b-rush";
+const EDITABLE_AT_REST = cn(PROSE_FACE, "-mx-2 block w-[calc(100%+1rem)] text-left touch:min-h-11");

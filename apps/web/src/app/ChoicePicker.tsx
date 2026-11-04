@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { Button } from "@/components/ui/button";
@@ -149,6 +149,7 @@ export function ChoicePicker({
   onOpenChange?: (open: boolean) => void;
 } & Parameters<typeof ChoiceList>[0]) {
   const phone = useFormFactor() === "phone";
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [own, setOwn] = useState(false);
   const open = controlled ?? own;
   const setOpen = (next: boolean) => {
@@ -159,6 +160,7 @@ export function ChoicePicker({
     return (
       <>
         <Button
+          ref={triggerRef}
           variant="outline"
           disabled={disabled}
           aria-label={triggerLabel}
@@ -167,7 +169,7 @@ export function ChoicePicker({
           {trigger}
         </Button>
         <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
-          <DrawerContent>
+          <DrawerContent finalFocus={triggerRef}>
             <DrawerHeader>
               <DrawerTitle>{sheetTitle}</DrawerTitle>
               <DrawerClose render={<Button variant="outline" />}>Done</DrawerClose>
@@ -185,11 +187,11 @@ export function ChoicePicker({
       <PopoverTrigger
         disabled={disabled}
         aria-label={triggerLabel}
-        render={<Button variant="outline" />}
+        render={<Button ref={triggerRef} variant="outline" />}
       >
         {trigger}
       </PopoverTrigger>
-      <PopoverContent title={title}>
+      <PopoverContent title={title} finalFocus={triggerRef}>
         <ChoiceList {...list} />
       </PopoverContent>
     </Popover>

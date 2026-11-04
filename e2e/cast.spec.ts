@@ -986,6 +986,7 @@ test("a value corrects where it stands, Escape and leaving unchanged keep it, an
   await expect(field("outfit")).toContainText(KEEPER_WOMAN_OUTFIT);
   await expect(field("outfit")).not.toHaveAttribute("data-cast-corrected");
 
+  await record.locator("summary").filter({ hasText: "Looks" }).click();
   await record.getByRole("button", { name: "Revert hair" }).click();
   await expect(field("hair")).toContainText("long copper-red hair in a braid");
   await expect(field("hair")).not.toHaveAttribute("data-cast-corrected");

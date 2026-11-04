@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { type ComponentProps, type ComponentType, type ReactNode, useId } from "react";
 import { EditIcon, type IconProps } from "@/components/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { Portrait } from "../portraits/Portrait.tsx";
 import type { PortraitOwner } from "../portraits/queries.ts";
 import { useFormFactor } from "./form-factor.ts";
@@ -49,10 +50,10 @@ function TileText({
 }) {
   return (
     <>
-      <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
+      <span className="line-clamp-2 min-h-[calc(2lh+--spacing(2.5))] text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
         {name}
       </span>
-      <span id={captionId} className="min-h-4 truncate px-0.5 pt-0.5 text-meta text-reed">
+      <span id={captionId} className="min-h-4 break-words px-0.5 pt-0.5 text-meta text-reed">
         {caption}
       </span>
     </>
@@ -121,7 +122,7 @@ export function PortraitTile({
     );
   }
   return (
-    <div className="group/tile relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
+    <div className="group/tile relative grid grid-cols-[minmax(0,1fr)_2.75rem] items-start gap-x-1">
       <div className="col-span-2">{portrait}</div>
       <button
         type="button"
@@ -138,7 +139,7 @@ export function PortraitTile({
         <Link
           {...sheet}
           aria-label={`Edit ${name}`}
-          className={buttonVariants({ variant: "quiet", size: "icon" })}
+          className={cn(buttonVariants({ variant: "quiet", size: "icon" }), "size-11")}
         >
           <EditIcon size={16} />
         </Link>

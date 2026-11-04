@@ -13,6 +13,70 @@ export const LEAF_EDGE =
 /** Within one screen of view, around the viewport and around every scroller on the way. */
 const NEAR_SCREEN: IntersectionObserverInit = { rootMargin: "100% 0px", scrollMargin: "100% 0px" };
 
+/** Keep the actual decoded node until its replacement loads, including across session renewals. */
+function KeptImage({
+  src,
+  arriving = false,
+  lazy = false,
+}: {
+  src: string | null;
+  arriving?: boolean;
+  lazy?: boolean;
+}) {
+  const renewals = useRenewals();
+  const current = `${renewals}:${src}`;
+  const [drawn, setDrawn] = useState<{ key: string; src: string } | null>(
+    src === null ? null : { key: current, src },
+  );
+  const [failed, setFailed] = useState<string | null>(null);
+  const image = useRef<HTMLImageElement>(null);
+  if (src === null && drawn !== null) setDrawn(null);
+  useEffect(() => {
+    if (src === null || drawn?.key === current) return;
+    let active = true;
+    const show = () => {
+      const probe = new Image();
+      probe.src = src;
+      void probe.decode().then(
+        () => {
+          if (active) setDrawn({ key: current, src });
+        },
+        () => {},
+      );
+    };
+    const leaf = image.current;
+    // Renewals keep the gallery's lazy boundary, including portraits far off screen.
+    const observer =
+      lazy && leaf
+        ? new IntersectionObserver((entries) => {
+            if (!entries.some((entry) => entry.isIntersecting)) return;
+            observer?.disconnect();
+            show();
+          }, NEAR_SCREEN)
+        : null;
+    if (observer && leaf) observer.observe(leaf);
+    else show();
+    return () => {
+      active = false;
+      observer?.disconnect();
+    };
+  }, [current, src, drawn?.key, lazy]);
+  if (src === null || drawn === null || failed === drawn.key) return null;
+  return (
+    <img
+      ref={image}
+      key={drawn.key}
+      src={drawn.src}
+      alt=""
+      loading={lazy ? "lazy" : "eager"}
+      decoding="async"
+      draggable={false}
+      onError={() => setFailed(drawn.key)}
+      className={cn("absolute inset-0 size-full object-cover object-top", arriving && "surface-in")}
+    />
+  );
+}
+
 /** The shared-element name that carries a portrait from a gallery into its sheet. */
 export const PORTRAIT_TRANSITION = "character-portrait";
 
@@ -42,7 +106,6 @@ export function Portrait({
   className?: string;
 }) {
   // An image refused while signed out loads again after the renewal.
-  const renewals = useRenewals();
   const frame = useRef<HTMLDivElement>(null);
   // Back in a gallery, the morph lands only on a tile on screen (an edit can move it to the top).
   const shown = useOnScreen(frame, transition);
@@ -55,8 +118,6 @@ export function Portrait({
   if (!arriving && drawn !== src) setDrawn(src);
   // Art that did not load (a session expired meanwhile) shows the leaf without art, never the
   // browser's broken image; a renewal or a new version tries again under a new key.
-  const imageKey = `${renewals}:${drawn}`;
-  const [failed, setFailed] = useState<string | null>(null);
   // The probe starts once the leaf comes within a screen of view (as native lazy loading does),
   // so arrivals far off screen fetch nothing yet; `scrollMargin` widens the screen's own
   // scroller, which clips the leaf before the viewport does.
@@ -92,25 +153,12 @@ export function Portrait({
         className,
       )}
     >
-      {version === null || failed === imageKey ? (
-        // The mark low in the leaf, 9% of its width in from the corner (the leaf is the container).
-        <MarkIcon
-          size={32}
-          className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
-        />
-      ) : drawn === null ? null : (
-        // A new version is a new node, so a replacement surfaces again.
-        <img
-          key={imageKey}
-          src={drawn}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          onError={() => setFailed(imageKey)}
-          className={cn("size-full object-cover object-top", arriving && "surface-in")}
-        />
-      )}
+      {/* The mark low in the leaf, 9% of its width in from the corner (the leaf is the container). */}
+      <MarkIcon
+        size={32}
+        className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
+      />
+      <KeptImage key={`${owner}:${id}`} src={drawn} arriving={arriving} lazy />
     </div>
   );
 }
@@ -131,24 +179,12 @@ export function FullPortrait({
   /** The size already on screen, so already loaded. */
   shown: PortraitSize;
 }) {
-  const renewals = useRenewals();
   return (
-    <span key={renewals} className="relative block size-full">
+    <span className="relative block size-full">
       {shown !== "full" && (
-        <img
-          src={portraitUrl(owner, id, version, shown)}
-          alt=""
-          draggable={false}
-          className="absolute inset-0 size-full object-cover object-top"
-        />
+        <KeptImage key={`shown:${owner}:${id}`} src={portraitUrl(owner, id, version, shown)} />
       )}
-      <img
-        src={portraitUrl(owner, id, version, "full")}
-        alt=""
-        decoding="async"
-        draggable={false}
-        className="relative size-full object-cover object-top"
-      />
+      <KeptImage key={`full:${owner}:${id}`} src={portraitUrl(owner, id, version, "full")} />
     </span>
   );
 }
@@ -165,11 +201,8 @@ export function Leaf({
   version: number;
   className?: string;
 }) {
-  const renewals = useRenewals();
   const src = portraitUrl(owner, id, version, "thumb");
   // Art that did not load leaves the leaf's quiet ground, never the browser's broken image.
-  const [failed, setFailed] = useState<string | null>(null);
-  const imageKey = `${renewals}:${src}`;
   return (
     <span
       className={cn(
@@ -178,17 +211,7 @@ export function Leaf({
         className,
       )}
     >
-      {failed !== imageKey && (
-        <img
-          key={imageKey}
-          src={src}
-          alt=""
-          decoding="async"
-          draggable={false}
-          onError={() => setFailed(imageKey)}
-          className="size-full object-cover"
-        />
-      )}
+      <KeptImage key={`${owner}:${id}`} src={src} />
     </span>
   );
 }

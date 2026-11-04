@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChoicePicker } from "@/app/ChoicePicker.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { CharactersIcon } from "@/components/icons";
 import { byName } from "@/lib/find";
 import { charactersQuery } from "../characters/queries.ts";
@@ -78,9 +79,9 @@ export function BookLinks({ id, name }: { id: string; name: string }) {
           }
           notice={
             links.error !== null && (
-              <p role="alert" className="px-2.5 pb-1.5 text-ember text-note">
+              <InlineStatus tone="error" as="p" role="alert" className="px-2.5 pb-1.5">
                 {links.error}
-              </p>
+              </InlineStatus>
             )
           }
         />

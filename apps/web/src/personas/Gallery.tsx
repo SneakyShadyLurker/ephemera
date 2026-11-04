@@ -7,6 +7,7 @@ import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
 import {
+  BROWSE_BODY,
   BROWSE_FRAME,
   BROWSE_GRID,
   PAGE_FRAME,
@@ -71,12 +72,7 @@ export function PersonasScreen() {
           <EmptyPersonas onNew={newPersona} />
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
-          <div
-            className={cn(
-              BROWSE_FRAME,
-              "@container grid grid-cols-[minmax(0,1fr)] gap-6 pt-3 pb-10",
-            )}
-          >
+          <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
             <p className="max-w-measure text-pretty text-note text-reed">
               Who you are in the story. New chats start as the default persona, unless the character
               goes with another.

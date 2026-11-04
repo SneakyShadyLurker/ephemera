@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { ChoicePicker } from "@/app/ChoicePicker.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { LorebookIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -11,7 +12,7 @@ import { booksOf, LINKS_FULL_TEXT, linksFull } from "../lorebooks/library.ts";
 import { createLorebook, libraryQuery, type NewLorebook } from "../lorebooks/queries.ts";
 import { useLinks } from "../lorebooks/useLinks.ts";
 import { creations } from "../sheet/creation.ts";
-import { HELP } from "../sheet/fields.ts";
+import { FIELD_LABEL, HELP } from "../sheet/fields.ts";
 import { entriesText } from "./marks.tsx";
 
 const NEW_NAME = "New lorebook";
@@ -128,7 +129,7 @@ export function LinkedBooks({
 
   return (
     <div ref={list} className="grid gap-3">
-      <h3 className="font-medium text-ink text-ui">Linked from your library</h3>
+      <h3 className={FIELD_LABEL}>Linked from your library</h3>
       {linked.length > 0 && (
         <ul aria-label="Linked lorebooks" className="grid border-rush border-t">
           {linked.map((book) => (
@@ -190,18 +191,25 @@ export function LinkedBooks({
           onToggle={(choice, checked) => {
             if (id === null) return;
             setDone(null);
-            void links.change({
-              lorebookId: choice.id,
-              characterId: id,
-              character: name,
-              linked: checked,
-            });
+            void links
+              .change({
+                lorebookId: choice.id,
+                characterId: id,
+                character: name,
+                linked: checked,
+              })
+              .then((ok) => {
+                if (!ok) return;
+                setDone(checked ? `Linked ${choice.name}.` : `Unlinked ${choice.name}.`);
+                setOpen(false);
+                list.current?.scrollIntoView({ block: "nearest" });
+              });
           }}
           notice={
             (links.error ?? createFailed) !== null && (
-              <p role="alert" className="px-2.5 pb-1.5 text-ember text-note">
+              <InlineStatus tone="error" as="p" role="alert" className="px-2.5 pb-1.5">
                 {links.error ?? createFailed}
-              </p>
+              </InlineStatus>
             )
           }
           footer={
@@ -222,13 +230,13 @@ export function LinkedBooks({
           <span className="text-meta text-reed">{linkedCountText(linked.length)}</span>
         )}
       </div>
-      <p role="status" className={cn(HELP, "empty:hidden")}>
+      <InlineStatus as="p" role="status" className={cn(HELP, "empty:hidden")}>
         {done}
-      </p>
+      </InlineStatus>
       {links.error !== null && !open && (
-        <p role="alert" className="text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert">
           {links.error}
-        </p>
+        </InlineStatus>
       )}
       <p className={HELP}>
         Read with every chat with {name}, after the book in the card. Unlinking keeps the book in

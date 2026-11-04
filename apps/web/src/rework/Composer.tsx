@@ -2,6 +2,8 @@ import { REWORK_LIMITS, type ReworkCard, type ReworkErrorCode } from "@ephemera/
 import { type FormEvent, type KeyboardEvent, type ReactNode, type RefObject, useId } from "react";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
+import { PANEL_TITLE } from "@/components/ui/drawer";
+import { EditorBody, EditorFooter, EditorHeader } from "@/components/ui/editor-shell";
 import { SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
@@ -13,7 +15,7 @@ import { ReasoningSelect, useEffortChoice } from "../creator/ReasoningSelect.tsx
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import { Leaf } from "../portraits/Portrait.tsx";
 import { WindowLink } from "../settings/window-link.tsx";
-import { REQUEST_FIELD } from "../sheet/fields.ts";
+import { FIELD_LABEL, REQUEST_FIELD } from "../sheet/fields.ts";
 import { portraitDefault } from "./portrait-switch.ts";
 import { reworkStore, useRework } from "./session.ts";
 import type { Refused } from "./store.ts";
@@ -151,21 +153,15 @@ export function Composer({
 
   return (
     <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-      <div
-        className={cn(
-          "grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain",
-          phone ? "px-5 pt-0 pb-4" : "px-4 pt-4 pb-3",
-        )}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <label
-            htmlFor={fieldId}
-            className={cn("font-semibold text-ink", phone ? "text-heading" : "text-lead")}
-          >
+      <EditorHeader
+        title={
+          <label htmlFor={fieldId} className={PANEL_TITLE}>
             What should change?
           </label>
-          {close}
-        </div>
+        }
+        close={close}
+      />
+      <EditorBody className="grid content-start gap-4">
         <textarea
           ref={field}
           id={fieldId}
@@ -182,7 +178,7 @@ export function Composer({
           className={cn(REQUEST_FIELD, "max-h-[40dvh] min-h-[calc(4*1.75rem+1.5rem)]")}
         />
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
-          <span id={modelLabel} className="font-medium text-ink text-ui">
+          <span id={modelLabel} className={FIELD_LABEL}>
             Model
           </span>
           <ModelSelect
@@ -194,7 +190,7 @@ export function Composer({
               onModelChange();
             }}
           />
-          <span id={reasoningLabel} className="font-medium text-ink text-ui">
+          <span id={reasoningLabel} className={FIELD_LABEL}>
             Reasoning
           </span>
           <ReasoningSelect
@@ -203,7 +199,7 @@ export function Composer({
             effort={effort}
             onChange={(reasoning) => reworkStore.getState().setReasoning(reasoning)}
           />
-          <span id={personaLabel} className="font-medium text-ink text-ui">
+          <span id={personaLabel} className={FIELD_LABEL}>
             Persona
           </span>
           <PersonaSelect labelId={personaLabel} size="row" />
@@ -235,17 +231,12 @@ export function Composer({
             <Leaf id={characterId} version={portrait} className="w-9" />
           </div>
         )}
-      </div>
-      <div
-        className={cn(
-          "flex shrink-0 justify-end",
-          phone ? "px-5 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]" : "px-4 pt-1 pb-4",
-        )}
-      >
+      </EditorBody>
+      <EditorFooter className="flex justify-end">
         <Button type="submit" variant="primary" disabled={!ready} className={cn(phone && "w-full")}>
           Rework
         </Button>
-      </div>
+      </EditorFooter>
     </form>
   );
 }

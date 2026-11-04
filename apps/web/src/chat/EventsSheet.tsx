@@ -1,11 +1,6 @@
 import { useFormFactor } from "@/app/form-factor.ts";
-import {
-  Drawer,
-  DrawerCloseIcon,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerCloseIcon, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { EditorBody, EditorHeader } from "@/components/ui/editor-shell";
 import { EventsSection } from "../events/EventsSection.tsx";
 
 /**
@@ -35,13 +30,13 @@ export function EventsSheet({
         finalFocus={returnTo}
         className="data-[swipe-axis=x]:[--drawer-content-width:min(30rem,calc(100vw-6rem))]"
       >
-        <DrawerHeader>
-          <DrawerTitle>Events</DrawerTitle>
-          <DrawerCloseIcon label="Close Events" />
-        </DrawerHeader>
-        <div className="min-h-0 overflow-y-auto px-5 pt-1 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+        <EditorHeader
+          title={<DrawerTitle>Events</DrawerTitle>}
+          close={<DrawerCloseIcon label="Close Events" />}
+        />
+        <EditorBody className="pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <EventsSection inSheet />
-        </div>
+        </EditorBody>
       </DrawerContent>
     </Drawer>
   );

@@ -10,6 +10,7 @@ import {
 import { useId } from "react";
 import { SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
+import { FIELD_LABEL, GROUP_HEADING } from "@/sheet/fields.ts";
 import { percent } from "../lorebook/copy.ts";
 import { ChangeDecision, Deleted, Inserted } from "./ChangeRuns.tsx";
 import { type ReviewItem, useReview } from "./ReviewField.tsx";
@@ -128,7 +129,7 @@ function EntryRow({
             />
           </div>
         ) : (
-          <h3 className="min-w-0 font-medium text-ink text-ui">{entryTitle(entry, index)}</h3>
+          <h3 className={cn(FIELD_LABEL, "min-w-0")}>{entryTitle(entry, index)}</h3>
         )}
         <Context number={`Entry ${index + 1}`} entry={entry} />
       </div>
@@ -178,7 +179,7 @@ function RemovedRow({
       className={cn(ROW, "change-mark change-arrive group/change")}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-        <h3 className="min-w-0 font-medium text-ui">
+        <h3 className={cn(GROUP_HEADING, "min-w-0 text-inherit")}>
           <Deleted text={title} />
         </h3>
         <Context number={`Entry ${index + 1}`} state="removed" entry={entry} />
@@ -270,7 +271,7 @@ function NewRow({
           mark("name"),
         )}
       >
-        <h3 className="min-w-0 font-medium text-ui">
+        <h3 className={cn(GROUP_HEADING, "min-w-0 text-inherit")}>
           <Inserted text={title} />
         </h3>
         <Context number={`New entry ${number}`} entry={entry} />

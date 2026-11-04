@@ -5,6 +5,7 @@ import {
   type Settings,
 } from "@ephemera/core";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { sharedCallFailure } from "../model-call.ts";
@@ -117,12 +118,14 @@ function CastSheetControls({ id }: { id: string }) {
   const { data } = sheet;
   if (data === undefined) {
     return sheet.isError ? (
-      <div role="alert" className="grid justify-items-start gap-2">
-        <p className="text-ember text-note">The cast could not be loaded.</p>
+      <InlineStatus as="div" role="alert" className="grid justify-items-start gap-2">
+        <InlineStatus tone="error" as="p">
+          The cast could not be loaded.
+        </InlineStatus>
         <Button variant="outline" onClick={() => void sheet.refetch()}>
           Load the cast again
         </Button>
-      </div>
+      </InlineStatus>
     ) : (
       <div aria-busy="true" className="min-h-10" />
     );
@@ -219,8 +222,10 @@ function ReadFailure({ reason }: { reason: CastReadFailure }) {
   const { text, action } = castReadFailure(reason);
   const look = cn(buttonVariants({ variant: "quiet" }), "h-8 px-2 text-ink text-note touch:h-11");
   return (
-    <div role="alert" className="flex flex-wrap items-center gap-x-1 gap-y-1">
-      <p className="text-pretty text-ember text-note">{text}</p>
+    <InlineStatus as="div" role="alert" className="flex flex-wrap items-center gap-x-1 gap-y-1">
+      <InlineStatus tone="error" as="p">
+        {text}
+      </InlineStatus>
       {action === "window" ? (
         <CastWindowLink className={look} />
       ) : (
@@ -230,7 +235,7 @@ function ReadFailure({ reason }: { reason: CastReadFailure }) {
           </WindowLink>
         )
       )}
-    </div>
+    </InlineStatus>
   );
 }
 

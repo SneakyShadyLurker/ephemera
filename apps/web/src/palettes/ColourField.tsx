@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { CautionIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { COMPACT_FIELD } from "../sheet/fields.ts";
+import { COMPACT_FIELD, FIELD_LABEL } from "../sheet/fields.ts";
 import { followAgain, setColour } from "./draft.ts";
 import { ROLE_LABELS } from "./roles.ts";
 
@@ -64,7 +64,7 @@ export function ColourField({
           className="colour-swatch"
         />
         <div className="grid min-w-0 flex-1 gap-0.5">
-          <label htmlFor={hexId} className="truncate text-ink text-ui">
+          <label htmlFor={hexId} className={cn(FIELD_LABEL, "truncate")}>
             {label}
           </label>
           {follows && (

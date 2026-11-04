@@ -1,5 +1,6 @@
 import type { ImportReport } from "@ephemera/core";
 import { useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
 
 /*
@@ -21,21 +22,25 @@ export function ImportReportLine({
   const [details, setDetails] = useState(false);
   if (!outcome.ok) {
     return (
-      <div role="status" className="grid justify-items-start gap-1 text-note arrive">
+      <InlineStatus
+        as="div"
+        role="status"
+        className="grid justify-items-start gap-1 text-ui arrive"
+      >
         <p className="text-pretty text-ember">
           {outcome.file} was not imported: {outcome.reason}.
         </p>
         <Button size="text" className="-ml-2" onClick={onDismiss}>
           Dismiss
         </Button>
-      </div>
+      </InlineStatus>
     );
   }
   const { report } = outcome;
   const quiet = report.changed.length === 0 && report.skipped.length === 0;
   return (
-    <div role="status" className="grid max-w-column gap-2 arrive">
-      <p className="text-pretty text-ink text-note">
+    <InlineStatus as="div" role="status" className="grid max-w-column gap-2 arrive">
+      <p className="text-pretty text-reed text-ui">
         {summary}
         {!quiet && <span className="text-reed"> Some settings changed or were left out.</span>}
       </p>
@@ -50,11 +55,11 @@ export function ImportReportLine({
         </Button>
       </div>
       {details && (
-        <div className="grid gap-3 border-rush border-l pl-4 text-note transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
+        <div className="grid gap-3 border-rush border-l pl-4 text-ui transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
           <ReportGroups report={report} />
         </div>
       )}
-    </div>
+    </InlineStatus>
   );
 }
 

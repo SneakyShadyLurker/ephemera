@@ -4,6 +4,7 @@ import { EmptyState } from "@/app/EmptyState.tsx";
 import { Illustration } from "@/components/illustration.tsx";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
+import { ROW_META, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
 import type { OpenEpisode } from "./EpisodeEditor.tsx";
@@ -135,13 +136,16 @@ function EpisodeRow({
       type="button"
       data-episode={episode.id}
       onClick={() => onOpen(episode.id, members)}
-      className="press -mx-3 grid w-[calc(100%+1.5rem)] min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 rounded-lg px-3 py-4 text-left [overflow-wrap:anywhere] hover:bg-surface-hover"
+      className={cn(
+        rowLayout("entry"),
+        "press -mx-3 w-[calc(100%+1.5rem)] grid-cols-[minmax(0,1fr)] [overflow-wrap:anywhere]",
+      )}
     >
       <span className="font-semibold font-story text-ink text-name">{episode.title}</span>
       <span className="line-clamp-4 whitespace-pre-line font-story text-narration text-turn">
         {episode.summary}
       </span>
-      <span className="mt-1 flex flex-wrap items-center gap-1.5">
+      <span className={cn(ROW_META, "mt-1 gap-x-1.5")}>
         {episode.cues.map((cue, at) => (
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: a model may repeat a cue; the list never reorders.

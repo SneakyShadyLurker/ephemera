@@ -1,10 +1,8 @@
-import { Link, useBlocker } from "@tanstack/react-router";
+import { useBlocker } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useFormFactor } from "@/app/form-factor.ts";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
-import { BackIcon } from "@/components/icons";
 import { AlertDialog, AlertDialogClose, AlertDialogContent } from "@/components/ui/alert-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { identity } from "../signin/identity.ts";
 import { Brainstorm } from "./Brainstorm.tsx";
@@ -81,7 +79,7 @@ export function CreateScreen() {
       className="relative flex min-w-0 flex-1 flex-col [timeline-scope:--thread]"
     >
       <ScreenHeader
-        lead={<BackToGallery />}
+        back={{ to: "/characters", label: "Characters" }}
         storyTitle={false}
         title="Create with AI"
         gutters={SCROLL_GUTTERS}
@@ -116,24 +114,6 @@ export function CreateScreen() {
       {shown !== null && <KeepBar kind={shown.kind} />}
       <LeaveGuard />
     </main>
-  );
-}
-
-function BackToGallery() {
-  const phone = useFormFactor() === "phone";
-  return phone ? (
-    <Link
-      to="/characters"
-      aria-label="Back to characters"
-      className={buttonVariants({ size: "icon" })}
-    >
-      <BackIcon />
-    </Link>
-  ) : (
-    <Link to="/characters" className={cn(buttonVariants(), "pl-2")}>
-      <BackIcon size={16} />
-      Characters
-    </Link>
   );
 }
 

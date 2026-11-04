@@ -1353,8 +1353,8 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
   await chooseModel(page, "mock-long");
   const sampling = page.evaluate(
     () =>
-      new Promise<{ text: string; opacity: number; x: string; clipped: number }[]>((resolve) => {
-        const frames: { text: string; opacity: number; x: string; clipped: number }[] = [];
+      new Promise<{ text: string; opacity: number; x: number; clipped: number }[]>((resolve) => {
+        const frames: { text: string; opacity: number; x: number; clipped: number }[] = [];
         const start = performance.now();
         const sample = () => {
           const frame = document.querySelector<HTMLElement>(
@@ -1365,7 +1365,7 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
             frames.push({
               text: frame.textContent ?? "",
               opacity: Number.parseFloat(style.opacity),
-              x: style.transform,
+              x: new DOMMatrixReadOnly(style.transform).m41,
               clipped: frame.scrollHeight - frame.clientHeight,
             });
           }
@@ -1379,6 +1379,7 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
   const frames = await sampling;
   const arriving = frames.filter(({ text, opacity }) => text.includes("Line 1") && opacity > 0);
   expect(arriving, JSON.stringify(frames.slice(-5))).not.toHaveLength(0);
+  expect(arriving.some(({ x }) => Math.abs(x) > 0.5)).toBe(true);
   expect(
     arriving
       .filter(({ clipped }) => clipped > 1)

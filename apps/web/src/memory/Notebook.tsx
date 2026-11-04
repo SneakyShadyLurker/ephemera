@@ -12,23 +12,26 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useId, useReducer, useRef, useState } from "react";
 import { z } from "zod";
 import { useCoarsePointer } from "@/app/form-factor.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { CloseIcon, PlusIcon, RegenerateIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import { CAST_FIELD_LABELS } from "../chat/cast-ui.ts";
 import { chatStore } from "../chat/session.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
-import { useAutosave } from "../sheet/autosave.ts";
+import { type SaveStatus, useAutosave } from "../sheet/autosave.ts";
 import {
-  HELP,
   LINE_FIELD,
   NOTEBOOK_GRID,
   PROSE_FIELD as OPEN_PROSE,
+  HELP as SHEET_HELP,
   sheetLabel,
 } from "../sheet/fields.ts";
+import { InlineSave } from "../sheet/InlineSave.tsx";
 import {
   CAST_GENDERS,
   type CastLinePerson,
@@ -171,6 +174,7 @@ export function useNotebook(characterId: string, state: MemoryState, onSeen: (n:
 const PROSE_FIELD = cn(OPEN_PROSE, "font-story text-ink text-turn");
 
 const MARGIN_LABEL = sheetLabel("line");
+const HELP = cn(SHEET_HELP, "text-ui");
 
 /** Line breaks of any kind: a relationship, a fact, a thread or a cast line is one line. */
 const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;
@@ -199,19 +203,28 @@ export function NotebookEditor({
   readOnly = false,
   source,
   onChange,
+  onCommit,
+  saveStatus,
 }: {
   fields: NotebookFields;
   readOnly?: boolean;
   /** Regenerate's source; without one the opening is edited by hand alone. */
   source?: OpeningSource;
   onChange: (patch: Partial<NotebookFields>) => void;
+  onCommit?: () => Promise<boolean>;
+  saveStatus?: SaveStatus;
 }) {
   const situationId = useId();
   const [write, dispatch] = useReducer(openingWriteAfter, { kind: "idle" });
   const writing = write.kind === "writing";
   const held = readOnly || writing;
   return (
-    <>
+    <div
+      className="group/notebook grid gap-6"
+      onBlurCapture={() => {
+        void onCommit?.();
+      }}
+    >
       <div className={NOTEBOOK_GRID}>
         <label htmlFor={situationId} className={MARGIN_LABEL}>
           Situation
@@ -244,6 +257,8 @@ export function NotebookEditor({
         readOnly={held}
         pending={writing}
         onChange={(relationships) => onChange({ relationships })}
+        onCommit={onCommit}
+        saveStatus={saveStatus}
       />
       <Lines
         label="Facts"
@@ -253,6 +268,8 @@ export function NotebookEditor({
         readOnly={held}
         pending={writing}
         onChange={(facts) => onChange({ facts })}
+        onCommit={onCommit}
+        saveStatus={saveStatus}
       />
       <Lines
         label="Open threads"
@@ -262,6 +279,8 @@ export function NotebookEditor({
         readOnly={held}
         pending={writing}
         onChange={(threads) => onChange({ threads })}
+        onCommit={onCommit}
+        saveStatus={saveStatus}
       />
       <CastLines
         lines={fields.cast}
@@ -269,7 +288,23 @@ export function NotebookEditor({
         pending={writing}
         onChange={(cast) => onChange({ cast })}
       />
-    </>
+      {saveStatus && (
+        <div className={NOTEBOOK_GRID}>
+          <div className="flex min-h-11 items-center gap-3 tablet:col-start-2">
+            <Button
+              variant="outline"
+              className="invisible touch:group-focus-within/notebook:visible"
+              onClick={() => {
+                void onCommit?.();
+              }}
+            >
+              Save
+            </Button>
+            <InlineSave status={saveStatus} noun="notebook" />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -423,9 +458,10 @@ function OpeningField({
           {writing && <span aria-hidden="true" className="lamplight-edge" />}
         </div>
         {/* One region for what Regenerate did, so each change is announced; empty, it takes no room. */}
-        <div
+        <InlineStatus
+          as="div"
           role="status"
-          className="flex flex-wrap items-center gap-x-1 text-note text-reed empty:hidden [&>p]:py-1.5"
+          className="flex flex-wrap items-center gap-x-1 empty:hidden [&>p]:py-1.5"
         >
           {writing && (
             <p className="sr-only">Writing a new opening from what {source?.name} remembers…</p>
@@ -470,7 +506,7 @@ function OpeningField({
               Regenerate waits. {reason}
             </p>
           )}
-        </div>
+        </InlineStatus>
         <p id={helpId} className={HELP}>
           Where the next chat begins. Empty, the card's own greeting opens it.
         </p>
@@ -503,6 +539,8 @@ function Lines({
   readOnly,
   pending,
   onChange,
+  onCommit,
+  saveStatus,
 }: {
   label: string;
   item: string;
@@ -512,6 +550,8 @@ function Lines({
   /** Held while the opening is written. */
   pending: boolean;
   onChange: (lines: string[]) => void;
+  onCommit?: (() => Promise<boolean>) | undefined;
+  saveStatus?: SaveStatus | undefined;
 }) {
   const fields = useRef<(HTMLTextAreaElement | null)[]>([]);
   const add = useRef<HTMLButtonElement>(null);
@@ -523,6 +563,7 @@ function Lines({
     setFocusAt(null);
   }, [focusAt]);
   const full = list.length >= max;
+  const [edited, setEdited] = useState<number | null>(null);
   const insert = (at: number) => {
     if (full) return;
     onChange([...list.slice(0, at), "", ...list.slice(at)]);
@@ -547,7 +588,7 @@ function Lines({
               <li
                 // biome-ignore lint/suspicious/noArrayIndexKey: a line is its position in the list.
                 key={at}
-                className="group/line flex min-w-0 items-start gap-1 border-rush border-b py-1"
+                className="group/line grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-1 border-rush border-b py-1"
               >
                 <textarea
                   ref={(element) => {
@@ -569,12 +610,24 @@ function Lines({
                     }
                   }}
                   onChange={(event) => {
+                    setEdited(at);
                     const next = [...list];
                     next[at] = event.target.value.replace(BREAKS, " ");
                     onChange(next);
                   }}
                   className={cn(PROSE_FIELD, "-ml-2")}
                 />
+                <Button
+                  variant="quiet"
+                  className="invisible hidden px-2 touch:inline-flex touch:group-focus-within/line:visible"
+                  aria-label={`Save this ${item}`}
+                  onClick={() => {
+                    void onCommit?.();
+                    fields.current[at]?.blur();
+                  }}
+                >
+                  Save
+                </Button>
                 <Button
                   size="icon"
                   aria-label={`Remove this ${item}`}
@@ -584,6 +637,11 @@ function Lines({
                 >
                   <CloseIcon size={16} />
                 </Button>
+                {edited === at && saveStatus && (
+                  <span className="col-span-full">
+                    <InlineSave status={saveStatus} noun="notebook" />
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -829,7 +887,7 @@ function CastPersonForm({
   };
   const field = (key: string, label: string, maxLength: number, ref?: typeof first) => (
     <label key={key} className="grid gap-1.5">
-      <span className="text-note text-reed">{label}</span>
+      <span className={COMPACT_LABEL}>{label}</span>
       <input
         ref={ref}
         value={person[key] ?? ""}
@@ -847,7 +905,7 @@ function CastPersonForm({
       <div className="grid gap-3 tablet:grid-cols-[minmax(0,1fr)_9rem]">
         {field("name", "Name", CAST_LIMITS.name, first)}
         <div className="grid gap-1.5">
-          <span id={genderId} className="text-note text-reed">
+          <span id={genderId} className={COMPACT_LABEL}>
             Gender
           </span>
           <Select
@@ -872,10 +930,10 @@ function CastPersonForm({
       <div className="grid gap-3 tablet:grid-cols-2">
         {CAST_ANCHOR_FIELDS.map((key) => field(key, CAST_FIELD_LABELS[key], CAST_LIMITS.field))}
       </div>
-      <p role="status" className="text-note text-ember empty:sr-only">
+      <InlineStatus tone="error" as="p" role="status" className="empty:sr-only">
         {full &&
           `This person's details are at the ${MEMORY_LIMITS.castLine.toLocaleString("en")} characters a cast line holds. Shorten one to add more.`}
-      </p>
+      </InlineStatus>
       <div className="flex items-center justify-between gap-2">
         <Button variant="outline" onClick={onDone}>
           Done

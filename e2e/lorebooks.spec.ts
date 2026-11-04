@@ -850,8 +850,10 @@ test("a sheet's New whose link failed, then linked from the picker, makes anothe
   // The book was made; the owner links it by hand.
   const orphan = picker.getByRole("checkbox", { name: "New lorebook" });
   await orphan.click();
-  await expect(orphan).toBeChecked();
+  await expect(picker).not.toBeVisible();
   await expect(page.locator("#s-lorebook")).toContainText("1 of 8 linked");
+  // Linking returns to the summary; reopen the picker for the next New.
+  await link.click();
   await create.click();
   await expect(page.locator("#s-lorebook").getByRole("status")).toHaveText(
     `Created a lorebook and linked it to ${character}.`,

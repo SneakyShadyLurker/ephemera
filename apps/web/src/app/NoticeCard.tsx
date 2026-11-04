@@ -1,11 +1,49 @@
 import { AnimatePresence, domAnimation, useIsPresent } from "motion/react";
 import * as m from "motion/react-m";
-import type { FocusEventHandler, ReactNode, Ref } from "react";
+import {
+  type ComponentProps,
+  createElement,
+  type FocusEventHandler,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { cn } from "@/lib/cn";
 import { fade, MotionScope, spring } from "./motion.tsx";
 import { useReducedMotion } from "./reduced-motion.ts";
 
 const SWAP = "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0";
+
+/** Compact feedback in the content flow; NoticeSlot owns its presence when needed. */
+export function InlineStatus({
+  as = "div",
+  tone = "status",
+  role,
+  actions,
+  children,
+  className,
+  ...props
+}: Omit<ComponentProps<"div">, "ref"> & {
+  as?: "div" | "p" | "span";
+  ref?: Ref<HTMLElement>;
+  tone?: "status" | "error";
+  actions?: ReactNode;
+}) {
+  return createElement(
+    as,
+    {
+      ...props,
+      role: role ?? (tone === "error" ? "alert" : "status"),
+      className: cn(
+        "min-w-0 text-pretty text-note",
+        actions && "flex flex-wrap items-baseline gap-x-3 gap-y-1",
+        tone === "error" ? "text-ember" : "text-reed",
+        className,
+      ),
+    },
+    actions ? <span className="min-w-0 flex-1">{children}</span> : children,
+    actions,
+  );
+}
 
 type NoticeFrameProps = {
   ref?: Ref<HTMLDivElement>;

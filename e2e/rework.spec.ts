@@ -447,11 +447,9 @@ for (const size of [
     const id = await createReworkCharacter(page.request, base, { portrait: true });
     await openSheet(page, id);
     await openRework(page);
-    // A drawer on phones (with its own close button), a popover beside the button elsewhere.
+    // The same header close in the phone drawer and the wider popover.
     await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(size.drawer ? 1 : 0);
-    await expect(composer(page).getByRole("button", { name: "Close AI Rework" })).toHaveCount(
-      size.drawer ? 1 : 0,
-    );
+    await expect(composer(page).getByRole("button", { name: "Close AI Rework" })).toHaveCount(1);
     expect(await seriousAxeViolations(page)).toEqual([]);
     await submitRework(page, { request: ownerRequest(base, "kept-layout"), model: "mock-fast" });
 

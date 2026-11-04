@@ -10,6 +10,13 @@ import { useCreatorWriting } from "../creator/writing.ts";
 import { ChunkLoadError } from "./chunk-error.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { useFormFactor } from "./form-factor.ts";
+import {
+  BackControl,
+  type BackTarget,
+  HeaderActions,
+  HeaderFrame,
+  HeaderTitle,
+} from "./Header.tsx";
 import { setNavOpen } from "./ui.ts";
 
 /** Whether anything is being written now (a chat reply, a card or its art): the mark's drip quickens then. */
@@ -35,6 +42,7 @@ export const SCROLL_GUTTERS = "tablet:[scrollbar-gutter:stable_both-edges]";
 export const SCROLL_GUTTER_END = "tablet:[scrollbar-gutter:stable]";
 
 /** Galleries: the window filled up to a generous cap, with gutters that grow with it. */
+export const BROWSE_BODY = "@container grid grid-cols-[minmax(0,1fr)] gap-5 pt-2 pb-10 tablet:pt-3";
 export const BROWSE_FRAME = "mx-auto w-full max-w-browse px-4 tablet:px-[clamp(1rem,3vw,4rem)]";
 /**
  * A gallery's cards inside `BROWSE_FRAME` as an `@container`: as many columns
@@ -64,6 +72,7 @@ export function ScreenHeader({
   children,
   edge,
   lead,
+  back,
   storyTitle,
   frame,
   gutters,
@@ -75,6 +84,7 @@ export function ScreenHeader({
   edge?: ReactNode;
   /** Before the title, after the phone's navigation button (the chat's small portrait); the title then takes the story face. */
   lead?: ReactNode;
+  back?: BackTarget | undefined;
   /** The story face for a title after a `lead`, or for a character's name; false keeps the interface sans (a back control is not a character). */
   storyTitle?: boolean;
   /** The body's frame (a frame constant), which the contents take from tablet up; the hairline stays full width. */
@@ -91,44 +101,32 @@ export function ScreenHeader({
   const writing = useInFlight();
   const story = storyTitle ?? lead !== undefined;
   return (
-    // Pinned over the body's scroller, as the sheet's header is (sheet/SheetFrame.tsx).
-    <header className="header-hairline sticky top-0 box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
-      <div className={cn("flex min-w-0 flex-1", gutters && cn("overflow-hidden", gutters))}>
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-1",
-            frame ?? "tablet:px-6",
-            // Phone headers keep their own padding, whatever the body's.
-            "max-tablet:px-2",
-          )}
-        >
-          {phone && (
-            // The mark on a plate, so it reads as the control that opens the navigation.
-            <MoreButton
-              aria-label="Open navigation"
-              onClick={() => setNavOpen(true)}
-              mark={<MarkIcon dripping writing={writing} size={20} />}
-              cue={<MenuIcon size={14} />}
-            />
-          )}
-          {lead}
-          <h1
-            className={cn(
-              "min-w-0 flex-1 truncate text-ink tablet:px-0",
-              lead ? "pr-2 pl-1" : "px-2",
-              // A display step above the navigation's labels, one size on every screen.
-              story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
-              yieldsTitle &&
-                "transition-opacity duration-(--duration-quick) ease-fade [[data-name-shown]_&]:opacity-0",
-            )}
-          >
-            {title}
-          </h1>
-          {children}
-        </div>
-      </div>
-      {edge}
-    </header>
+    <HeaderFrame frame={frame} gutters={gutters} edge={edge}>
+      {phone && (
+        // The mark on a plate, so it reads as the control that opens the navigation.
+        <MoreButton
+          aria-label="Open navigation"
+          onClick={() => setNavOpen(true)}
+          mark={<MarkIcon dripping writing={writing} size={20} />}
+          cue={<MenuIcon size={14} />}
+        />
+      )}
+      {back && <BackControl back={back} />}
+      {lead}
+      <HeaderTitle
+        className={cn(
+          "min-w-0 flex-1 truncate text-ink tablet:px-0",
+          lead || back ? "pr-2 pl-1" : "px-2",
+          // A display step above the navigation's labels, one size on every screen.
+          story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
+          yieldsTitle &&
+            "transition-opacity duration-(--duration-quick) ease-fade [[data-name-shown]_&]:opacity-0",
+        )}
+      >
+        {title}
+      </HeaderTitle>
+      <HeaderActions>{children}</HeaderActions>
+    </HeaderFrame>
   );
 }
 

@@ -66,9 +66,14 @@ export const TITLE_FIELD = cn(
  * edge and a faint wash under a pointer, the field's face once focused.
  * Read-only, it stays open and still. The caller sets its type and ink.
  */
-export const PROSE_FIELD = cn(
+export const PROSE_FACE = cn(
   FIELD_FACE,
-  "w-full cursor-text resize-none border-transparent bg-transparent px-2 py-1 [field-sizing:content] transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:bg-surface focus:shadow-focus touch:border-b-rush read-only:cursor-default read-only:hover:border-transparent read-only:hover:bg-transparent",
+  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus",
+);
+
+export const PROSE_FIELD = cn(
+  PROSE_FACE,
+  "resize-none [field-sizing:content] read-only:cursor-default read-only:border-transparent read-only:hover:border-transparent read-only:hover:bg-transparent",
 );
 
 /** The focus of a field made of several parts (tokens, a search box with its icon, the composer). */
@@ -80,6 +85,14 @@ export const FOCUS_WITHIN =
  * first line, a 36px control, a line of switches, checkboxes or open text,
  * or a paragraph.
  */
+export const SECTION_HEADING = "font-semibold text-ink text-lead";
+export const DISPLAY_HEADING = cn(SECTION_HEADING, "text-title-phone tablet:text-title");
+export const STORY_SECTION_HEADING = cn(SECTION_HEADING, "font-story text-heading");
+export const STORY_DISPLAY_HEADING = cn(DISPLAY_HEADING, "font-[450] font-story");
+export const FIELD_LABEL = "font-medium text-ink text-ui";
+export const COMPACT_LABEL = "font-medium text-meta text-reed";
+export const GROUP_HEADING = "font-semibold text-ink text-ui";
+
 const LABEL_ALIGN = {
   field: "tablet:pt-2.5",
   control: "tablet:pt-2",
@@ -94,7 +107,7 @@ const LABEL_ALIGN = {
  * cue and level with its first line.
  */
 export const sheetLabel = (align: keyof typeof LABEL_ALIGN = "field") =>
-  `mb-2 block font-semibold text-ink text-ui tablet:mb-0 tablet:text-right ${LABEL_ALIGN[align]}`;
+  `mb-2 block ${GROUP_HEADING} tablet:mb-0 tablet:text-right ${LABEL_ALIGN[align]}`;
 
 /** A sheet's help line, under the field it explains. */
 export const HELP = "text-pretty text-note text-reed";

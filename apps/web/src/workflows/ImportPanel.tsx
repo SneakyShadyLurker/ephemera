@@ -17,12 +17,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { queryClient } from "@/app/query.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { CautionIcon, SavingIcon } from "@/components/icons";
 import { ReportGroup } from "@/components/import-report";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
@@ -32,7 +34,13 @@ import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { useSetting } from "../settings/settings.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { FIELD, HELP } from "../sheet/fields.ts";
+import {
+  FIELD,
+  FIELD_LABEL,
+  GROUP_HEADING,
+  SECTION_HEADING,
+  HELP as SHEET_HELP,
+} from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { identity } from "../signin/identity.ts";
 import {
@@ -85,8 +93,9 @@ import { MissingList, StatusDot } from "./WorkflowRow.tsx";
 /** A field under its label on phones, and beside it from tablets on, in the mapping list's 7rem column. */
 const FIELD_ROW = "grid items-start gap-y-1 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:gap-x-3";
 /** A field row's label, set level with the field's text once beside it. */
-const FIELD_LABEL = "font-medium text-ink text-ui tablet:pt-2 tablet:touch:pt-3";
+const FIELD_ROW_LABEL = cn(FIELD_LABEL, "tablet:pt-2 tablet:touch:pt-3");
 const SMALL = "h-8 px-2.5 text-ink text-note touch:h-11";
+const HELP = cn(SHEET_HELP, "text-ui");
 
 /** A workflow file on its way in: a new import, or a replacement for one of the user's workflows. */
 export type WorkflowDraft =
@@ -489,7 +498,7 @@ export function PanelView({
           ref={headingRef}
           id={headingId}
           tabIndex={-1}
-          className="text-pretty break-words font-semibold text-ink text-lead outline-none"
+          className={cn(SECTION_HEADING, "text-pretty break-words  outline-none")}
         >
           {replace === null ? "Import a workflow" : `Replace the file of ${replace}`}
         </h3>
@@ -507,11 +516,11 @@ export function PanelView({
       )}
 
       {refused && (
-        <div role="alert" className="grid gap-1 arrive">
-          <h4 className="text-pretty break-words font-medium text-ember text-ui">
+        <InlineStatus as="div" role="alert" className="grid gap-1 arrive">
+          <h4 className={cn(GROUP_HEADING, "text-pretty break-words text-ember")}>
             Cannot import {state.fileName}
           </h4>
-          <p className="text-pretty text-ink text-note">
+          <p className="text-pretty text-reed text-ui">
             {state.refusal.kind === "invalid_workflow"
               ? refusalText(state.refusal.code)
               : fileRefusalText(state.fileName, state.refusal)}
@@ -519,14 +528,14 @@ export function PanelView({
           {state.refusal.kind === "invalid_workflow" && (
             <NodesInvolved nodes={state.refusal.nodes} />
           )}
-        </div>
+        </InlineStatus>
       )}
 
       {(stalled === "busy" || stalled === "unreachable") && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 arrive">
-          <p role="alert" className="text-pretty text-ink text-note">
+          <InlineStatus as="p" role="alert" className="text-ink">
             {stalled === "busy" ? INSPECT_BUSY : `The file was not read: ${notReached}.`}
-          </p>
+          </InlineStatus>
           <Button variant="outline" className={SMALL} onClick={onRetry}>
             Try again
           </Button>
@@ -539,11 +548,11 @@ export function PanelView({
         !refused &&
         (stalled === null || stalled === "comfyui_required") && (
           <div className="grid gap-2">
-            <h4 className="font-medium text-ink text-ui">On your ComfyUI</h4>
-            <div role="status" className="grid gap-2">
+            <h4 className={FIELD_ROW_LABEL}>On your ComfyUI</h4>
+            <InlineStatus as="div" role="status" className="grid gap-2">
               {stalled === "comfyui_required" ? (
                 <div className="grid justify-items-start gap-2 arrive">
-                  <p className="flex items-baseline gap-2 text-pretty text-ink text-note">
+                  <p className="flex items-baseline gap-2 text-pretty text-reed text-ui">
                     <CautionIcon size={16} className="shrink-0 translate-y-[0.2em] text-ember" />
                     {uiNotReached(address)}
                   </p>
@@ -562,7 +571,7 @@ export function PanelView({
               ) : (
                 draft !== null && <LiveStatus draft={draft} />
               )}
-            </div>
+            </InlineStatus>
           </div>
         )}
 
@@ -636,26 +645,32 @@ function DraftBody({
       />
       {problem !== null && (
         <div className="grid gap-1">
-          <p role="alert" className="text-pretty text-ember text-note">
+          <InlineStatus tone="error" as="p" role="alert">
             {problem.text}
-          </p>
+          </InlineStatus>
           <NodesInvolved nodes={problem.nodes} />
         </div>
       )}
       <OtherNodes nodes={otherNodes(draft)} />
       {report.changed.length + report.skipped.length > 0 && (
-        <div className="grid gap-3 text-note">
-          <ReportGroup title="Changed" items={report.changed} heading="h4" />
-          <ReportGroup title="Left out" items={report.skipped} heading="h4" />
-        </div>
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            Import details
+            <DisclosureChevron />
+          </summary>
+          <div className="grid gap-3 pt-2 text-ui">
+            <ReportGroup title="Changed" items={report.changed} heading="h4" />
+            <ReportGroup title="Left out" items={report.skipped} heading="h4" />
+          </div>
+        </details>
       )}
       {blocked.length > 0 && (
         <div className="grid gap-2">
-          <h4 className="flex items-baseline gap-2 font-medium text-ember text-ui">
+          <h4 className={cn(GROUP_HEADING, "flex items-baseline gap-2 text-ember")}>
             <CautionIcon size={16} className="shrink-0 translate-y-[0.2em]" />
             Ephemera cannot run these nodes
           </h4>
-          <div className="grid gap-3 border-ember/40 border-l pl-4 text-note">
+          <div className="grid gap-3 border-ember/40 border-l pl-4 text-ui">
             {blocked.map((group) => (
               <div key={group.reason} className="grid gap-1">
                 <p className="text-pretty text-ink">{BLOCKED_COPY[group.reason]}</p>
@@ -684,7 +699,7 @@ function LiveStatus({ draft }: { draft: Draft }) {
   const { live } = draft.inspection;
   if (live.state === "ready") {
     return (
-      <p className="flex items-baseline gap-2.5 text-ink text-note arrive">
+      <p className="flex items-baseline gap-2.5 text-reed text-ui arrive">
         <StatusDot tone="ready" />
         {LIVE_READY}
       </p>
@@ -693,7 +708,7 @@ function LiveStatus({ draft }: { draft: Draft }) {
   if (live.state === "missing") {
     return (
       <div className="grid gap-2 arrive">
-        <p className="flex items-baseline gap-2 text-pretty text-ink text-note">
+        <p className="flex items-baseline gap-2 text-pretty text-reed text-ui">
           <CautionIcon size={16} className="shrink-0 translate-y-[0.2em] text-ember" />
           {LIVE_MISSING}
         </p>
@@ -724,7 +739,7 @@ function Fields({
   return (
     <div className="grid gap-4">
       <div className={FIELD_ROW}>
-        <label htmlFor={nameId} className={FIELD_LABEL}>
+        <label htmlFor={nameId} className={FIELD_ROW_LABEL}>
           Name
         </label>
         <div className="grid min-w-0 gap-1">
@@ -745,17 +760,19 @@ function Fields({
             )}
           />
           {(problem !== null || note !== null) && (
-            <p
+            <InlineStatus
+              tone="error"
+              as="p"
               id={`${nameId}-help`}
-              className={cn("text-pretty text-note", problem !== null ? "text-ember" : "text-reed")}
+              className={cn("text-pretty text-ui", problem !== null ? "text-ember" : "text-reed")}
             >
               {problem ?? note}
-            </p>
+            </InlineStatus>
           )}
         </div>
       </div>
       <div className={FIELD_ROW}>
-        <span id={familyId} className={FIELD_LABEL}>
+        <span id={familyId} className={FIELD_ROW_LABEL}>
           Family
         </span>
         <div className="grid min-w-0 gap-1">
@@ -783,7 +800,7 @@ function Fields({
           </div>
           <p
             key={draft.family}
-            className="text-pretty text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+            className="text-pretty text-reed text-ui transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
           >
             {FAMILY_HELP[draft.family]}
           </p>
@@ -823,9 +840,9 @@ function SaveFailureNotice({
       );
     case "full":
       return (
-        <p role="alert" className="text-pretty text-ember text-note arrive">
+        <InlineStatus tone="error" as="p" role="alert" className="arrive">
           {SAVE_FULL}
-        </p>
+        </InlineStatus>
       );
     case "not_found":
     case "unreachable":
@@ -839,9 +856,9 @@ function SaveFailureNotice({
       return (
         <div className="grid gap-1 arrive">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <p role="alert" className="text-pretty text-ember text-note">
+            <InlineStatus tone="error" as="p" role="alert">
               {text}
-            </p>
+            </InlineStatus>
             <Button variant="outline" className={SMALL} onClick={run}>
               {action}
             </Button>

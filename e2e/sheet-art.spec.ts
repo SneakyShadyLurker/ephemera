@@ -16,7 +16,6 @@ import {
   artName,
   asStoredPortrait,
   createArtCharacter,
-  footerClose,
   newArt,
   openStudio,
   sheetNewArt,
@@ -27,6 +26,10 @@ import {
 } from "./support/sheet-art.ts";
 import { expire, signInThroughPortal } from "./support/signin.ts";
 import { appOrigin, expect, test } from "./support/test.ts";
+
+/** The editor has one Close, in its header on every width. */
+const closeStudio = (page: Page) =>
+  studio(page).getByRole("button", { name: "Close", exact: true });
 
 /*
  * New art for a saved character (docs/PRODUCT.md, Characters) against the
@@ -335,7 +338,7 @@ test("Close keeps the candidates without a second reveal; after Use and after a 
   await expectBatch(page);
   await expect(studio(page).locator("canvas.develop-in")).toHaveCount(1);
   await radios.nth(2).click();
-  await footerClose(page).click();
+  await closeStudio(page).click();
   await expect(studio(page)).toHaveCount(0);
   await expect(sheetNewArt(page)).toBeFocused();
 
@@ -355,7 +358,7 @@ test("Close keeps the candidates without a second reveal; after Use and after a 
   await expect(studio(page)).toBeVisible();
   await expect(portraits(page)).toHaveCount(0);
   await expect(newArt(page)).toBeFocused();
-  await footerClose(page).click();
+  await closeStudio(page).click();
 
   // Back on the sheet after leaving the page: a new session paints.
   await page.goto("about:blank");
@@ -415,7 +418,7 @@ test("the studio is worked with the keyboard: Tab order, arrows, Enter in Direct
 
   // One stop per control, in the order the body reads, then the footer.
   const stops: string[] = [];
-  for (let step = 0; step < 13; step++) {
+  for (let step = 0; step < 12; step++) {
     stops.push(
       await page.evaluate(() => {
         const active = document.activeElement;
@@ -442,14 +445,11 @@ test("the studio is worked with the keyboard: Tab order, arrows, Enter in Direct
     "Reasoning",
     "Direction for the next art",
     "New art",
-    "Close",
     "Use as portrait",
   ]);
 
   // The last stop wraps to the header's Close, the dialog's first.
-  await expect(
-    studio(page).getByRole("button", { name: "Close", exact: true }).first(),
-  ).toBeFocused();
+  await expect(closeStudio(page)).toBeFocused();
 
   // Arrows move the choice within the four.
   await radios.nth(0).focus();
@@ -509,10 +509,10 @@ test.describe("on a short touch phone", () => {
     await page.keyboard.type("Soft rain at the window");
     await expect(direction).toHaveValue("Soft rain at the window");
     await expect(direction).toBeInViewport();
-    await expect(footerClose(page)).toBeInViewport();
+    await expect(closeStudio(page)).toBeInViewport();
     await expect(newArt(page)).toBeInViewport();
 
-    await footerClose(page).tap();
+    await closeStudio(page).tap();
     await expect(studio(page)).toHaveCount(0);
     await scope.expectClean();
   });

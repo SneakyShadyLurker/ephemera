@@ -9,7 +9,9 @@ import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import {
+  BROWSE_BODY,
   BROWSE_FRAME,
   BROWSE_GRID,
   PAGE_FRAME,
@@ -117,7 +119,7 @@ export function GalleryScreen() {
         <HeaderAction label="Import cards" icon={ImportIcon} onClick={openPicker} />
         <HeaderAction label="New character" icon={PlusIcon} onClick={newCharacter} />
         {/* Phones name it under the search instead, while the cast shows. */}
-        {(!phone || characters.isError || empty) && (
+        {(!phone || characters.isError) && (
           <HeaderAction label="Create with AI" icon={LampFlameIcon} onClick={createWithAi} />
         )}
       </ScreenHeader>
@@ -133,15 +135,10 @@ export function GalleryScreen() {
         {characters.isError ? (
           <ListLoadFailed what="Characters" onRetry={() => void characters.refetch()} />
         ) : empty ? (
-          <EmptyGallery phone={phone} onImport={openPicker} />
+          <EmptyGallery phone={phone} onImport={openPicker} onCreate={createWithAi} />
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
-          <div
-            className={cn(
-              BROWSE_FRAME,
-              "@container grid grid-cols-[minmax(0,1fr)] gap-5 pt-2 pb-10 tablet:pt-3",
-            )}
-          >
+          <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
             <Toolbar list={list} phone={phone} onCreate={createWithAi} />
             <KeptNote />
             <ImportReport />
@@ -370,9 +367,9 @@ function ImportReport() {
   const detailsId = useId();
   if (importing !== null) {
     return (
-      <p role="status" className="text-note text-reed">
+      <InlineStatus as="p" role="status">
         {importProgress(importing)}
-      </p>
+      </InlineStatus>
     );
   }
   if (report.length === 0) return null;
@@ -394,10 +391,10 @@ function ImportReport() {
         ? `${failed[0]?.file} was not imported: ${failed[0]?.reason}.`
         : `${failed.length} were not imported.`;
   return (
-    <div role="status" className="grid arrive">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-note">
+    <InlineStatus as="div" role="status" className="grid text-ui arrive">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui">
         {imported.length > 0 && <CheckIcon size={16} className="text-reed" />}
-        <p className="text-ink">
+        <p className="text-reed">
           {summary}
           {changed && <span className="text-reed"> Some settings changed or were left out.</span>}{" "}
           {failures && <span className="text-ember">{failures}</span>}
@@ -421,14 +418,14 @@ function ImportReport() {
           {imported.map(
             (outcome) =>
               hasReport(outcome.report) && (
-                <div key={outcome.id} className="grid gap-3 border-rush border-l pl-4 text-note">
+                <div key={outcome.id} className="grid gap-3 border-rush border-l pl-4 text-ui">
                   <p className="font-medium text-ink">{outcome.name}</p>
                   <ReportGroups report={outcome.report} />
                 </div>
               ),
           )}
           {failed.length > 0 && (
-            <ul className="grid max-h-48 gap-1 overflow-y-auto border-rush border-l pl-4 text-note">
+            <ul className="grid max-h-48 gap-1 overflow-y-auto border-rush border-l pl-4 text-ui">
               {failed.map((outcome) => (
                 <li key={outcome.key} className="text-reed">
                   <span className="text-ink">{outcome.file}</span>: {outcome.reason}.
@@ -438,7 +435,7 @@ function ImportReport() {
           )}
         </div>
       </Unfold>
-    </div>
+    </InlineStatus>
   );
 }
 
@@ -511,7 +508,15 @@ function Cast({
  * already made), with the drop hint where dropping works; New character and
  * Create with AI stay in the header.
  */
-function EmptyGallery({ phone, onImport }: { phone: boolean; onImport: () => void }) {
+function EmptyGallery({
+  phone,
+  onImport,
+  onCreate,
+}: {
+  phone: boolean;
+  onImport: () => void;
+  onCreate: () => void;
+}) {
   return (
     <div className={BROWSE_FRAME}>
       {/* A failed import into an empty library still reports why. */}
@@ -522,10 +527,16 @@ function EmptyGallery({ phone, onImport }: { phone: boolean; onImport: () => voi
         title="No characters yet"
         art={{ role: "hero", image: <Illustration name="empty-characters" /> }}
         actions={
-          <Button variant="primary" onClick={onImport}>
-            <ImportIcon size={16} />
-            Import cards
-          </Button>
+          <>
+            <Button variant="primary" onClick={onImport}>
+              <ImportIcon size={16} />
+              Import cards
+            </Button>
+            <Button variant="quiet" onClick={onCreate}>
+              <LampFlameIcon size={16} />
+              Create with AI
+            </Button>
+          </>
         }
       >
         Import a character card as PNG or JSON{phone ? "" : ", or drop cards on this page"}.

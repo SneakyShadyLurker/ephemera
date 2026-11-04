@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { forgetScroll } from "@/app/KeptScroll.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { ChevronDownIcon, DeleteIcon, EditIcon, RegenerateIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
@@ -130,9 +131,9 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
         )}
       >
         {failure !== null && keepRun !== null && (
-          <p role="alert" className="mr-auto min-w-0 text-pretty text-ember text-note">
+          <InlineStatus tone="error" as="p" role="alert" className="mr-auto min-w-0">
             {failureText(failure, keepRun.snapshot.name)}
-          </p>
+          </InlineStatus>
         )}
         <p role="status" className="sr-only">
           {keepRun?.status === "saving" ? "Keeping." : ""}

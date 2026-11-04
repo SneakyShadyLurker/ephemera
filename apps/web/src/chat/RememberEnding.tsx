@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { type ReactElement, useEffect, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { MemoryIcon } from "@/components/icons";
 import {
   AlertDialog,
@@ -97,15 +98,20 @@ function EndingStatus({ ending }: { ending: Ending }) {
   if (ending.status === "remembering") return <Remembering />;
   if (ending.status === "editing") {
     return (
-      <p role="status" className={"arrive mt-4 text-pretty text-note text-reed"}>
+      <InlineStatus as="p" role="status" className={"arrive mt-4 text-pretty text-note text-reed"}>
         A message edit is still open. Keep chatting to save or cancel it first.
-      </p>
+      </InlineStatus>
     );
   }
   return (
-    <p role="alert" className={"arrive mt-4 text-pretty text-ember text-note"}>
+    <InlineStatus
+      tone="error"
+      as="p"
+      role="alert"
+      className={"arrive mt-4 text-pretty text-ember text-note"}
+    >
       {failureNote(ending.reason).text}
-    </p>
+    </InlineStatus>
   );
 }
 
@@ -113,12 +119,16 @@ function EndingStatus({ ending }: { ending: Ending }) {
 function Remembering() {
   const replying = useChat((state) => state.generating);
   return (
-    <p role="status" className={"arrive mt-4 flex items-center gap-2 text-note text-reed"}>
+    <InlineStatus
+      as="p"
+      role="status"
+      className={"arrive mt-4 flex items-center gap-2 text-note text-reed"}
+    >
       <MemoryIcon size={16} className="shrink-0 text-ink" />
       {replying
         ? "Waiting for the reply to finish, then remembering how this chat ended…"
         : "Remembering how this chat ended…"}
-    </p>
+    </InlineStatus>
   );
 }
 

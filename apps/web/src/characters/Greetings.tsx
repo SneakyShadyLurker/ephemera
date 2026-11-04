@@ -2,6 +2,7 @@ import { CARD_FIELD_LABELS, CARD_LIMITS } from "@ephemera/core";
 import { AnimatePresence, m, useIsPresent } from "motion/react";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { fade, spring } from "@/app/motion.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/cn";
 import { ReviewField, useReview, useSettled } from "../rework/ReviewField.tsx";
 import { useReworkLocked } from "../rework/session.ts";
 import { TrackedText } from "../rework/TrackedText.tsx";
-import { FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { FIELD, FIELD_LABEL, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import {
   CloseRow,
   Glides,
@@ -129,7 +130,7 @@ export function Greetings({
       </h2>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
         <div className="grid gap-1.5">
-          <label htmlFor={firstId} className="flex h-9 items-center font-medium text-ink text-ui">
+          <label htmlFor={firstId} className={cn(FIELD_LABEL, "flex h-9 items-center")}>
             {CARD_FIELD_LABELS.firstMessage}
           </label>
           <ReviewField
@@ -150,7 +151,7 @@ export function Greetings({
           </ReviewField>
         </div>
         <div className="flex h-9 items-center justify-between">
-          <span className="font-medium text-ink text-ui">
+          <span className={FIELD_LABEL}>
             Alternates
             {alternates.length > 0 && (
               <span className="ml-2 font-normal text-meta text-reed tabular-nums">
@@ -187,7 +188,12 @@ export function Greetings({
                     {base !== null && tracked.length > 0 ? (
                       <div className="grid gap-2 py-3">
                         <div className="flex items-center gap-1">
-                          <span className="flex min-h-9 min-w-0 flex-1 items-center font-medium text-ink text-ui touch:min-h-11">
+                          <span
+                            className={cn(
+                              FIELD_LABEL,
+                              "flex min-h-9 min-w-0 flex-1 items-center  touch:min-h-11",
+                            )}
+                          >
                             {label}
                           </span>
                           <MoveButtons
@@ -319,7 +325,7 @@ export function Greetings({
                 key={item.change.at}
                 className="change-arrive grid gap-2 border-rush border-b py-3"
               >
-                <span className="flex min-h-9 items-center font-medium text-ink text-ui touch:min-h-11">
+                <span className={cn(FIELD_LABEL, "flex min-h-9 items-center  touch:min-h-11")}>
                   New alternate
                 </span>
                 <TrackedText text="" items={[item]} label="New alternate" />
@@ -328,12 +334,18 @@ export function Greetings({
           </ol>
         )}
         {removed !== null && (
-          <p role="status" className="flex items-center gap-2 text-note text-reed arrive">
+          <InlineStatus
+            as="p"
+            role="status"
+            className="arrive"
+            actions={
+              <Button size="text" className="text-ink" disabled={locked} onClick={undo}>
+                Undo
+              </Button>
+            }
+          >
             Alternate {removed.index + 1} removed.
-            <Button size="text" className="text-ink" disabled={locked} onClick={undo}>
-              Undo
-            </Button>
-          </p>
+          </InlineStatus>
         )}
       </div>
     </section>

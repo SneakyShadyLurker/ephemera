@@ -14,17 +14,19 @@ import {
 } from "@ephemera/core";
 import { useBlocker } from "@tanstack/react-router";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { ChevronDownIcon, MoonIcon, SunIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/cn";
 import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
 import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
-import { HELP, LINE_FIELD } from "../sheet/fields.ts";
+import { FIELD_LABEL, HELP, LINE_FIELD, SECTION_HEADING } from "../sheet/fields.ts";
 import { identity } from "../signin/identity.ts";
 import { ColourField, shortfallText } from "./ColourField.tsx";
 import {
@@ -228,7 +230,7 @@ export function PaletteEditor({
             ref={heading}
             id={headingId}
             tabIndex={-1}
-            className="font-semibold text-ink text-lead outline-none"
+            className={cn(SECTION_HEADING, "outline-none")}
           >
             {draft.saved ? `Edit ${draft.name.trim() || "palette"}` : "New palette"}
           </h3>
@@ -256,7 +258,7 @@ export function PaletteEditor({
 
       <div className="grid gap-4 tablet:grid-cols-[minmax(0,1fr)_auto] tablet:items-end">
         <div className="grid gap-1.5">
-          <label htmlFor={nameId} className="font-medium text-ink text-ui">
+          <label htmlFor={nameId} className={FIELD_LABEL}>
             Name
           </label>
           <input
@@ -271,10 +273,14 @@ export function PaletteEditor({
             }}
             className={LINE_FIELD}
           />
-          {nameMissing && <p className="text-meta text-ember">Name it before saving.</p>}
+          {nameMissing && (
+            <InlineStatus as="p" tone="error" role="presentation" className="text-meta">
+              Name it before saving.
+            </InlineStatus>
+          )}
         </div>
         <div className="grid gap-1.5">
-          <span className="font-medium text-ink text-ui">Editing scheme</span>
+          <span className={FIELD_LABEL}>Editing scheme</span>
           <ToggleGroup
             aria-label="Editing scheme"
             className="w-fit"
@@ -314,7 +320,7 @@ export function PaletteEditor({
       {KEY_GROUPS.map((group) => (
         <fieldset key={group.title} className="grid gap-3">
           <legend className="mb-1 grid gap-0.5">
-            <span className="font-medium text-ink text-ui">{group.title}</span>
+            <span className={FIELD_LABEL}>{group.title}</span>
             <span className={HELP}>{group.note}</span>
           </legend>
           <div className="grid gap-3 tablet:grid-cols-2">{group.roles.map(field)}</div>
@@ -324,7 +330,7 @@ export function PaletteEditor({
       <Collapsible.Root open={allOpen} onOpenChange={setAllOpen} className="border-rush border-t">
         <Collapsible.Trigger className="group/all -mx-2 flex min-h-12 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-3 text-left row touch:min-h-14">
           <span className="grid flex-1 gap-0.5">
-            <span className="font-medium text-ink text-ui">All colours</span>
+            <span className={FIELD_LABEL}>All colours</span>
             <span className={HELP}>
               {handSetCount === 0
                 ? "Every other colour follows the ones above."
@@ -340,7 +346,7 @@ export function PaletteEditor({
           <div className="grid gap-5 px-1.5 pt-1 pb-2">
             {MORE_GROUPS.map((group) => (
               <fieldset key={group.title} className="grid gap-3">
-                <legend className="mb-1 font-medium text-ink text-ui">{group.title}</legend>
+                <legend className={cn(FIELD_LABEL, "mb-1")}>{group.title}</legend>
                 <div className="grid gap-3 tablet:grid-cols-2">{group.roles.map(field)}</div>
               </fieldset>
             ))}
@@ -351,9 +357,9 @@ export function PaletteEditor({
       <Summary shortfalls={shortfalls} onReveal={reveal} />
 
       {failed && (
-        <p role="alert" className="text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert">
           {failed}
-        </p>
+        </InlineStatus>
       )}
 
       <div className={PANEL_FOOTER}>
@@ -425,12 +431,12 @@ function Summary({
 }) {
   const schemes = (["light", "dark"] as const).filter((scheme) => shortfalls[scheme].length > 0);
   return (
-    <div role="status" className="grid gap-1.5">
+    <InlineStatus as="div" role="status" className="grid gap-1.5">
       {schemes.length === 0 ? (
         <p className={HELP}>Every colour reads clearly by day and by night.</p>
       ) : (
         schemes.map((scheme) => (
-          <p key={scheme} className="text-pretty text-ember text-note">
+          <InlineStatus tone="error" as="p" key={scheme}>
             {SCHEME_WORDS[scheme]},{" "}
             {shortfalls[scheme].length === 1
               ? "one colour may be hard to read:"
@@ -451,9 +457,9 @@ function Summary({
               </span>
             ))}
             . It saves anyway.
-          </p>
+          </InlineStatus>
         ))
       )}
-    </div>
+    </InlineStatus>
   );
 }

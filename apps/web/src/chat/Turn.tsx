@@ -142,7 +142,7 @@ const GREET =
 
 /**
  * Prose, rendered inert; plain paragraphs until the renderer arrives or if it
- * fails. A reply with no text yet shows the breathing caret, and after six
+ * fails. A reply with no text yet shows the still caret, and after six
  * seconds that it is still awaited; the nameplate above says whose.
  */
 function Prose({ text, streaming }: { text: string; streaming: boolean }) {

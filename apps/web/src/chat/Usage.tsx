@@ -1,7 +1,10 @@
 import type { CallPurpose } from "@ephemera/core";
 import { useId, useState } from "react";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
+import { cn } from "@/lib/cn";
 import { countOf, formatCount } from "@/lib/text";
+import { FIELD_LABEL } from "@/sheet/fields.ts";
 import { type LedgerCall, sumUsage, type UsageLedger, type UsageRequest } from "./usage.ts";
 
 const PURPOSE: Record<CallPurpose, string> = {
@@ -57,7 +60,7 @@ export function UsageSection({
   if (ledger.calls.length === 0 && ledger.running.length === 0 && !ledger.truncated) return null;
   return (
     <section aria-label="Usage" className="grid gap-1 border-rush border-t px-5 py-4">
-      <h3 className="pb-1 font-medium text-ink text-ui">Usage</h3>
+      <h3 className={cn(FIELD_LABEL, "pb-1")}>Usage</h3>
       {!preview && (
         <UsageDisclosure
           label="This request"
@@ -113,10 +116,10 @@ export function UsageDisclosure({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="row flex min-h-12 w-full items-center gap-3 rounded-md px-1 text-left touch:min-h-14"
+        className={cn(rowLayout("diagnostic"), "w-full grid-cols-[minmax(0,1fr)_auto]")}
       >
-        <span className="grid min-w-0 flex-1">
-          <span className="font-medium text-ink text-ui">{label}</span>
+        <span className={ROW_CONTENT}>
+          <span className={FIELD_LABEL}>{label}</span>
           <span className="text-meta text-reed tabular-nums">
             {usageSummary(calls, running.length)}
           </span>

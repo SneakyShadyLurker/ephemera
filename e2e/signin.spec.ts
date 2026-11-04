@@ -66,6 +66,46 @@ test.describe("sign-in expiry", () => {
     expect(JSON.stringify(await browserStorage(page))).not.toContain(CANARY_MARKER);
   });
 
+  test("a decoded portrait stays shown when its replacement meets an expired sign-in", async ({
+    page,
+    context,
+    request,
+  }) => {
+    const id = await createCharacterViaApi(request, `Portrait ${crypto.randomUUID().slice(0, 6)}`);
+    const upload = () =>
+      request.put(`/api/characters/${id}/portrait`, {
+        headers: { Origin: APP_ORIGIN },
+        multipart: {
+          file: { name: "portrait.png", mimeType: "image/png", buffer: portraitPng("kept") },
+        },
+      });
+    expect((await upload()).ok()).toBe(true);
+    await page.goto("/characters");
+    const image = page.locator(`[data-character="${id}"] img`);
+    await expect(image).toBeVisible();
+    await expect(image).toHaveJSProperty("complete", true);
+    const decoded = await image.elementHandle();
+    if (decoded === null) throw new Error("No decoded portrait");
+    expect((await upload()).ok()).toBe(true);
+    await expire(context);
+    // The list answers with the new version, while its image meets the expired session.
+    await context.route(`${APP_ORIGIN}/api/characters`, (route) => route.continue());
+    const refused = page.waitForEvent("requestfailed", {
+      predicate: (sent) => sent.url().includes(`/api/characters/${id}/portrait/image`),
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+    await refused;
+    await expect
+      .poll(() =>
+        decoded.evaluate((node) => ({
+          connected: node.isConnected,
+          decoded: node instanceof HTMLImageElement && node.naturalWidth > 0,
+          visible: getComputedStyle(node).visibility,
+        })),
+      )
+      .toEqual({ connected: true, decoded: true, visible: "visible" });
+  });
+
   test("an expired session strands no screen and never reloads the tab", async ({
     page,
     context,

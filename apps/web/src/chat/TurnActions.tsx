@@ -402,7 +402,7 @@ function GreetingSheet({ message, label }: { message: AssistantMessage; label: s
         <ChevronDownIcon size={16} />
       </Button>
       <DrawerContent>
-        <DrawerHeader className="h-12">
+        <DrawerHeader>
           <DrawerTitle>Greetings</DrawerTitle>
           <DrawerCloseIcon label="Close greetings" />
         </DrawerHeader>

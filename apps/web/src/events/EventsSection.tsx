@@ -4,6 +4,7 @@ import { AnimatePresence, useIsPresent } from "motion/react";
 import * as m from "motion/react-m";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { fade, MotionScope, spring } from "@/app/motion.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -409,12 +410,14 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
         <p className="text-note text-reed">The events could not be refreshed.</p>
       )}
       {failed ? (
-        <div role="alert" className="grid justify-items-start gap-2">
-          <p className="text-ember text-note">The events could not be loaded.</p>
+        <InlineStatus as="div" role="alert" className="grid justify-items-start gap-2">
+          <InlineStatus tone="error" as="p">
+            The events could not be loaded.
+          </InlineStatus>
           <Button variant="outline" onClick={() => void events.refetch()}>
             Try again
           </Button>
-        </div>
+        </InlineStatus>
       ) : events.data === undefined ? (
         <div aria-busy="true" className="min-h-16" />
       ) : (
@@ -459,10 +462,10 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
       )}
       {/* Hidden in the closed row, a failed save is said here, where it can be seen. */}
       {!shown && unsaved > 0 && (
-        <p role="alert" className="pb-3 text-pretty text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert" className="pb-3">
           {countOf(unsaved, "event")} {unsaved === 1 ? "is" : "are"} not saved. Open Events to
           retry.
-        </p>
+        </InlineStatus>
       )}
       {leaveGuard}
     </section>
@@ -522,9 +525,9 @@ function RemovedRow({
       className="overflow-clip border-rush border-b"
     >
       <div className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 px-1 py-2.5">
-        <p role="status" className="min-w-0 flex-1 basis-48 truncate text-reed text-ui">
+        <InlineStatus as="p" role="status" className="min-w-0 flex-1 basis-48 truncate text-ui">
           Deleted {text}.
-        </p>
+        </InlineStatus>
         <Button
           ref={undoButton}
           variant="outline"
@@ -535,9 +538,9 @@ function RemovedRow({
           Undo
         </Button>
         {failure !== null && (
-          <p role="alert" className="basis-full text-pretty text-ember text-note">
+          <InlineStatus tone="error" as="p" role="alert" className="basis-full">
             {failure}
-          </p>
+          </InlineStatus>
         )}
       </div>
     </m.li>

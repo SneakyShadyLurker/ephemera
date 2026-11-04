@@ -579,10 +579,11 @@ test("an empty library invites an import on the populated gallery's edges", asyn
   expect(Math.abs(empty.left - populated.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(empty.right - populated.right)).toBeLessThanOrEqual(1);
   expect(Math.abs(((await heading.boundingBox())?.x ?? 0) - populated.left)).toBeLessThanOrEqual(1);
-  // One first step in the body; the header keeps the others.
+  // Import and the quiet AI creation path sit together in the empty state.
   const body = page.locator("main [data-skip-target]");
-  await expect(body.getByRole("button")).toHaveCount(1);
+  await expect(body.getByRole("button")).toHaveCount(2);
   await expect(body.getByRole("button", { name: "Import cards" })).toBeVisible();
+  await expect(body.getByRole("button", { name: "Create with AI" })).toBeVisible();
 });
 
 test("Create with AI shows once on a phone's gallery, under the search", async ({ page }) => {

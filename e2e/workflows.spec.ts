@@ -74,6 +74,7 @@ test("a saved workflow file shows where Ephemera's values go, then saves as read
   }
   await expect(rows.nth(0)).toContainText('In this file: "a lighthouse at dusk"');
   await expect(panel.getByRole("combobox", { name: "Output node", exact: true })).toHaveCount(0);
+  await panel.getByText("Import details", { exact: true }).click();
   await expect(panel.getByRole("heading", { name: "Changed", exact: true })).toBeVisible();
   await expect(panel.getByRole("heading", { name: "Left out", exact: true })).toBeVisible();
   await expect(panel.getByRole("heading", { name: "On your ComfyUI", exact: true })).toBeVisible();
@@ -103,6 +104,7 @@ test("a workflow with two image outputs asks for one before it saves", async ({ 
   await expect(notChosen).toHaveCount(0);
 
   await choose(panel, "Output node", SECOND_SAVER);
+  await panel.getByText("Import details", { exact: true }).click();
   await expect(notChosen).toBeVisible();
   await expect(panel.getByText("Choose one mapping before saving.")).toHaveCount(0);
   await expect(save).toBeEnabled();

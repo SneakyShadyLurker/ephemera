@@ -1,5 +1,5 @@
 import { type ReactNode, useId, useRef, useState } from "react";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { DeleteIcon, ImportIcon, PlusIcon } from "@/components/icons";
 import { MoreButton } from "@/components/more-button";
 import { Button } from "@/components/ui/button";
@@ -178,13 +178,13 @@ export function PortraitField({
       >
         {(notice) =>
           notice.kind === "status" ? (
-            <p role="status" className="px-2 text-meta text-reed">
+            <InlineStatus as="p" role="status" className="px-2 text-meta">
               {notice.text}
-            </p>
+            </InlineStatus>
           ) : (
-            <p role="alert" className="text-pretty text-ember text-meta">
+            <InlineStatus as="p" role="alert" className="text-ember text-meta">
               {notice.text}
-            </p>
+            </InlineStatus>
           )
         }
       </NoticeSlot>

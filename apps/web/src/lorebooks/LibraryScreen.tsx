@@ -7,7 +7,7 @@ import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress, JSON_FILE_TYPES } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import { ImportIcon, PlusIcon } from "@/components/icons";
@@ -16,6 +16,7 @@ import { ImportReportLine } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
+import { SECTION_HEADING } from "@/sheet/fields.ts";
 import { characterQuery, charactersQuery } from "../characters/queries.ts";
 import { EventsSection } from "../events/EventsSection.tsx";
 import { type Attempt, creations } from "../sheet/creation.ts";
@@ -48,7 +49,6 @@ const FRAME = "mx-auto w-full max-w-wide px-5 tablet:px-8";
 const NEW_NAME = "New lorebook";
 
 /** The library's and the cards' section headings, one size. */
-const SECTION_HEADING = "font-semibold text-ink text-lead";
 
 const EMPTY_TEXT =
   "Background and events for your characters. An entry can apply always, on keywords or by chance.";
@@ -246,18 +246,18 @@ export function LibraryScreen() {
         <KeptScroll id="lorebooks" ready={rows !== null && !library.isError} />
         <div className={cn(FRAME, "grid gap-8 pt-5 pb-12")}>
           {/* One line for what was just done; failures are said apart, in Ember. */}
-          <p role="status" className="text-note text-reed empty:hidden">
+          <InlineStatus as="p" role="status" className="empty:hidden">
             {importing !== null
               ? importProgress(importing)
               : copying !== null
                 ? "Copying to library…"
                 : notice}
-          </p>
+          </InlineStatus>
           <NoticeSlot value={failure}>
             {(text) => (
-              <p role="alert" className="text-pretty text-ember text-note">
+              <InlineStatus tone="error" as="p" role="alert">
                 {text}
-              </p>
+              </InlineStatus>
             )}
           </NoticeSlot>
           {reports.map((report) => (
@@ -272,12 +272,14 @@ export function LibraryScreen() {
           ))}
 
           {library.isError ? (
-            <div role="alert" className="grid justify-items-start gap-2">
-              <p className="text-ember text-note">The lorebooks could not be loaded.</p>
+            <InlineStatus as="div" role="alert" className="grid justify-items-start gap-2">
+              <InlineStatus tone="error" as="p">
+                The lorebooks could not be loaded.
+              </InlineStatus>
               <Button variant="outline" onClick={() => void library.refetch()}>
                 Try again
               </Button>
-            </div>
+            </InlineStatus>
           ) : rows === null ? null : (
             <>
               {/* One Find over both lists, across the column. */}

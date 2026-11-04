@@ -165,7 +165,9 @@ export const FORM_FACTORS = [
 
 /** An autosave landed. Saves wait out a 600 ms pause and queue behind each other, so a loaded machine gets time. */
 export const saved = (page: Page) =>
-  expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
 /**
  * Moves focus with Tab (Shift+Tab with `backward`) until `target` has it, at

@@ -9,6 +9,7 @@ import {
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTER_END, SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -380,12 +381,18 @@ export function LorebookEditor<Saved extends { revision: number }>({
     ) : null;
 
   const undoLine = removed !== null && (
-    <p role="status" className="flex items-center gap-2 text-note text-reed arrive">
+    <InlineStatus
+      as="p"
+      role="status"
+      className="arrive"
+      actions={
+        <Button size="text" className="text-ink" onClick={undo}>
+          Undo
+        </Button>
+      }
+    >
       <span className="min-w-0 truncate">{entryTitle(removed.entry, removed.index)} removed.</span>
-      <Button size="text" className="text-ink" onClick={undo}>
-        Undo
-      </Button>
-    </p>
+    </InlineStatus>
   );
 
   const list = (

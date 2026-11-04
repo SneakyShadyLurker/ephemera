@@ -289,8 +289,6 @@
   --stagger-step: 30ms;
   /* The least time between rows revealed one by one, so a burst still reads as a fill. */
   --reveal-gap: 80ms;
-  /* The caret's breath while nothing has been written yet. */
-  --duration-caret: 1.2s;
   --duration-press: 80ms;
   --duration-release: 140ms;
   /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
@@ -946,13 +944,7 @@
   }
 }
 
-/* The streaming caret: a 2px lamp-colored bar that breathes; still under reduced motion. */
-@keyframes breathe {
-  to {
-    opacity: 0.35;
-  }
-}
-
+/* The streaming caret holds still; the operation's rim or hairline carries its light. */
 @utility stream-caret {
   display: inline-block;
   width: 2px;
@@ -964,16 +956,11 @@
 
 @utility caret {
   @apply stream-caret;
-  animation: breathe var(--duration-caret) ease-in-out infinite alternate;
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
 }
 
 /*
  * Streamdown's last block carries the caret while text streams. It holds
- * steady: the words arriving are the motion, and the caret breathes only
- * while nothing has come yet.
+ * steady: the words arriving are the motion.
  */
 @utility caret-after {
   & > :last-child::after {
@@ -1475,15 +1462,21 @@ details[open] > summary .disclosure-chevron {
 
 /*
  * The sheet's name joins its header once the name field has scrolled beneath
- * it: scrolling past the threshold triggers a timed rise, and scrolling back
- * reverses it, so the title never rests half faded. A sheet too short to
- * scroll keeps its name in the field.
+ * it: SheetBody observes the first 4rem and changes one attribute. The timed
+ * transition reverses on scrolling back and never rests half faded. Avoid a
+ * compositor timeline trigger while expanding blocks also move the scroll.
+ * A sheet too short to scroll keeps its name in the field.
  */
 @utility title-in {
   opacity: 0;
-  timeline-trigger: --title-in --thread 4rem normal;
-  animation: title-in var(--duration-arrive) var(--ease-spring) both;
-  animation-trigger: --title-in play-forwards play-backwards;
+  translate: 0 var(--rise);
+  transition:
+    opacity var(--duration-arrive) var(--ease-fade),
+    translate var(--duration-arrive) var(--ease-spring);
+  [data-sheet-title] & {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 
 /*

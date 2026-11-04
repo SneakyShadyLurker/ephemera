@@ -331,6 +331,7 @@ export function RetentionNote() {
 function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
   const character = useChatCharacter();
   const chosen = useSetting((settings) => settings.characterId) !== null;
+  useEmptyStoryEdge(chosen);
   const characters = useQuery(charactersQuery);
   return (
     <div className="grid content-start justify-items-start transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
@@ -355,6 +356,35 @@ function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | nu
       )}
     </div>
   );
+}
+
+/**
+ * The scroll library stops one pixel before the physical bottom. A browser's
+ * scroll-into-view of the first model picker rounds to the physical edge even
+ * when it is already visible. Align the empty welcome to that same edge after
+ * a resize, through the scroll owner's setter, so its first interaction is still.
+ */
+function useEmptyStoryEdge(chosen: boolean) {
+  const { scrollRef, contentRef, state } = useStickToBottomContext();
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    const content = contentRef.current;
+    if (chosen || !scroll || !content) return;
+    let frame = 0;
+    const align = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (state.isAtBottom) state.scrollTop = scroll.scrollHeight - scroll.clientHeight;
+      });
+    };
+    const observer = new ResizeObserver(align);
+    observer.observe(scroll);
+    observer.observe(content);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [chosen, scrollRef, contentRef, state]);
 }
 
 /**

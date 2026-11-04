@@ -8,6 +8,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { MoreIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
@@ -23,7 +24,7 @@ import { chatStore, useChat } from "../chat/session.ts";
 import { currentSettings, useSetting, useSettings } from "../settings/settings.ts";
 import { isFailure, type SaveStatus } from "../sheet/autosave.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { NOTEBOOK_GRID } from "../sheet/fields.ts";
+import { GROUP_HEADING, NOTEBOOK_GRID, STORY_SECTION_HEADING } from "../sheet/fields.ts";
 import {
   type BackTarget,
   LeaveGuardScope,
@@ -205,41 +206,36 @@ function MemoryFrame({
     (memory.state?.opening.trim() ?? "") !== "";
   return (
     <main className="flex min-w-0 flex-1 flex-col [timeline-scope:--thread]">
-      <SheetHeaderFrame back={backTo(id, name, from)} frame={SHEET_FRAME.form}>
-        <div className="min-w-0 flex-1 px-2">
-          {failing ? (
+      <SheetHeaderFrame
+        back={backTo(id, name, from)}
+        frame={SHEET_FRAME.form}
+        title="Memory"
+        titleProps={{ id: SCREEN_TITLE, tabIndex: -1 }}
+        titleReplacement={
+          failing ? (
             <SaveState status={saving.status} creating={false} noun={saving.noun} short />
-          ) : (
-            <h1
-              id={SCREEN_TITLE}
-              tabIndex={-1}
-              className="truncate font-semibold text-heading text-ink outline-none"
-            >
-              Memory
-            </h1>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {saving !== null && !failing && (
-            <span className="px-2 max-tablet:sr-only">
-              <SaveState status={saving.status} creating={false} noun={saving.noun} />
-            </span>
-          )}
-          {on && <RememberNow id={id} name={name} />}
-          {remembered && (
-            <ForgetEverything
-              id={id}
-              name={name}
-              memory={memory}
-              onFailed={setNotice}
-              onForgotten={(answer) => {
-                onForgotten?.(answer);
-                // The menu that held focus is gone with what it forgot: the screen's title takes it.
-                requestAnimationFrame(() => focusById(SCREEN_TITLE, MEMORIES_HEADING));
-              }}
-            />
-          )}
-        </div>
+          ) : undefined
+        }
+      >
+        {saving !== null && !failing && (
+          <span className="px-2 max-tablet:sr-only">
+            <SaveState status={saving.status} creating={false} noun={saving.noun} />
+          </span>
+        )}
+        {on && <RememberNow id={id} name={name} />}
+        {remembered && (
+          <ForgetEverything
+            id={id}
+            name={name}
+            memory={memory}
+            onFailed={setNotice}
+            onForgotten={(answer) => {
+              onForgotten?.(answer);
+              // The menu that held focus is gone with what it forgot: the screen's title takes it.
+              requestAnimationFrame(() => focusById(SCREEN_TITLE, MEMORIES_HEADING));
+            }}
+          />
+        )}
       </SheetHeaderFrame>
       <div
         inert={leaving}
@@ -283,7 +279,7 @@ function Heading({ id, name, children }: { id: string; name: string; children?: 
     <div className={NOTEBOOK_GRID}>
       <div />
       <div className="grid min-w-0 gap-1.5">
-        <h2 className="flex items-center gap-3.5 font-semibold font-story text-heading text-ink">
+        <h2 className={cn(STORY_SECTION_HEADING, "flex items-center gap-3.5")}>
           <span className="min-w-0 text-balance">What {name} remembers</span>
           {/* While a memory of this character is written, a light passes along the rule. */}
           <span aria-hidden="true" className="relative mt-px h-px min-w-6 flex-1 bg-rush">
@@ -411,14 +407,14 @@ function Book({
                   What memory keeps
                   <DisclosureChevron />
                 </summary>
-                <p className="text-pretty pt-1 pb-1 text-note text-reed">
+                <p className="text-pretty pt-1 pb-1 text-reed text-ui">
                   {on ? MEMORY_DETAIL : MEMORY_KEPT}
                 </p>
               </details>
             )}
           </div>
           <Unfold show={!on && memory.episodes.length > 0}>
-            <p className="max-w-help pt-5 text-note text-reed">
+            <p className="max-w-help pt-5 text-reed text-ui">
               {countsText(memory.episodes, now)} Kept while memory is off.
             </p>
           </Unfold>
@@ -428,13 +424,17 @@ function Book({
         <Unfold show={on || holding}>
           <div className="grid grid-cols-[minmax(0,1fr)] gap-10 pt-10">
             {!on && (
-              <p role="status" className={cn(NOTEBOOK_GRID, "text-pretty text-note text-reed")}>
+              <InlineStatus
+                as="p"
+                role="status"
+                className={cn(NOTEBOOK_GRID, "text-pretty text-reed text-ui")}
+              >
                 <span className="max-tablet:hidden" />
                 <span>
                   Memory was turned off elsewhere. The notebook stays here until its edits are
                   saved.
                 </span>
-              </p>
+              </InlineStatus>
             )}
             <NotebookPart
               key={round}
@@ -453,7 +453,10 @@ function Book({
                 <h2
                   id={MEMORIES_HEADING}
                   tabIndex={-1}
-                  className="mb-2 font-semibold text-ink text-ui outline-none tablet:mb-0 tablet:pt-4.5 tablet:text-right"
+                  className={cn(
+                    GROUP_HEADING,
+                    "mb-2  outline-none tablet:mb-0 tablet:pt-4.5 tablet:text-right",
+                  )}
                 >
                   Memories
                 </h2>
@@ -515,6 +518,8 @@ function NotebookPart({
     <div className="grid gap-6">
       <NotebookEditor
         fields={fields}
+        saveStatus={status}
+        onCommit={flush}
         readOnly={readOnly}
         source={{
           characterId: id,
@@ -543,9 +548,10 @@ function RememberingLine({ id }: { id: string }) {
   const failure = useChat((state) => state.memory.failure);
   const note = failureNote(failure);
   return (
-    <div
+    <InlineStatus
+      as="div"
       role="status"
-      className="flex flex-wrap items-center gap-x-1 text-note text-reed empty:-mt-1.5 [&>p]:py-1.5"
+      className="flex flex-wrap items-center gap-x-1 empty:-mt-1.5 [&>p]:py-1.5"
     >
       {/* Shown by Remember now and the heading's light; said here for assistive tech. */}
       {chosen && status === "remembering" && <p className="sr-only">Remembering…</p>}
@@ -559,7 +565,7 @@ function RememberingLine({ id }: { id: string }) {
           />
         </>
       )}
-    </div>
+    </InlineStatus>
   );
 }
 
@@ -621,12 +627,14 @@ function RememberNowReason({ id, name }: { id: string; name: string }) {
   const reason = useRememberNowReason(id, name);
   if (!coarse || reason === null || remembering) return null;
   return (
-    <p
+    <InlineStatus
+      as="p"
+      role="presentation"
       id={REASON_ID}
-      className="text-pretty pt-1.5 text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+      className="pt-1.5 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
     >
       Remember now waits. {reason}
-    </p>
+    </InlineStatus>
   );
 }
 

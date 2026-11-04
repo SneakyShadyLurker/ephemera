@@ -550,7 +550,7 @@ describe("a record", () => {
   const headings = (out: string) => [...out.matchAll(/<h3[^>]*>([^<]+)</g)].map((m) => m[1]);
   // The recorded rows: those under More details wait to be written.
   const labels = (out: string) =>
-    [...(out.split("<details")[0] ?? "").matchAll(/<dt[^>]*>([^<]+)</g)].map((m) => m[1]);
+    [...(out.split("More details")[0] ?? "").matchAll(/<dt[^>]*>([^<]+)</g)].map((m) => m[1]);
 
   it("reads in labelled sections, the state first with the activity as its lead, toned as before", () => {
     chat([mara]);

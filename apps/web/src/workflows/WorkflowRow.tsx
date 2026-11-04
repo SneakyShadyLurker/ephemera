@@ -9,12 +9,14 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { m } from "motion/react";
 import { useId, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { queryClient } from "@/app/query.ts";
 import { DeleteIcon, EditIcon, ImportIcon, MoreIcon, TagIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { ROW_CONTENT, ROW_FRAME, rowLayout } from "@/components/ui/row-layout";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
@@ -95,7 +97,7 @@ type Row =
 type Change = { name: string } | { family: ArtFamily };
 
 /** The row's hairline, the content beside its trailing actions. */
-const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 border-rush border-b py-2";
+const ROW = cn(rowLayout("collection", false), ROW_FRAME, "border-rush border-b");
 
 /**
  * One workflow: its dot, name and family on the first line, its node count
@@ -220,7 +222,12 @@ export function WorkflowRow({
 
   return (
     <m.li data-workflow={workflow.id} className={ROW} {...glide}>
-      <div className="grid min-w-0 gap-1 tablet:flex tablet:flex-wrap tablet:items-baseline tablet:gap-x-4">
+      <div
+        className={cn(
+          ROW_CONTENT,
+          "tablet:flex tablet:flex-wrap tablet:items-baseline tablet:gap-x-4",
+        )}
+      >
         <span className="flex min-w-0 items-baseline gap-x-2.5 gap-y-0.5 max-tablet:flex-wrap tablet:gap-x-4">
           <span className="flex min-w-0 items-baseline gap-2.5">
             <StatusDot tone={shown.tone} />
@@ -361,12 +368,12 @@ export function WorkflowRow({
       {(problem !== null || shown.missing !== null || (inUse && shown.reason !== null)) && (
         <div className="col-span-2 grid gap-2 pt-1 pb-1 pl-4">
           {problem !== null && (
-            <p id={problemId} role="alert" className="text-pretty text-ember text-note">
+            <InlineStatus tone="error" as="p" id={problemId} role="alert">
               {problem}
-            </p>
+            </InlineStatus>
           )}
           {inUse && shown.reason !== null && (
-            <p className="text-pretty text-note text-reed">{shown.reason}</p>
+            <p className="text-pretty text-reed text-ui">{shown.reason}</p>
           )}
           {shown.missing !== null && (
             <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />

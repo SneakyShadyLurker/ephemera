@@ -34,6 +34,7 @@ export function WindowLink({
   section = WINDOW_SECTION,
   label,
   className,
+  onClick,
   children,
 }: {
   model: string | null;
@@ -41,6 +42,7 @@ export function WindowLink({
   /** The accessible name, when the visible words alone would repeat on the page. */
   label?: string;
   className?: string;
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -49,6 +51,7 @@ export function WindowLink({
       search={model === null ? { section } : { window: model }}
       {...(label === undefined ? {} : { "aria-label": label })}
       className={cn(className ?? INLINE)}
+      onClick={onClick}
     >
       {children}
     </Link>

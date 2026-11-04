@@ -85,7 +85,7 @@ function useModelChoice(
     // Another model chosen meanwhile (Session) supersedes the pick: nothing to hand on.
     if (!mine) return;
     if (blocker === "window") focusModelNotice();
-    else if (blocker === null) composer.current?.focus();
+    else if (blocker === null) composer.current?.focus({ preventScroll: true });
   }, [model, blocker, settling, composer]);
 
   const pick = (chosen: string) => {

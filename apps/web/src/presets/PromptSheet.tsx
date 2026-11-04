@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { m } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { ChatIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,15 @@ import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import {
+  COMPACT_LABEL,
+  FIELD,
+  FIELD_LABEL,
+  HELP,
+  LINE_FIELD,
+  SHEET_GRID,
+  sheetLabel,
+} from "../sheet/fields.ts";
 import { CloseRow, Glides, MoveButtons, OpenRow, useGlide } from "../sheet/ordering.tsx";
 import {
   NameField,
@@ -436,7 +445,7 @@ function PromptPresetEditor({
             </ol>
             {phone && <div>{addButton}</div>}
             {removed !== null && (
-              <p role="status" className="flex items-center gap-2 text-note text-reed arrive">
+              <InlineStatus as="p" role="status" className="flex items-center gap-2 arrive">
                 {blockName(removed.block)} removed.
                 {customCount >= PRESET_LIMITS.customBlocks ? (
                   <span>
@@ -456,7 +465,7 @@ function PromptPresetEditor({
                     Undo
                   </Button>
                 )}
-              </p>
+              </InlineStatus>
             )}
             <p role="status" className="sr-only">
               {announcement}
@@ -576,7 +585,7 @@ function ActionsSection({
           const id = key === "continue" ? "action-continue" : "action-write-for-me";
           return (
             <div key={key} className="grid gap-1.5">
-              <label htmlFor={id} className="font-medium text-ink text-ui">
+              <label htmlFor={id} className={FIELD_LABEL}>
                 {label}
               </label>
               <textarea
@@ -631,14 +640,14 @@ function ReasoningSection({
             className="mt-0.5"
           />
           <span className="grid gap-0.5">
-            <span className="font-medium text-ink text-ui">Read reasoning out of replies</span>
+            <span className={FIELD_LABEL}>Read reasoning out of replies</span>
             <span className={HELP}>
               Text inside the tag, at the start of a reply, shows as reasoning instead of story.
             </span>
           </span>
         </label>
         <div className="grid gap-1.5">
-          <label htmlFor={tagId} className="font-medium text-ink text-ui">
+          <label htmlFor={tagId} className={FIELD_LABEL}>
             Tag
           </label>
           <div className="flex max-w-60 items-center gap-1 text-reed text-ui">
@@ -669,14 +678,14 @@ function ReasoningSection({
             className="mt-0.5"
           />
           <span className="grid gap-0.5">
-            <span className="font-medium text-ink text-ui">Send reasoning back</span>
+            <span className={FIELD_LABEL}>Send reasoning back</span>
             <span className={HELP}>
               The reasoning of the latest replies goes with them in the prompt, inside the tag.
             </span>
           </span>
         </label>
         <div className="grid max-w-60 gap-1.5">
-          <span className="font-medium text-ink text-ui">Latest replies</span>
+          <span className={FIELD_LABEL}>Latest replies</span>
           <NumberField
             label="Latest replies"
             value={reasoning.maxAdditions}
@@ -967,7 +976,7 @@ function OpenBlock({
           <div className="grid gap-4 tablet:grid-cols-[minmax(0,1fr)_auto]">
             {custom && (
               <label className="grid gap-1.5">
-                <span className="text-note text-reed">Name</span>
+                <span className={COMPACT_LABEL}>Name</span>
                 <input
                   name="block-name"
                   value={custom.name}
@@ -981,7 +990,7 @@ function OpenBlock({
               </label>
             )}
             <div className={cn("grid gap-1.5", !custom && "tablet:col-span-2")}>
-              <span id={`${id}-role`} className="text-note text-reed">
+              <span id={`${id}-role`} className={COMPACT_LABEL}>
                 Sent as
               </span>
               <Segmented
@@ -994,7 +1003,7 @@ function OpenBlock({
               />
             </div>
             <div className="grid gap-1.5 tablet:col-span-2">
-              <span id={`${id}-place`} className="text-note text-reed">
+              <span id={`${id}-place`} className={COMPACT_LABEL}>
                 Place
               </span>
               <div className="flex flex-wrap items-center gap-3">
@@ -1056,7 +1065,7 @@ function OpenBlock({
             )}
             {isPlaceable(block) && (
               <div className="grid gap-1.5 tablet:col-span-2">
-                <span id={`${id}-triggers`} className="text-note text-reed">
+                <span id={`${id}-triggers`} className={COMPACT_LABEL}>
                   Sent for
                 </span>
                 <ToggleGroup
@@ -1105,7 +1114,7 @@ function OpenBlock({
       )}
       {block.kind === "source" && (
         <div className="grid gap-1.5 tablet:pl-10">
-          <label htmlFor={`${id}-template`} className="text-note text-reed">
+          <label htmlFor={`${id}-template`} className={COMPACT_LABEL}>
             Template
           </label>
           <textarea

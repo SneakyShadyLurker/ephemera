@@ -46,6 +46,7 @@ import {
 } from "../presets/queries.ts";
 import { useSettings, useUpdateSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
+import { COMPACT_LABEL } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { useStartChat } from "./StartChat.tsx";
@@ -156,7 +157,7 @@ function Field({
   const labelId = useId();
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-      <span id={labelId} className="font-medium text-ink text-ui">
+      <span id={labelId} className={COMPACT_LABEL}>
         {label}
       </span>
       {children(labelId)}

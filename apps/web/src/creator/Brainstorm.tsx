@@ -17,6 +17,7 @@ import {
 } from "react";
 import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
 import { motionMs } from "@/app/motion-tokens.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { CheckIcon, IdeasIcon, NextIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
@@ -25,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { REQUEST_FIELD } from "../sheet/fields.ts";
+import { DISPLAY_HEADING, FIELD_LABEL, GROUP_HEADING, REQUEST_FIELD } from "../sheet/fields.ts";
 import { ideasAlert, ideasStatus, RETRY_NOTE } from "./brainstorm-notes.ts";
 import { FrameEdge } from "./CardLayout.tsx";
 import { COLUMN, KINDS, leaveBrainstorm } from "./Choose.tsx";
@@ -371,7 +372,7 @@ export function KindControl({
     return (
       <div className="grid gap-2">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3">
-          <span id={label} className="font-medium text-ink text-ui">
+          <span id={label} className={FIELD_LABEL}>
             {KIND_LABEL}
           </span>
           <Select value={kind} items={KIND_ITEMS} disabled={disabled} onValueChange={choose}>
@@ -464,11 +465,11 @@ function SendRow({
     <>
       <div className="flex flex-col gap-3 tablet:flex-row tablet:items-end tablet:justify-between">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
-          <span id={modelLabel} className="font-medium text-ink text-ui">
+          <span id={modelLabel} className={FIELD_LABEL}>
             Model
           </span>
           <ModelSelect labelId={modelLabel} options={options} value={model} onChange={setModel} />
-          <span id={reasoningLabel} className="font-medium text-ink text-ui">
+          <span id={reasoningLabel} className={FIELD_LABEL}>
             Reasoning
           </span>
           <ReasoningSelect
@@ -482,7 +483,11 @@ function SendRow({
           {submit}
         </Button>
       </div>
-      {unavailable !== null && <p className="text-ember text-note">{unavailable}</p>}
+      {unavailable !== null && (
+        <InlineStatus tone="error" as="p">
+          {unavailable}
+        </InlineStatus>
+      )}
     </>
   );
 }
@@ -571,7 +576,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
     <div className={`${COLUMN} grid gap-5 pt-6 pb-16 tablet:pt-10`}>
       <div className="flex items-center gap-1">
         <span
-          className="flex w-fit items-center gap-2 font-semibold text-ink text-ui"
+          className={cn(GROUP_HEADING, "flex w-fit items-center gap-2")}
           style={{ viewTransitionName: kindTransition("brainstorm") }}
         >
           <IdeasIcon size={20} className="text-narration" />
@@ -651,14 +656,15 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
         <p className="-mt-3 text-note text-reed arrive">{RETRY_NOTE}</p>
       )}
       {alert !== null && (
-        <p
+        <InlineStatus
+          as="p"
           ref={alertRef}
           role="alert"
           tabIndex={-1}
           className="text-ember text-ui outline-none arrive"
         >
           {alert}
-        </p>
+        </InlineStatus>
       )}
       {!asking && rows.length > 0 && (
         <IdeaList
@@ -678,7 +684,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
             adjust();
           }}
         >
-          <label htmlFor={feedbackId} className="font-medium text-ink text-ui">
+          <label htmlFor={feedbackId} className={FIELD_LABEL}>
             Adjust the ideas
           </label>
           <textarea
@@ -734,10 +740,7 @@ function Ask({
       }}
       className="grid gap-5"
     >
-      <h2
-        id={`${fieldId}-heading`}
-        className="font-semibold text-ink text-title-phone tablet:text-title"
-      >
+      <h2 id={`${fieldId}-heading`} className={DISPLAY_HEADING}>
         <label htmlFor={fieldId}>What are you in the mood for?</label>
       </h2>
       <textarea

@@ -1,4 +1,5 @@
 import { type ReactNode, useId } from "react";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 
 /** A sheet control under its small label, with an optional note beneath; the label names the control. */
 export function Labelled({
@@ -13,7 +14,7 @@ export function Labelled({
   const id = useId();
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-1">
-      <span id={id} className="text-meta text-reed">
+      <span id={id} className={COMPACT_LABEL}>
         {label}
       </span>
       {children(id)}

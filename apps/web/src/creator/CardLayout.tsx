@@ -2,6 +2,7 @@ import { Component, lazy, type ReactNode, type Ref, Suspense } from "react";
 import { GLIDE } from "@/app/glide.ts";
 import { LamplightRim } from "@/components/lamplight.tsx";
 import { cn } from "@/lib/cn";
+import { GROUP_HEADING, STORY_DISPLAY_HEADING, STORY_SECTION_HEADING } from "@/sheet/fields.ts";
 import { LEAF_EDGE } from "../portraits/Portrait.tsx";
 import type { CardRow } from "./sections.ts";
 
@@ -254,7 +255,10 @@ export function CardHeading({
         ref={headingRef}
         tabIndex={-1}
         aria-label={name === "" ? label : undefined}
-        className="min-h-[2.25rem] text-pretty break-words font-[450] font-story text-ink text-title-phone outline-none tablet:min-h-10 tablet:text-title"
+        className={cn(
+          STORY_DISPLAY_HEADING,
+          "min-h-[2.25rem] text-pretty break-words outline-none tablet:min-h-10",
+        )}
       >
         <Words text={name} />
         {edge?.at === "name" && caret(name)}
@@ -321,11 +325,11 @@ export function CardSection({
   return (
     <section className="relative grid gap-2 border-rush border-t pt-4">
       {row.heading !== undefined && (
-        <p className="break-words font-story text-heading text-ink">{row.heading}</p>
+        <p className={cn(STORY_SECTION_HEADING, "break-words font-normal")}>{row.heading}</p>
       )}
       <h3
         className={cn(
-          "font-medium text-ui transition-colors duration-(--duration-quick) ease-fade",
+          cn(GROUP_HEADING, "transition-colors duration-(--duration-quick) ease-fade"),
           row.state === "absent" ? "text-reed" : "text-ink",
         )}
       >

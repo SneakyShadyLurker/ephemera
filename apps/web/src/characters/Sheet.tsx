@@ -27,7 +27,7 @@ import {
 } from "react";
 import { useCanDock } from "@/app/form-factor.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { ChatIcon, LampFlameIcon, SectionsIcon } from "@/components/icons";
+import { ChatIcon, EditIcon, SectionsIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
@@ -49,7 +49,7 @@ import { isLocked } from "../rework/store.ts";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { COMPACT_LABEL, FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
@@ -398,7 +398,7 @@ function SheetEditor({
             locked={locked}
             rework={{
               label: "AI Rework",
-              icon: LampFlameIcon,
+              icon: EditIcon,
               disabled: locked || portraitChanging,
               onSelect: () => setComposing(true),
             }}
@@ -553,7 +553,7 @@ function SmallField({
 }) {
   return (
     <label className="grid gap-1.5">
-      <span className="text-note text-reed">{label}</span>
+      <span className={COMPACT_LABEL}>{label}</span>
       <input
         value={value}
         placeholder={placeholder}
@@ -764,6 +764,16 @@ function SectionsMenu() {
           return field === null;
         }}
       >
+        <MenuItem
+          onClick={() => {
+            chosen.current = goToSection("lorebook");
+            const trigger = document.querySelector<HTMLButtonElement>("[data-link-trigger] button");
+            trigger?.click();
+            chosen.current = trigger ?? chosen.current;
+          }}
+        >
+          Link a lorebook
+        </MenuItem>
         {SECTIONS.map(([key, label]) => (
           <MenuItem
             key={key}
@@ -832,6 +842,19 @@ function SheetIndex({ count }: { count: number }) {
       className="sticky top-8 hidden h-fit w-index shrink-0 desktop:block"
     >
       <ul className="grid border-rush border-l">
+        <li>
+          <Button
+            variant="quiet"
+            aria-label="Link from library"
+            className="row mb-2 ml-1 flex min-h-9 items-center rounded-md px-3 text-note text-reed touch:min-h-11"
+            onClick={() => {
+              goToSection("lorebook");
+              document.querySelector<HTMLButtonElement>("[data-link-trigger] button")?.click();
+            }}
+          >
+            Link a lorebook
+          </Button>
+        </li>
         {SECTIONS.map(([key, label]) => (
           <li key={key}>
             <a

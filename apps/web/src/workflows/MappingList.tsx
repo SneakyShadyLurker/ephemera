@@ -1,6 +1,8 @@
 import { useId } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
+import { FIELD_LABEL } from "@/sheet/fields.ts";
 import type { MappingRow } from "./mapping.ts";
 import { NodeLabel, NodesInvolved } from "./OtherNodes.tsx";
 import type { ChoicePlace } from "./panel-state.ts";
@@ -25,7 +27,7 @@ const ROW =
 
 /** A note line that fades in again whenever its text changes after a choice. */
 const CHANGING =
-  "text-pretty text-note transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0";
+  "text-pretty text-ui transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0";
 
 /** The rail's part beside one row: solid rush, dashed control edge while the row waits. */
 function Rail({ waiting = false }: { waiting?: boolean }) {
@@ -42,7 +44,7 @@ function Rail({ waiting = false }: { waiting?: boolean }) {
 
 function Heading({ id }: { id: string }) {
   return (
-    <h4 id={id} className="font-medium text-ink text-ui">
+    <h4 id={id} className={FIELD_LABEL}>
       Ephemera fills these four places
     </h4>
   );
@@ -93,7 +95,7 @@ export function MappingList({
               <Rail waiting={waiting} />
               <span className="text-pretty text-reed text-ui">{row.label}</span>
               <div className="grid min-w-0 justify-items-start gap-1">
-                {waiting && <p className="text-pretty text-note text-reed">{choice.ask}</p>}
+                {waiting && <p className="text-pretty text-reed text-ui">{choice.ask}</p>}
                 {choice !== null ? (
                   <Select
                     value={choice.value}
@@ -138,9 +140,9 @@ export function MappingList({
                 )}
                 {choice?.problem != null && (
                   <div className="grid gap-1">
-                    <p role="alert" className="text-pretty text-ember text-note">
+                    <InlineStatus tone="error" as="p" role="alert">
                       {choice.problem.text}
-                    </p>
+                    </InlineStatus>
                     <NodesInvolved nodes={choice.problem.nodes} />
                   </div>
                 )}

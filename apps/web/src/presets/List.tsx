@@ -10,7 +10,9 @@ import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import { CheckIcon, ImportIcon, PlusIcon, PresetsIcon, SamplerIcon } from "@/components/icons";
 import { ImportReportLine } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
+import { GROUP_HEADING, SECTION_HEADING } from "@/sheet/fields.ts";
 import { useSettings } from "../settings/settings.ts";
 import { creations } from "../sheet/creation.ts";
 import {
@@ -210,7 +212,7 @@ function PresetList({
     <section aria-labelledby={headingId} className="grid content-start gap-3">
       <div className="flex h-9 items-center gap-2">
         <span className="text-reed">{icon}</span>
-        <h2 id={headingId} className="flex-1 font-semibold text-ink text-lead">
+        <h2 id={headingId} className={cn(SECTION_HEADING, "flex-1")}>
           {title}
         </h2>
         <Button
@@ -243,11 +245,16 @@ function PresetList({
               <Link
                 to={kind === "prompt" ? "/presets/prompt/$id" : "/presets/sampler/$id"}
                 params={{ id: preset.id }}
-                className="group row flex min-h-16 items-center gap-4 px-1 py-2.5"
+                className={cn(rowLayout("collection"), "group grid-cols-[minmax(0,1fr)_auto]")}
               >
-                <span className="grid min-w-0 flex-1 gap-0.5">
+                <span className={ROW_CONTENT}>
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-semibold text-ink text-ui decoration-control-edge underline-offset-4 group-hover:underline">
+                    <span
+                      className={cn(
+                        GROUP_HEADING,
+                        "truncate  decoration-control-edge underline-offset-4 group-hover:underline",
+                      )}
+                    >
                       {preset.name}
                     </span>
                     {arrived.includes(preset.id) && (

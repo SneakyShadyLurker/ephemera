@@ -12,7 +12,7 @@ import { chatStore } from "./session.ts";
 /*
  * Swiping between a reply's alternates. Touch drags the last reply sideways
  * with a rubber band; past the threshold the next alternate slides in on the
- * spring. Buttons and keys nudge it with a crossfade. The arriving alternate
+ * spring. Buttons and keys slide it on the same spring. The arriving alternate
  * grows or shrinks from the height of the one it replaces, so what follows
  * moves on the spring. Streaming replies keep their natural height as text
  * arrives. Reduced motion keeps only the fade. `AnimatePresence`
@@ -50,7 +50,7 @@ interface Travel {
 }
 /** A swipe from the arrows or keys travels a nudge; one a drag carried follows the finger further. */
 const distance = ({ direction, far, still }: Travel) =>
-  still ? 0 : direction * motionPx(far ? "--swipe-shift" : "--panel-shift");
+  still ? 0 : direction * motionPx("--swipe-shift") * (far ? 1 : 0.5);
 
 const variants = {
   enter: (travel: Travel) => ({
@@ -114,15 +114,19 @@ export function SwipeFrame({
         exit="exit"
         transition={transition()}
         drag={drag ? "x" : false}
-        dragDirectionLock
-        dragSnapToOrigin
-        dragElastic={DRAG_ELASTIC}
-        dragConstraints={{ left: 0, right: 0 }}
         // Clipped below, so an arriving longer alternate does not spill over what follows while
         // its height grows. Streaming arrivals start at auto: measuring auto for a height
         // animation would freeze its target while more text arrives and clip the new text.
         className={cn("overflow-y-clip", drag && "touch-pan-y")}
-        {...(drag ? { onDragEnd } : {})}
+        {...(drag
+          ? {
+              onDragEnd,
+              dragDirectionLock: true,
+              dragSnapToOrigin: true,
+              dragElastic: DRAG_ELASTIC,
+              dragConstraints: { left: 0, right: 0 },
+            }
+          : {})}
       >
         {children}
       </m.div>

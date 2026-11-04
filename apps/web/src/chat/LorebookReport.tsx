@@ -3,8 +3,10 @@ import { useId, useState } from "react";
 import { LorebookIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
 import { andList, countOf, formatCount, orList } from "@/lib/text";
+import { COMPACT_LABEL, FIELD_LABEL } from "@/sheet/fields.ts";
 import {
   CHAIN_ONLY_TEXT,
   chanceMissedText,
@@ -218,8 +220,13 @@ function Row({
   characterId: string | null;
 }) {
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 border-rush border-b py-2 last:border-b-0">
-      <span className="grid min-w-0">
+    <li
+      className={cn(
+        rowLayout("diagnostic", false),
+        "grid-cols-[minmax(0,1fr)_auto] items-baseline border-rush border-b last:border-b-0",
+      )}
+    >
+      <span className={ROW_CONTENT}>
         <span className="flex min-w-0 items-baseline gap-x-2">
           <span className={cn("min-w-0 truncate text-ui", muted ? "text-reed" : "text-ink")}>
             {entry.title}
@@ -320,11 +327,14 @@ export function LorebookReport({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="row flex min-h-14 w-full items-center gap-3 px-5 text-left"
+        className={cn(
+          rowLayout("diagnostic"),
+          "w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] px-5",
+        )}
       >
         <LorebookIcon size={16} className="shrink-0 text-reed" />
-        <span className="grid min-w-0 flex-1">
-          <span className="font-medium text-ink text-ui">Lorebook</span>
+        <span className={ROW_CONTENT}>
+          <span className={FIELD_LABEL}>Lorebook</span>
           <span className="truncate text-meta text-reed">
             {countOf(counts.sent, "entry", "entries")} went in
             {overCount > 0 && `, ${formatCount(overCount)} over the budget`}
@@ -372,7 +382,7 @@ export function LorebookReport({
           {(all || sent.length <= FIRST) && <Unlisted count={counts.sent - sent.length} />}
           {over.length > 0 && (
             <div className="grid gap-1">
-              <h4 className="text-ember text-note">Left out: over the budget</h4>
+              <h4 className={cn(COMPACT_LABEL, "text-ember")}>Left out: over the budget</h4>
               <ol aria-label="Lorebook entries over the budget" className="grid">
                 {over.map((entry) => (
                   <Row
@@ -411,7 +421,7 @@ export function LorebookReport({
                 onClick={() => setRest(!rest)}
                 className="-mx-2 h-auto min-h-9 justify-between whitespace-normal px-2 py-1 text-left font-normal text-note touch:h-auto touch:min-h-11"
               >
-                <span className="grid min-w-0">
+                <span className={ROW_CONTENT}>
                   <span className="text-ink">Other entries</span>
                   <span className="text-pretty text-meta">{otherCounts}</span>
                 </span>
