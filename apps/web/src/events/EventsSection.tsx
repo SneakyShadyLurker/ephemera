@@ -432,7 +432,9 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
             </div>
           )}
           <ul aria-label="Events" className="grid border-rush border-t empty:hidden">
-            {items}
+            <MotionScope>
+              <AnimatePresence initial={false}>{items}</AnimatePresence>
+            </MotionScope>
           </ul>
         </>
       )}

@@ -28,6 +28,8 @@ export function PortraitField({
   onBusyChange,
   onChange,
   compactOnPhone = false,
+  identity,
+  tags,
 }: {
   owner: PortraitOwner;
   id: string | null;
@@ -47,6 +49,8 @@ export function PortraitField({
   onChange: (version: number | null) => void;
   /** Phones set the portrait small with its actions beside it, so the sheet's text starts sooner. */
   compactOnPhone?: boolean;
+  identity?: ReactNode;
+  tags?: ReactNode;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +92,7 @@ export function PortraitField({
         "grid content-start gap-1",
         // Phones: the portrait small at the row's start, its actions beside its foot.
         compactOnPhone &&
-          "max-tablet:grid-cols-[5.5rem_minmax(0,1fr)] max-tablet:items-end max-tablet:gap-x-3",
+          "grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-4 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:grid-rows-[auto_1fr_auto] tablet:gap-x-6",
       )}
     >
       <input
@@ -103,32 +107,45 @@ export function PortraitField({
           event.currentTarget.value = "";
         }}
       />
-      {version === null ? (
-        <button
-          type="button"
-          disabled={id === null || busy || locked}
-          aria-describedby={id === null ? `${errorId}-hint` : undefined}
-          onClick={() => picker.current?.click()}
-          className="press grid aspect-[2/3] w-full place-items-center content-center gap-1 rounded-lg border border-control-edge border-dashed text-reed hover:bg-surface-hover hover:text-ink disabled:cursor-default disabled:border-rush disabled:text-text-disabled disabled:hover:bg-transparent"
-        >
-          <PlusIcon size={20} />
-          <span className="text-note">{busy ? "Adding" : "Add portrait"}</span>
-        </button>
-      ) : (
-        <Portrait
-          owner={owner}
-          id={id ?? ""}
-          version={version}
-          size="full"
-          arriving={arrived || (arrivedVersion !== null && arrivedVersion === version)}
-          transition
-        />
+      <div className={cn(compactOnPhone && "row-span-2")}>
+        {version === null ? (
+          <button
+            type="button"
+            disabled={id === null || busy || locked}
+            aria-describedby={id === null ? `${errorId}-hint` : undefined}
+            onClick={() => picker.current?.click()}
+            className="press grid aspect-[2/3] w-full place-items-center content-center gap-1 rounded-lg border border-control-edge border-dashed text-reed hover:bg-surface-hover hover:text-ink disabled:cursor-default disabled:border-rush disabled:text-text-disabled disabled:hover:bg-transparent"
+          >
+            <PlusIcon size={20} />
+            <span className="text-note">{busy ? "Adding" : "Add portrait"}</span>
+          </button>
+        ) : (
+          <Portrait
+            owner={owner}
+            id={id ?? ""}
+            version={version}
+            size="full"
+            arriving={arrived || (arrivedVersion !== null && arrivedVersion === version)}
+            transition
+          />
+        )}
+      </div>
+      {identity && (
+        <div data-sheet-heading="" className="col-start-2 row-start-1 min-w-0 self-start">
+          {identity}
+        </div>
       )}
       {/*
        * One row, its primary action first in one place whether or not a
        * portrait is stored, so a first portrait keeps what it holds mounted.
        */}
-      <div className="flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap",
+          compactOnPhone &&
+            "col-start-2 row-start-2 self-end tablet:col-start-1 tablet:row-start-3",
+        )}
+      >
         {primary?.({ busy })}
         {version !== null &&
           (primary ? (
@@ -166,6 +183,11 @@ export function PortraitField({
             </>
           ))}
       </div>
+      {tags && (
+        <div className="col-span-full min-w-0 tablet:col-start-2 tablet:col-span-1 tablet:row-start-2 tablet:self-start">
+          {tags}
+        </div>
+      )}
       <NoticeSlot
         {...(compactOnPhone && { className: "max-tablet:col-span-full" })}
         value={

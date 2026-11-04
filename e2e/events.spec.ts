@@ -572,6 +572,18 @@ test("a deletion here whose answer is lost after its event went keeps the edits,
     expect(sent("PATCH")).toBe(patches);
 
     await rows.getByRole("button", { name: "Discard edits" }).click();
+    // The discarded row leaves inert; the held retry clock must advance its exit frames.
+    await expect(rows).toHaveAttribute("inert", "");
+    await expect(rows).toHaveAttribute("aria-hidden", "true");
+    await page.clock.runFor(1_000);
+    await page.clock.resume();
+    // Motion starts native opacity on performance.now(), which the retry clock jumped.
+    // Let that fade run on the browser's document timeline once the clock is resumed.
+    await rows.evaluate((element) => {
+      const now = document.timeline.currentTime;
+      if (typeof now !== "number") throw new Error("No document animation timeline");
+      for (const animation of element.getAnimations()) animation.startTime = now;
+    });
     await expect(rows).toHaveCount(0);
     expect(sent("DELETE")).toBe(1);
     expect(await storedEvents(request)).toEqual([]);

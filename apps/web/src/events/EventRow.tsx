@@ -6,7 +6,11 @@ import {
   eventFieldsSchema,
   type StoredEvent,
 } from "@ephemera/core";
+import { useIsPresent } from "motion/react";
+import * as m from "motion/react-m";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { fade, spring } from "@/app/motion.tsx";
+import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { ChevronDownIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ROW_META, rowLayout } from "@/components/ui/row-layout";
@@ -142,6 +146,8 @@ function EventRowBody({
   onDiscard,
   onReload,
 }: EventRowProps & { onReload: () => Promise<void> }) {
+  const present = useIsPresent();
+  const reduced = useReducedMotion();
   const [fields, setFields] = useState<EventSaveFields>(() =>
     toSaveFields(stored === null ? NEW_EVENT : fieldsOf(stored)),
   );
@@ -261,7 +267,16 @@ function EventRowBody({
   useEffect(() => () => onSaving(rowKey, null), [onSaving, rowKey]);
 
   return (
-    <li data-event={rowKey} className={cn("border-rush border-b", arrived && "arrive")}>
+    <m.li
+      data-event={rowKey}
+      inert={!present}
+      aria-hidden={!present || undefined}
+      initial={false}
+      animate={{ height: "auto", opacity: 1 }}
+      exit={{ height: reduced ? "auto" : 0, opacity: 0 }}
+      transition={{ height: spring("--duration-panel-out"), opacity: fade("--duration-quick") }}
+      className={cn("border-rush border-b", !present && "overflow-clip", arrived && "arrive")}
+    >
       <Collapsible.Root
         open={open}
         onOpenChange={(next) => {
@@ -389,7 +404,7 @@ function EventRowBody({
           </div>
         </Collapsible.Panel>
       </Collapsible.Root>
-    </li>
+    </m.li>
   );
 }
 

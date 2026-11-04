@@ -25,7 +25,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useCanDock } from "@/app/form-factor.ts";
+import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { ChatIcon, EditIcon, SectionsIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -204,6 +204,7 @@ function SheetEditor({
   onReload: () => Promise<void>;
 }) {
   const wide = useCanDock();
+  const phone = useFormFactor() === "phone";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [id, setId] = useState(initialId);
@@ -377,7 +378,7 @@ function SheetEditor({
         noun="character"
         frame={wide ? SHEET_FRAME.indexed : SHEET_FRAME.form}
       >
-        {!wide && <SectionsMenu />}
+        {!wide && !phone && <SectionsMenu disabled={id === null || locked} />}
         <ChatButton id={id} name={fields.name} flush={autosave.flush} locked={locked} />
         <ReworkButton
           id={id}
@@ -433,9 +434,25 @@ function SheetEditor({
            * From tablet the portrait spans the identity and its details beside it. Phones
            * give it a compact row, its actions beside it, and the name and tags the width.
            */}
-          <div className="tablet:row-span-2">
+          <div className="col-span-full">
             <PortraitField
               compactOnPhone
+              identity={
+                <ReviewField
+                  field={{ kind: "text", key: "name" }}
+                  label={CARD_FIELD_LABELS.name}
+                  face="title"
+                  framed={false}
+                >
+                  <NameField
+                    value={fields.name}
+                    maxLength={CARD_LIMITS.nameLength}
+                    readOnly={locked}
+                    onChange={(name) => edit({ name })}
+                  />
+                </ReviewField>
+              }
+              tags={<TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />}
               owner="characters"
               noun="character"
               id={id}
@@ -465,23 +482,12 @@ function SheetEditor({
               }
             />
           </div>
-          <div className="grid content-start gap-4">
-            <ReviewField
-              field={{ kind: "text", key: "name" }}
-              label={CARD_FIELD_LABELS.name}
-              face="title"
-              framed={false}
-            >
-              <NameField
-                value={fields.name}
-                maxLength={CARD_LIMITS.nameLength}
-                readOnly={locked}
-                onChange={(name) => edit({ name })}
-              />
-            </ReviewField>
-            <TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />
+          <div className="col-span-full flex min-w-0 items-start gap-3 tablet:col-start-2 tablet:col-span-1">
+            <div className="min-w-0 flex-1">
+              <CardDetails fields={fields} edit={edit} locked={locked} />
+            </div>
+            {phone && <SectionsMenu disabled={id === null || locked} />}
           </div>
-          <CardDetails fields={fields} edit={edit} locked={locked} />
         </section>
 
         {text(
@@ -646,10 +652,13 @@ function ChatButton({
   locked: boolean;
 }) {
   const { start, dialog } = useStartChat();
+  const phone = useFormFactor() === "phone";
   return (
     <>
       <Button
         variant="outline"
+        size={phone ? "icon" : "default"}
+        aria-label="Chat"
         disabled={id === null || locked}
         onClick={async () => {
           if (id === null) return;
@@ -658,7 +667,7 @@ function ChatButton({
         }}
       >
         <ChatIcon size={16} />
-        Chat
+        {!phone && "Chat"}
       </Button>
       {dialog}
     </>
@@ -747,45 +756,51 @@ function goToSection(key: string): HTMLElement | null {
   return field;
 }
 
-function SectionsMenu() {
+function SectionsMenu({ disabled }: { disabled: boolean }) {
+  const phone = useFormFactor() === "phone";
   // The menu returns focus when it closes: to the chosen section's field, not the trigger.
   const chosen = useRef<HTMLElement | null>(null);
   return (
-    <Menu>
-      <MenuTrigger render={<Button size="icon" aria-label="Go to section" />}>
-        <SectionsIcon />
-      </MenuTrigger>
-      <MenuContent
-        label="Sections"
-        finalFocus={() => {
-          const field = chosen.current;
-          chosen.current = null;
-          field?.focus({ preventScroll: true });
-          return field === null;
-        }}
-      >
-        <MenuItem
+    <div className="flex shrink-0 items-center gap-1">
+      {phone && (
+        <Button
+          size="text"
+          variant="link"
+          disabled={disabled}
           onClick={() => {
-            chosen.current = goToSection("lorebook");
-            const trigger = document.querySelector<HTMLButtonElement>("[data-link-trigger] button");
-            trigger?.click();
-            chosen.current = trigger ?? chosen.current;
+            goToSection("lorebook");
+            document.querySelector<HTMLButtonElement>("[data-link-trigger] button")?.click();
           }}
         >
           Link a lorebook
-        </MenuItem>
-        {SECTIONS.map(([key, label]) => (
-          <MenuItem
-            key={key}
-            onClick={() => {
-              chosen.current = goToSection(key);
-            }}
-          >
-            {label}
-          </MenuItem>
-        ))}
-      </MenuContent>
-    </Menu>
+        </Button>
+      )}
+      <Menu>
+        <MenuTrigger render={<Button size="icon" aria-label="Go to section" />}>
+          <SectionsIcon />
+        </MenuTrigger>
+        <MenuContent
+          label="Sections"
+          finalFocus={() => {
+            const field = chosen.current;
+            chosen.current = null;
+            field?.focus({ preventScroll: true });
+            return field === null;
+          }}
+        >
+          {SECTIONS.map(([key, label]) => (
+            <MenuItem
+              key={key}
+              onClick={() => {
+                chosen.current = goToSection(key);
+              }}
+            >
+              {label}
+            </MenuItem>
+          ))}
+        </MenuContent>
+      </Menu>
+    </div>
   );
 }
 

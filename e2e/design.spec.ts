@@ -269,7 +269,7 @@ test.describe("on a touch phone", () => {
     await expect.poll(() => hitBox(link)).toEqual({ tall: true, misses: [] });
   });
 
-  test("the sheet's portrait sits compact with New art and its More on one row beside its foot", async ({
+  test("the sheet's compact portrait groups its name and art actions, with full-width tags below", async ({
     page,
   }) => {
     const id = await createCharacterViaApi(page.request, uniqueName("Plate"));
@@ -299,12 +299,20 @@ test.describe("on a touch phone", () => {
     expect(art.x).toBeGreaterThan(frame.x + frame.width);
     expect(art.y + art.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
     expect(art.y + art.height).toBeGreaterThan(frame.y + frame.height - 12);
-    // The name takes the row's whole width under it.
+    // The name shares the portrait's row, above the art actions.
     const name = await identity.getByRole("textbox", { name: "Name", exact: true }).boundingBox();
-    expect(name?.y ?? 0).toBeGreaterThan(frame.y + frame.height);
-    expect(name?.x ?? 999).toBeLessThanOrEqual(frame.x + 8);
+    expect(name?.x ?? 0).toBeGreaterThan(frame.x + frame.width);
+    expect(name?.y ?? 999).toBeLessThan(art.y);
+    expect(Math.abs((name?.y ?? 999) - frame.y)).toBeLessThanOrEqual(8);
     // The tags read as the nameplate's chips: no visible word, the field still named.
-    await expect(identity.getByRole("textbox", { name: "Tags" })).toBeVisible();
+    const tags = identity.getByRole("textbox", { name: "Tags" });
+    await expect(tags).toBeVisible();
+    const tagBox = await tags.locator("..").boundingBox();
+    expect(tagBox?.y ?? 0).toBeGreaterThan(frame.y + frame.height);
+    expect(tagBox?.x ?? 999).toBeLessThanOrEqual(frame.x + 12);
+    expect((tagBox?.x ?? 0) + (tagBox?.width ?? 0)).toBeGreaterThanOrEqual(
+      (name?.x ?? 0) + (name?.width ?? 0),
+    );
   });
 });
 
@@ -2412,7 +2420,7 @@ test("hovered rows ease their ground on the tint timing, and a palette tile pres
   expect(await transitionOf(greeting, "background-color")).toMatchObject({ duration: tint });
 
   // A checklist label in the link picker.
-  await page.getByRole("button", { name: "Link a lorebook" }).click();
+  await page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }).click();
   const label = page.locator("label").filter({ hasText: book });
   await label.hover();
   expect(await transitionOf(label, "background-color")).toMatchObject({ duration: tint });
@@ -2897,39 +2905,43 @@ test("an address that leads nowhere says so and leads back to the story", async 
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });
 
-test("a sheet's header title rises in once the name scrolls away and never rests half faded", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  const name = uniqueName("Title");
-  const id = await createCharacterViaApi(page.request, name, {
-    description: Array.from(
-      { length: 80 },
-      (_, line) => `Line ${line} of a long description.`,
-    ).join("\n"),
+for (const width of [390, 1280]) {
+  test(`at ${width}px a sheet's header title rises in once the name scrolls away and never rests half faded`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const name = uniqueName("Title");
+    const id = await createCharacterViaApi(page.request, name, {
+      description: Array.from(
+        { length: 80 },
+        (_, line) => `Line ${line} of a long description.`,
+      ).join("\n"),
+    });
+    await page.goto(`/characters/${id}`);
+    await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
+    const title = page.locator("header h1", { hasText: name });
+    const opacity = () => title.evaluate((node) => Number(getComputedStyle(node).opacity));
+    const scrollTo = (top: number) =>
+      page.evaluate((y) => {
+        const scroller = [...document.querySelectorAll<HTMLElement>("main *")].find((node) =>
+          getComputedStyle(node).scrollTimelineName.includes("--thread"),
+        );
+        if (scroller === undefined) throw new Error("No sheet scroller");
+        scroller.scrollTo({ top: y, behavior: "instant" });
+        // Two frames, so scroll-linked styles reflect the new position before a read.
+        return new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        );
+      }, top);
+    expect(await opacity()).toBe(0);
+    // Resting anywhere around the threshold, where a scroll-linked fade would sit part way.
+    for (let top = 40; top <= 120; top += 2) {
+      await scrollTo(top);
+      await expect.poll(async () => [0, 1].includes(await opacity())).toBe(true);
+    }
+    await scrollTo(400);
+    await expect.poll(opacity).toBe(1);
+    await scrollTo(0);
+    await expect.poll(opacity).toBe(0);
   });
-  await page.goto(`/characters/${id}`);
-  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
-  const title = page.locator("header h1", { hasText: name });
-  const opacity = () => title.evaluate((node) => Number(getComputedStyle(node).opacity));
-  const scrollTo = (top: number) =>
-    page.evaluate((y) => {
-      const scroller = [...document.querySelectorAll<HTMLElement>("main *")].find((node) =>
-        getComputedStyle(node).scrollTimelineName.includes("--thread"),
-      );
-      if (scroller === undefined) throw new Error("No sheet scroller");
-      scroller.scrollTo({ top: y, behavior: "instant" });
-      // Two frames, so scroll-linked styles reflect the new position before a read.
-      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }, top);
-  expect(await opacity()).toBe(0);
-  // Resting anywhere around the threshold, where a scroll-linked fade would sit part way.
-  for (let top = 40; top <= 120; top += 2) {
-    await scrollTo(top);
-    await expect.poll(async () => [0, 1].includes(await opacity())).toBe(true);
-  }
-  await scrollTo(400);
-  await expect.poll(opacity).toBe(1);
-  await scrollTo(0);
-  await expect.poll(opacity).toBe(0);
-});
+}

@@ -24,7 +24,7 @@ import { fade, MotionScope } from "@/app/motion.tsx";
 import { staggerStep } from "@/app/motion-tokens.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
-import { BackIcon, CastIcon, CloseIcon } from "@/components/icons";
+import { BackIcon, CastIcon, CloseIcon, EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -1213,6 +1213,7 @@ function EditableValue({
           }}
           className={EDITABLE_AT_REST}
         >
+          <EditIcon size={16} className="pointer-events-none absolute top-2 right-2 text-reed" />
           <span className="sr-only">Correct {label.toLowerCase()}: </span>
           {children}
         </button>
@@ -1288,4 +1289,7 @@ function EditableValue({
 }
 
 /** A value at rest: the prose field's open face, so it reads as something to correct. */
-const EDITABLE_AT_REST = cn(PROSE_FACE, "-mx-2 block w-[calc(100%+1rem)] text-left touch:min-h-11");
+const EDITABLE_AT_REST = cn(
+  PROSE_FACE,
+  "relative -mx-2 block w-[calc(100%+1rem)] pr-8 text-left touch:min-h-11",
+);

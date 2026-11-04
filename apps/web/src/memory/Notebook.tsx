@@ -13,7 +13,7 @@ import { type ReactNode, useEffect, useId, useReducer, useRef, useState } from "
 import { z } from "zod";
 import { useCoarsePointer } from "@/app/form-factor.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
-import { CloseIcon, PlusIcon, RegenerateIcon, UndoIcon } from "@/components/icons";
+import { CloseIcon, EditIcon, PlusIcon, RegenerateIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -32,6 +32,7 @@ import {
   sheetLabel,
 } from "../sheet/fields.ts";
 import { InlineSave } from "../sheet/InlineSave.tsx";
+import { ProseField } from "../sheet/ProseField.tsx";
 import {
   CAST_GENDERS,
   type CastLinePerson,
@@ -229,7 +230,7 @@ export function NotebookEditor({
         <label htmlFor={situationId} className={MARGIN_LABEL}>
           Situation
         </label>
-        <textarea
+        <ProseField
           id={situationId}
           value={fields.name}
           readOnly={held}
@@ -441,7 +442,7 @@ function OpeningField({
       <div className="grid gap-1">
         {/* While it is written, one light passes along the field's lower edge; the others hold still. */}
         <div className="relative grid">
-          <textarea
+          <ProseField
             id={fieldId}
             value={opening}
             readOnly={readOnly || writing}
@@ -590,7 +591,7 @@ function Lines({
                 key={at}
                 className="group/line grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-1 border-rush border-b py-1"
               >
-                <textarea
+                <ProseField
                   ref={(element) => {
                     fields.current[at] = element;
                   }}
@@ -753,7 +754,7 @@ function CastLines({
                 <li key={at} className="group/line border-rush border-b py-1">
                   {person === null ? (
                     <div className="flex min-w-0 items-start gap-1">
-                      <textarea
+                      <ProseField
                         ref={(element) => {
                           rows.current[at] = element;
                         }}
@@ -807,8 +808,12 @@ function CastLines({
                           keep(at, person);
                           setFocusAt(at);
                         }}
-                        className="-ml-2 grid min-w-0 flex-1 gap-0.5 rounded-md px-2 py-1 text-left row"
+                        className="relative -ml-2 grid min-w-0 flex-1 gap-0.5 rounded-md py-1 pr-8 pl-2 text-left row"
                       >
+                        <EditIcon
+                          size={16}
+                          className="pointer-events-none absolute top-2 right-2 text-reed"
+                        />
                         <span className="font-story text-ink text-turn">
                           {person.name?.trim() || "Unnamed"}
                         </span>

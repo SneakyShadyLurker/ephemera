@@ -21,11 +21,11 @@ import {
   useUi,
 } from "@/app/ui.ts";
 import {
+  ChevronDownIcon,
   ClearIcon,
   EventsIcon,
   InspectIcon,
   MemoryIcon,
-  MoreIcon,
   SessionIcon,
 } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -245,8 +245,9 @@ function ChatMenu({
   return (
     <>
       <Menu>
-        <MenuTrigger render={<Button ref={trigger} size="icon" aria-label="More chat actions" />}>
-          <MoreIcon />
+        <MenuTrigger render={<Button ref={trigger} className="gap-1 px-2 touch:px-2" />}>
+          Story
+          <ChevronDownIcon size={16} />
           {memory !== null && <RememberedCount count={memory.remembered} />}
         </MenuTrigger>
         <MenuContent label="Chat actions">

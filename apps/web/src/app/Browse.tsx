@@ -50,7 +50,7 @@ function TileText({
 }) {
   return (
     <>
-      <span className="line-clamp-2 min-h-[calc(2lh+--spacing(2.5))] text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
+      <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
         {name}
       </span>
       <span id={captionId} className="min-h-4 break-words px-0.5 pt-0.5 text-meta text-reed">
@@ -84,6 +84,7 @@ export function PortraitTile({
   arriving = false,
   transition,
   onOpen,
+  actions,
 }: {
   owner: PortraitOwner;
   id: string;
@@ -96,6 +97,8 @@ export function PortraitTile({
   /** Carries the portrait morph to and from the sheet. */
   transition: boolean;
   onOpen: () => void;
+  /** A persona's More menu, outside the link that opens its sheet. */
+  actions?: ReactNode;
 }) {
   const captionId = useId();
   const sheet = {
@@ -115,14 +118,20 @@ export function PortraitTile({
   );
   if (onChat === undefined) {
     return (
-      <Link {...sheet} className="group grid rounded-lg outline-offset-4">
-        {portrait}
-        <TileText name={name} caption={caption} />
-      </Link>
+      <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
+        <div className="col-span-2">{portrait}</div>
+        <Link
+          {...sheet}
+          className="group grid min-w-0 rounded-sm outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:focus-ring"
+        >
+          <TileText name={name} caption={caption} />
+        </Link>
+        {actions && <div className="relative mt-1">{actions}</div>}
+      </div>
     );
   }
   return (
-    <div className="group/tile relative grid grid-cols-[minmax(0,1fr)_2.75rem] items-start gap-x-1">
+    <div className="group/tile relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
       <div className="col-span-2">{portrait}</div>
       <button
         type="button"
@@ -139,7 +148,10 @@ export function PortraitTile({
         <Link
           {...sheet}
           aria-label={`Edit ${name}`}
-          className={cn(buttonVariants({ variant: "quiet", size: "icon" }), "size-11")}
+          className={cn(
+            buttonVariants({ variant: "outline", size: "icon" }),
+            "size-8 text-reed touch:size-11",
+          )}
         >
           <EditIcon size={16} />
         </Link>

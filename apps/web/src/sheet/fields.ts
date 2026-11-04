@@ -68,7 +68,7 @@ export const TITLE_FIELD = cn(
  */
 export const PROSE_FACE = cn(
   FIELD_FACE,
-  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus",
+  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus touch:min-h-11",
 );
 
 export const PROSE_FIELD = cn(

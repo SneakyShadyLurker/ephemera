@@ -77,7 +77,7 @@ export function SheetHeaderFrame({
   frame?: string;
   gutters?: string | undefined;
   title?: ReactNode;
-  titleProps?: { id?: string; tabIndex?: number };
+  titleProps?: { id?: string; tabIndex?: number; "aria-label"?: string };
   titleClassName?: string;
   titleReplacement?: ReactNode;
   children?: ReactNode;
@@ -391,32 +391,6 @@ export function SheetBody({
   // While the sign-in notice floats at the end, a focused field scrolls clear of it.
   const signedIn = useSignedIn();
   const leaving = useLeavingSheet();
-  const titleBoundary = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const boundary = titleBoundary.current;
-    const scroller = boundary?.closest<HTMLElement>("[data-skip-target]");
-    const sheet = scroller?.closest("main");
-    if (!boundary || !scroller || !sheet) return;
-    // Observe the threshold without a compositor timeline trigger: a block expanding
-    // while focus scrolls the sheet can interrupt that trigger's animation.
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        sheet.toggleAttribute(
-          "data-sheet-title",
-          entry !== undefined &&
-            !entry.isIntersecting &&
-            entry.rootBounds !== null &&
-            entry.boundingClientRect.bottom <= entry.rootBounds.top,
-        );
-      },
-      { root: scroller },
-    );
-    observer.observe(boundary);
-    return () => {
-      observer.disconnect();
-      sheet.removeAttribute("data-sheet-title");
-    };
-  }, []);
   return (
     <div
       inert={leaving}
@@ -436,11 +410,7 @@ export function SheetBody({
             : SHEET_FRAME.form,
         )}
       >
-        <span
-          ref={titleBoundary}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-16"
-        />
+        <SheetTitleBoundary />
         <form
           aria-label={label}
           className="grid grid-cols-[minmax(0,1fr)] gap-10"
@@ -454,6 +424,45 @@ export function SheetBody({
         {aside}
       </div>
     </div>
+  );
+}
+
+/** Every sheet uses the same interruptible title threshold, at its actual in-page title. */
+export function SheetTitleBoundary({ alwaysVisible = false }: { alwaysVisible?: boolean }) {
+  const titleBoundary = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const boundary = titleBoundary.current;
+    const scroller = boundary?.closest<HTMLElement>("[data-sheet-scroller], [data-skip-target]");
+    const sheet = scroller?.closest("main");
+    if (!boundary || !scroller || !sheet) return;
+    const title = scroller.querySelector("[data-sheet-heading]") ?? boundary;
+    // Observe the threshold without a compositor timeline trigger: a block expanding
+    // while focus scrolls the sheet can interrupt that trigger's animation.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        sheet.toggleAttribute(
+          "data-sheet-title",
+          alwaysVisible ||
+            (entry !== undefined &&
+              !entry.isIntersecting &&
+              entry.rootBounds !== null &&
+              entry.boundingClientRect.bottom <= entry.rootBounds.top),
+        );
+      },
+      { root: scroller },
+    );
+    observer.observe(title);
+    return () => {
+      observer.disconnect();
+      sheet.removeAttribute("data-sheet-title");
+    };
+  }, [alwaysVisible]);
+  return (
+    <span
+      ref={titleBoundary}
+      aria-hidden="true"
+      className="pointer-events-none absolute top-0 h-px w-px"
+    />
   );
 }
 
@@ -482,6 +491,7 @@ export function NameField({
   return (
     <textarea
       ref={field}
+      data-sheet-heading=""
       aria-label="Name"
       rows={1}
       value={value}

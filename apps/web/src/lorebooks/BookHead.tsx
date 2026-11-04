@@ -75,6 +75,7 @@ export function BookHead({
             aria-invalid={blank || undefined}
             aria-describedby={blank ? problemId : undefined}
             onChange={(event) => context.onName(event.target.value)}
+            data-sheet-heading=""
             className={cn(TITLE_FIELD, "min-w-0 py-0.5 text-heading aria-invalid:border-ember")}
           />
         </span>

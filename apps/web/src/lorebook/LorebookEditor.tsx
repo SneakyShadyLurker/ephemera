@@ -20,6 +20,7 @@ import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import {
   type BackTarget,
   SheetHeader,
+  SheetTitleBoundary,
   useLeaveGuard,
   useLeavingSheet,
 } from "../sheet/SheetFrame.tsx";
@@ -455,6 +456,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
         <div className="flex min-h-0 flex-1">
           <div
             ref={scroller}
+            data-sheet-scroller=""
             data-skip-target={split || !inEntry ? "" : undefined}
             tabIndex={-1}
             className={cn(
@@ -464,6 +466,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
                 : cn("min-h-0 min-w-0 flex-1", SCROLL_GUTTERS, inEntry && "hidden"),
             )}
           >
+            <SheetTitleBoundary alwaysVisible={inEntry} />
             <div className={split ? "contents" : "mx-auto max-w-column"}>{list}</div>
           </div>
           <div

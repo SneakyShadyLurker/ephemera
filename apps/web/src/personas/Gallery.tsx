@@ -16,11 +16,13 @@ import {
 } from "@/app/Screen.tsx";
 import { PlusIcon } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
+import { MoreButton } from "@/components/more-button";
 import { Button } from "@/components/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
 import { andList } from "@/lib/text";
 import { charactersQuery } from "../characters/queries.ts";
-import { useSetting } from "../settings/settings.ts";
+import { useSetting, useUpdateSettings } from "../settings/settings.ts";
 import { personasQuery } from "./queries.ts";
 
 /**
@@ -87,6 +89,7 @@ export function PersonasScreen() {
 
 function Cast({ list }: { list: PersonaSummary[] }) {
   const defaultPersonaId = useSetting((settings) => settings.defaultPersonaId);
+  const updateSettings = useUpdateSettings();
   const opened = useStore(openedPersona);
   const characters = useQuery(charactersQuery);
   const nameOf = (id: string) => characters.data?.find((character) => character.id === id)?.name;
@@ -104,11 +107,32 @@ function Cast({ list }: { list: PersonaSummary[] }) {
               version={persona.portrait}
               transition={opened === persona.id}
               onOpen={() => setOpenedPersona(persona.id)}
+              actions={
+                !isDefault && (
+                  <Menu>
+                    <MenuTrigger render={<MoreButton aria-label={`More for ${persona.name}`} />} />
+                    <MenuContent label={`${persona.name} actions`}>
+                      <MenuItem
+                        onClick={() => {
+                          updateSettings({ defaultPersonaId: persona.id });
+                          // Becoming the default removes this menu; return focus to its card.
+                          requestAnimationFrame(() =>
+                            document
+                              .querySelector<HTMLElement>(`[data-persona="${persona.id}"] a`)
+                              ?.focus(),
+                          );
+                        }}
+                      >
+                        Make default
+                      </MenuItem>
+                    </MenuContent>
+                  </Menu>
+                )
+              }
               caption={
                 <>
-                  {isDefault && <span className="text-ink">Default</span>}
-                  {isDefault && bound.length > 0 && "; "}
-                  {bound.length > 0 && `${isDefault ? "with" : "With"} ${andList(bound)}`}
+                  {isDefault && <span className="block font-sans text-reed">Default</span>}
+                  {bound.length > 0 && `With ${andList(bound)}`}
                 </>
               }
             />

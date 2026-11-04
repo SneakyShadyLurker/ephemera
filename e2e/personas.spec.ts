@@ -74,9 +74,13 @@ test("a new chat starts as the bound persona, else the default; turns keep their
   await createCharacterViaApi(page.request, withBinding);
   await createCharacterViaApi(page.request, withoutBinding);
 
-  // The default persona is a switch on its sheet.
+  // A gallery card can become the default through its own More menu.
+  await page.goto("/personas");
+  await page.getByRole("button", { name: `More for ${fallback}`, exact: true }).click();
+  await page.getByRole("menuitem", { name: "Make default", exact: true }).click();
+  await expect(card(page, fallback).getByText("Default", { exact: true })).toBeVisible();
+  // The sheet's switch reads the same setting.
   await page.goto(`/personas/${defaultId}`);
-  await page.getByRole("switch", { name: "Default persona" }).click();
   await expect(page.getByRole("switch", { name: "Default persona" })).toBeChecked();
 
   // A character goes with a persona through the picker on the persona's sheet.

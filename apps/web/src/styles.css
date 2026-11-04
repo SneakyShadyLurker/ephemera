@@ -1379,7 +1379,7 @@ details[open] > summary .disclosure-chevron {
  * The engraved illustrations (components/illustration.tsx): each piece is a
  * grayscale luminance mask, white where it is drawn, filled with the
  * palette's roles, so every palette recolours it in both schemes. By day
- * the print's ink is reed; by night the lamplit lines are reed and the
+ * the print's ink is reed; by night the lamplit lines use ink and the
  * lamp's light, dusk, falls softly around `--art-lamp`. A piece whose lamp
  * is out sets no `--art-lamp`, which leaves its glow invalid, so unpainted.
  * The component sets only `--art-day`, `--art-night`, `--art-ratio` and
@@ -1395,6 +1395,7 @@ details[open] > summary .disclosure-chevron {
   mask-repeat: no-repeat;
   @variant dark {
     mask-image: var(--art-night);
+    background-color: var(--ink);
     background-image: radial-gradient(
       ellipse 24% calc(24% * var(--art-ratio)) at var(--art-lamp),
       var(--dusk),

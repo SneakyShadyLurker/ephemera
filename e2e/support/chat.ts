@@ -95,7 +95,7 @@ export async function moreAction(page: Page, scope: Locator, item: string) {
 
 /** The phone's chat menu, which holds the header's Memory, Prompt and Clear chat. */
 export const chatMenuButton = (page: Page) =>
-  page.getByRole("button", { name: "More chat actions", exact: true });
+  page.getByRole("button", { name: "Story", exact: true });
 
 /**
  * Runs one of the chat header's actions: its own control from tablet up, the

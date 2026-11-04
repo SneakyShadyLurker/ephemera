@@ -35,6 +35,7 @@ import {
   SheetLoading,
   SheetMissing,
   SheetNotice,
+  SheetTitleBoundary,
   useLeaveGuard,
   useLeaveGuardScope,
   useLeavingSheet,
@@ -209,8 +210,9 @@ function MemoryFrame({
       <SheetHeaderFrame
         back={backTo(id, name, from)}
         frame={SHEET_FRAME.form}
-        title="Memory"
-        titleProps={{ id: SCREEN_TITLE, tabIndex: -1 }}
+        title={`What ${name} remembers`}
+        titleClassName="title-in"
+        titleProps={{ id: SCREEN_TITLE, tabIndex: -1, "aria-label": "Memory" }}
         titleReplacement={
           failing ? (
             <SaveState status={saving.status} creating={false} noun={saving.noun} short />
@@ -247,6 +249,7 @@ function MemoryFrame({
           after !== undefined && "scroll-pb-40",
         )}
       >
+        <SheetTitleBoundary />
         {/* One column at the frame's width: nothing inside, however long and unbroken, widens it. */}
         <div
           className={cn(
@@ -279,7 +282,10 @@ function Heading({ id, name, children }: { id: string; name: string; children?: 
     <div className={NOTEBOOK_GRID}>
       <div />
       <div className="grid min-w-0 gap-1.5">
-        <h2 className={cn(STORY_SECTION_HEADING, "flex items-center gap-3.5")}>
+        <h2
+          data-sheet-heading=""
+          className={cn(STORY_SECTION_HEADING, "flex items-center gap-3.5")}
+        >
           <span className="min-w-0 text-balance">What {name} remembers</span>
           {/* While a memory of this character is written, a light passes along the rule. */}
           <span aria-hidden="true" className="relative mt-px h-px min-w-6 flex-1 bg-rush">

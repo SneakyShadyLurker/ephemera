@@ -269,12 +269,21 @@ function PresetList({
                       : samplerSummary(preset.values)}
                   </span>
                 </span>
-                {preset.id === chosen && (
-                  <span className="flex shrink-0 items-center gap-1 text-ink text-meta">
+                <span className="grid shrink-0 text-meta">
+                  <span
+                    aria-hidden="true"
+                    className="invisible flex items-center gap-1 [grid-area:1/1]"
+                  >
                     <CheckIcon size={16} />
-                    <span className="max-tablet:sr-only">{chosenLabel}</span>
+                    {chosenLabel}
                   </span>
-                )}
+                  {preset.id === chosen && (
+                    <span className="flex items-center gap-1 text-ink [grid-area:1/1]">
+                      <CheckIcon size={16} />
+                      <span>{chosenLabel}</span>
+                    </span>
+                  )}
+                </span>
               </Link>
             </li>
           ))}

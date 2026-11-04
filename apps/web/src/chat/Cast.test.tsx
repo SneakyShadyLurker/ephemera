@@ -568,7 +568,7 @@ describe("a record", () => {
       "Fetishes and taboos",
     ]);
     expect(out).toMatch(
-      /<dt[^>]*>Ethnicity<\/dt><dd[^>]*><button[^>]*data-cast-edit="ethnicity"[^>]*><span class="sr-only">Correct ethnicity: <\/span><span data-cast-field="ethnicity"/,
+      /<dt[^>]*>Ethnicity<\/dt><dd[^>]*><button[^>]*data-cast-edit="ethnicity"[^>]*><svg[^>]*data-icon="Edit"[^>]*>[\s\S]*?<\/svg><span class="sr-only">Correct ethnicity: <\/span><span data-cast-field="ethnicity"/,
     );
     expect(out).toMatch(/data-cast-field="intimate"[^>]*data-tone="iris"/);
     expect(out).toMatch(/data-cast-field="fetishes"[^>]*data-tone="rose"/);
