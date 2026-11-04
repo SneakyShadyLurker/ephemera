@@ -5,6 +5,7 @@ import { MoreButton } from "@/components/more-button";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
+import { cn } from "@/lib/cn";
 import { Portrait } from "./Portrait.tsx";
 import { type PortraitOwner, removePortrait, setPortrait } from "./queries.ts";
 
@@ -26,6 +27,7 @@ export function PortraitField({
   primary,
   onBusyChange,
   onChange,
+  compactOnPhone = false,
 }: {
   owner: PortraitOwner;
   id: string | null;
@@ -43,6 +45,8 @@ export function PortraitField({
   /** An upload or removal starts or ends: the sheet holds an AI Rework meanwhile. */
   onBusyChange?: (busy: boolean) => void;
   onChange: (version: number | null) => void;
+  /** Phones set the portrait small with its actions beside it, so the sheet's text starts sooner. */
+  compactOnPhone?: boolean;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +83,14 @@ export function PortraitField({
   };
 
   return (
-    <div className="grid content-start gap-1">
+    <div
+      className={cn(
+        "grid content-start gap-1",
+        // Phones: the portrait small at the row's start, its actions beside its foot.
+        compactOnPhone &&
+          "max-tablet:grid-cols-[5.5rem_minmax(0,1fr)] max-tablet:items-end max-tablet:gap-x-3",
+      )}
+    >
       <input
         ref={picker}
         type="file"
@@ -156,6 +167,7 @@ export function PortraitField({
           ))}
       </div>
       <NoticeSlot
+        {...(compactOnPhone && { className: "max-tablet:col-span-full" })}
         value={
           busy && version !== null
             ? { kind: "status" as const, text: "Saving the portrait" }

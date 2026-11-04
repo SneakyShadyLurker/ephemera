@@ -52,7 +52,7 @@ import {
 } from "./copy.ts";
 import { MappingList, MappingOutline } from "./MappingList.tsx";
 import { mappingRows, otherNodes } from "./mapping.ts";
-import { NodeLabel, OtherNodes } from "./OtherNodes.tsx";
+import { NodeLabel, NodesInvolved, OtherNodes } from "./OtherNodes.tsx";
 import {
   blockedGroups,
   choiceProblem,
@@ -513,9 +513,12 @@ export function PanelView({
           </h4>
           <p className="text-pretty text-ink text-note">
             {state.refusal.kind === "invalid_workflow"
-              ? refusalText(state.refusal.code, state.refusal.nodes)
+              ? refusalText(state.refusal.code)
               : fileRefusalText(state.fileName, state.refusal)}
           </p>
+          {state.refusal.kind === "invalid_workflow" && (
+            <NodesInvolved nodes={state.refusal.nodes} />
+          )}
         </div>
       )}
 
@@ -632,9 +635,12 @@ function DraftBody({
         onChoose={(place, node) => dispatch({ type: "choose", place, node })}
       />
       {problem !== null && (
-        <p role="alert" className="text-pretty text-ember text-note">
-          {problem}
-        </p>
+        <div className="grid gap-1">
+          <p role="alert" className="text-pretty text-ember text-note">
+            {problem.text}
+          </p>
+          <NodesInvolved nodes={problem.nodes} />
+        </div>
       )}
       <OtherNodes nodes={otherNodes(draft)} />
       {report.changed.length + report.skipped.length > 0 && (
@@ -691,8 +697,8 @@ function LiveStatus({ draft }: { draft: Draft }) {
           <CautionIcon size={16} className="shrink-0 translate-y-[0.2em] text-ember" />
           {LIVE_MISSING}
         </p>
-        <MissingList nodes={live.nodes} models={live.models} />
         <p className={HELP}>{MISSING_HELP}</p>
+        <MissingList nodes={live.nodes} models={live.models} />
       </div>
     );
   }
@@ -829,15 +835,18 @@ function SaveFailureNotice({
           ? [DELETED_ELSEWHERE, "Import as new", onImportAsNew]
           : failure.kind === "unreachable"
             ? [`Not saved: ${notReached}.`, "Try again", onRetry]
-            : [refusalText(failure.code, failure.nodes), "Choose another file", onChooseFile];
+            : [refusalText(failure.code), "Choose another file", onChooseFile];
       return (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 arrive">
-          <p role="alert" className="text-pretty text-ember text-note">
-            {text}
-          </p>
-          <Button variant="outline" className={SMALL} onClick={run}>
-            {action}
-          </Button>
+        <div className="grid gap-1 arrive">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p role="alert" className="text-pretty text-ember text-note">
+              {text}
+            </p>
+            <Button variant="outline" className={SMALL} onClick={run}>
+              {action}
+            </Button>
+          </div>
+          {failure.kind === "refused" && <NodesInvolved nodes={failure.nodes} />}
         </div>
       );
     }

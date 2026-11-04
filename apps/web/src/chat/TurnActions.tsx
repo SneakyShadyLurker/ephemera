@@ -167,7 +167,8 @@ function MoreMenu({
  * last reply, whose own row has them, in CSS alone: a streaming reply then
  * changes nothing in the turns before it.
  */
-const QUIET_WHEN = "[[aria-busy=true]_&]:invisible [li:has(+li[data-reply-actions])_&]:hidden";
+const QUIET_WHEN =
+  "[[aria-busy=true]_&]:invisible [li:has(+li[data-reply-actions])_&]:hidden [li:has([data-reply-actions])_&]:hidden";
 
 /**
  * A turn's one More button. Tablet and desktop: just outside the story's

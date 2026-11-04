@@ -22,7 +22,13 @@ import { CAST_FIELD_LABELS } from "../chat/cast-ui.ts";
 import { chatStore } from "../chat/session.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
-import { FIELD, HELP, NOTEBOOK_GRID, sheetLabel } from "../sheet/fields.ts";
+import {
+  HELP,
+  LINE_FIELD,
+  NOTEBOOK_GRID,
+  PROSE_FIELD as OPEN_PROSE,
+  sheetLabel,
+} from "../sheet/fields.ts";
 import {
   CAST_GENDERS,
   type CastLinePerson,
@@ -158,13 +164,11 @@ export function useNotebook(characterId: string, state: MemoryState, onSeen: (n:
 }
 
 /**
- * Memory prose, open on the page: muted as it reads, in ink while written.
- * A pointer over it brings up the field's edge and a faint wash, and the
- * text darkens, so it reads as editable before it is clicked; focus makes
- * it a field outright.
+ * Memory prose, open on the page, in ink as every editable value is. A
+ * pointer over it brings up the field's edge and a faint wash, so it reads
+ * as editable before it is clicked; focus makes it a field outright.
  */
-const PROSE_FIELD =
-  "w-full cursor-text resize-none rounded-md border border-transparent bg-transparent px-2 py-1 font-story text-reed text-turn [field-sizing:content] outline-none transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade placeholder:text-reed hover:border-rush hover:bg-surface-hover hover:text-ink focus:border-dusk-line focus:bg-surface focus:text-ink focus:shadow-focus read-only:cursor-default read-only:hover:border-transparent read-only:hover:bg-transparent read-only:hover:text-reed";
+const PROSE_FIELD = cn(OPEN_PROSE, "font-story text-ink text-turn");
 
 const MARGIN_LABEL = sheetLabel("line");
 
@@ -221,7 +225,7 @@ export function NotebookEditor({
           placeholder="Where the story stands now, in a few sentences."
           onChange={(event) => onChange({ name: event.target.value })}
           // On touch, with no pointer to bring up its edge, the field keeps its lower rule at rest.
-          className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush")}
+          className={cn(PROSE_FIELD, "-mx-2 min-h-13")}
         />
       </div>
       <OpeningField
@@ -414,7 +418,7 @@ function OpeningField({
               dispatch({ type: "edited" });
               onChange(event.target.value);
             }}
-            className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush")}
+            className={cn(PROSE_FIELD, "-mx-2 min-h-13")}
           />
           {writing && <span aria-hidden="true" className="lamplight-edge" />}
         </div>
@@ -603,9 +607,6 @@ function Lines({
 /** A cast detail's words after its label, in the line under a person's name. */
 const detailText = (person: CastLinePerson, field: CastAnchorField) =>
   `${CAST_FIELD_LABELS[field].toLowerCase()} ${person[field]?.trim()}`;
-
-/** A small labelled field of a person's form, as the sheet's small fields are. */
-const SMALL_FIELD = cn(FIELD, "h-9 py-0 text-ui touch:h-11");
 
 /**
  * The cast: people the story invented and keeps meeting, each a row that
@@ -837,7 +838,7 @@ function CastPersonForm({
         readOnly={readOnly}
         aria-readonly={readOnly || undefined}
         onChange={(event) => change({ ...person, [key]: event.target.value })}
-        className={SMALL_FIELD}
+        className={LINE_FIELD}
       />
     </label>
   );

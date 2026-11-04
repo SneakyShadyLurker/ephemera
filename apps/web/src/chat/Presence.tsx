@@ -91,8 +91,10 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
       {column}
       {/* Level with the portrait's foot, above the button under it. */}
       <p
+        aria-hidden="true"
         className={cn(
           "min-w-0 break-words font-story text-band text-narration",
+          BAND_NAME,
           pictures && "mb-11 touch:mb-13",
         )}
       >
@@ -102,10 +104,20 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
   ) : pictures ? (
     <div className="flex items-center gap-4">
       {column}
-      <p className="min-w-0 break-words font-story text-heading text-narration">{name}</p>
+      <p
+        aria-hidden="true"
+        className={cn("min-w-0 break-words font-story text-heading text-narration", BAND_NAME)}
+      >
+        {name}
+      </p>
     </div>
   ) : (
-    <p className="break-words font-story text-heading text-narration">{name}</p>
+    <p
+      aria-hidden="true"
+      className={cn("break-words font-story text-heading text-narration", BAND_NAME)}
+    >
+      {name}
+    </p>
   );
   // The band's roster spans its whole width, under the portrait and the name.
   return (
@@ -119,6 +131,14 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
     </div>
   );
 }
+
+/**
+ * The band's name gives way, as the header's title does, while a turn of the
+ * character's names them in the story (Thread's NameShown), so a name never
+ * shows twice; it keeps its room, so nothing below moves.
+ */
+const BAND_NAME =
+  "transition-opacity duration-(--duration-quick) ease-fade [[data-name-shown]_&]:opacity-0";
 
 /**
  * The floating portrait's rim: busy while a reply (or Write for me's

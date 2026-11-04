@@ -16,14 +16,21 @@ import {
 } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useCanDock } from "@/app/form-factor.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { ChatIcon, SectionsIcon } from "@/components/icons";
+import { ChatIcon, LampFlameIcon, SectionsIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
-import { cn } from "@/lib/cn";
 import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { CastSection } from "../cast/CastSection.tsx";
@@ -42,7 +49,7 @@ import { isLocked } from "../rework/store.ts";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
@@ -389,6 +396,12 @@ function SheetEditor({
             discard={autosave.discard}
             onError={setNotice}
             locked={locked}
+            rework={{
+              label: "AI Rework",
+              icon: LampFlameIcon,
+              disabled: locked || portraitChanging,
+              onSelect: () => setComposing(true),
+            }}
           />
         )}
       </SheetHeader>
@@ -414,11 +427,15 @@ function SheetEditor({
         <section
           id="s-identity"
           aria-label="Identity"
-          className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
+          className="grid grid-cols-1 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
-          {/* From tablet the portrait spans the identity and its details beside it. */}
+          {/*
+           * From tablet the portrait spans the identity and its details beside it. Phones
+           * give it a compact row, its actions beside it, and the name and tags the width.
+           */}
           <div className="tablet:row-span-2">
             <PortraitField
+              compactOnPhone
               owner="characters"
               noun="character"
               id={id}
@@ -545,7 +562,7 @@ function SmallField({
         readOnly={locked}
         aria-readonly={locked || undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={cn(FIELD, "h-9 py-0 text-ui touch:h-11")}
+        className={LINE_FIELD}
       />
     </label>
   );
@@ -603,7 +620,7 @@ function CardDetails({
     .filter(Boolean)
     .join(", ");
   return (
-    <details className="disclosure col-span-2 border-rush border-y tablet:col-start-2 tablet:col-span-1">
+    <details className="disclosure col-span-full border-rush border-y tablet:col-start-2 tablet:col-span-1">
       <summary className="flex h-12 cursor-pointer list-none items-center gap-2 text-ink text-ui">
         <span>Card details</span>
         <DisclosureChevron className="text-reed" />
@@ -656,6 +673,7 @@ function MoreActions({
   discard,
   onError,
   locked,
+  rework,
 }: {
   id: string;
   name: string;
@@ -664,6 +682,8 @@ function MoreActions({
   onError: (message: string) => void;
   /** Duplicate and Delete wait while an AI Rework holds the sheet; Export stays. */
   locked: boolean;
+  /** AI Rework again, under its name, in the phone's sheet of actions. */
+  rework: NonNullable<ComponentProps<typeof SheetActions>["phoneLead"]>;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -708,6 +728,7 @@ function MoreActions({
       deleteDescription="The card and its portrait are removed from Ephemera. Export first to keep a copy."
       onDelete={remove}
       locked={locked}
+      phoneLead={rework}
     />
   );
 }

@@ -19,13 +19,12 @@ import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/cn";
 import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
 import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
-import { FIELD, HELP } from "../sheet/fields.ts";
+import { HELP, LINE_FIELD } from "../sheet/fields.ts";
 import { identity } from "../signin/identity.ts";
 import { ColourField, shortfallText } from "./ColourField.tsx";
 import {
@@ -270,7 +269,7 @@ export function PaletteEditor({
               setNameMissing(false);
               renameDraft(event.target.value);
             }}
-            className={cn(FIELD, "h-10 py-0 text-ui touch:h-11")}
+            className={LINE_FIELD}
           />
           {nameMissing && <p className="text-meta text-ember">Name it before saving.</p>}
         </div>
@@ -439,14 +438,16 @@ function Summary({
             {shortfalls[scheme].map((short, index) => (
               <span key={short.role}>
                 {index > 0 && ", "}
-                <button
-                  type="button"
+                <Button
+                  variant="link"
+                  size="inline"
                   title={shortfallText(short)}
                   onClick={() => onReveal(short, scheme)}
-                  className="rounded-sm underline underline-offset-2 hover:text-ink"
+                  // A colour named in the warning keeps the warning's ink.
+                  className="text-inherit"
                 >
                   {ROLE_LABELS[short.role]}
-                </button>
+                </Button>
               </span>
             ))}
             . It saves anyway.

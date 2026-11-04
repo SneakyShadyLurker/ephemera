@@ -38,7 +38,7 @@ import {
   storyEmpty,
 } from "./store.ts";
 import { FoldLine, Tombstone, TrimMarker } from "./ThreadMarks.tsx";
-import { Turn } from "./Turn.tsx";
+import { failedInPlace, Turn } from "./Turn.tsx";
 import { GreetingActions, ReplyActions } from "./TurnActions.tsx";
 
 /**
@@ -171,7 +171,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
       </ConversationContent>
       <ConversationScrollButton onKeyboardUse={() => composer.current?.focus()} />
       <FollowWriting />
-      <NameStuck ids={ids} horizon={horizon} shown={shown} />
+      <NameShown ids={ids} horizon={horizon} shown={shown} />
     </Conversation>
   );
 }
@@ -197,21 +197,19 @@ function FollowWriting() {
   return null;
 }
 
-/** Where a nameplate sticks: its `top` in styles.css (`nameplate`), and a pixel below it. */
-const STUCK_LINE = 13;
-
 /**
- * Marks the chat (`data-name-stuck` on its <main>) while a character's
- * nameplate is stuck under the header, so the header's title, the same
- * name, gives way (ScreenHeader `yieldsTitle`). A nameplate sticks while its
- * turn crosses the line it sticks at, so one observer watches the
- * character's turns against a band one pixel high there, renewed when the
- * turns change (`ids`, or folded turns shown or hidden by `horizon` and
- * `shown`, which leave `ids` as they are) or the scroller's height does.
- * A renewal keeps the mark until the new observer answers, so the title
- * does not blink; only leaving the chat, or no turn to watch, clears it.
+ * Marks the chat (`data-name-shown` on its <main>) while a character's
+ * nameplate shows in the story, stuck under the header or anywhere in view,
+ * so the header's title, the same name, gives way (ScreenHeader
+ * `yieldsTitle`). A stuck nameplate stays in view while its turn does, so
+ * one observer watches the character's nameplates against the scroller,
+ * renewed when the turns change (`ids`, or folded turns shown or hidden by
+ * `horizon` and `shown`, which leave `ids` as they are) or the scroller's
+ * height does. A renewal keeps the mark until the new observer answers, so
+ * the title does not blink; only leaving the chat, or no nameplate to
+ * watch, clears it.
  */
-function NameStuck({
+function NameShown({
   ids,
   horizon,
   shown,
@@ -223,7 +221,7 @@ function NameStuck({
   const { scrollRef, contentRef } = useStickToBottomContext();
   useEffect(() => {
     const chat = scrollRef.current?.closest("main");
-    return () => chat?.removeAttribute("data-name-stuck");
+    return () => chat?.removeAttribute("data-name-shown");
   }, [scrollRef]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `ids`, `horizon` and `shown` change the turns to watch.
   useEffect(() => {
@@ -231,26 +229,27 @@ function NameStuck({
     const content = contentRef.current;
     const chat = scroller?.closest("main");
     if (!scroller || !content || !chat) return;
-    const crossing = new Set<Element>();
+    const inView = new Set<Element>();
     let observer: IntersectionObserver | undefined;
     const watch = () => {
       observer?.disconnect();
-      crossing.clear();
-      const below = Math.max(0, scroller.clientHeight - STUCK_LINE - 1);
+      inView.clear();
       observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (entry.isIntersecting) crossing.add(entry.target);
-            else crossing.delete(entry.target);
+            if (entry.isIntersecting) inView.add(entry.target);
+            else inView.delete(entry.target);
           }
-          chat.toggleAttribute("data-name-stuck", crossing.size > 0);
+          chat.toggleAttribute("data-name-shown", inView.size > 0);
         },
-        { root: scroller, rootMargin: `-${STUCK_LINE}px 0px -${below}px 0px` },
+        { root: scroller },
       );
-      const turns = content.querySelectorAll('[data-message][data-role="assistant"]');
-      // With no turn to watch the observer never answers, so nothing is stuck.
-      if (turns.length === 0) chat.removeAttribute("data-name-stuck");
-      for (const turn of turns) observer.observe(turn);
+      const names = content.querySelectorAll(
+        '[data-message][data-role="assistant"] [data-speaker][data-voice="story"]',
+      );
+      // With nothing to watch the observer never answers, so no name shows.
+      if (names.length === 0) chat.removeAttribute("data-name-shown");
+      for (const name of names) observer.observe(name);
     };
     const resized = new ResizeObserver(watch);
     resized.observe(scroller);
@@ -379,7 +378,9 @@ function LastReplyActions() {
     (message.greeting && message.replies.length === 1) ||
     editing ||
     shownReply(message).status === "streaming" ||
-    shownReply(message).status === "waiting"
+    shownReply(message).status === "waiting" ||
+    // A failed reply keeps its actions under its note, inside the turn (Turn.tsx).
+    failedInPlace(message)
   )
     return null;
   return (

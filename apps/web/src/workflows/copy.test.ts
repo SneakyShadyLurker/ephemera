@@ -12,7 +12,7 @@ import {
 
 describe("refusal copy", () => {
   it.each(WORKFLOW_REFUSALS)("says what is wrong with %s and a way out", (code) => {
-    const text = refusalText(code, []);
+    const text = refusalText(code);
     expect(text).toMatch(/^[A-Z].*\.$/);
     expect(text).not.toMatch(/—|->|→/);
     // Only the refusals an API export fixes suggest it.
@@ -20,26 +20,28 @@ describe("refusal copy", () => {
   });
 
   it("keeps the fixed sentences", () => {
-    expect(refusalText("linked_prompt", ["Text (node 4)"])).toBe(
+    expect(refusalText("linked_prompt")).toBe(
       "The prompt comes from another node that also feeds something else. Give the prompt its own text in ComfyUI and import again.",
     );
-    expect(refusalText("too_large", [])).toBe(
+    expect(refusalText("too_large")).toBe(
       "This file is too large or too complex to import. Remove nodes, or export it in API format from ComfyUI.",
     );
   });
 
-  it("names the nodes a refusal lists", () => {
-    expect(refusalText("unconnected_input", ["KSampler (node 3)", "VAE Decode (node 8)"])).toBe(
-      "A node lacks an input it needs: KSampler (node 3) and VAE Decode (node 8). Connect it in ComfyUI and import again.",
+  it("says the problem and the next step first, leaving the nodes it names to their own list", () => {
+    expect(refusalText("unconnected_input")).toBe(
+      "A node lacks an input it needs. Connect it in ComfyUI and import again.",
     );
-    expect(refusalText("unknown_node", ["MyNode"])).toContain("MyNode");
+    expect(refusalText("unknown_node")).toBe(
+      "Your ComfyUI does not know some nodes in this file. Install them in ComfyUI, or remove them, and import again.",
+    );
   });
 
   it("refuses in the tab before any request", () => {
     expect(fileRefusalText("flux-portrait.json", { kind: "not_json" })).toBe(
       "flux-portrait.json is not a JSON file.",
     );
-    expect(fileRefusalText("big.json", { kind: "too_large" })).toBe(refusalText("too_large", []));
+    expect(fileRefusalText("big.json", { kind: "too_large" })).toBe(refusalText("too_large"));
   });
 });
 

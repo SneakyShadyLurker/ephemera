@@ -8,6 +8,7 @@ import {
   type ReworkCard,
 } from "@ephemera/core";
 import { useId } from "react";
+import { SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { percent } from "../lorebook/copy.ts";
 import { ChangeDecision, Deleted, Inserted } from "./ChangeRuns.tsx";
@@ -185,9 +186,7 @@ function RemovedRow({
       <TrackedChips before={entry.keys} after={[]} />
       {long ? (
         <details className="disclosure group/removed">
-          <summary className="flex w-fit cursor-pointer list-none items-center rounded-md text-note text-reed hover:text-ink touch:-my-1 touch:min-h-11 [&::-webkit-details-marker]:hidden">
-            Show removed entry
-          </summary>
+          <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>Show removed entry</summary>
           <p className="mt-2 whitespace-pre-wrap break-words text-turn">
             <Deleted text={entry.content} />
           </p>

@@ -291,12 +291,16 @@ export function LibraryScreen() {
                 />
               )}
               {noMatch ? (
-                <div className="grid justify-items-start gap-2 border-rush border-t pt-5">
-                  <p className="text-reed text-ui">No lorebook or character matches.</p>
-                  <Button variant="outline" onClick={() => setFind("")}>
-                    Clear find
-                  </Button>
-                </div>
+                <EmptyState
+                  compact
+                  title="No lorebook or character matches."
+                  className="border-rush border-t"
+                  actions={
+                    <Button variant="outline" onClick={() => setFind("")}>
+                      Clear find
+                    </Button>
+                  }
+                />
               ) : empty ? (
                 <EmptyState
                   title="No lorebooks yet"

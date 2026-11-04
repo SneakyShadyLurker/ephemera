@@ -13,7 +13,9 @@ const PopoverTitle = PopoverPrimitive.Title;
  * (or by a `PopoverTitle` among its children when `title` is left out).
  * `className` resizes it (a working surface such as the rework's composer);
  * `anchor` hangs it from an element other than a trigger; `side`,
- * `initialFocus`, `finalFocus` and `collisionAvoidance` are Base UI's.
+ * `initialFocus`, `finalFocus`, `collisionAvoidance` and `positionMethod`
+ * are Base UI's (`fixed`: a surface laid over the page's own controls, kept
+ * in its own layer).
  */
 function PopoverContent({
   title,
@@ -23,6 +25,7 @@ function PopoverContent({
   className,
   anchor,
   collisionAvoidance,
+  positionMethod,
   initialFocus,
   finalFocus,
 }: {
@@ -33,6 +36,7 @@ function PopoverContent({
   className?: string;
   anchor?: PopoverPrimitive.Positioner.Props["anchor"];
   collisionAvoidance?: PopoverPrimitive.Positioner.Props["collisionAvoidance"];
+  positionMethod?: PopoverPrimitive.Positioner.Props["positionMethod"];
   initialFocus?: PopoverPrimitive.Popup.Props["initialFocus"];
   finalFocus?: PopoverPrimitive.Popup.Props["finalFocus"];
 }) {
@@ -45,6 +49,7 @@ function PopoverContent({
         side={side}
         anchor={anchor}
         collisionAvoidance={collisionAvoidance}
+        positionMethod={positionMethod}
         className="z-(--z-overlay)"
       >
         <PopoverPrimitive.Popup

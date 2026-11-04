@@ -77,7 +77,6 @@ describe("one change in a tracked view", () => {
     expect(out).toMatch(
       /<ins class="tracked-ins"><span class="sr-only">inserted: <\/span>34<\/ins>/,
     );
-    expect(out).toContain('aria-label="Accept change 2 of 6"');
     expect(out).toContain('aria-label="Reject change 2 of 6"');
     // The reason, in its row apart from the change, describes the group.
     expect(out).toContain('aria-describedby="why-4"');

@@ -150,12 +150,16 @@ export function leaveGuardOf(rows: readonly RowSaving[]) {
   };
 }
 
-export function EventsSection() {
+/**
+ * The events: a compact row on the Lorebooks screen, closed on arrival, or,
+ * `inSheet`, the open list in the chat's Events sheet, whose title names it.
+ */
+export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
   const queryClient = useQueryClient();
   const events = useQuery(eventsQuery);
   const characters = useQuery(charactersQuery);
   /** Closed on arrival: one row above the lorebooks, however many events it holds. */
-  const [shown, setShown] = useState(false);
+  const [shown, setShown] = useState(inSheet);
   const newButton = useRef<HTMLButtonElement>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -390,59 +394,69 @@ export function EventsSection() {
     </MotionScope>,
   );
 
-  return (
-    <section aria-label="Events">
-      <SettingsRow
-        label="Events"
-        answer={
-          failed
-            ? "Could not be loaded"
-            : events.data === undefined
-              ? ""
-              : eventsSummary(stored, unsaved)
-        }
-        open={shown}
-        onOpenChange={showSection}
-        compact
-      >
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <div className="grid min-w-0 flex-1 basis-64 gap-1">
-            <p className="max-w-help text-pretty text-note text-reed">
-              One line the story is given now and then, by chance.
-            </p>
-            {atLimit && <p className="max-w-help text-pretty text-note text-reed">{LIMIT_NOTE}</p>}
-          </div>
-          {!empty && !failed && newEvent}
+  const body = (
+    <>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="grid min-w-0 flex-1 basis-64 gap-1">
+          <p className="max-w-help text-pretty text-note text-reed">
+            One line the story is given now and then, by chance.
+          </p>
+          {atLimit && <p className="max-w-help text-pretty text-note text-reed">{LIMIT_NOTE}</p>}
         </div>
-        {events.isError && !failed && (
-          <p className="text-note text-reed">The events could not be refreshed.</p>
-        )}
-        {failed ? (
-          <div role="alert" className="grid justify-items-start gap-2">
-            <p className="text-ember text-note">The events could not be loaded.</p>
-            <Button variant="outline" onClick={() => void events.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : events.data === undefined ? (
-          <div aria-busy="true" className="min-h-16" />
-        ) : (
-          <>
-            {empty && (
-              <div className="grid justify-items-start gap-3">
-                <p className="max-w-empty text-pretty text-reed text-ui">
-                  No events yet. An event is one line the story is given now and then, such as
-                  'Introduce a new character'.
-                </p>
-                {newEvent}
-              </div>
-            )}
-            <ul aria-label="Events" className="grid border-rush border-t empty:hidden">
-              {items}
-            </ul>
-          </>
-        )}
-      </SettingsRow>
+        {!empty && !failed && newEvent}
+      </div>
+      {events.isError && !failed && (
+        <p className="text-note text-reed">The events could not be refreshed.</p>
+      )}
+      {failed ? (
+        <div role="alert" className="grid justify-items-start gap-2">
+          <p className="text-ember text-note">The events could not be loaded.</p>
+          <Button variant="outline" onClick={() => void events.refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : events.data === undefined ? (
+        <div aria-busy="true" className="min-h-16" />
+      ) : (
+        <>
+          {empty && (
+            <div className="grid justify-items-start gap-3">
+              <p className="max-w-empty text-pretty text-reed text-ui">
+                No events yet. An event is one line the story is given now and then, such as
+                'Introduce a new character'.
+              </p>
+              {newEvent}
+            </div>
+          )}
+          <ul aria-label="Events" className="grid border-rush border-t empty:hidden">
+            {items}
+          </ul>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <section aria-label="Events" className={inSheet ? "grid gap-4" : undefined}>
+      {inSheet ? (
+        body
+      ) : (
+        <SettingsRow
+          label="Events"
+          answer={
+            failed
+              ? "Could not be loaded"
+              : events.data === undefined
+                ? ""
+                : eventsSummary(stored, unsaved)
+          }
+          open={shown}
+          onOpenChange={showSection}
+          compact
+        >
+          {body}
+        </SettingsRow>
+      )}
       {/* Hidden in the closed row, a failed save is said here, where it can be seen. */}
       {!shown && unsaved > 0 && (
         <p role="alert" className="pb-3 text-pretty text-ember text-note">

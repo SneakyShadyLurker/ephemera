@@ -115,15 +115,18 @@ export const SettingsIcon = icon(
   </>,
 );
 
-/** A lantern: the one lamp lit for this sitting, wherever its panel opens. */
+/** Two set sliders: this sitting's choices (character, persona, presets, model). */
 export const SessionIcon = icon(
   "Session",
   <>
-    <circle cx="12" cy="4.25" r="1.5" />
-    <path d="M7.5 7h9M6.75 19.5h10.5M8.5 7l-.75 12.5M15.5 7l.75 12.5" />
-    <path d="M12 10.5c-1 1.15-1.5 2.1-1.5 2.9a1.5 1.5 0 0 0 3 0c0-.8-.5-1.75-1.5-2.9Z" />
+    <path d="M3.5 7.5h9.25M17.25 7.5h3.25M3.5 16.5h3.25M11.25 16.5h9.25" />
+    <circle cx="15" cy="7.5" r="2.25" />
+    <circle cx="9" cy="16.5" r="2.25" />
   </>,
 );
+
+/** Three lines: a menu, after the phone's navigation mark. */
+export const MenuIcon = icon("Menu", <path d="M5 7.5h14M5 12h14M5 16.5h14" />);
 
 /** Lines of the prompt read through a lens: the prompt inspector. */
 export const InspectIcon = icon(
@@ -539,6 +542,17 @@ export const KeywordsMarkIcon = icon(
   <>
     <circle cx="8" cy="12" r="3.75" />
     <path d="M11.75 12h8.75M17.5 12v3M20.5 12v2.25" />
+  </>,
+);
+
+/** A die showing three: events, given to the story by chance. */
+export const EventsIcon = icon(
+  "Events",
+  <>
+    <rect x="4" y="4" width="16" height="16" rx="3.5" />
+    <circle cx="8.75" cy="8.75" r="1.25" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" />
+    <circle cx="15.25" cy="15.25" r="1.25" fill="currentColor" stroke="none" />
   </>,
 );
 

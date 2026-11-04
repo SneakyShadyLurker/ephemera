@@ -3,8 +3,9 @@ import { cn } from "@/lib/cn";
 
 /**
  * One value on a track. The filled part is Ink; the thumb is a surface disc
- * with the control edge; it grows while held and takes the focus ring while
- * its input has keyboard focus. A range that spans zero (`centered`) has no
+ * with the control edge, drawn inside a box as large as its target; it
+ * grows while held and takes the focus ring while its input has keyboard
+ * focus. A range that spans zero (`centered`) has no
  * fill, which would start at the minimum, and marks zero with a tick instead.
  * Name it with `thumbLabel`: the thumb holds the range input.
  */
@@ -32,7 +33,11 @@ function Slider({
           {!centered && <SliderPrimitive.Indicator className="rounded-full bg-ink" />}
           <SliderPrimitive.Thumb
             aria-label={thumbLabel}
-            className="relative block size-4 rounded-full border border-control-edge bg-surface shadow-[0_1px_2px_var(--shadow-overlay)] outline-none transition-[box-shadow,scale] duration-(--duration-quick) ease-fade after:absolute after:-inset-3.5 has-[:focus-visible]:focus-ring data-dragging:scale-110 motion-reduce:transition-[box-shadow] touch:size-5"
+            className={cn(
+              // The thumb's box is its target, 24px, 44px on touch, holding the range input; the disc is drawn inside it.
+              "relative block size-6 rounded-full outline-none after:absolute after:-inset-2.5 touch:size-11 touch:after:inset-0",
+              "before:absolute before:inset-1 before:rounded-full before:border before:border-control-edge before:bg-surface before:shadow-[0_1px_2px_var(--shadow-overlay)] before:transition-[scale] before:duration-(--duration-quick) before:ease-spring has-[:focus-visible]:before:focus-ring data-dragging:before:scale-(--grip-scale) touch:before:inset-3",
+            )}
           />
         </SliderPrimitive.Track>
       </SliderPrimitive.Control>

@@ -10,7 +10,8 @@ import { settingsTab } from "./settings.ts";
  * "Updating…" and `data-cast-drift` on the light along its hairline while
  * the cast updates, `data-cast-entry` (with
  * `data-present`) on each roster entry, `data-cast-field="<field>"` on a
- * record's field and `data-cast-corrected` on a corrected one. The panel
+ * record's field (its field while it is corrected), `data-cast-edit` on
+ * the value pressed to correct it and `data-cast-corrected` on a corrected one. The panel
  * lists women only; a man the register holds has no entry.
  */
 
@@ -43,8 +44,21 @@ export async function openRecord(page: Page, name: string): Promise<Locator> {
 }
 
 /**
- * Opens the record of `name`, switches it to edit mode, fills `fields` and
- * saves; returns the record, back in reading mode.
+ * The value of `field` in an open record, as the owner presses it to correct
+ * it: where it stands, or under "More details" while it is not recorded.
+ */
+export async function recordValue(record: Locator, field: CastField): Promise<Locator> {
+  const value = record.locator(`[data-cast-edit="${field}"]`);
+  if (!(await value.isVisible())) {
+    await record.locator("summary").filter({ hasText: "More details" }).click();
+  }
+  return value;
+}
+
+/**
+ * Opens the record of `name` and corrects each of `fields` where it stands:
+ * presses the value, writes the new one and saves it with Enter; returns the
+ * record.
  */
 export async function editRecord(
   page: Page,
@@ -52,14 +66,14 @@ export async function editRecord(
   fields: Partial<Record<CastField, string>>,
 ): Promise<Locator> {
   const record = await openRecord(page, name);
-  await record.getByRole("button", { name: "Edit record", exact: true }).click();
-  for (const [field, value] of Object.entries(fields)) {
-    await record
-      .locator(`textarea[data-cast-field="${field}"], [data-cast-field="${field}"] textarea`)
-      .fill(value);
+  for (const [field, value] of Object.entries(fields) as [CastField, string][]) {
+    await (await recordValue(record, field)).click();
+    const box = record.locator(`textarea[data-cast-field="${field}"]`);
+    await expect(box).toBeFocused();
+    await box.fill(value);
+    await box.press("Enter");
+    await expect(box).toHaveCount(0);
   }
-  await record.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(record.getByRole("button", { name: "Save", exact: true })).toBeHidden();
   return record;
 }
 

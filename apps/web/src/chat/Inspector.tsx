@@ -665,13 +665,14 @@ function HistoryBand({
             {breakAt !== null && open && breakAt < hidden && <CacheRule inBand />}
             {hidden > 0 && (
               <li className="border-rush border-b py-1.5 pl-8 tablet:pl-[6.5rem]">
-                <button
-                  type="button"
+                <Button
+                  variant="link"
+                  size="inline"
                   onClick={() => setEarlier(true)}
-                  className="rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-4 hover:text-ink touch:min-h-11"
+                  className="text-meta"
                 >
                   Show {formatCount(hidden)} earlier messages
-                </button>
+                </Button>
               </li>
             )}
             {band.slice(hidden).map((message, index) => (
@@ -762,14 +763,15 @@ function Entry({
           {message.content}
         </p>
         {clamped && (
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="inline"
             aria-expanded={open}
             onClick={() => setOpen(!open)}
-            className="justify-self-start rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-4 hover:text-ink touch:min-h-11"
+            className="justify-self-start text-meta"
           >
             {open ? "Show less" : "Show all"}
-          </button>
+          </Button>
         )}
       </div>
     </li>
@@ -813,16 +815,16 @@ function SentWith({ prompt }: { prompt: InspectedPrompt }) {
       {reasoningNotOffered !== null && (
         <p className="text-pretty text-note text-reed">
           {REASONING_LABELS[reasoningNotOffered]} reasoning was not sent: {model} doesn't offer it.{" "}
-          <button
-            type="button"
-            className="rounded-sm text-ink underline decoration-control-edge underline-offset-4"
+          <Button
+            variant="link"
+            size="inline"
             onClick={() => {
               setInspectorOpen(false);
               setSessionOpen(true);
             }}
           >
             Open Session
-          </button>
+          </Button>
         </p>
       )}
     </section>

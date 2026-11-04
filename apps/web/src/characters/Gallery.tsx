@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState, ViewTransition } from "react";
 import { useShallow } from "zustand/shallow";
 import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
+import { ChoiceList } from "@/app/ChoicePicker.tsx";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress } from "@/app/importing";
@@ -29,7 +30,6 @@ import {
 import { Illustration } from "@/components/illustration.tsx";
 import { hasReport, ReportGroups } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Unfold } from "@/components/ui/disclosure";
 import {
   Drawer,
@@ -49,7 +49,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioSegment, RadioSegments } from "@/components/ui/radio-group";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
-import { fold, matches } from "@/lib/find";
+import { fold } from "@/lib/find";
 import { useStartChat } from "../chat/StartChat.tsx";
 import { KeptNote } from "../creator/KeptNote.tsx";
 import { filterCharacters, type Order, repeatedNames, tagCounts } from "./filter.ts";
@@ -247,36 +247,20 @@ function Toolbar({
 
 function TagList({ list }: { list: CharacterSummary[] }) {
   const selected = useGallery((state) => state.tags);
-  const [find, setFind] = useState("");
-  const counts = tagCounts(list).filter(([tag]) => matches(find, tag));
   return (
-    <>
-      <div className="p-1.5">
-        <SearchField
-          label="Find a tag"
-          placeholder="Find a tag"
-          value={find}
-          onChange={(event) => setFind(event.target.value)}
-        />
-      </div>
-      {counts.length === 0 ? (
-        <p className="px-2.5 py-2 text-note text-reed">
-          {find.trim() === "" ? "No tags yet." : "No tag matches."}
-        </p>
-      ) : (
-        <ul className="min-h-0 overflow-y-auto overscroll-contain">
-          {counts.map(([tag, count]) => (
-            <li key={tag}>
-              <label className="flex h-9 cursor-pointer items-center gap-2.5 rounded-sm px-2.5 text-ink text-ui hover:bg-surface-hover touch:h-11">
-                <Checkbox checked={hasTag(selected, tag)} onCheckedChange={() => toggleTag(tag)} />
-                <span className="min-w-0 flex-1 truncate">{tag}</span>
-                <span className="text-meta text-reed tabular-nums">{count}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+    <ChoiceList
+      compact
+      findLabel="Find a tag"
+      empty="No tags yet."
+      noMatch="No tag matches."
+      choices={tagCounts(list).map(([tag, count]) => ({
+        id: tag,
+        name: tag,
+        count,
+        checked: hasTag(selected, tag),
+      }))}
+      onToggle={(choice) => toggleTag(choice.id)}
+    />
   );
 }
 
@@ -476,12 +460,15 @@ function Cast({
   if (pending) return null;
   if (shown.length === 0) {
     return (
-      <div className="grid justify-items-start gap-3 pt-10">
-        <h2 className="font-semibold text-heading text-ink">No characters match</h2>
-        <Button variant="outline" onClick={clearFilters}>
-          Clear filters
-        </Button>
-      </div>
+      <EmptyState
+        compact
+        title="No characters match."
+        actions={
+          <Button variant="outline" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        }
+      />
     );
   }
   return (

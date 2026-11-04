@@ -53,6 +53,10 @@ export function Portrait({
   // blur once they paint, and a replacement keeps the art it replaces until then.
   const [drawn, setDrawn] = useState(arriving ? null : src);
   if (!arriving && drawn !== src) setDrawn(src);
+  // Art that did not load (a session expired meanwhile) shows the leaf without art, never the
+  // browser's broken image; a renewal or a new version tries again under a new key.
+  const imageKey = `${renewals}:${drawn}`;
+  const [failed, setFailed] = useState<string | null>(null);
   // The probe starts once the leaf comes within a screen of view (as native lazy loading does),
   // so arrivals far off screen fetch nothing yet; `scrollMargin` widens the screen's own
   // scroller, which clips the leaf before the viewport does.
@@ -88,19 +92,22 @@ export function Portrait({
         className,
       )}
     >
-      {version === null ? (
-        <div className="flex size-full items-end p-[9%]">
-          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
-        </div>
+      {version === null || failed === imageKey ? (
+        // The mark low in the leaf, 9% of its width in from the corner (the leaf is the container).
+        <MarkIcon
+          size={32}
+          className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
+        />
       ) : drawn === null ? null : (
         // A new version is a new node, so a replacement surfaces again.
         <img
-          key={`${renewals}:${drawn}`}
+          key={imageKey}
           src={drawn}
           alt=""
           loading="lazy"
           decoding="async"
           draggable={false}
+          onError={() => setFailed(imageKey)}
           className={cn("size-full object-cover object-top", arriving && "surface-in")}
         />
       )}
@@ -159,22 +166,29 @@ export function Leaf({
   className?: string;
 }) {
   const renewals = useRenewals();
+  const src = portraitUrl(owner, id, version, "thumb");
+  // Art that did not load leaves the leaf's quiet ground, never the browser's broken image.
+  const [failed, setFailed] = useState<string | null>(null);
+  const imageKey = `${renewals}:${src}`;
   return (
     <span
       className={cn(
-        "relative block aspect-[2/3] shrink-0 overflow-hidden rounded-xs",
+        "relative block aspect-[2/3] shrink-0 overflow-hidden rounded-xs bg-surface-selected",
         LEAF_EDGE,
         className,
       )}
     >
-      <img
-        key={renewals}
-        src={portraitUrl(owner, id, version, "thumb")}
-        alt=""
-        decoding="async"
-        draggable={false}
-        className="size-full object-cover"
-      />
+      {failed !== imageKey && (
+        <img
+          key={imageKey}
+          src={src}
+          alt=""
+          decoding="async"
+          draggable={false}
+          onError={() => setFailed(imageKey)}
+          className="size-full object-cover"
+        />
+      )}
     </span>
   );
 }

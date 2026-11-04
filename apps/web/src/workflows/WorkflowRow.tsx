@@ -13,6 +13,7 @@ import { queryClient } from "@/app/query.ts";
 import { DeleteIcon, EditIcon, ImportIcon, MoreIcon, TagIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
@@ -27,29 +28,39 @@ import {
   workflowStatus,
 } from "../settings/pictures.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { FOCUS_WITHIN } from "../sheet/fields.ts";
+import { LINE_FIELD } from "../sheet/fields.ts";
 import { useGlide } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { deleteWorkflow, refreshWorkflows, updateWorkflow, workflowsQuery } from "./queries.ts";
 
 /** A small state dot beside the status words: lit dusk when ready, ember on a problem. */
-/** The node classes and model files a workflow lacks on the user's ComfyUI. */
+/**
+ * The node classes and model files a workflow lacks on the user's ComfyUI,
+ * closed under the words that say so and what to do, since their raw names
+ * are for whoever installs them.
+ */
 export function MissingList({ nodes, models }: { nodes: string[]; models: string[] }) {
   return (
-    <dl className="grid gap-1.5 border-rush border-l pl-4 text-note">
-      {nodes.length > 0 && (
-        <div className="grid gap-0.5">
-          <dt className="text-reed">Nodes</dt>
-          <dd className="break-words text-ink">{nodes.join(", ")}</dd>
-        </div>
-      )}
-      {models.length > 0 && (
-        <div className="grid gap-0.5">
-          <dt className="text-reed">Model files</dt>
-          <dd className="break-words text-ink">{models.join(", ")}</dd>
-        </div>
-      )}
-    </dl>
+    <details className="disclosure">
+      <summary className={cn(SUMMARY_LINE, "gap-2")}>
+        <DisclosureChevron />
+        What is missing
+      </summary>
+      <dl className="mt-1 grid gap-1.5 border-rush border-l pl-4 text-note">
+        {nodes.length > 0 && (
+          <div className="grid gap-0.5">
+            <dt className="text-reed">Nodes</dt>
+            <dd className="break-words text-ink">{nodes.join(", ")}</dd>
+          </div>
+        )}
+        {models.length > 0 && (
+          <div className="grid gap-0.5">
+            <dt className="text-reed">Model files</dt>
+            <dd className="break-words text-ink">{models.join(", ")}</dd>
+          </div>
+        )}
+      </dl>
+    </details>
   );
 }
 
@@ -214,43 +225,35 @@ export function WorkflowRow({
           <span className="flex min-w-0 items-baseline gap-2.5">
             <StatusDot tone={shown.tone} />
             {editing === "name" ? (
-              <span
-                className={cn(
-                  "flex h-8 min-w-0 items-center rounded-md border border-control-edge bg-surface px-2 touch:h-11",
-                  FOCUS_WITHIN,
-                  problem !== null && "border-ember",
-                )}
-              >
-                <input
-                  // Rename moved focus here from the menu.
-                  // biome-ignore lint/a11y/noAutofocus: opened by the owner's choice of Rename
-                  autoFocus
-                  aria-label={`Name of ${workflow.name}`}
-                  aria-invalid={problem !== null}
-                  aria-describedby={problem !== null ? problemId : undefined}
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={WORKFLOW_LIMITS.nameLength}
-                  value={draft}
-                  onChange={(event) => {
-                    setDraft(event.target.value);
-                    setProblem(null);
-                  }}
-                  onBlur={() => commitName(false)}
-                  onKeyDown={(event) => {
-                    if (isComposing(event)) return;
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commitName(true);
-                    } else if (event.key === "Escape") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      closeEditor(true);
-                    }
-                  }}
-                  className="w-56 min-w-0 max-w-full bg-transparent text-ink text-ui outline-none"
-                />
-              </span>
+              <input
+                // Rename moved focus here from the menu.
+                // biome-ignore lint/a11y/noAutofocus: opened by the owner's choice of Rename
+                autoFocus
+                aria-label={`Name of ${workflow.name}`}
+                aria-invalid={problem !== null}
+                aria-describedby={problem !== null ? problemId : undefined}
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={WORKFLOW_LIMITS.nameLength}
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setProblem(null);
+                }}
+                onBlur={() => commitName(false)}
+                onKeyDown={(event) => {
+                  if (isComposing(event)) return;
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitName(true);
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeEditor(true);
+                  }
+                }}
+                className={cn(LINE_FIELD, "w-56 min-w-0 max-w-full px-2 aria-invalid:border-ember")}
+              />
             ) : (
               <span
                 data-workflow-name=""

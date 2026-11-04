@@ -2,7 +2,7 @@ import { useId } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import type { MappingRow } from "./mapping.ts";
-import { NodeLabel } from "./OtherNodes.tsx";
+import { NodeLabel, NodesInvolved } from "./OtherNodes.tsx";
 import type { ChoicePlace } from "./panel-state.ts";
 
 /*
@@ -137,9 +137,12 @@ export function MappingList({
                   ))
                 )}
                 {choice?.problem != null && (
-                  <p role="alert" className="text-pretty text-ember text-note">
-                    {choice.problem}
-                  </p>
+                  <div className="grid gap-1">
+                    <p role="alert" className="text-pretty text-ember text-note">
+                      {choice.problem.text}
+                    </p>
+                    <NodesInvolved nodes={choice.problem.nodes} />
+                  </div>
                 )}
                 {!waiting && (
                   <>

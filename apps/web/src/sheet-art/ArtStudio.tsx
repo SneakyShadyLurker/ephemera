@@ -51,7 +51,7 @@ import type { UseRun } from "./store.ts";
 
 /** The sheet's words where the art is off, stopped or unavailable: the portrait stays. */
 const SHEET_ART_COPY: ArtSessionHost["copy"] = {
-  off: "Add a ComfyUI address in Settings to paint portraits. The portrait stays as it is.",
+  off: "Pictures are off. Add your picture server's address in Settings > Pictures to paint portraits; the portrait stays as it is.",
   stopped: "Art stopped.",
   unavailable: "Portraits unavailable.",
 };

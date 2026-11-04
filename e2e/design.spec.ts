@@ -269,7 +269,9 @@ test.describe("on a touch phone", () => {
     await expect.poll(() => hitBox(link)).toEqual({ tall: true, misses: [] });
   });
 
-  test("the sheet's portrait has New art and its More on one row under it", async ({ page }) => {
+  test("the sheet's portrait sits compact with New art and its More on one row beside its foot", async ({
+    page,
+  }) => {
     const id = await createCharacterViaApi(page.request, uniqueName("Plate"));
     await setPortraitViaApi(page.request, id, solidPng([90, 110, 130]));
     await page.goto(`/characters/${id}`);
@@ -288,13 +290,19 @@ test.describe("on a touch phone", () => {
     );
     if (frame === undefined || art === undefined || actions === undefined)
       throw new Error("no box");
-    expect(frame.width).toBeCloseTo(120, 0);
+    // A compact portrait row, so the name, the tags and Description start sooner.
+    expect(frame.width).toBeCloseTo(88, 0);
     const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
     expect(Math.abs(middle(art) - middle(actions))).toBeLessThanOrEqual(2);
     expect(actions.height).toBeGreaterThanOrEqual(44);
-    // Both under the portrait, inside its column.
-    expect(art.y).toBeGreaterThan(frame.y + frame.height - 1);
-    expect(actions.x + actions.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
+    // Both beside the portrait, level with its foot.
+    expect(art.x).toBeGreaterThan(frame.x + frame.width);
+    expect(art.y + art.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
+    expect(art.y + art.height).toBeGreaterThan(frame.y + frame.height - 12);
+    // The name takes the row's whole width under it.
+    const name = await identity.getByRole("textbox", { name: "Name", exact: true }).boundingBox();
+    expect(name?.y ?? 0).toBeGreaterThan(frame.y + frame.height);
+    expect(name?.x ?? 999).toBeLessThanOrEqual(frame.x + 8);
     // The tags read as the nameplate's chips: no visible word, the field still named.
     await expect(identity.getByRole("textbox", { name: "Tags" })).toBeVisible();
   });
@@ -980,7 +988,8 @@ for (const { name, width, height, portrait } of [
       await expect(messages(page).locator("img")).toHaveCount(0);
     } else {
       await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      // The header names the character, giving way while the reply's nameplate shows it.
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(character);
     }
 
     const thread = scroller(page);
@@ -1900,7 +1909,7 @@ test("on a wide window the character's prose keeps to its measure, and the portr
   expect(laid.leafHeight).toBeLessThanOrEqual(0.46 * laid.window + 1);
 });
 
-test("while a character's nameplate is stuck under the header, the header's title gives way and stays the heading", async ({
+test("while a character's nameplate shows in the story, stuck or not, the header's title gives way and stays the heading", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
@@ -1908,15 +1917,18 @@ test("while a character's nameplate is stuck under the header, the header's titl
   await createCharacterViaApi(page.request, name);
   await openChat(page, "mock-long");
   await chooseCharacter(page, name);
+  const title = page.getByRole("heading", { level: 1, name });
+  // No greeting: nothing in the story names her yet, so the header does.
+  await expect(title).toHaveCSS("opacity", "1");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
-  const title = page.getByRole("heading", { level: 1, name });
   const thread = scroller(page);
   // Wheel input cancels the scroll owner's in-flight follow before reading from the top.
   await thread.hover();
   await page.mouse.wheel(0, -100_000);
   await expect.poll(() => thread.evaluate((node) => node.scrollTop)).toBe(0);
-  await expect(title).toHaveCSS("opacity", "1");
+  // Her reply's nameplate in view, not stuck: the title still gives way.
+  await expect(title).toHaveCSS("opacity", "0");
   // The reply 80px past the top: its nameplate sticks under the header.
   await thread.evaluate((node) => {
     const reply = node.querySelector('[data-role="assistant"]');
@@ -1925,10 +1937,6 @@ test("while a character's nameplate is stuck under the header, the header's titl
   });
   await expect(title).toHaveCSS("opacity", "0");
   await expect(title).toHaveAccessibleName(name);
-  await thread.evaluate((node) => {
-    node.scrollTop = 0;
-  });
-  await expect(title).toHaveCSS("opacity", "1");
 });
 
 test("on a phone a turn's More sits in its nameplate's row and opens the same menu", async ({

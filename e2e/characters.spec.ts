@@ -158,7 +158,7 @@ test("search, tag filter and order narrow the gallery; a tag filter or order gli
   await expect(tile(page, gamma ?? "")).toBeVisible();
 
   await search.fill("no character is called this");
-  await expect(page.getByRole("heading", { name: "No characters match" })).toBeVisible();
+  await expect(page.getByText("No characters match.")).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(search).toHaveValue("");
 });
@@ -479,7 +479,7 @@ test("the chat speaks as the chosen character, and switching asks first", async 
 const editShown = (page: Page, name: string) =>
   editTile(page, name).evaluate((link) => getComputedStyle(link.parentElement as Element).opacity);
 
-test("with a hover, a card's portrait starts the chat and its Edit shows only on hover", async ({
+test("with a hover, a card's portrait starts the chat and its Edit is shown without one", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -491,11 +491,17 @@ test("with a hover, a card's portrait starts the chat and its Edit shows only on
   await expect(card).toBeVisible();
   // No Chat beside the caption: the card itself is the chat.
   await expect(card.getByRole("button")).toHaveCount(1);
+  // Found without hovering: shown with the pointer away, and still with it over the portrait.
   await page.mouse.move(0, 0);
-  await expect.poll(() => editShown(page, name)).toBe("0");
-  await card.locator("img, svg[data-icon='Mark']").first().hover();
   await expect.poll(() => editShown(page, name)).toBe("1");
-  await expect(edit).toHaveText("Edit");
+  await expect(edit).toBeVisible();
+  const portrait = await card.locator("img, svg[data-icon='Mark']").first().boundingBox();
+  await page.mouse.move(
+    (portrait?.x ?? 0) + (portrait?.width ?? 0) / 2,
+    (portrait?.y ?? 0) + (portrait?.height ?? 0) / 2,
+  );
+  await expect.poll(() => editShown(page, name)).toBe("1");
+  await expect(edit).toHaveAccessibleName(`Edit ${name}`);
 
   await edit.click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
@@ -508,7 +514,7 @@ test("with a hover, a card's portrait starts the chat and its Edit shows only on
 test.describe("on touch", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
-  test("a card's Edit stays shown as its pen, a 44px target, and a tap on the portrait starts the chat", async ({
+  test("a card's Edit stays shown as its pen, a 44px target clear of the chat's button, and a tap on the portrait starts the chat", async ({
     page,
   }) => {
     const name = uniqueName("Touch");
@@ -517,24 +523,31 @@ test.describe("on touch", () => {
     const edit = editTile(page, name);
     await expect(edit).toBeVisible();
     await expect.poll(() => editShown(page, name)).toBe("1");
-    // The word is read, not drawn: the pen alone on a 36px plate, its target 44px.
+    // The word is read, not drawn: the pen alone, a 44px target trailing the name.
     await expect(edit).toHaveAccessibleName(`Edit ${name}`);
-    const plate = await edit.evaluate((link) => {
-      const box = link.getBoundingClientRect();
-      const reach = getComputedStyle(link, "::after");
-      const word = link.querySelector("span");
-      return {
-        width: box.width,
-        height: box.height,
-        reach: [Number.parseFloat(reach.width), Number.parseFloat(reach.height)],
-        word: word === null ? null : getComputedStyle(word).position,
-      };
-    });
-    expect(plate).toEqual({ width: 36, height: 36, reach: [44, 44], word: "absolute" });
+    const chat = tile(page, name).getByRole("button", { name: `Chat with ${name}`, exact: true });
+    const editBox = await edit.boundingBox();
+    const chatBox = await chat.boundingBox();
+    expect({ width: editBox?.width, height: editBox?.height }).toEqual({ width: 44, height: 44 });
+    // Side by side, never one over the other.
+    expect((editBox?.x ?? 0) >= (chatBox?.x ?? 0) + (chatBox?.width ?? 0)).toBe(true);
 
-    await tile(page, name)
-      .getByRole("button", { name: `Chat with ${name}`, exact: true })
-      .tap();
+    // The portrait answers as the chat's button, and a tap on it starts the chat.
+    const portrait = await tile(page, name)
+      .locator("img, svg[data-icon='Mark']")
+      .first()
+      .boundingBox();
+    const x = (portrait?.x ?? 0) + (portrait?.width ?? 0) / 2;
+    const y = (portrait?.y ?? 0) + (portrait?.height ?? 0) / 2;
+    await expect
+      .poll(() =>
+        page.evaluate(
+          ({ px, py }) => document.elementFromPoint(px, py)?.closest("button")?.ariaLabel ?? null,
+          { px: x, py: y },
+        ),
+      )
+      .toBe(`Chat with ${name}`);
+    await page.touchscreen.tap(x, y);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
     await expect(lastReply(page)).toContainText(`${name} looks up.`);
   });

@@ -653,6 +653,8 @@ test.describe("Native lorebook controls", () => {
       "Last 5 messages, inside words too, any case",
     );
 
+    // The book-wide rules wait under Book settings, closed, so the entries lead the pane.
+    await page.locator("summary").filter({ hasText: "Book settings" }).click();
     await page.getByRole("switch", { name: "Chaining" }).click();
     await saved(page);
 

@@ -25,7 +25,7 @@ export const SECTION_TEXT = {
   memory: { label: "Memory & cast", purpose: "What characters remember, and who is in the scene." },
   pictures: {
     label: "Pictures",
-    purpose: "The model that writes image prompts, and the ComfyUI that paints them.",
+    purpose: "The model that writes image prompts, and your picture server that paints them.",
   },
   kept: { label: "What is kept", purpose: "What is saved, and what ends with the chat." },
 } as const satisfies Record<Section, { label: string; purpose: string }>;

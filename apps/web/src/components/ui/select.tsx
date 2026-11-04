@@ -10,6 +10,15 @@ const Select = SelectPrimitive.Root;
 const TRIGGER =
   "press flex h-9 w-full items-center justify-between gap-2 rounded-md border border-control-edge bg-surface pr-2 pl-3 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover data-disabled:cursor-default data-disabled:border-rush data-disabled:bg-surface data-disabled:text-text-disabled touch:h-11";
 
+/**
+ * A choice set in a line of words (the composer's persona and sampler): its
+ * value in ink with no box, a wash under the pointer, and a plate growing
+ * its target to 24px, 44px on touch, mostly downward so it stays clear of
+ * the control above the line.
+ */
+const INLINE_TRIGGER =
+  "press relative -mx-1 inline-flex h-5 min-w-0 items-center gap-0.5 rounded-sm px-1 text-left text-ink text-note hover:bg-surface-hover data-popup-open:bg-surface-hover after:absolute after:-inset-x-1 after:-inset-y-1 touch:after:-top-3 touch:after:-bottom-3.5";
+
 /** The trigger's chevron, turning while the list is open. */
 const TRIGGER_ICON =
   "text-reed in-data-disabled:text-text-disabled transition-[rotate] duration-(--duration-arrive) ease-spring in-data-popup-open:rotate-180 motion-reduce:transition-none";
@@ -22,11 +31,15 @@ const TRIGGER_ICON =
 function SelectTrigger({
   className,
   placeholder,
+  look = "field",
   children,
   ...props
-}: SelectPrimitive.Trigger.Props & { placeholder: string }) {
+}: SelectPrimitive.Trigger.Props & { placeholder: string; look?: "field" | "inline" }) {
   return (
-    <SelectPrimitive.Trigger className={cn(TRIGGER, className)} {...props}>
+    <SelectPrimitive.Trigger
+      className={cn(look === "inline" ? INLINE_TRIGGER : TRIGGER, className)}
+      {...props}
+    >
       {children ?? (
         <SelectPrimitive.Value
           placeholder={placeholder}

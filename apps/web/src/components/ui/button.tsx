@@ -21,12 +21,26 @@ const buttonVariants = cva(
         outline: `border-control-edge text-ink hover:bg-surface-hover ${DISABLED_OUTLINE}`,
         danger: `border-ember text-ember hover:bg-error-surface ${DISABLED_OUTLINE}`,
         dangerSolid: "border-transparent bg-ember text-canvas hover:bg-ember/90",
+        /**
+         * A text action: its words in ink, as every actionable label, told from
+         * the reed explanation around it by a quiet underline that darkens under
+         * the pointer.
+         */
+        link: "border-transparent font-normal text-ink underline decoration-control-edge underline-offset-4 hover:decoration-current disabled:no-underline data-disabled:no-underline",
       },
       size: {
         default: "h-9 px-3.5 touch:h-11 touch:px-4",
         icon: "size-9 touch:size-11",
         /** A compact text action beside a line it acts on (Dismiss, Undo, Show details): 32px, 44px on touch. */
         text: "h-8 px-2 text-note touch:h-11",
+        /**
+         * A text action set in the line it acts on (Try again, Undo, Show all):
+         * as tall as its words, so the line keeps its leading, and a plate
+         * grows its target to at least 24px, 44px on touch. The caller may
+         * set the line's type size.
+         */
+        inline:
+          "h-auto rounded-sm px-0 text-note after:absolute after:-inset-x-1 after:-inset-y-1 touch:after:-inset-x-2.5 touch:after:-inset-y-3.5",
       },
     },
     /* An outline needs a little more room inside its edge. */

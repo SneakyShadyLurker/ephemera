@@ -1,8 +1,7 @@
 import { Fragment, useRef } from "react";
 import { flushSync } from "react-dom";
-import { CheckIcon, CloseIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import type { Run, Segment } from "./tracked.ts";
 
@@ -79,11 +78,11 @@ const isPureInsertion = (runs: readonly Run[]): boolean =>
 
 /**
  * The reason and the decision for a change: under it, or for a change in
- * running text at the end of its sentence (`reasonFor`). Accepted: Accept
- * (pressed) and Reject, shown on hover or focus with a fine pointer, while
- * the change is current, and always on touch. Rejected: Restore, always
- * shown. Each moves focus to the button that takes its place before the
- * change's look moves (R5).
+ * running text at the end of its sentence (`reasonFor`). A change starts
+ * accepted; its one labelled text action, always shown at every viewport,
+ * says what pressing it does: Reject while it is in, Restore once it is out.
+ * Each moves focus to the action that takes its place before the change's
+ * look moves (R5).
  */
 export function ChangeDecision({
   label,
@@ -94,7 +93,7 @@ export function ChangeDecision({
   onReject,
   reasonFor,
 }: {
-  /** "change 2 of 6", "new entry: The harbour": what the buttons name. */
+  /** "change 2 of 6", "new entry: The harbour": what the actions name. */
   label: string;
   why: string;
   whyId: string;
@@ -115,50 +114,44 @@ export function ChangeDecision({
     <span
       data-reason-for={reasonFor}
       className={cn(
-        "group/decision my-1 inline-flex w-full items-start gap-3 align-top font-normal font-sans text-note text-reed tracking-normal whitespace-normal",
+        "my-1 inline-flex w-full items-baseline gap-4 align-top font-normal font-sans text-note text-reed tracking-normal whitespace-normal",
         reasonFor !== undefined && "change-arrive",
       )}
     >
-      <span id={whyId} className="min-w-0 flex-1 text-pretty pt-2 touch:pt-3">
+      <span id={whyId} className="min-w-0 flex-1 text-pretty">
         {why}
         {rejected && <span className="sr-only"> Rejected.</span>}
       </span>
       {rejected ? (
         <Button
+          key="restore"
           ref={restore}
-          className="h-9 px-2.5 text-ink touch:h-11"
+          variant="link"
+          size="inline"
+          className="shrink-0"
           aria-label={`Restore ${label}`}
           onClick={() => {
             flushSync(onAccept);
             reject.current?.focus();
           }}
         >
-          <UndoIcon size={16} />
           Restore
         </Button>
       ) : (
-        <span className="flex shrink-0 items-center opacity-0 transition-opacity duration-(--duration-quick) ease-fade group-hover/change:opacity-100 group-hover/decision:opacity-100 group-focus-within/change:opacity-100 group-focus-within/decision:opacity-100 group-data-current/change:opacity-100 group-data-current/decision:opacity-100 touch:opacity-100">
-          <Button
-            size="icon"
-            aria-label={`Accept ${label}`}
-            aria-pressed
-            className="text-dusk-line"
-            onClick={onAccept}
-          >
-            <CheckIcon size={16} />
-          </Button>
-          <Button
-            ref={reject}
-            size="icon"
-            aria-label={`Reject ${label}`}
-            onClick={() => {
-              flushSync(onReject);
-              restore.current?.focus();
-            }}
-          >
-            <CloseIcon size={16} />
-          </Button>
-        </span>
+        <Button
+          key="reject"
+          ref={reject}
+          variant="link"
+          size="inline"
+          className="shrink-0"
+          aria-label={`Reject ${label}`}
+          onClick={() => {
+            flushSync(onReject);
+            restore.current?.focus();
+          }}
+        >
+          Reject
+        </Button>
       )}
     </span>
   );
@@ -214,7 +207,7 @@ export function ChangeRuns({
         <>
           <Inserted text={change.replace} />
           <details className="disclosure mt-1.5 font-sans whitespace-normal">
-            <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden">
+            <summary className={SUMMARY_LINE}>
               Show original ({countWords(change.find)} words)
               <DisclosureChevron />
             </summary>

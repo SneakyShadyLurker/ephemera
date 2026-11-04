@@ -10,7 +10,7 @@ import type { CardRun } from "./store.ts";
 
 /** The creator's words where the art is off, stopped or unavailable: the card can be kept without it. */
 const CREATOR_ART_COPY: ArtSessionHost["copy"] = {
-  off: "Add a ComfyUI address in Settings to paint portraits. The card can be kept without one.",
+  off: "Pictures are off. Add your picture server's address in Settings > Pictures to paint portraits; the card can be kept without one.",
   stopped: "Art stopped. Try it again or keep the card without it.",
   unavailable: "Portraits unavailable. Try the art again or keep the card without it.",
 };

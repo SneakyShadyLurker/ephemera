@@ -11,7 +11,6 @@ import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import {
   type CSSProperties,
-  type FormEvent,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
@@ -24,9 +23,9 @@ import { useFormFactor } from "@/app/form-factor.ts";
 import { fade, MotionScope } from "@/app/motion.tsx";
 import { staggerStep } from "@/app/motion-tokens.ts";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
-import { BackIcon, CastIcon, CloseIcon, EditIcon } from "@/components/icons";
+import { BackIcon, CastIcon, CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Popover, PopoverContent, PopoverTitle } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
@@ -34,11 +33,11 @@ import { formatCount } from "@/lib/text";
 import { useContextWindow } from "../api.ts";
 import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
+import { PROSE_FIELD } from "../sheet/fields.ts";
 import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
   busyOf,
   CAST_FIELD_LABELS,
-  CAST_TEXT_FIELDS,
   type CastChange,
   type CastRemoval,
   type CastTextField,
@@ -245,10 +244,6 @@ function Pass({ on }: { on: boolean }) {
 
 const retry = () => chatStore.getState().retryCast();
 
-/** A quiet sans line's control in dusk: Try again, Undo. */
-const LINE_ACTION =
-  "press relative text-dusk-line hover:text-ink after:absolute after:-inset-x-1 after:-inset-y-1.5 touch:after:-inset-y-3.5";
-
 /** The status line, polite to assistive technology, and Try again after a failure. */
 /**
  * Why the card is not read yet, while the sheet waits (session.ts
@@ -281,16 +276,17 @@ function Status({ className }: { className?: string }) {
         </span>
       </p>
       {(failed || unread) && (
-        <button
-          type="button"
+        <Button
+          variant="link"
+          size="inline"
           aria-label={
             failed ? "Try again to update the cast" : "Try again to read the cast from the card"
           }
           onClick={retry}
-          className={LINE_ACTION}
+          className="text-meta"
         >
           Try again
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -306,15 +302,16 @@ function RemovalLine({ removal }: { removal: CastRemoval }) {
       <span aria-live="polite" className="text-reed">
         {removal.name} removed.
       </span>
-      <button
-        type="button"
+      <Button
+        variant="link"
+        size="inline"
         data-cast-undo=""
         aria-label={`Undo removing ${removal.name}`}
         onClick={undoCastRemoval}
-        className={LINE_ACTION}
+        className="text-meta"
       >
         Undo
-      </button>
+      </Button>
     </span>
   );
 }
@@ -410,8 +407,7 @@ function Entry({
 }
 
 /** A wrapped summary keeps its chevron level with the first line. */
-const SUMMARY =
-  "flex w-fit cursor-default list-none items-start gap-1 py-0.5 text-note text-reed transition-colors duration-(--duration-quick) ease-fade hover:text-ink touch:min-h-11 touch:py-[0.8125rem] [&::-webkit-details-marker]:hidden";
+const SUMMARY = cn(SUMMARY_LINE, "cursor-default items-start py-0.5 touch:py-[0.8125rem]");
 
 /** A native disclosure under the roster: the rest of the present, or the away. */
 function Disclosure({ summary, children }: { summary: string; children: ReactNode }) {
@@ -619,16 +615,16 @@ function BandRoster({
           </ul>
         )}
         {tail !== "" && (
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="inline"
             data-cast-tail=""
             aria-haspopup="dialog"
             aria-expanded={rosterOpen}
             onClick={(event) => openCast(null, event.currentTarget)}
-            className="press -mx-1 whitespace-nowrap rounded-sm px-1 text-note text-reed hover:text-ink touch:min-h-11"
           >
             {tail}
-          </button>
+          </Button>
         )}
         {removal !== null && !removal.present && <RemovalLine removal={removal} />}
       </div>
@@ -726,6 +722,8 @@ export function CastSurface() {
         side="inline-end"
         align={side === "inline-end" ? "start" : "end"}
         collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "end" }}
+        // Its values are controls now, laid over the composer's: a layer of its own.
+        positionMethod="fixed"
         initialFocus={heading}
         finalFocus={finalFocus}
         className="max-h-[min(40rem,80dvh,var(--available-height))] w-[26rem] max-w-[calc(100vw-2rem)] p-0"
@@ -876,9 +874,9 @@ function RosterView({
 }
 
 /**
- * One entry's record: its name and age as the title, Edit record, the
- * anchor as prose, then the state, and Remove from cast, which closes the
- * surface and leaves Undo in the roster.
+ * One entry's record: its name and age as the title, the record itself,
+ * each detail corrected where it stands, then Remove from cast, which
+ * closes the surface and leaves Undo in the roster.
  */
 function RecordView({
   entryId,
@@ -897,23 +895,9 @@ function RecordView({
   if (live !== undefined && live !== last) setLast(live);
   const entry = live ?? (open ? undefined : last);
   const fromRoster = useCastSurface((state) => state.fromRoster);
-  const [editing, setEditing] = useState(false);
-  const edit = useRef<HTMLButtonElement>(null);
-  // Back from edit mode, focus goes to Edit record before the surface finds its focused field
-  // gone and takes focus itself.
-  const returning = useRef(false);
-  useLayoutEffect(() => {
-    if (editing || !returning.current) return;
-    returning.current = false;
-    edit.current?.focus();
-  }, [editing]);
   // Gone (a Clear, a deletion's undo): back to the roster.
   if (entry === undefined) return <RosterView heading={heading} drawer={drawer} />;
   const age = ageOf(entry);
-  const done = () => {
-    returning.current = true;
-    setEditing(false);
-  };
 
   return (
     <>
@@ -933,35 +917,18 @@ function RecordView({
           {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
         </Title>
         <SurfaceUpdating drawer={drawer} />
-        {!editing && (
-          <Button
-            ref={edit}
-            variant="quiet"
-            size={drawer ? "icon" : "default"}
-            aria-label={drawer ? "Edit record" : undefined}
-            onClick={() => setEditing(true)}
-            className={cn(!drawer && "-mr-2 gap-1.5 px-2")}
-          >
-            <EditIcon size={16} />
-            {!drawer && "Edit record"}
-          </Button>
-        )}
         {drawer && <CloseControl />}
       </header>
-      {editing ? (
-        <EditRecord entry={entry} onDone={done} />
-      ) : (
-        <div className={BODY}>
-          <RecordText entry={entry} />
-          <Button
-            variant="quiet"
-            onClick={() => removeFromCast(entry)}
-            className="mt-4 -ml-2 px-2 hover:text-ember"
-          >
-            Remove from cast
-          </Button>
-        </div>
-      )}
+      <div className={BODY}>
+        <RecordText entry={entry} />
+        <Button
+          variant="quiet"
+          onClick={() => removeFromCast(entry)}
+          className="mt-4 -ml-2 px-2 hover:text-ember"
+        >
+          Remove from cast
+        </Button>
+      </div>
     </>
   );
 }
@@ -1041,22 +1008,25 @@ function Field({
 function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
   return (
     <div className="mt-1 grid justify-items-start">
-      <button
-        type="button"
+      <Button
+        variant="link"
+        size="inline"
         onClick={() => chatStore.getState().revertCast(entry.id, field)}
-        className="press flex items-center font-sans text-meta text-reed hover:text-ink touch:min-h-11"
+        className="font-sans text-meta"
       >
         Revert {CAST_FIELD_LABELS[field].toLowerCase()}
-      </button>
+      </Button>
     </div>
   );
 }
 
 /**
- * The record in reading mode: its sections, each under a quiet heading and
- * only when it holds something. Now (Last seen, once away) leads with the
- * activity, set apart on a hairline frame; every other field is a labelled
- * row, and a phone too narrow for two columns sets each label over its value.
+ * The record: its sections, each under a quiet heading and only when it
+ * holds something. Now (Last seen, once away) leads with the activity, set
+ * apart on a hairline frame; every other field is a labelled row, and a
+ * phone too narrow for two columns sets each label over its value. Every
+ * value is corrected where it stands (EditableValue); the details not
+ * recorded wait under "More details", to be written there.
  */
 export function RecordText({ entry }: { entry: CastEntry }) {
   const correction = useChat((state) => state.cast.corrections[entry.id]);
@@ -1075,12 +1045,14 @@ export function RecordText({ entry }: { entry: CastEntry }) {
   };
   const value = (field: TextField) => (
     <>
-      <Field
-        entry={entry}
-        field={field}
-        corrected={corrections.has(field)}
-        wash={washOf(change, entry.id, [field], mountedAt)}
-      />
+      <EditableValue entry={entry} field={field}>
+        <Field
+          entry={entry}
+          field={field}
+          corrected={corrections.has(field)}
+          wash={washOf(change, entry.id, [field], mountedAt)}
+        />
+      </EditableValue>
       {corrections.has(field) && <Revert entry={entry} field={field} />}
     </>
   );
@@ -1099,12 +1071,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
         )}
       >
         <h3 className={SECTION_LABEL}>{now && !entry.state.present ? "Last seen" : title}</h3>
-        {lead && (
-          <div className="text-ink text-lead">
-            <span className="sr-only">Activity: </span>
-            {value("activity")}
-          </div>
-        )}
+        {lead && <div className="text-ink text-lead">{value("activity")}</div>}
         {rows.length > 0 && (
           <dl className="grid grid-cols-1 gap-y-2 @[20rem]:grid-cols-[6.5rem_minmax(0,1fr)] @[20rem]:gap-x-3">
             {rows.map((field) => (
@@ -1118,6 +1085,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
       </section>
     );
   });
+  const unrecorded = SECTIONS.flatMap(([, fields]) => fields.filter((field) => !shows(field)));
   return (
     <div className="@container grid gap-5 font-story">
       {sections.length > 0 ? (
@@ -1125,101 +1093,134 @@ export function RecordText({ entry }: { entry: CastEntry }) {
       ) : (
         <p className="font-sans text-note text-reed">No other details recorded yet.</p>
       )}
+      {unrecorded.length > 0 && (
+        <details className="disclosure font-sans">
+          <summary className={SUMMARY_LINE}>
+            More details
+            <DisclosureChevron />
+          </summary>
+          <dl className="mt-2 grid grid-cols-1 gap-y-2 font-story @[20rem]:grid-cols-[6.5rem_minmax(0,1fr)] @[20rem]:gap-x-3">
+            {unrecorded.map((field) => (
+              <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
+                <dt className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</dt>
+                <dd className="min-w-0 break-words text-narration text-ui">
+                  <EditableValue entry={entry} field={field}>
+                    <span className="font-sans text-note text-reed">Add</span>
+                  </EditableValue>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      )}
+      <p className="font-sans text-note text-reed">
+        Corrections to looks and character hold for this chat; the current state yields to the next
+        update.
+      </p>
     </div>
   );
 }
 
-/** The edit mode's values: every text field, as the record held them on entry. */
-type Values = Record<TextField, string>;
-
-const valuesOf = (entry: CastEntry): Values =>
-  Object.fromEntries(
-    CAST_TEXT_FIELDS.map((field) => [field, castFieldText(entry, field)]),
-  ) as Values;
-
 /**
- * The record in edit mode: every field labelled under the reading mode's sections,
- * the empty ones too, read once on entry, so a snapshot landing meanwhile
- * leaves the edit alone and only says so. Escape cancels without closing
- * the surface; Save writes the fields changed as the owner's corrections.
+ * A recorded value, corrected where it stands: at rest the value as the
+ * record shows it, on the open prose face (a wash and edge under a pointer,
+ * a hairline on touch); pressed, the same words in a field. Enter or
+ * leaving the field saves a change as the owner's correction (its Revert
+ * takes it back); Escape keeps the record as it was, without closing the
+ * surface. A snapshot landing meanwhile leaves the edit alone and says so.
  */
-export function EditRecord({ entry, onDone }: { entry: CastEntry; onDone: () => void }) {
-  const [initial] = useState(() => valuesOf(entry));
-  const [draft, setDraft] = useState(initial);
-  const behind = CAST_TEXT_FIELDS.some((field) => castFieldText(entry, field) !== initial[field]);
-  const save = () => {
-    const anchor: Partial<CastAnchor> = {};
-    const state: Partial<CastState> = {};
-    for (const field of CAST_TEXT_FIELDS) {
-      const value = draft[field].trim();
-      if (value === initial[field]) continue;
-      if (isAnchorField(field)) anchor[field] = value;
-      else state[field] = value;
+function EditableValue({
+  entry,
+  field,
+  children,
+}: {
+  entry: CastEntry;
+  field: TextField;
+  children: ReactNode;
+}) {
+  const label = CAST_FIELD_LABELS[field];
+  const current = castFieldText(entry, field);
+  const [draft, setDraft] = useState<{ initial: string; text: string } | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const settled = useRef(false);
+  const refocus = useRef(false);
+  useLayoutEffect(() => {
+    if (draft !== null || !refocus.current) return;
+    refocus.current = false;
+    button.current?.focus();
+  }, [draft]);
+
+  if (draft === null) {
+    return (
+      <button
+        ref={button}
+        type="button"
+        data-cast-edit={field}
+        onClick={() => {
+          settled.current = false;
+          setDraft({ initial: current, text: current });
+        }}
+        className={EDITABLE_AT_REST}
+      >
+        <span className="sr-only">Correct {label.toLowerCase()}: </span>
+        {children}
+      </button>
+    );
+  }
+
+  const finish = (save: boolean, keepFocus: boolean) => {
+    if (settled.current) return;
+    settled.current = true;
+    const value = draft.text.trim();
+    if (save && value !== draft.initial) {
+      chatStore
+        .getState()
+        .correctCast(
+          entry.id,
+          isAnchorField(field)
+            ? { anchor: { [field]: value } as Partial<CastAnchor> }
+            : { state: { [field]: value } as Partial<CastState> },
+        );
     }
-    if (Object.keys(anchor).length > 0 || Object.keys(state).length > 0) {
-      chatStore.getState().correctCast(entry.id, { anchor, state });
-    }
-    onDone();
+    refocus.current = keepFocus;
+    setDraft(null);
   };
-  const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (event.key === "Escape") {
-      // Cancels the edit before the surface would close.
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      finish(true, true);
+    } else if (event.key === "Escape") {
+      // Cancels the correction before the surface would close.
       event.preventDefault();
       event.stopPropagation();
-      onDone();
-    } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      event.stopPropagation();
-      save();
+      finish(false, true);
     }
-  };
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    save();
   };
   return (
-    <form onSubmit={onSubmit} onKeyDown={onKeyDown} className="flex min-h-0 flex-1 flex-col">
-      <div className={cn(BODY, "grid content-start gap-6")}>
-        <div className="grid gap-1 font-sans">
-          <p className="text-note text-reed">
-            Looks and character hold for this chat. Current state yields to the next update.
-          </p>
-          {behind && (
-            <p role="status" className="text-dusk-line text-meta">
-              Updated behind this edit
-            </p>
-          )}
-        </div>
-        {SECTIONS.map(([legend, fields], group) => (
-          <fieldset key={legend} className="grid gap-4">
-            <legend className={cn("mb-2", SECTION_LABEL)}>{legend}</legend>
-            {fields.map((field, index) => (
-              <label key={field} className="grid gap-1">
-                <span className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</span>
-                <textarea
-                  // biome-ignore lint/a11y/noAutofocus: edit mode opens because Edit record was chosen.
-                  autoFocus={group === 0 && index === 0}
-                  data-cast-field={field}
-                  value={draft[field]}
-                  maxLength={CAST_LIMITS.field}
-                  rows={1}
-                  autoComplete="off"
-                  onChange={(event) => setDraft({ ...draft, [field]: event.target.value })}
-                  className="cast-field resize-none bg-transparent pb-1 font-story text-ink text-lead [field-sizing:content]"
-                />
-              </label>
-            ))}
-          </fieldset>
-        ))}
-      </div>
-      <footer className="flex shrink-0 justify-end gap-2 border-rush border-t px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-        <Button variant="quiet" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button type="submit" variant="primary">
-          Save
-        </Button>
-      </footer>
-    </form>
+    <span className="grid gap-1">
+      <textarea
+        // biome-ignore lint/a11y/noAutofocus: the field opens because its value was pressed.
+        autoFocus
+        aria-label={label}
+        data-cast-field={field}
+        value={draft.text}
+        maxLength={CAST_LIMITS.field}
+        rows={1}
+        autoComplete="off"
+        onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+        onBlur={() => finish(true, false)}
+        onKeyDown={onKeyDown}
+        className={cn(PROSE_FIELD, "-mx-2 w-[calc(100%+1rem)] text-ink")}
+      />
+      {current !== draft.initial && (
+        <span role="status" className="font-sans text-meta text-reed">
+          Updated behind this edit
+        </span>
+      )}
+    </span>
   );
 }
+
+/** A value at rest: the prose field's open face, so it reads as something to correct. */
+const EDITABLE_AT_REST =
+  "-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-md border border-transparent px-2 py-1 text-left touch:min-h-11 transition-[border-color,background-color] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover touch:border-b-rush";

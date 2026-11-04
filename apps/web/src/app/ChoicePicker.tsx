@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,13 +30,19 @@ export interface Choice {
   checked: boolean;
   /** A quiet second line: who holds it now, or why it cannot be chosen. */
   note?: string;
+  /** At the row's end, in reed: how many it applies to. */
+  count?: number;
   /** Unavailable to check; one already checked stays free to uncheck unless `pending`. */
   disabled?: boolean;
   /** A change on its way to the server: shown as asked, not yet answered. */
   pending?: boolean;
 }
 
-function ChoiceList({
+/**
+ * The checklist itself, with its Find. `compact` rows are a filter's (a
+ * gallery's tags): one line each, no leaf, 36px, 44px on touch.
+ */
+export function ChoiceList({
   choices,
   findLabel,
   empty,
@@ -43,6 +50,7 @@ function ChoiceList({
   onToggle,
   notice,
   footer,
+  compact = false,
 }: {
   choices: readonly Choice[];
   findLabel: string;
@@ -51,6 +59,7 @@ function ChoiceList({
   onToggle: (choice: Choice, checked: boolean) => void;
   notice?: ReactNode;
   footer?: ReactNode;
+  compact?: boolean;
 }) {
   const [find, setFind] = useState("");
   const shown = choices.filter((choice) => matches(find, choice.name));
@@ -66,7 +75,11 @@ function ChoiceList({
       </div>
       {notice}
       {shown.length === 0 ? (
-        <p className="px-2.5 py-2 text-note text-reed">{choices.length === 0 ? empty : noMatch}</p>
+        <EmptyState
+          compact
+          title={choices.length === 0 ? empty : noMatch}
+          className="px-2.5 py-2"
+        />
       ) : (
         <ul className="min-h-0 overflow-y-auto overscroll-contain">
           {shown.map((choice) => (
@@ -74,7 +87,8 @@ function ChoiceList({
               <label
                 aria-busy={choice.pending || undefined}
                 className={cn(
-                  "flex min-h-11 items-center gap-2.5 rounded-sm px-2.5 py-1 touch:min-h-12",
+                  "flex items-center gap-2.5 rounded-sm px-2.5",
+                  compact ? "min-h-9 touch:min-h-11" : "min-h-11 py-1 touch:min-h-12",
                   choice.disabled ? "cursor-default" : "row cursor-pointer",
                 )}
               >
@@ -83,7 +97,7 @@ function ChoiceList({
                   disabled={choice.disabled === true || choice.pending === true}
                   onCheckedChange={(next) => onToggle(choice, next)}
                 />
-                {choice.leaf ?? <span aria-hidden="true" className="w-5" />}
+                {!compact && (choice.leaf ?? <span aria-hidden="true" className="w-5" />)}
                 <span className="grid min-w-0 flex-1">
                   <span
                     title={choice.name}
@@ -98,6 +112,9 @@ function ChoiceList({
                     <span className="truncate text-meta text-reed">{choice.note}</span>
                   )}
                 </span>
+                {choice.count !== undefined && (
+                  <span className="text-meta text-reed tabular-nums">{choice.count}</span>
+                )}
               </label>
             </li>
           ))}

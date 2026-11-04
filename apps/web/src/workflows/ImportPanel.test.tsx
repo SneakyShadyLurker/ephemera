@@ -161,7 +161,7 @@ describe("the import panel", () => {
       }),
     );
     expect(text(html)).toContain(
-      "Not reached at http://comfyui.local:8188. Reading a saved workflow needs it.",
+      "Your picture server was not reached at http://comfyui.local:8188. Check that it runs, then try again.",
     );
     for (const action of ["Try again", "Edit the address", "Choose another file"]) {
       expect(save(html, action).shown).toBe(true);

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
+import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
 import { EditField } from "./EditField.tsx";
@@ -60,7 +61,7 @@ export function Reasoning({
       open={reasoningOpen}
       className="disclosure mb-2 max-tablet:-mt-1.5 max-tablet:mb-0.5"
     >
-      <summary className="-ml-1 inline-flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-note text-reed hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden">
+      <summary className={cn(SUMMARY_LINE, "-ml-1 inline-flex min-h-8 gap-1.5 px-1")}>
         <DisclosureChevron className="[--chevron-closed:-90deg] [--chevron-open:0deg]" />
         {thinking ? (
           <span className="flex items-baseline gap-2">

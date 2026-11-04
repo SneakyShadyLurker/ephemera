@@ -18,7 +18,7 @@ import {
 import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
 import { motionMs } from "@/app/motion-tokens.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { CheckIcon, IdeasIcon } from "@/components/icons";
+import { CheckIcon, IdeasIcon, NextIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -225,61 +225,78 @@ export function IdeaList({
   onPick: (index: number) => void;
   listRef?: RefObject<HTMLOListElement | null>;
 }) {
+  const choosable = !busy && rows.some((row) => row.state !== "ghost" && row.state !== "dim");
   return (
-    <ol ref={listRef} aria-label="Ideas" aria-busy={busy} className="grid border-rush border-b">
-      {rows.map((row, index) => (
-        <li
-          key={row.key}
-          className={cn("relative border-rush border-t", row.state === "new" && "arrive")}
-        >
-          {row.state === "new" && row.gone !== null && (
-            <span
-              aria-hidden="true"
-              data-rework-wash=""
-              className="pointer-events-none absolute -inset-x-2 inset-y-0 animate-[settle_var(--duration-settle)_var(--ease-fade)_both] rounded-md bg-(--dusk-wash)"
-            />
-          )}
-          {row.state === "ghost" ? (
-            <div aria-hidden="true" className={cn(ROW, "min-h-[calc(2*1.75rem+1.5rem)]")}>
-              <RowNumber n={row.n} />
-              <span className="grid">
-                {(GHOST_WIDTHS[index % GHOST_WIDTHS.length] ?? []).map((width) => (
-                  <span key={width} className="flex h-7 items-center">
-                    <span className="h-2 rounded-full bg-rush" style={{ width }} />
-                  </span>
-                ))}
-              </span>
-            </div>
-          ) : busy || row.state === "dim" ? (
-            <div className={ROW}>
-              <RowNumber n={row.n} />
-              <Pitch dim={row.state === "dim"} gone={row.gone}>
-                {row.pitch}
-              </Pitch>
-            </div>
-          ) : (
-            <button
-              type="button"
-              aria-label={`${row.n}. ${row.pitch}`}
-              aria-current={picked === index ? "true" : undefined}
-              onClick={() => onPick(index)}
-              className={cn(
-                ROW,
-                "press w-[calc(100%+1rem)] text-left hover:bg-surface-hover focus-visible:outline-offset-0",
-                picked === index && "bg-surface-selected hover:bg-surface-selected",
-              )}
-            >
-              <RowNumber n={row.n} />
-              <Pitch dim={false} gone={null}>
-                {row.pitch}
-              </Pitch>
-              {picked === index && <CheckIcon size={16} className="mt-1.5 text-ink" />}
-            </button>
-          )}
-          {edge === index && <FrameEdge />}
-        </li>
-      ))}
-    </ol>
+    <div className="grid gap-2">
+      {/* Said once the list settles, when its rows become choices. */}
+      {choosable && (
+        <p className="text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
+          Choose an idea to develop it into a card.
+        </p>
+      )}
+      <ol ref={listRef} aria-label="Ideas" aria-busy={busy} className="grid border-rush border-b">
+        {rows.map((row, index) => (
+          <li
+            key={row.key}
+            className={cn("relative border-rush border-t", row.state === "new" && "arrive")}
+          >
+            {row.state === "new" && row.gone !== null && (
+              <span
+                aria-hidden="true"
+                data-rework-wash=""
+                className="pointer-events-none absolute -inset-x-2 inset-y-0 animate-[settle_var(--duration-settle)_var(--ease-fade)_both] rounded-md bg-(--dusk-wash)"
+              />
+            )}
+            {row.state === "ghost" ? (
+              <div aria-hidden="true" className={cn(ROW, "min-h-[calc(2*1.75rem+1.5rem)]")}>
+                <RowNumber n={row.n} />
+                <span className="grid">
+                  {(GHOST_WIDTHS[index % GHOST_WIDTHS.length] ?? []).map((width) => (
+                    <span key={width} className="flex h-7 items-center">
+                      <span className="h-2 rounded-full bg-rush" style={{ width }} />
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ) : busy || row.state === "dim" ? (
+              <div className={ROW}>
+                <RowNumber n={row.n} />
+                <Pitch dim={row.state === "dim"} gone={row.gone}>
+                  {row.pitch}
+                </Pitch>
+              </div>
+            ) : (
+              <button
+                type="button"
+                aria-label={`${row.n}. ${row.pitch}`}
+                aria-current={picked === index ? "true" : undefined}
+                onClick={() => onPick(index)}
+                className={cn(
+                  ROW,
+                  "row group w-[calc(100%+1rem)] text-left",
+                  picked === index && "bg-surface-selected hover:bg-surface-selected",
+                )}
+              >
+                <RowNumber n={row.n} />
+                <Pitch dim={false} gone={null}>
+                  {row.pitch}
+                </Pitch>
+                {/* The way on: into Describe, where the idea becomes a card; the picked one is ticked. */}
+                {picked === index ? (
+                  <CheckIcon size={16} className="mt-1.5 text-ink" />
+                ) : (
+                  <NextIcon
+                    size={16}
+                    className="mt-1.5 text-reed transition-colors duration-(--duration-tint) ease-fade group-hover:text-ink"
+                  />
+                )}
+              </button>
+            )}
+            {edge === index && <FrameEdge />}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -582,17 +599,19 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
         />
       ) : (
         <div className="grid justify-items-start gap-1.5">
-          <button
-            type="button"
+          <Button
+            variant="link"
+            size="inline"
             aria-expanded={expanded}
             onClick={() => setExpanded((open) => !open)}
-            className="w-full cursor-pointer text-left text-lead text-narration transition-colors duration-(--duration-quick) ease-fade hover:text-ink focus-visible:text-ink"
+            // The request itself, in the narration's ink and size: no underline under a passage.
+            className="block w-full whitespace-normal text-left text-lead text-narration no-underline focus-visible:text-ink"
           >
             <span className="sr-only">Your request: </span>
             <span className={cn("whitespace-pre-line break-words", !expanded && "line-clamp-2")}>
               {request}
             </span>
-          </button>
+          </Button>
           <div className="-ml-2 flex flex-wrap gap-1">
             <Button size="text" onClick={() => inTransition(editIdeasRequest)}>
               Edit request

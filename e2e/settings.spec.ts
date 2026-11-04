@@ -1337,7 +1337,7 @@ test("a category opens from the address, an unknown one falls back to Appearance
   // A category is chosen in the index: the address follows it, and Back returns.
   await settingsTab(page, "Pictures").click();
   await expect(page).toHaveURL(/\/settings\?section=pictures$/);
-  await expect(page.getByRole("textbox", { name: "ComfyUI address" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Picture server address" })).toBeVisible();
   await page.goBack();
   await expect(settingsTab(page, "Memory & cast")).toHaveAttribute("aria-selected", "true");
 

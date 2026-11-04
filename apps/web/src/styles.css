@@ -315,6 +315,8 @@
   /* How far a dragged alternate travels; the keyed nudge is `--panel-shift`. */
   --swipe-shift: 64px;
   --press-scale: 0.98;
+  /* A held control's grip grows this much while it is dragged (a slider's thumb). */
+  --grip-scale: 1.1;
   /* A badge's starting scale as it arrives. */
   --arrive-scale: 0.75;
 }
@@ -403,6 +405,7 @@
     --panel-shift: 0px;
     --swipe-shift: 0px;
     --press-scale: 1;
+    --grip-scale: 1;
     --arrive-scale: 1;
   }
 }
@@ -1865,22 +1868,6 @@ details[open] > summary .disclosure-chevron {
   background-image: linear-gradient(var(--cast-wash), var(--cast-wash));
   box-decoration-break: clone;
   animation: cast-settle var(--duration-wash) var(--ease-fade) both;
-}
-
-/*
- * An edit mode field: a quiet hairline under the value at rest, so it reads
- * as editable, turning to the focus colour, thicker, while it is edited.
- */
-@utility cast-field {
-  border-bottom: 1px solid var(--control-edge);
-  transition:
-    border-color var(--duration-quick) var(--ease-fade),
-    box-shadow var(--duration-quick) var(--ease-fade);
-  &:focus-visible {
-    outline: none;
-    border-bottom-color: var(--dusk-line);
-    box-shadow: 0 1px 0 var(--dusk-line);
-  }
 }
 
 [data-cast-corrected] {

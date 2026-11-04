@@ -148,7 +148,8 @@ export function LinkedBooks({
                     to="/lorebooks/$id"
                     params={{ id: book.id }}
                     title={book.name}
-                    className="truncate text-ink text-ui underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
+                    // Its target grows past the line into the row: 24px, 44px on touch.
+                    className="relative -my-0.5 truncate py-0.5 text-ink text-ui underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:-my-3 touch:py-3"
                   >
                     {book.name}
                   </Link>

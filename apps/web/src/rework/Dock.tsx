@@ -7,7 +7,7 @@ import { motionPx } from "@/app/motion-tokens.ts";
 import { scrollBehavior, useReducedMotion } from "@/app/reduced-motion.ts";
 import { LampFlameIcon, NextIcon, PreviousIcon, StopIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { useModelChoice } from "../creator/Describe.tsx";
 import type { SaveStatus } from "../sheet/autosave.ts";
@@ -50,7 +50,7 @@ function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: Re
   const one = unplaced.length === 1;
   return (
     <details className="disclosure">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:-my-1 touch:min-h-11 [&::-webkit-details-marker]:hidden">
+      <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>
         {one
           ? "1 change could not be matched. It won't be applied."
           : `${unplaced.length} changes could not be matched. They won't be applied.`}

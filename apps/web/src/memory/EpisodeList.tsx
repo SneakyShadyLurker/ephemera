@@ -2,6 +2,7 @@ import type { StoredEpisode } from "@ephemera/core";
 import { useId, useState } from "react";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { Illustration } from "@/components/illustration.tsx";
+import { Button } from "@/components/ui/button";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
@@ -88,18 +89,18 @@ function BookEntry({
       <EpisodeRow episode={episode} members={count} onOpen={onOpen} />
       {count > 0 && (
         <div className="pb-3">
-          <button
-            type="button"
+          <Button
+            size="text"
             aria-expanded={open}
             aria-controls={membersId}
             onClick={() => setOpen((current) => !current)}
-            className="press flex min-h-8 w-fit items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:min-h-11"
+            className="-ml-2 gap-1 font-normal"
           >
             <DisclosureChevron />
             {open
               ? "Hide the memories it gathers"
               : `Show the ${countOf(count, "memory", "memories")} it gathers`}
-          </button>
+          </Button>
           <Unfold show={open} id={membersId}>
             <ol
               className={cn(
@@ -137,7 +138,7 @@ function EpisodeRow({
       className="press -mx-3 grid w-[calc(100%+1.5rem)] min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 rounded-lg px-3 py-4 text-left [overflow-wrap:anywhere] hover:bg-surface-hover"
     >
       <span className="font-semibold font-story text-ink text-name">{episode.title}</span>
-      <span className="line-clamp-4 whitespace-pre-line font-story text-reed text-turn">
+      <span className="line-clamp-4 whitespace-pre-line font-story text-narration text-turn">
         {episode.summary}
       </span>
       <span className="mt-1 flex flex-wrap items-center gap-1.5">

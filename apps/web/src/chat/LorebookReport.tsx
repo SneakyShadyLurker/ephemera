@@ -1,6 +1,7 @@
 import { entryOrigin, type LorebookStatus, type LorebookReport as Report } from "@ephemera/core";
 import { useId, useState } from "react";
 import { LorebookIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { andList, countOf, formatCount, orList } from "@/lib/text";
@@ -359,13 +360,14 @@ export function LorebookReport({
             </ol>
           )}
           {sent.length > FIRST && !all && (
-            <button
-              type="button"
+            <Button
+              variant="link"
+              size="inline"
               onClick={() => setAll(true)}
-              className="justify-self-start rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-4 hover:text-ink touch:min-h-11"
+              className="justify-self-start text-meta"
             >
               Show all {formatCount(sent.length)}
-            </button>
+            </Button>
           )}
           {(all || sent.length <= FIRST) && <Unlisted count={counts.sent - sent.length} />}
           {over.length > 0 && (
@@ -401,20 +403,20 @@ export function LorebookReport({
           )}
           {others.length > 0 && (
             <div className="grid">
-              <button
-                type="button"
+              <Button
+                variant="quiet"
                 aria-expanded={rest}
                 // The label and its counts stack visually; the name reads them as one line.
                 aria-label={`Other entries: ${otherCounts}`}
                 onClick={() => setRest(!rest)}
-                className="flex min-h-9 items-center justify-between gap-2 rounded-sm py-1 text-left text-note text-reed hover:text-ink touch:min-h-11"
+                className="-mx-2 h-auto min-h-9 justify-between whitespace-normal px-2 py-1 text-left font-normal text-note touch:h-auto touch:min-h-11"
               >
                 <span className="grid min-w-0">
                   <span className="text-ink">Other entries</span>
                   <span className="text-pretty text-meta">{otherCounts}</span>
                 </span>
                 <DisclosureChevron />
-              </button>
+              </Button>
               <Unfold show={rest}>
                 <dl className="grid gap-2 pt-1">
                   {others.map(([status, , label, detail]) => {

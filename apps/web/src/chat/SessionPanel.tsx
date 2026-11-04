@@ -1,5 +1,5 @@
 import { Collapsible } from "@base-ui/react/collapsible";
-import { offeredEfforts } from "@ephemera/core";
+import { offeredEfforts, type StoredSamplerPreset } from "@ephemera/core";
 import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useId, useState } from "react";
@@ -342,28 +342,17 @@ function PresetField<T extends { id: string; name: string }>({
   chosen: T | undefined;
   onChoose: (preset: T) => void;
 }) {
-  const list = presets.data ?? [];
   return (
     <Field label={label} note={note}>
       {(labelId) => (
         <div className="flex items-center gap-1">
-          <Select
-            value={chosen?.id ?? null}
-            items={Object.fromEntries(list.map((preset) => [preset.id, preset.name]))}
-            onValueChange={(value) => {
-              const preset = list.find((option) => option.id === value);
-              if (preset) onChoose(preset);
-            }}
-          >
-            <SelectTrigger aria-labelledby={labelId} placeholder={presetPlaceholder(presets)} />
-            <SelectContent label={`${label}s`}>
-              {list.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id}>
-                  {preset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PresetSelect
+            labelId={labelId}
+            label={label}
+            presets={presets}
+            chosen={chosen}
+            onChoose={onChoose}
+          />
           {chosen && (
             <Link
               to={kind === "sampler" ? "/presets/sampler/$id" : "/presets/prompt/$id"}
@@ -385,16 +374,89 @@ function PresetField<T extends { id: string; name: string }>({
   );
 }
 
+/** The preset list itself, as a field (Session) or set in a line of words (beside the composer). */
+function PresetSelect<T extends { id: string; name: string }>({
+  labelId,
+  label,
+  presets,
+  chosen,
+  onChoose,
+  look = "field",
+}: {
+  labelId: string;
+  label: string;
+  presets: UseQueryResult<T[]>;
+  chosen: T | undefined;
+  onChoose: (preset: T) => void;
+  look?: "field" | "inline";
+}) {
+  const list = presets.data ?? [];
+  return (
+    <Select
+      value={chosen?.id ?? null}
+      items={Object.fromEntries(list.map((preset) => [preset.id, preset.name]))}
+      onValueChange={(value) => {
+        const preset = list.find((option) => option.id === value);
+        if (preset) onChoose(preset);
+      }}
+    >
+      <SelectTrigger
+        aria-labelledby={labelId}
+        look={look}
+        placeholder={look === "inline" ? "None" : presetPlaceholder(presets)}
+      />
+      <SelectContent label={`${label}s`} {...(look === "inline" && { className: "min-w-64" })}>
+        {list.map((preset) => (
+          <SelectItem key={preset.id} value={preset.id}>
+            {preset.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * The chat's sampler preset and how choosing one is saved: a preset that
+ * names a model switches the chat to it. Session and the composer's line
+ * both choose through it.
+ */
+function useSamplerChoice() {
+  const presets = useQuery(presetsQuery("sampler"));
+  const settings = useSettings();
+  const updateSettings = useUpdateSettings();
+  const chosen = presets.data?.find((preset) => preset.id === settings.samplerPresetId);
+  const choose = (preset: StoredSamplerPreset) =>
+    updateSettings({
+      samplerPresetId: preset.id,
+      ...(preset.values.model === null ? {} : { model: preset.values.model }),
+    });
+  return { presets, chosen, choose };
+}
+
+/** The sampler preset set in a line of words, as the composer shows it; it chooses as Session does. */
+export function SamplerPresetSelect({ labelId }: { labelId: string }) {
+  const { presets, chosen, choose } = useSamplerChoice();
+  return (
+    <PresetSelect
+      labelId={labelId}
+      label="Sampler preset"
+      presets={presets}
+      chosen={chosen}
+      onChoose={choose}
+      look="inline"
+    />
+  );
+}
+
 /**
  * How replies are drawn. A preset that names a model switches the chat to it;
  * an effort the chat's model does not offer is not sent, and this says so.
  */
 function SamplerPresetField() {
-  const presets = useQuery(presetsQuery("sampler"));
+  const { presets, chosen, choose } = useSamplerChoice();
   const settings = useSettings();
-  const updateSettings = useUpdateSettings();
   const model = useModelInfo(settings.model);
-  const chosen = presets.data?.find((preset) => preset.id === settings.samplerPresetId);
   const named = chosen?.values.model ?? null;
   const effort = chosen?.values.reasoning;
   const note = chosen
@@ -411,12 +473,7 @@ function SamplerPresetField() {
       note={note}
       presets={presets}
       chosen={chosen}
-      onChoose={(preset) =>
-        updateSettings({
-          samplerPresetId: preset.id,
-          ...(preset.values.model === null ? {} : { model: preset.values.model }),
-        })
-      }
+      onChoose={choose}
     />
   );
 }

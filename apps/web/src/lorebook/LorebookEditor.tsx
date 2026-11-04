@@ -7,9 +7,10 @@ import {
   newEntry,
 } from "@ephemera/core";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { SCROLL_GUTTER_END, SCROLL_GUTTERS } from "@/app/Screen.tsx";
-import { LorebookIcon, PlusIcon } from "@/components/icons";
+import { PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { type SaveStatus, useAutosave } from "../sheet/autosave.ts";
@@ -468,7 +469,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
           >
             {editor ??
               (split && entries.length > 0 && (
-                <p className="px-10 pt-16 text-reed text-ui">Choose an entry to edit it.</p>
+                <EmptyState compact title="Choose an entry to edit it." className="px-10 pt-16" />
               ))}
           </div>
         </div>
@@ -488,13 +489,16 @@ export function LorebookEditor<Saved extends { revision: number }>({
 
 function EmptyBook({ text, onAdd }: { text: string; onAdd: () => void }) {
   return (
-    <div className={cn(LIST_X, "grid justify-items-start gap-3 pt-10")}>
-      <LorebookIcon size={24} className="text-reed" />
-      <p className="max-w-help text-pretty text-lead text-narration">{text}</p>
-      <Button variant="outline" onClick={onAdd}>
-        <PlusIcon size={16} />
-        Add the first entry
-      </Button>
-    </div>
+    <EmptyState
+      compact
+      title={text}
+      className={cn(LIST_X, "pt-10")}
+      actions={
+        <Button variant="outline" onClick={onAdd}>
+          <PlusIcon size={16} />
+          Add the first entry
+        </Button>
+      }
+    />
   );
 }

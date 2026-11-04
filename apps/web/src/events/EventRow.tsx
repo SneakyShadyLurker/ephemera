@@ -269,19 +269,23 @@ function EventRowBody({
           else onOpenChange(next);
         }}
       >
-        {/* The switch sits over the trigger's middle column: a sibling with its own touch area. */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-x-3">
+        {/*
+         * Two hit areas side by side: the disclosure (its words and chevron)
+         * and, in its own column, the switch with its own touch area.
+         */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
           <Collapsible.Trigger
             data-disclosure=""
             aria-labelledby={instructionId}
             aria-describedby={`${ruleId} ${scopeId}`}
-            className="group/row col-span-3 col-start-1 row-start-1 grid min-h-16 grid-cols-subgrid items-start gap-y-1 rounded-sm px-1 py-3 text-left row touch:py-3.5"
+            className="group/row grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-sm px-1 py-3 text-left row touch:py-3.5"
           >
             <span
               id={instructionId}
               title={blank ? undefined : fields.name}
               className={cn(
-                "col-start-1 row-start-1 truncate font-medium text-ui",
+                // Phones give a long instruction a second line; wider rows keep it to one.
+                "line-clamp-2 break-words font-medium text-ui tablet:line-clamp-none tablet:truncate",
                 fields.enabled && !blank ? "text-ink" : "text-reed",
               )}
             >
@@ -289,23 +293,20 @@ function EventRowBody({
             </span>
             <ChevronDownIcon
               size={16}
-              className="col-start-3 row-start-1 mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
+              className="mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
             />
-            <span
-              id={ruleId}
-              className="col-span-3 col-start-1 row-start-2 text-pretty text-note text-reed tablet:col-span-1"
-            >
-              <RuleText rule={rule} lively={lively} />
-            </span>
-            <span
-              id={scopeId}
-              className="col-span-3 col-start-1 row-start-3 text-pretty text-note text-reed tablet:col-span-1"
-            >
-              {scope}
+            {/* Chance and scope share one metadata line, wrapping only when it runs out. */}
+            <span className="col-span-2 flex flex-wrap gap-x-3 text-note text-reed">
+              <span id={ruleId} className="text-pretty">
+                <RuleText rule={rule} lively={lively} />
+              </span>
+              <span id={scopeId} className="text-pretty">
+                {scope}
+              </span>
             </span>
           </Collapsible.Trigger>
           {/* Its own grid item: the switch renders an input beside itself, which must not take a cell. */}
-          <div className="col-start-2 row-start-1 mt-3 flex touch:mt-3.5">
+          <div className="mt-3 flex px-1 touch:mt-3.5">
             <Switch
               aria-label={`Enable ${instruction}`}
               checked={fields.enabled}

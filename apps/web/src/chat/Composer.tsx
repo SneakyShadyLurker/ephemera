@@ -10,6 +10,7 @@ import { useContextWindow } from "../api.ts";
 import { useSettings } from "../settings/settings.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
 import { useSignedIn } from "../signin/hooks.ts";
+import { ChatChoices } from "./ChatChoices.tsx";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { retryGreeting } from "./greetings.ts";
@@ -268,6 +269,7 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
             )}
           </div>
         </div>
+        <ChatChoices />
       </div>
     </form>
   );

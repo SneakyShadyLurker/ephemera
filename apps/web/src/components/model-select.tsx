@@ -1,6 +1,8 @@
 import { modelIdSchema } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
 import { type ComponentProps, useRef, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
+import { Button } from "@/components/ui/button";
 import { Combobox, ComboboxItem, ComboboxPopup, ComboboxTrigger } from "@/components/ui/combobox";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
@@ -65,20 +67,18 @@ export function ModelSelect({
   const status = failed ? (
     <div className={cn(STATUS_LINE, "flex items-center justify-between gap-3")}>
       <span className="text-ember">The model list didn't load.</span>
-      <button
-        type="button"
-        onClick={() => void models.refetch()}
-        className="press -my-1 rounded-sm px-1.5 py-1 font-medium text-ink underline decoration-rush underline-offset-4 hover:decoration-ink touch:py-2.5"
-      >
+      <Button variant="link" size="inline" onClick={() => void models.refetch()}>
         Try again
-      </button>
+      </Button>
     </div>
   ) : loading ? (
     <p className={cn(STATUS_LINE, "text-reed")}>Loading models…</p>
   ) : catalog?.length === 0 && needle === "" ? (
-    <p className={cn(STATUS_LINE, "text-pretty text-reed")}>
-      The provider lists no models. Type a model ID to use one.
-    </p>
+    <EmptyState
+      compact
+      title="The provider lists no models. Type a model ID to use one."
+      className={STATUS_LINE}
+    />
   ) : matches.length > SHOWN ? (
     <p className={cn(STATUS_LINE, "text-reed tabular-nums")}>
       Showing {formatCount(SHOWN)} of {formatCount(matches.length)}. Keep typing to narrow.

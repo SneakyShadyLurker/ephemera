@@ -56,7 +56,7 @@ async function saveAddress(
 const ADDRESS_PROBLEMS = {
   format: "Use a plain http or https address, such as http://comfyui.local:8188.",
   not_allowed:
-    "This server does not allow that address. Only origins in its COMFYUI_ALLOWED_ORIGINS can be used.",
+    "This server can't send pictures to that address. Use an address its owner allows, or ask them to add it to COMFYUI_ALLOWED_ORIGINS.",
 } as const;
 
 /**
@@ -125,8 +125,9 @@ export function Pictures() {
             about={
               <>
                 <p>
-                  The ComfyUI graphs pictures are painted with. Yours are the ones you import:
-                  rename them, set their image model family, replace their file or delete them.
+                  The recipes pictures are painted with. Import your own to use it in Create with
+                  AI; then rename it, set its image model family, replace its file or delete it.
+                  Each is a ComfyUI workflow, saved or exported as API.
                 </p>
                 <p>
                   On this server are the ones the server ships. Each row says whether it can paint
@@ -287,20 +288,20 @@ function AddressField({
   };
   return (
     <SettingRow
-      label="ComfyUI address"
+      label="Picture server address"
       htmlFor={id}
       hint={
         shown !== null
           ? ADDRESS_PROBLEMS[shown]
-          : "Saved when you leave the field; empty turns pictures off."
+          : "Your ComfyUI server's address. Saved when you leave the field; empty turns pictures off."
       }
       hintId={`${id}-help`}
       problem={invalid}
       live
       about={
         <p>
-          Where Ephemera sends image prompts for portraits and scene pictures. Clear the field to
-          turn pictures off.
+          Portraits and scene pictures are painted on your own picture server: enter its address to
+          turn pictures on, or clear it to turn them off. Ephemera works with ComfyUI.
         </p>
       }
     >

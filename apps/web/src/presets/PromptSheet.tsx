@@ -35,7 +35,7 @@ import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { CloseRow, Glides, MoveButtons, OpenRow, useGlide } from "../sheet/ordering.tsx";
 import {
   NameField,
@@ -976,7 +976,7 @@ function OpenBlock({
                   onChange={(event) =>
                     onChange((current) => ({ ...current, name: event.target.value }))
                   }
-                  className={cn(FIELD, "h-9 py-0 text-ui touch:h-11")}
+                  className={LINE_FIELD}
                 />
               </label>
             )}

@@ -8,8 +8,10 @@ import {
 } from "@ephemera/core";
 import { Link } from "@tanstack/react-router";
 import { type KeyboardEvent, useDeferredValue, useEffect, useId, useRef, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { NextIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron } from "@/components/ui/disclosure";
 import { NumberField } from "@/components/ui/number-field";
 import { SearchField } from "@/components/ui/search-field";
 import { Switch, SwitchField } from "@/components/ui/switch";
@@ -61,68 +63,94 @@ export const LIST_X = cn(LIST_INSET.start, LIST_INSET.end);
 /** The id around the book's Chaining switch, which an entry's "Open book settings" focuses. */
 const CHAINING_ID = "book-chaining";
 
-/** Focuses the book's Chaining switch, scrolled into view. */
+/** Focuses the book's Chaining switch, scrolled into view, its Book settings opened first. */
 export function focusChaining() {
   const control = document.querySelector<HTMLElement>(`#${CHAINING_ID} [role="switch"]`);
-  control?.focus({ preventScroll: true });
-  control?.scrollIntoView({ block: "nearest" });
+  const settings = control?.closest("details");
+  if (!control) return;
+  if (settings && !settings.open) settings.open = true;
+  // An opening disclosure renders its contents only as its unfold starts: focus waits for them.
+  let frames = 0;
+  const focus = () => {
+    if (!control.checkVisibility() && frames++ < 30) {
+      requestAnimationFrame(focus);
+      return;
+    }
+    control.focus({ preventScroll: true });
+    control.scrollIntoView({ block: "nearest" });
+  };
+  focus();
 }
 
-/** The book's reading rules: scan depth and budget, blank meaning the defaults, and Chaining. */
+/**
+ * The book's reading rules: scan depth and budget, blank meaning the
+ * defaults, and Chaining. Closed under "Book settings" with its answer
+ * beside it, so the entries lead the pane.
+ */
 function BookSettings({ book, onBook }: Pick<ListProps, "book" | "onBook">) {
   const { depth, effectiveDepth: shownDepth, budget, chaining } = bookSettings(book);
+  const answer = `Last ${countOf(shownDepth, "message")}, ${budget === null ? "default budget" : `${formatCount(budget)} tokens`}, chaining ${chaining ? "on" : "off"}`;
   return (
-    <section aria-label="How the book is read" className={cn(LIST_X, "grid gap-3 pt-5 pb-4")}>
-      <div className="grid gap-3 tablet:grid-cols-2">
-        <div className="grid min-w-0 gap-1.5">
-          <span className="text-note text-reed">Scan depth, in messages</span>
-          <NumberField
-            label="Scan depth"
-            value={depth}
-            min={0}
-            max={LOREBOOK_RULES.maxScanDepth}
-            inputClassName="placeholder:text-reed"
-            onValueChange={(value) =>
-              onBook({ scanDepth: value === null ? undefined : Math.trunc(value) })
-            }
+    <details className={cn(LIST_X, "disclosure pt-2")}>
+      <summary className="flex min-h-12 w-fit max-w-full cursor-pointer list-none items-center gap-2 text-ink text-ui [&::-webkit-details-marker]:hidden">
+        <span className="font-medium">Book settings</span>
+        <DisclosureChevron className="text-reed" />
+        <span className="min-w-0 truncate pl-1 text-meta text-reed">{answer}</span>
+      </summary>
+      <section aria-label="How the book is read" className="grid gap-3 pt-1 pb-4">
+        <div className="grid gap-3 tablet:grid-cols-2">
+          <div className="grid min-w-0 gap-1.5">
+            <span className="text-note text-reed">Scan depth, in messages</span>
+            <NumberField
+              label="Scan depth"
+              value={depth}
+              min={0}
+              max={LOREBOOK_RULES.maxScanDepth}
+              inputClassName="placeholder:text-reed"
+              onValueChange={(value) =>
+                onBook({ scanDepth: value === null ? undefined : Math.trunc(value) })
+              }
+            />
+          </div>
+          <div className="grid min-w-0 gap-1.5">
+            <span className="text-note text-reed">Token budget</span>
+            <NumberField
+              label="Token budget"
+              value={budget}
+              min={0}
+              step={128}
+              inputClassName="placeholder:text-reed"
+              onValueChange={(value) =>
+                onBook({
+                  tokenBudget: value === null || value <= 0 ? undefined : Math.trunc(value),
+                })
+              }
+            />
+          </div>
+        </div>
+        <p className={HELP}>
+          {shownDepth === 0
+            ? "No message is read for keywords; only constant entries go in."
+            : `Keywords are looked for in the last ${countOf(shownDepth, "message")}.`}{" "}
+          {budget === null
+            ? "Entries fill up to a quarter of the model's context window."
+            : `Entries fill up to ${formatCount(budget)} tokens, never more than a quarter of the model's context window.`}{" "}
+          {SHARED_BUDGET}{" "}
+          {chaining
+            ? "Entries' text is also read for keywords, so one entry can bring in another."
+            : "Entries' text isn't read for keywords."}
+          {depth === null && " Empty fields use the defaults."}
+        </p>
+        <div id={CHAINING_ID} className="border-rush border-t pt-3">
+          <SwitchField
+            label="Chaining"
+            description="Entries can bring in other entries their text mentions"
+            checked={chaining}
+            onCheckedChange={(on) => onBook({ recursiveScanning: on })}
           />
         </div>
-        <div className="grid min-w-0 gap-1.5">
-          <span className="text-note text-reed">Token budget</span>
-          <NumberField
-            label="Token budget"
-            value={budget}
-            min={0}
-            step={128}
-            inputClassName="placeholder:text-reed"
-            onValueChange={(value) =>
-              onBook({ tokenBudget: value === null || value <= 0 ? undefined : Math.trunc(value) })
-            }
-          />
-        </div>
-      </div>
-      <p className={HELP}>
-        {shownDepth === 0
-          ? "No message is read for keywords; only constant entries go in."
-          : `Keywords are looked for in the last ${countOf(shownDepth, "message")}.`}{" "}
-        {budget === null
-          ? "Entries fill up to a quarter of the model's context window."
-          : `Entries fill up to ${formatCount(budget)} tokens, never more than a quarter of the model's context window.`}{" "}
-        {SHARED_BUDGET}{" "}
-        {chaining
-          ? "Entries' text is also read for keywords, so one entry can bring in another."
-          : "Entries' text isn't read for keywords."}
-        {depth === null && " Empty fields use the defaults."}
-      </p>
-      <div id={CHAINING_ID} className="border-rush border-t pt-3">
-        <SwitchField
-          label="Chaining"
-          description="Entries can bring in other entries their text mentions"
-          checked={chaining}
-          onCheckedChange={(on) => onBook({ recursiveScanning: on })}
-        />
-      </div>
-    </section>
+      </section>
+    </details>
   );
 }
 
@@ -283,12 +311,16 @@ export function EntryList(props: ListProps) {
         )}
       </div>
       {order.length === 0 && filtering ? (
-        <div className={cn(LIST_X, "grid justify-items-start gap-2 border-rush border-t pt-5")}>
-          <p className="text-reed text-ui">No entries match.</p>
-          <Button variant="outline" onClick={() => onFind({ query: "", toFix: false })}>
-            Clear find
-          </Button>
-        </div>
+        <EmptyState
+          compact
+          title="No entries match."
+          className={cn(LIST_X, "border-rush border-t")}
+          actions={
+            <Button variant="outline" onClick={() => onFind({ query: "", toFix: false })}>
+              Clear find
+            </Button>
+          }
+        />
       ) : (
         <ol
           ref={list}

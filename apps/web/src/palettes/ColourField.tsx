@@ -1,7 +1,9 @@
 import type { ContrastShortfall, PaletteRole } from "@ephemera/core";
 import { useId, useState } from "react";
 import { CautionIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { COMPACT_FIELD } from "../sheet/fields.ts";
 import { followAgain, setColour } from "./draft.ts";
 import { ROLE_LABELS } from "./roles.ts";
 
@@ -70,13 +72,14 @@ export function ColourField({
               {follows.handSet ? (
                 <>
                   <span>Set by you</span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="link"
+                    size="inline"
                     onClick={() => followAgain(role)}
-                    className="rounded-sm text-dusk-line underline-offset-2 outline-none hover:underline focus-visible:underline touch:py-2"
+                    className="text-meta"
                   >
                     Follow {follows.key} again
-                  </button>
+                  </Button>
                 </>
               ) : (
                 `Follows ${follows.key}`
@@ -103,7 +106,9 @@ export function ColourField({
           }}
           onBlur={() => setMalformed(!HEX.test(text.trim()))}
           className={cn(
-            "h-8 w-[5.75rem] shrink-0 rounded-md border border-transparent bg-transparent px-2 font-mono text-meta text-ink uppercase outline-none transition-[border-color,background-color] duration-(--duration-quick) ease-fade hover:border-rush focus:border-dusk-line focus:bg-canvas touch:h-11",
+            COMPACT_FIELD,
+            // Open on the row at rest, so a list of colours stays quiet; an edge under the pointer.
+            "w-[5.75rem] shrink-0 border-transparent bg-transparent font-mono text-meta uppercase hover:border-rush focus:bg-canvas",
             malformed && "border-ember",
           )}
         />

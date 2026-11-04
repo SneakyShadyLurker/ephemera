@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
 import { formatCount } from "../apps/web/src/lib/text.ts";
+import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
@@ -308,7 +309,7 @@ for (const factor of FACTORS) {
     const record = await openRecord(page, SEEDED);
     await expect(record.getByRole("heading", { name: SEEDED })).toBeFocused();
     await expect(record).toContainText(KEEPER_WOMAN_OUTFIT);
-    await expect(record.getByRole("button", { name: "Edit record", exact: true })).toBeVisible();
+    await expect(record.locator('[data-cast-edit="outfit"]')).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(record).toHaveCount(0);
     await expect(castEntry(page, SEEDED)).toBeFocused();
@@ -927,7 +928,7 @@ test("an empty failed alternate hides an older keeper failure over covered cast,
   expect(await upstreamRecords(covered, "cast")).toHaveLength(1);
 });
 
-test("edit mode saves, cancels by button and by Escape without closing, and Revert takes a correction back", async ({
+test("a value corrects where it stands, Escape and leaving unchanged keep it, and Revert takes a correction back", async ({
   page,
   request,
 }) => {
@@ -935,28 +936,29 @@ test("edit mode saves, cancels by button and by Escape without closing, and Reve
   await seeded(page);
   const record = await openRecord(page, SEEDED);
   const field = (name: string) => record.locator(`[data-cast-field="${name}"]`);
-  const edit = record.getByRole("button", { name: "Edit record", exact: true });
-  const save = record.getByRole("button", { name: "Save", exact: true });
+  const outfit = record.locator('[data-cast-edit="outfit"]');
+  const box = record.getByRole("textbox", { name: "Outfit", exact: true });
 
-  // Escape leaves edit mode, not the record.
-  await edit.click();
-  await expect(record.getByRole("textbox", { name: "Outfit" })).toHaveValue(KEEPER_WOMAN_OUTFIT);
-  await record.getByRole("textbox", { name: "Outfit" }).fill("a red scarf");
+  // Escape leaves the field, not the record, and keeps the value.
+  await outfit.click();
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue(KEEPER_WOMAN_OUTFIT);
+  await expect(box).toHaveAttribute("maxlength", String(CAST_LIMITS.field));
+  await box.fill("a red scarf");
   await page.keyboard.press("Escape");
-  await expect(save).toHaveCount(0);
+  await expect(box).toHaveCount(0);
   await expect(record).toBeVisible();
-  await expect(edit).toBeFocused();
-  await expect(field("outfit")).toContainText(KEEPER_WOMAN_OUTFIT);
-
-  // Cancel too.
-  await edit.click();
-  await record.getByRole("textbox", { name: "Outfit" }).fill("a red scarf");
-  await record.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(save).toHaveCount(0);
+  await expect(outfit).toBeFocused();
   await expect(field("outfit")).toContainText(KEEPER_WOMAN_OUTFIT);
   await expect(field("outfit")).not.toHaveAttribute("data-cast-corrected");
 
-  // Save: a look that holds for the chat, a state the next update takes over.
+  // Leaving it unchanged corrects nothing.
+  await outfit.click();
+  await record.getByRole("heading", { name: SEEDED }).click();
+  await expect(box).toHaveCount(0);
+  await expect(field("outfit")).not.toHaveAttribute("data-cast-corrected");
+
+  // Enter saves: a look that holds for the chat, a state the next update takes over.
   await page.keyboard.press("Escape");
   await expect(record).toHaveCount(0);
   await editRecord(page, SEEDED, { hair: "short silver hair", outfit: "a red scarf" });

@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { type ComponentType, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { DeleteIcon, DuplicateIcon, ExportIcon, MoreIcon } from "@/components/icons";
+import {
+  DeleteIcon,
+  DuplicateIcon,
+  ExportIcon,
+  type IconProps,
+  MoreIcon,
+} from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { DRAWER_ACTION, Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -44,6 +50,7 @@ export function SheetActions({
   onDelete,
   cannotDelete,
   locked = false,
+  phoneLead,
 }: {
   /** The entity's name, which names the actions and the exported files. */
   name: string;
@@ -65,6 +72,16 @@ export function SheetActions({
   onDelete: () => Promise<boolean>;
   cannotDelete?: string;
   locked?: boolean;
+  /**
+   * On phones, a header action that shows only as its glyph there, given
+   * again first in this sheet under its name (AI Rework).
+   */
+  phoneLead?: {
+    label: string;
+    icon: ComponentType<IconProps>;
+    disabled: boolean;
+    onSelect: () => void;
+  };
 }) {
   const phone = useFormFactor() === "phone";
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -113,6 +130,22 @@ export function SheetActions({
           <DrawerContent>
             <DrawerTitle className="sr-only">Actions for {name}</DrawerTitle>
             <ul className="grid gap-0.5 px-3 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              {phoneLead && (
+                <li>
+                  <button
+                    type="button"
+                    disabled={phoneLead.disabled}
+                    className={cn(DRAWER_ACTION, "disabled:text-text-disabled")}
+                    onClick={() => {
+                      setSheetOpen(false);
+                      phoneLead.onSelect();
+                    }}
+                  >
+                    <phoneLead.icon size={24} />
+                    {phoneLead.label}
+                  </button>
+                </li>
+              )}
               {duplicate && (
                 <li>
                   <button

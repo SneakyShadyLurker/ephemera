@@ -118,7 +118,8 @@ export function SheetHeaderFrame({
 }) {
   const leaving = useLeavingSheet();
   return (
-    <header className="header-hairline box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
+    // Pinned over the body's scroller (styles.css `header-hairline`): what scrolls past its edge goes beneath it.
+    <header className="header-hairline sticky top-0 box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
       <div className={cn("flex min-w-0 flex-1", gutters && cn("overflow-hidden", gutters))}>
         <div
           className={cn(
@@ -493,7 +494,8 @@ export function NameField({
       onChange={(event) => onChange(event.target.value.replace(/[\r\n]+/g, " "))}
       className={cn(
         TITLE_FIELD,
-        "w-full resize-none text-title-phone tracking-[-0.015em] [field-sizing:content] tablet:text-title",
+        // On touch its 36px line sits near the middle of the 44px target.
+        "w-full resize-none text-title-phone tracking-[-0.015em] [field-sizing:content] touch:py-0.5 tablet:text-title",
       )}
     />
   );

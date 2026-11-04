@@ -20,7 +20,14 @@ import {
   toggleSession,
   useUi,
 } from "@/app/ui.ts";
-import { ClearIcon, InspectIcon, MemoryIcon, MoreIcon, SessionIcon } from "@/components/icons";
+import {
+  ClearIcon,
+  EventsIcon,
+  InspectIcon,
+  MemoryIcon,
+  MoreIcon,
+  SessionIcon,
+} from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import {
   Menu,
@@ -41,6 +48,7 @@ import { CastHeaderControl, CastSurface } from "./Cast.tsx";
 import { ClearChat, useClearChatDialog } from "./ClearChat.tsx";
 import { Composer } from "./Composer.tsx";
 import { useChatCharacter } from "./character.ts";
+import { EventsSheet } from "./EventsSheet.tsx";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { useGreetings } from "./greetings.ts";
 import { MemoryLink, MemoryMark, RememberedCount, useMemoryStatus } from "./MemoryMark.tsx";
@@ -134,6 +142,9 @@ function ChatHeader({
   const sessionOpen = useUi((state) => state.sessionOpen);
   const character = useChatCharacter();
   const phone = useFormFactor() === "phone";
+  const [eventsOpen, setEventsOpen] = useState(false);
+  const eventsButton = useRef<HTMLButtonElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   return (
     <ScreenHeader
       title={character?.name ?? "Chat"}
@@ -144,7 +155,7 @@ function ChatHeader({
       lead={phone && character?.portrait != null ? <HeaderPortrait /> : undefined}
       // A character's name in the story face, as its nameplates have it.
       storyTitle={character !== undefined}
-      // A character's nameplate stuck under the header names them already (Thread's useNameStuck).
+      // A character's nameplate in view names them already (Thread's NameShown).
       yieldsTitle={character !== undefined}
     >
       <div className="flex min-w-0 items-center justify-end gap-1">
@@ -152,7 +163,12 @@ function ChatHeader({
           <>
             {/* The roster scrolls away with the band; this keeps the cast in reach. */}
             <CastHeaderControl />
-            <ChatMenu composer={composer} empty={empty} />
+            <ChatMenu
+              composer={composer}
+              empty={empty}
+              trigger={menuButton}
+              onEvents={() => setEventsOpen(true)}
+            />
             <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
               <Button
                 ref={sessionToggle}
@@ -169,6 +185,13 @@ function ChatHeader({
           <>
             <MeterFigures />
             <MemoryMark />
+            <HeaderAction
+              ref={eventsButton}
+              label="Events"
+              icon={EventsIcon}
+              aria-haspopup="dialog"
+              onClick={() => setEventsOpen(true)}
+            />
             <ClearChat
               composer={composer}
               trigger={<HeaderAction label="Clear chat" icon={ClearIcon} disabled={empty} />}
@@ -188,6 +211,11 @@ function ChatHeader({
           </>
         )}
       </div>
+      <EventsSheet
+        open={eventsOpen}
+        onOpenChange={setEventsOpen}
+        returnTo={() => (phone ? menuButton.current : eventsButton.current)}
+      />
     </ScreenHeader>
   );
 }
@@ -195,19 +223,22 @@ function ChatHeader({
 /**
  * Phones: the header keeps the name, the cast and Session, and this menu
  * holds the rest under the labels the wider header gives them: Memory with
- * how many turns it remembers, Prompt with the meter's figures once the
- * window is nearly full, and Clear chat. The remembered count also sits in
- * the menu button's corner, as on the Memory mark, so it shows without
- * opening the menu.
+ * how many turns it remembers, Events, Prompt with the meter's figures once
+ * the window is nearly full, Session under its name, and Clear chat. The
+ * remembered count also sits in the menu button's corner, as on the Memory
+ * mark, so it shows without opening the menu.
  */
 function ChatMenu({
   composer,
   empty,
+  trigger,
+  onEvents,
 }: {
   composer: RefObject<HTMLTextAreaElement | null>;
   empty: boolean;
+  trigger: RefObject<HTMLButtonElement | null>;
+  onEvents: () => void;
 }) {
-  const trigger = useRef<HTMLButtonElement>(null);
   const memory = useMemoryStatus();
   const figures = useMeterFigures();
   const clear = useClearChatDialog({ composer, returnTo: trigger });
@@ -230,6 +261,10 @@ function ChatMenu({
               )}
             </MenuLinkItem>
           )}
+          <MenuItem aria-haspopup="dialog" onClick={onEvents}>
+            <EventsIcon size={16} />
+            Events
+          </MenuItem>
           <MenuItem
             aria-describedby={figures === null ? undefined : METER_ID}
             onClick={() => void openInspector()}
@@ -241,6 +276,10 @@ function ChatMenu({
                 {figures}
               </span>
             )}
+          </MenuItem>
+          <MenuItem aria-haspopup="dialog" onClick={toggleSession}>
+            <SessionIcon size={16} />
+            Session
           </MenuItem>
           <MenuSeparator />
           <MenuItem danger disabled={empty} onClick={clear.request}>

@@ -26,6 +26,20 @@ export const FIELD = cn(
   "max-h-[60dvh] px-3.5 py-2.5 text-turn aria-readonly:border-rush aria-readonly:bg-canvas",
 );
 
+/**
+ * A single-line field (a name, a short value): a sheet field's box at a
+ * control's height, 36px, 44px on touch, so it lines up with the buttons
+ * beside it.
+ */
+export const LINE_FIELD = cn(FIELD, "h-9 py-0 text-ui touch:h-11");
+
+/**
+ * A compact field for a number or a code (a position, a hex colour): a line
+ * field's height with tighter padding and figures of one width. The caller
+ * sets its width.
+ */
+export const COMPACT_FIELD = cn(LINE_FIELD, "px-2 tabular-nums");
+
 /** A chat message under edit: a sheet field's box in the turn's own type. */
 export const EDIT_FIELD = cn(BOXED, "max-h-[60dvh] px-3.5 py-2.5");
 
@@ -43,7 +57,18 @@ export const REQUEST_FIELD = cn(BOXED, "px-4 py-3 text-story leading-7");
  */
 export const TITLE_FIELD = cn(
   FIELD_FACE,
-  "-mx-1.5 border-transparent bg-transparent px-1.5 font-semibold transition-[border-color,background-color] duration-(--duration-tint) ease-fade hover:border-rush focus:bg-surface touch:border-b-rush",
+  "-mx-1.5 border-transparent bg-transparent px-1.5 font-semibold transition-[border-color,background-color] duration-(--duration-tint) ease-fade hover:border-rush focus:bg-surface touch:min-h-11 touch:border-b-rush",
+);
+
+/**
+ * Editable prose open on the page (the memory's notes, a cast record's
+ * details): no box at rest and a hairline under it on touch, the field's
+ * edge and a faint wash under a pointer, the field's face once focused.
+ * Read-only, it stays open and still. The caller sets its type and ink.
+ */
+export const PROSE_FIELD = cn(
+  FIELD_FACE,
+  "w-full cursor-text resize-none border-transparent bg-transparent px-2 py-1 [field-sizing:content] transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:bg-surface focus:shadow-focus touch:border-b-rush read-only:cursor-default read-only:hover:border-transparent read-only:hover:bg-transparent",
 );
 
 /** The focus of a field made of several parts (tokens, a search box with its icon, the composer). */

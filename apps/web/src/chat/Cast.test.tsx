@@ -1,5 +1,4 @@
 import {
-  CAST_LIMITS,
   type CastEntry,
   type CastState,
   DEFAULT_SETTINGS,
@@ -12,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { charactersQuery } from "../characters/queries.ts";
 import { settingsQuery } from "../settings/settings.ts";
-import { CastHeaderControl, CastPanel, EditRecord, RecordText } from "./Cast.tsx";
+import { CastHeaderControl, CastPanel, RecordText } from "./Cast.tsx";
 import { type ChatCast, EMPTY_CAST } from "./cast-slice.ts";
 import {
   discoveredRegister,
@@ -139,10 +138,8 @@ describe("the roster", () => {
     chat([mara]);
     expect(panel()).toContain("(31)</span>");
     const record = renderToStaticMarkup(<RecordText entry={mara} />);
-    const edit = renderToStaticMarkup(<EditRecord entry={mara} onDone={() => {}} />);
     expect(record).toContain("short silver hair");
-    expect(edit).toContain("short silver hair");
-    expect(record + edit).not.toContain("long black hair");
+    expect(record).not.toContain("long black hair");
   });
   it("keeps unintroduced people and canonical secrets out of the public register", () => {
     const hidden = person(1, "Hidden", { age: "24" });
@@ -551,13 +548,17 @@ describe("a record", () => {
   };
 
   const headings = (out: string) => [...out.matchAll(/<h3[^>]*>([^<]+)</g)].map((m) => m[1]);
-  const labels = (out: string) => [...out.matchAll(/<dt[^>]*>([^<]+)</g)].map((m) => m[1]);
+  // The recorded rows: those under More details wait to be written.
+  const labels = (out: string) =>
+    [...(out.split("<details")[0] ?? "").matchAll(/<dt[^>]*>([^<]+)</g)].map((m) => m[1]);
 
   it("reads in labelled sections, the state first with the activity as its lead, toned as before", () => {
     chat([mara]);
     const out = renderToStaticMarkup(<RecordText entry={mara} />);
     expect(headings(out)).toEqual(["Now", "Looks", "Character", "Intimate"]);
-    expect(out).toMatch(/<span class="sr-only">Activity: <\/span><span data-cast-field="activity"/);
+    expect(out).toMatch(
+      /<span class="sr-only">Correct activity: <\/span><span data-cast-field="activity"/,
+    );
     expect(labels(out)).toEqual([
       "Outfit",
       "Ethnicity",
@@ -566,7 +567,9 @@ describe("a record", () => {
       "Intimate body",
       "Fetishes and taboos",
     ]);
-    expect(out).toMatch(/<dt[^>]*>Ethnicity<\/dt><dd[^>]*><span data-cast-field="ethnicity"/);
+    expect(out).toMatch(
+      /<dt[^>]*>Ethnicity<\/dt><dd[^>]*><button[^>]*data-cast-edit="ethnicity"[^>]*><span class="sr-only">Correct ethnicity: <\/span><span data-cast-field="ethnicity"/,
+    );
     expect(out).toMatch(/data-cast-field="intimate"[^>]*data-tone="iris"/);
     expect(out).toMatch(/data-cast-field="fetishes"[^>]*data-tone="rose"/);
     expect(out).not.toContain('data-cast-field="age"');
@@ -616,10 +619,10 @@ describe("a record", () => {
     const out = renderToStaticMarkup(<RecordText entry={mara} />);
     expect(out).toMatch(/data-cast-field="hair" data-cast-corrected=""/);
     expect(out).toMatch(
-      /shoulder-length<\/span><div[^>]*><button[^>]*>Revert hair<\/button><\/div><\/dd>/,
+      /shoulder-length<\/span><\/button><div[^>]*><button[^>]*>Revert hair<\/button><\/div><\/dd>/,
     );
     expect(out).toMatch(
-      /grey hoodie<\/span><div[^>]*><button[^>]*>Revert outfit<\/button><\/div><\/dd>/,
+      /grey hoodie<\/span><\/button><div[^>]*><button[^>]*>Revert outfit<\/button><\/div><\/dd>/,
     );
   });
 
@@ -638,7 +641,7 @@ describe("a record", () => {
     });
     const out = renderToStaticMarkup(<RecordText entry={cleared} />);
     expect(out).toMatch(
-      /Activity: <\/span><span data-cast-field="activity" data-cast-corrected=""/,
+      /Correct activity: <\/span><span data-cast-field="activity" data-cast-corrected=""/,
     );
     expect(out).toContain(">Revert activity</button>");
   });
@@ -698,41 +701,30 @@ describe("a record", () => {
     );
   });
 
-  it("edits the fields under the reading mode's sections, in its order", () => {
-    const out = renderToStaticMarkup(<EditRecord entry={mara} onDone={() => {}} />);
-    expect([...out.matchAll(/<legend[^>]*>([^<]+)</g)].map((m) => m[1])).toEqual([
-      "Now",
-      "Looks",
-      "Character",
-      "Intimate",
-    ]);
-    expect(out.indexOf('data-cast-field="activity"')).toBeLessThan(
-      out.indexOf('data-cast-field="mood"'),
+  it("offers every recorded value to correct where it stands, in the sections' order", () => {
+    chat([mara]);
+    const out = renderToStaticMarkup(<RecordText entry={mara} />);
+    const editable = [...out.matchAll(/data-cast-edit="([a-z]+)"/g)].map((m) => m[1]);
+    expect(editable.slice(0, 2)).toEqual(["activity", "outfit"]);
+    expect(editable).toContain("personality");
+    // At rest each is its value, not a field.
+    expect(out).not.toContain("<textarea");
+    expect(out).not.toContain("Edit record");
+    expect(out).not.toContain(">Save</button>");
+  });
+
+  it("keeps the details not recorded under More details, each to write, with the help", () => {
+    chat([mara]);
+    const out = renderToStaticMarkup(<RecordText entry={mara} />);
+    const more = out.slice(out.indexOf("More details"));
+    expect(more).toMatch(/<dt[^>]*>Skin<\/dt><dd[^>]*><button[^>]*data-cast-edit="skin"/);
+    expect(more).toMatch(
+      /<dt[^>]*>Clothing state<\/dt><dd[^>]*><button[^>]*data-cast-edit="disarray"/,
     );
-    expect(out).toMatch(/<textarea[^>]*class="cast-field/);
-  });
-
-  it("holds every field to the register's length bound", () => {
-    const out = renderToStaticMarkup(<EditRecord entry={mara} onDone={() => {}} />);
-    const textareas = [...out.matchAll(/<textarea[^>]*>/g)].map((m) => m[0]);
-    expect(textareas.length).toBeGreaterThan(0);
-    for (const textarea of textareas) {
-      expect(textarea).toContain(`maxLength="${CAST_LIMITS.field}"`);
-    }
-  });
-
-  it("edits every field under a visible label, empty ones included, with help, Save and Cancel", () => {
-    const out = renderToStaticMarkup(<EditRecord entry={mara} onDone={() => {}} />);
-    expect(out.split("<textarea").length - 1).toBe(22);
-    expect(out).toContain('<span class="font-sans text-meta text-reed">Skin</span>');
-    expect(out).toMatch(/<textarea[^>]*data-cast-field="skin"/);
-    expect(out).toContain('<span class="font-sans text-meta text-reed">Clothing state</span>');
-    expect(out).toMatch(/<textarea[^>]*data-cast-field="disarray"/);
+    expect(more).not.toContain('data-cast-edit="outfit"');
     expect(out).toContain(
-      "Looks and character hold for this chat. Current state yields to the next update.",
+      "Corrections to looks and character hold for this chat; the current state yields to the next update.",
     );
-    expect(out).toContain(">Save</button>");
-    expect(out).toContain(">Cancel</button>");
     expect(out).not.toContain("Updated behind this edit");
   });
 });

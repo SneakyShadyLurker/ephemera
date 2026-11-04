@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { MarkIcon } from "@/components/icons";
+import { MarkIcon, MenuIcon } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
 import { MoreButton } from "@/components/more-button.tsx";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -82,8 +82,8 @@ export function ScreenHeader({
   /** The gutter class the body's scroller keeps (`SCROLL_GUTTERS`, the chat thread's own alike), so the header keeps the same room. */
   gutters?: string;
   /**
-   * The title fades while an ancestor carries `data-name-stuck` (a nameplate with the same
-   * name stuck under the header), so the name never shows twice; it stays the heading.
+   * The title fades while an ancestor carries `data-name-shown` (a nameplate with the same
+   * name in view below, stuck or not), so the name never shows twice; it stays the heading.
    */
   yieldsTitle?: boolean;
 }) {
@@ -91,7 +91,8 @@ export function ScreenHeader({
   const writing = useInFlight();
   const story = storyTitle ?? lead !== undefined;
   return (
-    <header className="header-hairline relative box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
+    // Pinned over the body's scroller, as the sheet's header is (sheet/SheetFrame.tsx).
+    <header className="header-hairline sticky top-0 box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
       <div className={cn("flex min-w-0 flex-1", gutters && cn("overflow-hidden", gutters))}>
         <div
           className={cn(
@@ -107,6 +108,7 @@ export function ScreenHeader({
               aria-label="Open navigation"
               onClick={() => setNavOpen(true)}
               mark={<MarkIcon dripping writing={writing} size={20} />}
+              cue={<MenuIcon size={14} />}
             />
           )}
           {lead}
@@ -117,7 +119,7 @@ export function ScreenHeader({
               // A display step above the navigation's labels, one size on every screen.
               story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
               yieldsTitle &&
-                "transition-opacity duration-(--duration-quick) ease-fade [[data-name-stuck]_&]:opacity-0",
+                "transition-opacity duration-(--duration-quick) ease-fade [[data-name-shown]_&]:opacity-0",
             )}
           >
             {title}
