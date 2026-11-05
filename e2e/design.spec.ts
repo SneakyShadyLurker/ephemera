@@ -16,6 +16,8 @@ import {
   messages,
   moreAction,
   openChat,
+  replyActions,
+  replyCounter,
   send,
   turns,
 } from "./support/chat.ts";
@@ -58,6 +60,45 @@ async function expectComposerAndActionsFit(page: Page, width: number) {
       ).length;
   });
   expect(strays).toBe(0);
+  const layout = await page.locator("[data-reply-actions]").evaluate((bar) => {
+    const bounds = bar.getBoundingClientRect();
+    const buttons = [...bar.querySelectorAll("button")].map((button) => {
+      const rect = button.getBoundingClientRect();
+      return {
+        label: button.getAttribute("aria-label") ?? button.textContent,
+        x: rect.x,
+        right: rect.right,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    return { left: bounds.left, right: bounds.right, buttons };
+  });
+  for (const button of layout.buttons) {
+    expect(button.x, `${button.label} left edge`).toBeGreaterThanOrEqual(layout.left);
+    expect(button.right, `${button.label} right edge`).toBeLessThanOrEqual(layout.right);
+    expect(button.height).toBeGreaterThanOrEqual(44);
+    expect(button.width).toBeGreaterThanOrEqual(44);
+    expect(button.y).toBe(layout.buttons[0]?.y);
+  }
+}
+
+for (const width of [320, 360]) {
+  test(`the reply pager and actions fit one row at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await openChat(page, "mock-fast");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await expectComposerAndActionsFit(page, width);
+    await replyActions(page).getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    await expectComposerAndActionsFit(page, width);
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  });
 }
 
 for (const { name, width, height } of FORM_FACTORS) {

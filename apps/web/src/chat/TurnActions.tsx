@@ -33,15 +33,16 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { useSignedIn } from "../signin/hooks.ts";
 import { openCast, useCastVisible } from "./cast-ui.ts";
-import { swipe } from "./Swipe.tsx";
+import { appendAlternate, swipe } from "./Swipe.tsx";
 import { chatStore, useChat } from "./session.ts";
 import { type AssistantMessage, canGenerateAlternate, shownReply } from "./store.ts";
 
 /** Compact icon buttons for message actions; 44px on touch. */
 const ICON = "size-11";
-const LABELLED = "h-11 gap-1.5 px-1.5 text-note touch:px-1.5";
+const LABELLED =
+  "size-11 gap-1.5 p-0 text-note touch:p-0 @min-[22rem]/reply-actions:w-auto @min-[22rem]/reply-actions:px-1.5";
 /** The reply footer's occupied slot, also reserved while its controls wait for a reply. */
-export const REPLY_ACTION_ROW = "flex h-11 items-center gap-1";
+export const REPLY_ACTION_ROW = "@container/reply-actions flex h-11 items-center gap-1";
 
 const edit = (id: string) => chatStore.getState().startEdit(id);
 const remove = (id: string) => chatStore.getState().remove(id);
@@ -229,10 +230,11 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
         <Button
           variant="quiet"
           disabled={busy || !canGenerate || !writable}
-          onClick={() => void swipe(1)}
+          onClick={() => void appendAlternate()}
           className={LABELLED}
         >
-          New reply
+          <RegenerateIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
+          <span className="sr-only @min-[22rem]/reply-actions:not-sr-only">New reply</span>
         </Button>
       </Tooltip>
     );
@@ -263,7 +265,10 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
       ) : null}
       {newReply}
       {continuing ? (
-        <p className="px-1.5 text-note text-reed">Continuing…</p>
+        <p className="flex size-11 shrink-0 items-center justify-center text-note text-reed @min-[22rem]/reply-actions:w-auto @min-[22rem]/reply-actions:px-1.5">
+          <NextIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
+          <span className="sr-only @min-[22rem]/reply-actions:not-sr-only">Continuing…</span>
+        </p>
       ) : (
         canContinue && (
           <Tooltip label="Continue this reply" shortcut="Alt Enter">
@@ -273,7 +278,8 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
               onClick={() => void chatStore.getState().continueReply()}
               className={LABELLED}
             >
-              Continue
+              <NextIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
+              <span className="sr-only @min-[22rem]/reply-actions:not-sr-only">Continue</span>
             </Button>
           </Tooltip>
         )

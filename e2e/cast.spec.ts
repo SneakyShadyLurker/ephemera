@@ -999,6 +999,47 @@ test("a value corrects where it stands, Escape and leaving unchanged keep it, an
   await expect(record.getByRole("button", { name: "Revert hair" })).toHaveCount(0);
 });
 
+test("an empty More details correction moves with focus and Saved feedback", async ({
+  page,
+  request,
+}) => {
+  await castChat(request);
+  await seeded(page);
+  const record = await openRecord(page, SEEDED);
+  await record.locator("summary").filter({ hasText: "More details" }).click();
+  await record.locator('[data-cast-edit="disarray"]').click();
+  const field = record.locator('textarea[data-cast-field="disarray"]');
+  await field.fill("coat unbuttoned");
+  await field.press("Enter");
+  const value = record.locator('[data-cast-edit="disarray"]');
+  await expect(value).toBeFocused();
+  await expect(value).toContainText("coat unbuttoned");
+  await expect(value.locator("..").locator("[data-inline-save]")).toHaveText("Saved");
+  await expect(value.locator("xpath=ancestor::section[1]")).toContainText("Now");
+});
+
+test("the phone roster can remove an expanded away member", async ({ page, request }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await castChat(request);
+  await seeded(page);
+  await castPanel(page)
+    .getByRole("button", { name: `and ${SHEET_WOMAN} away` })
+    .click();
+  const roster = castRecord(page, "Cast");
+  const away = roster.getByRole("region", { name: "Away" });
+  await away.locator("summary").filter({ hasText: SHEET_WOMAN }).click();
+  await away.getByRole("button", { name: "Remove from cast", exact: true }).click();
+  await expect(roster).toHaveCount(0);
+  await expect(castPanel(page)).toContainText(`${SHEET_WOMAN} removed.`);
+  await expect(castPanel(page).getByRole("button", { name: /away/ })).toHaveCount(0);
+  const undo = castPanel(page).getByRole("button", { name: `Undo removing ${SHEET_WOMAN}` });
+  await expect(undo).toBeFocused();
+  await undo.click();
+  await expect(
+    castPanel(page).getByRole("button", { name: `and ${SHEET_WOMAN} away` }),
+  ).toBeVisible();
+});
+
 test("personality keywords, a repeated one included, revert to exactly the recorded ones", async ({
   page,
   request,

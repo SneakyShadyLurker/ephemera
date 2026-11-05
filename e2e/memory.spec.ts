@@ -220,6 +220,29 @@ test("turning memory off on the memory screen shows the invitation and stops inj
   expect((await storedMemory(request, characterId)).episodes).toHaveLength(1);
 });
 
+test("a focused notebook field keeps accepting text after a background save", async ({
+  page,
+  request,
+}) => {
+  const { characterId } = await memoryChat(request);
+  await page.goto(`/characters/${characterId}/memory`);
+  const field = page.getByRole("textbox", { name: "Situation" });
+  const situation = unique("They wait at the quay.");
+  await field.click();
+  await field.fill(situation);
+  await expect
+    .poll(async () => (await storedMemory(request, characterId)).state?.notebook.situation)
+    .toBe(situation);
+  await expect(field).toBeFocused();
+  await expect(field).toBeEditable();
+  await field.press("End");
+  await field.pressSequentially(" The ferry arrives.");
+  await expect(field).toHaveValue(`${situation} The ferry arrives.`);
+  await field.press("Enter");
+  await expect(field).not.toBeEditable();
+  await expect(field).toBeFocused();
+});
+
 test("turning memory off right after a notebook edit saves the edit first", async ({
   page,
   request,
@@ -599,6 +622,8 @@ test("the memory screen edits the next chat's opening, and Forget everything emp
   await field.click();
   await field.fill(edited);
   await expect.poll(opening).toBe(edited);
+  await expect(field).toBeEditable();
+  await field.press("Enter");
   await expect(field).toHaveAttribute("readonly", "");
   await field.click();
   await field.fill("");

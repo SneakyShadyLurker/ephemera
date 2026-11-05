@@ -58,6 +58,48 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 
+test("closing Events immediately saves its edit before the drawer leaves", async ({
+  page,
+  request,
+}) => {
+  await freshChat(request);
+  const original = "The lamp flickers.";
+  const edited = "The lamp flickers twice.";
+  await createEventViaApi(request, original);
+  await page.goto("/lorebooks");
+  await openEvents(page);
+  await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+  await sheet.getByRole("button", { name: original }).click();
+  await sheet.getByRole("textbox", { name: "Instruction" }).fill(edited);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  expect((await storedEvents(request))[0]?.text).toBe(edited);
+  await page.getByRole("button", { name: "Events", exact: true }).click();
+  await expect(sheet.getByRole("button", { name: edited })).toBeVisible();
+});
+
+test("a failed save keeps Events and its draft open when dismissed", async ({ page, request }) => {
+  await freshChat(request);
+  await createEventViaApi(request, "The door opens.");
+  await page.goto("/lorebooks");
+  await openEvents(page);
+  await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+  await sheet.getByRole("button", { name: "The door opens." }).click();
+  await page.route("**/api/events/*", (route) =>
+    route.request().method() === "PATCH" ? route.abort() : route.fallback(),
+  );
+  const instruction = sheet.getByRole("textbox", { name: "Instruction" });
+  await instruction.fill("The door opens slowly.");
+  await page.keyboard.press("Escape");
+  const warning = page.getByRole("alertdialog", { name: "Leave without saving?" });
+  await expect(warning).toContainText("Not saved");
+  await warning.getByRole("button", { name: "Stay" }).click();
+  await expect(instruction).toHaveValue("The door opens slowly.");
+  await expect(sheet).toBeVisible();
+});
+
 /** A link of the main navigation. */
 const mainLink = (page: Page, name: string) =>
   page.getByRole("navigation", { name: "Main" }).getByRole("link", { name });

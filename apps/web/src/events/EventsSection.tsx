@@ -13,8 +13,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { countOf } from "@/lib/text";
 import { charactersQuery } from "../characters/queries.ts";
 import { SettingsRow } from "../lorebook/SettingsRow.tsx";
-import { isFailure } from "../sheet/autosave.ts";
-import { useLeaveGuard } from "../sheet/SheetFrame.tsx";
+import { unsavedPart, useLeaveGuard } from "../sheet/SheetFrame.tsx";
 import { EventRow, type RowSaving } from "./EventRow.tsx";
 import {
   createEvent,
@@ -139,7 +138,7 @@ const SAVED = { kind: "saved" } as const;
  * only when one could not be, saying why in the words of the first that failed.
  */
 export function leaveGuardOf(rows: readonly RowSaving[]) {
-  const stuck = rows.find((row) => isFailure(row.status, row.creating));
+  const stuck = unsavedPart(rows);
   return {
     status: stuck?.status ?? SAVED,
     creating: stuck?.creating ?? false,
@@ -157,7 +156,13 @@ export function leaveGuardOf(rows: readonly RowSaving[]) {
  * The events: a compact row on the Lorebooks screen, closed on arrival, or,
  * `inSheet`, the open list in the chat's Events sheet, whose title names it.
  */
-export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
+export function EventsSection({
+  inSheet = false,
+  onSavingChange,
+}: {
+  inSheet?: boolean;
+  onSavingChange?: (saving: ReturnType<typeof leaveGuardOf>) => void;
+}) {
   const queryClient = useQueryClient();
   const events = useQuery(eventsQuery);
   const characters = useQuery(charactersQuery);
@@ -224,6 +229,9 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
       return next;
     });
   const guard = leaveGuardOf(rowsSaving);
+  useEffect(() => {
+    onSavingChange?.(guard);
+  }, [onSavingChange, guard]);
   const leaveGuard = useLeaveGuard(guard, () => {}, guard.creating, "event");
 
   useEffect(() => {
@@ -424,7 +432,6 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
                 className: "justify-self-start",
               })}
               onClick={() => {
-                setEventsOpen(false);
                 setLibraryEventsOpen(true);
               }}
             >

@@ -33,6 +33,12 @@ export function swipe(direction: -1 | 1, far = false) {
   return chatStore.getState().swipe(direction);
 }
 
+/** A new alternate arrives from the next side, even when an earlier reply was shown. */
+export function appendAlternate() {
+  useSwipeMotion.setState({ direction: 1, far: false });
+  return chatStore.getState().appendAlternate();
+}
+
 const DRAG_DISTANCE = 72;
 const DRAG_VELOCITY = 480;
 /** How strongly the rubber band resists a drag past the reply's place: a ratio, not a distance. */

@@ -918,8 +918,15 @@ function RosterView({
                         {entry.anchor.name}
                         <DisclosureChevron />
                       </summary>
-                      <div className="pt-3">
+                      <div className="grid gap-3 pt-3">
                         <RecordText entry={entry} />
+                        <Button
+                          variant="link"
+                          className="justify-self-start"
+                          onClick={() => removeFromCast(entry)}
+                        >
+                          Remove from cast
+                        </Button>
                       </div>
                     </details>
                   </li>
@@ -1106,6 +1113,22 @@ function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
  * recorded wait under "More details", to be written there.
  */
 export function RecordText({ entry }: { entry: CastEntry }) {
+  const record = useRef<HTMLFieldSetElement>(null);
+  const [editing, setEditing] = useState<{ field: TextField; recorded: boolean } | null>(null);
+  const [saved, setSaved] = useState<TextField | null>(null);
+  const refocus = useRef<TextField | null>(null);
+  useLayoutEffect(() => {
+    const field = refocus.current;
+    if (field === null) return;
+    refocus.current = null;
+    const button = record.current?.querySelector<HTMLButtonElement>(`[data-cast-edit="${field}"]`);
+    // A previously empty detail may now belong to a folded section.
+    for (let parent = button?.parentElement; parent; parent = parent.parentElement) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      if (parent === record.current) break;
+    }
+    button?.focus({ preventScroll: true });
+  });
   const correction = useChat((state) => state.cast.corrections[entry.id]);
   const change = useChat(latestChange);
   const mountedAt = useMountedAt();
@@ -1115,21 +1138,43 @@ export function RecordText({ entry }: { entry: CastEntry }) {
   ]);
   // A corrected field shows even when cleared, for its Revert. The title carries a bare age; a
   // fuller one reads here too.
-  const shows = (field: TextField) => {
+  const recorded = (field: TextField) => {
     const text = castFieldText(entry, field);
     if (corrections.has(field)) return true;
     return text !== "" && (field !== "age" || text.trim() !== ageOf(entry));
   };
+  // Keep a field in its current section while its draft is open, even if a keeper update lands.
+  const shows = (field: TextField) =>
+    editing?.field === field ? editing.recorded : recorded(field);
+  const editor = (field: TextField, children: ReactNode) => (
+    <EditableValue
+      entry={entry}
+      field={field}
+      saved={saved === field}
+      onStart={() => {
+        setSaved(null);
+        setEditing({ field, recorded: recorded(field) });
+      }}
+      onFinish={(changed, keepFocus) => {
+        setSaved(changed ? field : null);
+        refocus.current = keepFocus ? field : null;
+        setEditing(null);
+      }}
+    >
+      {children}
+    </EditableValue>
+  );
   const value = (field: TextField) => (
     <>
-      <EditableValue entry={entry} field={field}>
+      {editor(
+        field,
         <Field
           entry={entry}
           field={field}
           corrected={corrections.has(field)}
           wash={washOf(change, entry.id, [field], mountedAt)}
-        />
-      </EditableValue>
+        />,
+      )}
       {corrections.has(field) && <Revert entry={entry} field={field} />}
     </>
   );
@@ -1176,6 +1221,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
   const unrecorded = SECTIONS.flatMap(([, fields]) => fields.filter((field) => !shows(field)));
   return (
     <fieldset
+      ref={record}
       aria-label={`${entry.anchor.name} record`}
       className="@container grid min-w-0 gap-3 font-story"
     >
@@ -1195,9 +1241,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
               <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
                 <dt className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</dt>
                 <dd className="min-w-0 break-words text-narration text-ui">
-                  <EditableValue entry={entry} field={field}>
-                    <span className="font-sans text-note text-reed">Add</span>
-                  </EditableValue>
+                  {editor(field, <span className="font-sans text-note text-reed">Add</span>)}
                 </dd>
               </div>
             ))}
@@ -1223,35 +1267,32 @@ export function RecordText({ entry }: { entry: CastEntry }) {
 function EditableValue({
   entry,
   field,
+  saved,
+  onStart,
+  onFinish,
   children,
 }: {
   entry: CastEntry;
   field: TextField;
+  saved: boolean;
+  onStart: () => void;
+  onFinish: (changed: boolean, keepFocus: boolean) => void;
   children: ReactNode;
 }) {
   const label = CAST_FIELD_LABELS[field];
   const current = castFieldText(entry, field);
   const [draft, setDraft] = useState<{ initial: string; text: string } | null>(null);
-  const button = useRef<HTMLButtonElement>(null);
   const settled = useRef(false);
-  const refocus = useRef(false);
-  const [saved, setSaved] = useState(false);
-  useLayoutEffect(() => {
-    if (draft !== null || !refocus.current) return;
-    refocus.current = false;
-    button.current?.focus();
-  }, [draft]);
 
   if (draft === null) {
     return (
       <>
         <button
-          ref={button}
           type="button"
           data-cast-edit={field}
           onClick={() => {
             settled.current = false;
-            setSaved(false);
+            onStart();
             setDraft({ initial: current, text: current });
           }}
           className={EDITABLE_AT_REST}
@@ -1269,7 +1310,8 @@ function EditableValue({
     if (settled.current) return;
     settled.current = true;
     const value = draft.text.trim();
-    if (save && value !== draft.initial) {
+    const changed = save && value !== draft.initial;
+    if (changed) {
       chatStore
         .getState()
         .correctCast(
@@ -1278,10 +1320,9 @@ function EditableValue({
             ? { anchor: { [field]: value } as Partial<CastAnchor> }
             : { state: { [field]: value } as Partial<CastState> },
         );
-      setSaved(true);
     }
-    refocus.current = keepFocus;
     setDraft(null);
+    onFinish(changed, keepFocus);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {

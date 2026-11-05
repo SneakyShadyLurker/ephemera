@@ -312,6 +312,23 @@ test("swipes: New reply writes another, arrows and keys step, Replace swaps only
   expect(await upstreamRecords(line)).toHaveLength(3);
 });
 
+test("New reply appends a third alternate while the first of two is shown", async ({ page }) => {
+  await openChat(page, "mock-fast");
+  const line = canary("in");
+  await send(page, line);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  const actions = replyActions(page);
+  await actions.getByRole("button", { name: "New reply" }).click();
+  await expect(replyCounter(page)).toContainText("2 / 2");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await actions.getByRole("button", { name: "Previous reply" }).click();
+  await expect(replyCounter(page)).toContainText("1 / 2");
+  await actions.getByRole("button", { name: "New reply" }).click();
+  await expect(replyCounter(page)).toContainText("3 / 3");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  expect(await upstreamRecords(line)).toHaveLength(3);
+});
+
 test("a failed reply says why and Try again replaces it in place", async ({ page }) => {
   await openChat(page, "mock-fast");
   // The first request never reaches the server; the next one goes through.

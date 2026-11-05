@@ -1,4 +1,4 @@
-import { type ComponentProps, useEffect, useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -13,7 +13,7 @@ export function ProseField({
   onBlur,
   onPointerDown,
   onKeyDown,
-  saveStatus,
+  saveStatus: _saveStatus,
   ...props
 }: ComponentProps<"textarea"> & { saveStatus?: SaveStatus | undefined }) {
   const [editing, setEditing] = useState(false);
@@ -26,11 +26,6 @@ export function ProseField({
     settledFocus.current = true;
     node.focus({ preventScroll: true });
   };
-  useEffect(() => {
-    if (saveStatus?.kind === "saved") {
-      setEditing(false);
-    }
-  }, [saveStatus]);
   return (
     <span className="relative grid min-w-0 w-full">
       <textarea
