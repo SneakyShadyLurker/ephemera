@@ -480,6 +480,10 @@
   --font-display: "Marcellus", serif;
   --font-story: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
 
+  --font-weight-story-night: 420;
+  --font-weight-speech: 460;
+  --font-weight-speech-night: 480;
+
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
@@ -501,6 +505,7 @@
 
   /*
    * Corners by role, so the same role is drawn the same everywhere:
+   * - tracked (2px): insertions in tracked changes.
    * - xs (4px): marks and thumbnails: a checkbox, a swatch, a chip in a
    *   line of text, a portrait leaf.
    * - sm (6px): a small control inside another: a menu or select item, a
@@ -514,6 +519,7 @@
    * - full: pills, dots and round thumbs.
    * A layer drawn over another (a clip, an edge) takes `rounded-[inherit]`.
    */
+  --radius-tracked: 2px;
   --radius-xs: calc(var(--radius) * 0.5);
   --radius-sm: calc(var(--radius) * 0.75);
   --radius-md: var(--radius);
@@ -706,7 +712,7 @@
   font-feature-settings: "onum" 0;
   text-wrap: pretty;
   @variant dark {
-    font-weight: 420;
+    font-weight: var(--font-weight-story-night);
   }
 }
 
@@ -732,9 +738,9 @@
   & [data-voice="speech"] {
     --ink-em: var(--ink);
     color: var(--ink);
-    font-weight: 460;
+    font-weight: var(--font-weight-speech);
     @variant dark {
-      font-weight: 480;
+      font-weight: var(--font-weight-speech-night);
     }
   }
   /*
@@ -1720,7 +1726,7 @@ details[open] > summary .disclosure-chevron {
 
 @utility tracked-ins {
   @apply ins-wash;
-  border-radius: 2px;
+  border-radius: var(--radius-tracked);
   box-decoration-break: clone;
   transition:
     opacity var(--duration-quick) var(--ease-fade),
