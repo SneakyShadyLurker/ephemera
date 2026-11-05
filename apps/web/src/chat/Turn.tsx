@@ -1,5 +1,5 @@
 import { formatLocationLine } from "@ephemera/core";
-import { Component, lazy, type ReactNode, Suspense } from "react";
+import { Component, lazy, type ReactNode, Suspense, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ export function Turn({
   folded?: boolean;
   /** Remembered or being remembered: read-only, so its actions are hidden. */
   locked?: boolean;
-  /** The latest reply shown, from tablet up: the portrait floats at its head. */
+  /** The latest reply shown: its portrait, above the prose on phones or floated beside it. */
   presence?: boolean;
 }) {
   // A place a deletion or Undo has just shifted holds another message until the thread
@@ -345,6 +345,9 @@ function ReplyTurn({
   presence: boolean;
   phone: boolean;
 }) {
+  // Entrance belongs to this turn's arrival, not to later portrait handoffs.
+  // Retiring the previous reply must never change its rendered prose or attributes.
+  const [arriving] = useState(enter && !presence);
   const chosen = useChatCharacter();
   const character = chosen?.name ?? "Model";
   // One light for the reply: the portrait's rim where the float shows one (Presence), else the hairline.
@@ -365,7 +368,9 @@ function ReplyTurn({
       data-folded={folded ? "" : undefined}
       className={cn(
         "group relative",
-        enter && (message.greeting ? GREET : "arrive"),
+        // The pending turn owns the portrait immediately, without an entrance
+        // hiding the portrait and Cast again before the first streamed words.
+        arriving && (message.greeting ? GREET : "arrive"),
         folded && FOLDED,
       )}
     >
@@ -376,7 +381,7 @@ function ReplyTurn({
         actions={phone ? actions : undefined}
       />
       {/* Under the nameplate, so it sticks clear of the portrait; the reply's text wraps around it. */}
-      {presence && <Presence placement="float" />}
+      {presence && <Presence placement={phone ? "band" : "float"} inReply />}
       {/*
        * The prose never runs past the story measure. Beside the portrait, once the story is
        * wider than that measure, it keeps a column of its own instead of running on under the

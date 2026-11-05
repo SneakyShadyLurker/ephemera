@@ -885,8 +885,13 @@ function RosterView({
             {present.map((entry) =>
               drawer ? (
                 <li key={entry.id} className="grid gap-3 border-rush border-b pb-4">
-                  <h3 className={GROUP_HEADING}>{entry.anchor.name}</h3>
-                  <RecordText entry={entry} expanded />
+                  <h3 className={GROUP_HEADING}>
+                    {entry.anchor.name}
+                    {ageOf(entry) !== "" && (
+                      <span className="font-normal text-reed"> ({ageOf(entry)})</span>
+                    )}
+                  </h3>
+                  <RecordText entry={entry} />
                   <Button
                     variant="link"
                     className="justify-self-start"
@@ -1100,7 +1105,7 @@ function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
  * value is corrected where it stands (EditableValue); the details not
  * recorded wait under "More details", to be written there.
  */
-export function RecordText({ entry, expanded = false }: { entry: CastEntry; expanded?: boolean }) {
+export function RecordText({ entry }: { entry: CastEntry }) {
   const correction = useChat((state) => state.cast.corrections[entry.id]);
   const change = useChat(latestChange);
   const mountedAt = useMountedAt();
@@ -1113,7 +1118,7 @@ export function RecordText({ entry, expanded = false }: { entry: CastEntry; expa
   const shows = (field: TextField) => {
     const text = castFieldText(entry, field);
     if (corrections.has(field)) return true;
-    return text !== "" && (expanded || field !== "age" || text.trim() !== ageOf(entry));
+    return text !== "" && (field !== "age" || text.trim() !== ageOf(entry));
   };
   const value = (field: TextField) => (
     <>
@@ -1156,7 +1161,7 @@ export function RecordText({ entry, expanded = false }: { entry: CastEntry; expa
         )}
       </section>
     );
-    return !expanded && (title === "Looks" || title === "Intimate") ? (
+    return title === "Looks" || title === "Intimate" ? (
       <details key={title} className="disclosure">
         <summary className={cn(SUMMARY_LINE, "font-sans")}>
           {title}

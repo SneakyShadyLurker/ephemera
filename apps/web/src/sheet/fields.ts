@@ -26,6 +26,9 @@ export const FIELD = cn(
   "max-h-[60dvh] px-3.5 py-2.5 text-turn aria-readonly:border-rush aria-readonly:bg-canvas",
 );
 
+/** A passage under review: the field's quiet face and edge, at body reading size. */
+export const PASSAGE_FACE = cn(FIELD_FACE, "border-rush px-3.5 py-2.5 text-turn");
+
 /**
  * A single-line field (a name, a short value): a sheet field's box at a
  * control's height, 36px, 44px on touch, so it lines up with the buttons

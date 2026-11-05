@@ -383,6 +383,7 @@ export function SheetBody({
   children,
   after,
   saving,
+  compactOnPhone = false,
 }: {
   label: string;
   onBlur: () => void;
@@ -393,6 +394,7 @@ export function SheetBody({
   /** A notice kept at the end of the fields, sticky above the bottom (a save conflict). */
   after?: ReactNode;
   saving?: { status: SaveStatus; noun: string };
+  compactOnPhone?: boolean;
 }) {
   // While the sign-in notice floats at the end, a focused field scrolls clear of it.
   const signedIn = useSignedIn();
@@ -419,7 +421,10 @@ export function SheetBody({
         <SheetTitleBoundary />
         <form
           aria-label={label}
-          className="grid grid-cols-[minmax(0,1fr)] gap-10"
+          className={cn(
+            "grid grid-cols-[minmax(0,1fr)] gap-10",
+            compactOnPhone && "max-tablet:gap-6",
+          )}
           onSubmit={(event) => event.preventDefault()}
           onBlur={onBlur}
         >

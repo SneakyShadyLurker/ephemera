@@ -40,33 +40,12 @@ export function HeaderAction({
   );
 }
 
-/** The tile's name and caption under the portrait, inside whichever control opens it. */
-function TileText({
-  name,
-  caption,
-  captionId,
-  compact = false,
-}: {
-  name: string;
-  caption: ReactNode;
-  captionId?: string;
-  compact?: boolean;
-}) {
+/** The name always takes the tile's full width, above metadata and its separate action. */
+function TileName({ name }: { name: string }) {
   return (
-    <>
-      <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
-        {name}
-      </span>
-      <span
-        id={captionId}
-        className={cn(
-          "min-h-4 px-0.5 pt-0.5 text-meta text-reed",
-          compact ? "truncate" : "break-words",
-        )}
-      >
-        {caption}
-      </span>
-    </>
+    <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
+      {name}
+    </span>
   );
 }
 
@@ -80,9 +59,8 @@ const CHAT_PORTRAIT_HOVER = `${PORTRAIT_FILTER} group-has-[>button:hover]/tile:b
  * A gallery's tile: the portrait, the name and one quiet caption line.
  * Without `onChat` the whole tile opens the sheet. With it (a character),
  * the tile starts the chat, and Edit opens the sheet from its own place
- * trailing the name, always shown, quiet. The chat's button sits in the name's row
- * and reaches over the portrait with a plate, so Edit never lies under it
- * and the portrait's hover and press stay the chat's own.
+ * trailing the metadata, always shown, quiet. The portrait and name form
+ * the chat target; the metadata row and Edit sit wholly below it.
  */
 export function PortraitTile({
   owner,
@@ -134,40 +112,38 @@ export function PortraitTile({
   );
   if (onChat === undefined) {
     return (
-      <div className="relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
-        <div className="col-span-2">{portrait}</div>
-        <Link
-          {...sheet}
-          className={cn(
-            "group grid min-w-0 rounded-sm outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:focus-ring",
-            actionsBelow && "col-span-2",
-          )}
-        >
-          <TileText name={name} caption={caption} />
+      <div className="grid min-w-0">
+        <Link {...sheet} aria-describedby={captionId} className="group grid min-w-0 rounded-lg">
+          {portrait}
+          <TileName name={name} />
         </Link>
-        {actions && (
-          <div className={cn("relative mt-1", actionsBelow && "col-span-2 justify-self-start")}>
-            {actions}
-          </div>
-        )}
+        <div className="flex min-w-0 items-center gap-1">
+          <span id={captionId} className="min-w-0 flex-1 truncate px-0.5 text-meta text-reed">
+            {caption}
+          </span>
+          {!actionsBelow && actions}
+        </div>
+        {actionsBelow && <div className="justify-self-start">{actions}</div>}
       </div>
     );
   }
   return (
-    <div className="group/tile relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-1">
-      <div className="col-span-2">{portrait}</div>
+    <div className="group/tile grid min-w-0">
       <button
         type="button"
         aria-label={`Chat with ${name}`}
         aria-describedby={captionId}
         onClick={onChat}
-        // The plate covers the whole tile; Edit, later and positioned, lies above it.
-        className="group grid min-w-0 cursor-pointer text-start outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:focus-ring"
+        className="group grid min-w-0 cursor-pointer rounded-lg text-start"
       >
-        <TileText name={name} caption={caption} captionId={captionId} compact />
+        {portrait}
+        <TileName name={name} />
       </button>
       {/* Always there, quiet in reed, so the way to the sheet is found without hovering. */}
-      <div className="relative row-span-2 self-stretch pt-2.5">
+      <div className="flex min-w-0 items-center gap-1">
+        <span id={captionId} className="min-w-0 flex-1 truncate px-0.5 text-meta text-reed">
+          {caption}
+        </span>
         <Link
           {...sheet}
           aria-label={`Edit ${name}`}

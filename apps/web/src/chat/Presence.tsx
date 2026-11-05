@@ -26,15 +26,21 @@ const COLUMN = {
  * The character, present once. Tablet and desktop: the portrait floats at the
  * head of the latest reply shown, or of the story while there is none, so
  * that reply's text wraps around it and it moves down the story with each new
- * reply; the header names the character. Phones: a band above the first turn
+ * reply; the header names the character. Phones: a band at the latest reply
  * that scrolls away, after which the header carries a small portrait; without
- * art, the name alone in the story face. It arrives the way an imported
- * portrait does, in each new place, and opens larger on a click or tap.
+ * art, the name alone in the story face. The pending turn takes its place
+ * immediately, without replaying an imported portrait's entrance.
  * With a ComfyUI address saved, Picture this scene sits under the portrait,
  * or in its place without one. The cast's roster follows, in the float's
  * column or across the band, whenever it has someone to list, portrait or not.
  */
-export function Presence({ placement }: { placement: "float" | "band" }) {
+export function Presence({
+  placement,
+  inReply = false,
+}: {
+  placement: "float" | "band";
+  inReply?: boolean;
+}) {
   const character = useChatCharacter();
   const desktop = useFormFactor() === "desktop";
   const pictures = useSetting((settings) => settings.comfyuiBaseUrl) !== "";
@@ -84,7 +90,7 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         <div
           key={character.id}
           data-presence=""
-          className="surface-in float-left mt-1 mr-8 mb-4 desktop:mr-(--gap-presence) @story-column/story:mr-(--gap-presence)"
+          className="float-left mt-1 mr-8 mb-4 desktop:mr-(--gap-presence) @story-column/story:mr-(--gap-presence)"
         >
           {column}
         </div>
@@ -129,9 +135,9 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
     <div
       key={character.id}
       data-presence=""
-      className={cn("surface-in -mt-2", portrait ? "pb-4" : "pb-3")}
+      className={cn(!inReply && "-mt-2", portrait ? "pb-4" : "pb-3")}
     >
-      {head}
+      {inReply ? column : head}
       {cast && <CastPanel placement="band" />}
     </div>
   );

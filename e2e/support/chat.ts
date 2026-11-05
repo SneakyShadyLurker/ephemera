@@ -24,7 +24,7 @@ export const characterRow = (page: Page) =>
 
 /**
  * Chooses the chat's character as the owner does: Session's Character row
- * opens the gallery, where the card's Chat starts the chat; "No character" is
+ * opens the gallery, where the card's Chat starts the chat; "Remove character" is
  * Session's own action. `confirm` answers the "Start a new chat" question that
  * a non-empty chat asks; leave it out when none is expected. Declined, the
  * owner goes back to the chat from the gallery.
@@ -37,7 +37,7 @@ export async function chooseCharacter(
   await openSession(page);
   const none = name === "No character";
   if (none) {
-    await page.getByRole("button", { name: "No character", exact: true }).click();
+    await page.getByRole("button", { name: "Remove character", exact: true }).click();
   } else {
     await characterRow(page).click();
     await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();

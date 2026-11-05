@@ -270,10 +270,15 @@ for (const factor of FACTORS) {
       await expect(roster).toBeVisible();
       await expect(roster.getByRole("region", { name: "Away" })).toContainText(SHEET_WOMAN);
       await expect(roster).not.toContainText(KEEPER_MAN);
-      // Present records are expanded and editable directly; away records stay folded.
+      // Present records use the individual record's groups and stay editable directly.
       const record = roster.getByRole("group", { name: `${SEEDED} record`, exact: true });
       await expect(record).toContainText(KEEPER_WOMAN_OUTFIT);
       await expect(record.locator('[data-cast-edit="outfit"]')).toBeVisible();
+      for (const title of ["Looks", "Intimate"]) {
+        await expect(
+          record.locator("details").filter({ has: page.getByText(title, { exact: true }) }),
+        ).not.toHaveAttribute("open", "");
+      }
       await expect(
         roster.getByRole("region", { name: "Away" }).locator(":scope > ul > li > details"),
       ).not.toHaveAttribute("open", "");

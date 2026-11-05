@@ -46,6 +46,7 @@ export function PersonasScreen() {
   return (
     <main className="flex min-w-0 flex-1 flex-col [timeline-scope:--thread]">
       <ScreenHeader
+        collection
         frame={frame}
         gutters={SCROLL_GUTTERS}
         title={

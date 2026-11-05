@@ -1038,22 +1038,17 @@ for (const { name, width, height, portrait } of [
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
 
-    // One portrait on the page: above the story on phones, its name beside it; from tablet up
-    // at the head of the latest reply, the header naming the character.
+    // One portrait at the latest reply: above its prose on phones, floated beside it elsewhere.
     const presence = page.locator("[data-presence]");
     await expect(presence).toHaveCount(1);
     const image = presence.locator("img");
     await expect(image).toHaveJSProperty("complete", true);
     expect((await image.boundingBox())?.width).toBe(portrait);
-    if (name === "phone") {
-      await expect(presence).toContainText(character);
-      await expect(messages(page).locator("img")).toHaveCount(0);
-    } else {
-      await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
+    await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
+    if (name !== "phone") {
       // The header names the character, giving way while the reply's nameplate shows it.
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(character);
     }
-
     const thread = scroller(page);
     expect(await thread.evaluate((node) => node.scrollHeight > node.clientHeight + 1_200)).toBe(
       true,
@@ -1140,6 +1135,17 @@ for (const { name, width, height, portrait } of [
       if (!column || !turn) throw new Error("the story is not laid out");
       expect(turn.width).toBeGreaterThan(column.width - 180);
     }
+    // A new pending reply takes the same-sized slot before its first streamed words.
+    await chooseModel(page, "mock-stall");
+    const previousWidth = (await image.boundingBox())?.width;
+    await send(page, canary("next"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
+    expect((await image.boundingBox())?.width).toBe(previousWidth);
+    await expect(presence).toHaveCSS("opacity", "1");
+    await expect(lastReply(page)).toHaveCSS("opacity", "1");
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "stopped");
   });
 }
 
@@ -2877,7 +2883,6 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
   for (const control of [
     gallery.getByRole("searchbox", { name: "Search characters" }),
     gallery.getByRole("button", { name: "Filter and order" }),
-    gallery.getByRole("button", { name: "Create with AI" }),
   ]) {
     await expect(control).toBeVisible();
     const box = await control.boundingBox();
@@ -2886,6 +2891,9 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
       (frame?.x ?? 0) + (frame?.width ?? 0),
     );
   }
+  const collection = page.getByRole("toolbar", { name: "Collection actions" });
+  await expectContained(collection);
+  await expect(collection.getByRole("button", { name: "Create with AI" })).toBeVisible();
   // Its sheet closes like every sheet: an X in the header, named for what it closes.
   await gallery.getByRole("button", { name: "Filter and order" }).click();
   const sheet = page.getByRole("dialog", { name: "Filter and order" });

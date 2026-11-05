@@ -115,7 +115,12 @@ export function GalleryScreen() {
           event.currentTarget.value = "";
         }}
       />
-      <ScreenHeader title={<GalleryTitle list={list} />} frame={frame} gutters={SCROLL_GUTTERS}>
+      <ScreenHeader
+        collection
+        title={<GalleryTitle list={list} />}
+        frame={frame}
+        gutters={SCROLL_GUTTERS}
+      >
         <HeaderAction
           label="Import cards"
           text="Import"
@@ -130,10 +135,12 @@ export function GalleryScreen() {
           icon={PlusIcon}
           onClick={newCharacter}
         />
-        {/* Phones name it under the search instead, while the cast shows. */}
-        {(!phone || characters.isError) && (
-          <HeaderAction label="Create with AI" icon={LampFlameIcon} onClick={createWithAi} />
-        )}
+        <HeaderAction
+          label="Create with AI"
+          labelledOnPhone
+          icon={LampFlameIcon}
+          onClick={createWithAi}
+        />
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -151,7 +158,7 @@ export function GalleryScreen() {
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
           <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
-            <Toolbar list={list} phone={phone} onCreate={createWithAi} />
+            <Toolbar list={list} phone={phone} />
             <KeptNote />
             <ImportReport />
             <Cast list={list} pending={characters.isPending} onChat={start} />
@@ -187,16 +194,7 @@ function GalleryTitle({ list }: { list: CharacterSummary[] }) {
   );
 }
 
-function Toolbar({
-  list,
-  phone,
-  onCreate,
-}: {
-  list: CharacterSummary[];
-  phone: boolean;
-  /** Phones: the header's flame alone does not explain itself, so the first row names it. */
-  onCreate: () => void;
-}) {
+function Toolbar({ list, phone }: { list: CharacterSummary[]; phone: boolean }) {
   const query = useGallery((state) => state.query);
   const tags = useGallery((state) => state.tags);
   return (
@@ -211,13 +209,7 @@ function Toolbar({
           className="flex-1 basis-full tablet:max-w-sm tablet:basis-0"
         />
         {phone ? (
-          <>
-            <FilterSheet list={list} />
-            <Button variant="outline" onClick={onCreate}>
-              <LampFlameIcon size={16} />
-              Create with AI
-            </Button>
-          </>
+          <FilterSheet list={list} />
         ) : (
           <>
             <TagPopover list={list} />

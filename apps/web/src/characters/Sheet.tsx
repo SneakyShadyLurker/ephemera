@@ -411,6 +411,7 @@ function SheetEditor({
       </SheetHeader>
 
       <SheetBody
+        compactOnPhone
         saving={{ status: autosave.status, noun: "character" }}
         label="Character sheet"
         after={

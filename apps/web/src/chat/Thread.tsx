@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Fragment, type RefObject, useEffect, useRef, useState } from "react";
+import { Fragment, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { useShallow } from "zustand/shallow";
 import { ART_WIDTH } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { MotionScope } from "@/app/motion.tsx";
-import { scrollBehavior } from "@/app/reduced-motion.ts";
 import {
   Conversation,
   ConversationContent,
@@ -80,7 +79,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
       : null,
   );
   const seam = useChat((state) => seamIndex(state.memory));
-  // From tablet up the portrait floats at the head of the latest reply shown; -1 while none is.
+  // The portrait belongs to the latest reply on every screen; -1 while none is.
   const latestReply = useChat((state) =>
     state.messages.findLastIndex(
       (message, index) =>
@@ -112,11 +111,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
          * story's container: its prose measure and the portrait's column follow its width.
          */}
         <div className="@container/story flow-root">
-          {phone ? (
-            <Presence placement="band" />
-          ) : (
-            presenceAt === -1 && <Presence placement="float" />
-          )}
+          {presenceAt === -1 && <Presence placement={phone ? "band" : "float"} />}
           {ids.length === 0 ? (
             deletedAt === null && <EmptyStory composer={composer} />
           ) : (
@@ -138,7 +133,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
                           last={index === ids.length - 1}
                           folded={index < horizon}
                           locked={index < locked}
-                          presence={!phone && index === presenceAt}
+                          presence={index === presenceAt}
                         />
                         {/* The newest message's pictures follow its actions, below. */}
                         {index < ids.length - 1 && <SceneItems anchorId={id} enter={settled} />}
@@ -184,11 +179,13 @@ function FollowWriting() {
     (state) => state.generationMode === "reply" || state.generationMode === "continue",
   );
   const wasWriting = useRef(writing);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const started = writing && !wasWriting.current;
     wasWriting.current = writing;
     if (!started) return;
-    void scrollToBottom(scrollBehavior());
+    // Submission and the following resize use the same instant anchor. A spring
+    // toward the old bottom would still be moving when the first words arrive.
+    void scrollToBottom("instant");
   }, [writing, scrollToBottom]);
   return null;
 }

@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
-import { COMPACT_LABEL } from "@/sheet/fields.ts";
+import { COMPACT_LABEL, PASSAGE_FACE } from "@/sheet/fields.ts";
 import type { Run, Segment } from "./tracked.ts";
 
 /*
@@ -173,9 +173,6 @@ export function ChangeRuns({
   children?: ReactNode;
 }) {
   const pure = isPureInsertion(change.runs);
-  const compact =
-    change.find.length + change.replace.length <= 160 &&
-    !/[\r\n]/.test(change.find + change.replace);
   const longRemoved = change.find.length > 160 || /[\r\n]/.test(change.find);
   return (
     // biome-ignore lint/a11y/useSemanticElements: a change inside running text; a fieldset would break the line.
@@ -192,11 +189,11 @@ export function ChangeRuns({
       )}
     >
       {change.find !== "" && (
-        <span className={compact ? "mr-3" : "block"}>
-          <span className={cn(COMPACT_LABEL, "mr-1.5 font-sans")}>Removed</span>
+        <span className={cn(PASSAGE_FACE, "block font-normal font-sans tracking-normal")}>
+          <span className={cn(COMPACT_LABEL, "mb-1 block")}>Removed</span>
           {longRemoved ? (
             <details className="disclosure group/removed">
-              <summary className={cn(SUMMARY_LINE, "flex min-w-0 gap-2 font-sans")}>
+              <summary className={cn(SUMMARY_LINE, "flex min-w-0 gap-2 text-turn")}>
                 <span className="min-w-0 flex-1 truncate group-open/removed:hidden">
                   <Deleted text={change.find} />
                 </span>
@@ -211,8 +208,8 @@ export function ChangeRuns({
         </span>
       )}
       {change.replace !== "" && (
-        <span className={compact ? undefined : "mt-1 block"}>
-          <span className={cn(COMPACT_LABEL, "mr-1.5 font-sans")}>Proposed</span>
+        <span className={cn(PASSAGE_FACE, "mt-2 block font-normal font-sans tracking-normal")}>
+          <span className={cn(COMPACT_LABEL, "mb-1 block")}>Proposed</span>
           <Inserted text={change.replace} />
         </span>
       )}

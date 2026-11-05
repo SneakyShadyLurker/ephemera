@@ -247,12 +247,15 @@ function CharacterField() {
                 "Switching starts a new chat."
               )}
             </p>
-            {current && (
-              <Button size="text" className="-mr-2" onClick={() => start(null, "")}>
-                No character
-              </Button>
-            )}
           </div>
+          {current && (
+            <div className="flex flex-wrap items-center gap-x-2">
+              <Button size="text" className="-ml-2" onClick={() => start(null, "")}>
+                Remove character
+              </Button>
+              <p className={EXPLANATION}>New chats start without a character</p>
+            </div>
+          )}
           {dialog}
         </>
       )}

@@ -454,17 +454,15 @@ test("the chat speaks as the chosen character, and switching asks first", async 
     await expect(lastReply(page)).toContainText(`${first} looks up.`);
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-    // The character is present once, at the head of the latest reply (above the story on
-    // phones, with its name), not on every turn.
+    // The character is present once at the latest reply, above its prose on phones.
     const presence = page.locator("[data-presence]");
     await expect(presence).toHaveCount(1);
-    if (width < 720) await expect(presence).toContainText(first ?? "");
-    else await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
+    await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
     const portrait = presence.locator("img");
     await expect(portrait).toHaveJSProperty("complete", true);
     const box = await portrait.boundingBox();
     expect(box?.width).toBe(width >= 1200 ? 160 : width >= 720 ? 112 : 96);
-    await expect(messages(page).locator("img")).toHaveCount(width < 720 ? 0 : 1);
+    await expect(messages(page).locator("img")).toHaveCount(1);
     // Who speaks opens the turn, read once with its colon by assistive technology.
     expect(await lastReply(page).evaluate((turn) => turn.textContent)).toMatch(
       new RegExp(`^${first}: `),
@@ -532,14 +530,14 @@ test.describe("on touch", () => {
     const edit = editTile(page, name);
     await expect(edit).toBeVisible();
     await expect.poll(() => editShown(page, name)).toBe("1");
-    // The word is read, not drawn: the pen alone, a 44px target trailing the name.
+    // The word is read, not drawn: the pen alone, a 44px target trailing the metadata.
     await expect(edit).toHaveAccessibleName(`Edit ${name}`);
     const chat = tile(page, name).getByRole("button", { name: `Chat with ${name}`, exact: true });
     const editBox = await edit.boundingBox();
     const chatBox = await chat.boundingBox();
     expect({ width: editBox?.width, height: editBox?.height }).toEqual({ width: 44, height: 44 });
-    // Side by side, never one over the other.
-    expect((editBox?.x ?? 0) >= (chatBox?.x ?? 0) + (chatBox?.width ?? 0)).toBe(true);
+    // Edit trails the metadata below the portrait and full-width name, with no overlapping target.
+    expect((editBox?.y ?? 0) >= (chatBox?.y ?? 0) + (chatBox?.height ?? 0)).toBe(true);
 
     // The portrait answers as the chat's button, and a tap on it starts the chat.
     const portrait = await tile(page, name)
@@ -595,7 +593,9 @@ test("an empty library invites an import on the populated gallery's edges", asyn
   await expect(body.getByRole("button", { name: "Create with AI" })).toBeVisible();
 });
 
-test("Create with AI shows once on a phone's gallery, under the search", async ({ page }) => {
+test("collection actions share the phone toolbar below the full gallery title", async ({
+  page,
+}) => {
   await createCharacterViaApi(page.request, uniqueName("Once"));
   const header = page.locator("main header");
   const body = page.locator("main [data-skip-target]");
@@ -605,13 +605,17 @@ test("Create with AI shows once on a phone's gallery, under the search", async (
     await expect(page.getByRole("list", { name: "Characters" })).toBeVisible();
     await expect(header.getByRole("button", { name: "Import cards" })).toBeVisible();
     await expect(header.getByRole("button", { name: "New character" })).toBeVisible();
-    // Phones name it under the search; from tablet up the header carries it.
-    await expect(header.getByRole("button", { name: "Create with AI" })).toHaveCount(
-      width < 720 ? 0 : 1,
-    );
-    await expect(body.getByRole("button", { name: "Create with AI" })).toHaveCount(
-      width < 720 ? 1 : 0,
-    );
+    await expect(header.getByRole("button", { name: "Create with AI" })).toHaveCount(1);
+    await expect(body.getByRole("button", { name: "Create with AI" })).toHaveCount(0);
+    const toolbar = header.getByRole("toolbar", { name: "Collection actions" });
+    if (width < 720) {
+      await expect(toolbar.getByRole("button")).toHaveText(["Import", "New", "Create with AI"]);
+      const title = await header.getByRole("heading", { level: 1 }).boundingBox();
+      const row = await toolbar.boundingBox();
+      expect(row?.y).toBeGreaterThanOrEqual((title?.y ?? 0) + (title?.height ?? 0));
+    } else {
+      await expect(toolbar).toHaveCount(0);
+    }
   }
 });
 

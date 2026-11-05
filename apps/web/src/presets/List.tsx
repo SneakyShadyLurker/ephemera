@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
 import { HeaderAction } from "@/app/Browse.tsx";
+import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress, JSON_FILE_TYPES } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
@@ -31,6 +32,9 @@ import {
 const FRAME = "mx-auto w-full max-w-wide px-5 tablet:px-8";
 
 export function PresetsScreen() {
+  const phone = useFormFactor() === "phone";
+  const samplerCreation = usePresetCreation("sampler");
+  const promptCreation = usePresetCreation("prompt");
   const queryClient = useQueryClient();
   const picker = useRef<HTMLInputElement>(null);
   const reports = presetImports.use((state) => state.report);
@@ -73,7 +77,7 @@ export function PresetsScreen() {
           event.currentTarget.value = "";
         }}
       />
-      <ScreenHeader title="Presets" frame={FRAME} gutters={SCROLL_GUTTERS}>
+      <ScreenHeader collection title="Presets" frame={FRAME} gutters={SCROLL_GUTTERS}>
         <HeaderAction
           label="Import preset"
           text="Import"
@@ -81,6 +85,12 @@ export function PresetsScreen() {
           icon={ImportIcon}
           onClick={() => picker.current?.click()}
         />
+        {phone && (
+          <>
+            <NewPresetButton kind="sampler" creation={samplerCreation} labelled />
+            <NewPresetButton kind="prompt" creation={promptCreation} labelled />
+          </>
+        )}
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -116,6 +126,7 @@ export function PresetsScreen() {
           <div className="grid gap-12 desktop:grid-cols-2 desktop:gap-16">
             <PresetList
               kind="sampler"
+              creation={samplerCreation}
               title="Sampler presets"
               icon={<SamplerIcon />}
               chosenLabel="In use"
@@ -124,6 +135,7 @@ export function PresetsScreen() {
             />
             <PresetList
               kind="prompt"
+              creation={promptCreation}
               title="Prompt presets"
               icon={<PresetsIcon />}
               chosenLabel="In use"
@@ -144,6 +156,7 @@ export function PresetsScreen() {
 
 function PresetList({
   kind,
+  creation,
   title,
   icon,
   chosenLabel,
@@ -151,64 +164,18 @@ function PresetList({
   note,
 }: {
   kind: PresetKind;
+  creation: ReturnType<typeof usePresetCreation>;
   title: string;
   icon: ReactNode;
   chosenLabel: string;
   arrived: string[];
   note: string;
 }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const phone = useFormFactor() === "phone";
   const presets = useQuery(presetsQuery(kind));
   const settings = useSettings();
   const chosen = kind === "prompt" ? settings.promptPresetId : settings.samplerPresetId;
-  const [failed, setFailed] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  // This kind's New: one id and preset until the server acknowledges it.
-  const [creates] = useState(() => creations<NewPreset>());
   const headingId = `presets-${kind}`;
-
-  /**
-   * After the server acknowledged a new preset: the list reloads and the
-   * preset opens. Awaited inside the creation, so New stays held until the
-   * route has changed; a failure here leaves the preset made and listed, and
-   * never makes it again.
-   */
-  const openCreated = async (id: string) => {
-    try {
-      await refreshPresets(queryClient, kind);
-      // A new preset opens with its name selected, ready to be named.
-      presetArrivals.arriveAt({ id, selectName: true });
-      await navigate({
-        to: kind === "prompt" ? "/presets/prompt/$id" : "/presets/sampler/$id",
-        params: { id },
-      });
-    } catch {
-      // The preset is in the list; it opens from its row.
-    }
-  };
-
-  const create = async () => {
-    // Another New of this kind on its way answers undefined: it opens its preset.
-    await creates.run(kind, async ({ take }) => {
-      setCreating(true);
-      const make = async () => {
-        const { id, payload } = take(
-          kind === "prompt"
-            ? { kind: "prompt", preset: defaultPromptPreset("New prompt preset") }
-            : { kind: "sampler", preset: defaultSamplerPreset("New sampler preset") },
-        );
-        const created =
-          payload.kind === "prompt"
-            ? await createPreset("prompt", id, payload.preset)
-            : await createPreset("sampler", id, payload.preset);
-        setFailed(created.ok ? null : created.reason);
-        if (created.ok) await openCreated(id);
-        return created;
-      };
-      return make().finally(() => setCreating(false));
-    });
-  };
 
   return (
     <section aria-labelledby={headingId} className="grid content-start gap-3">
@@ -217,20 +184,12 @@ function PresetList({
         <h2 id={headingId} className={cn(SECTION_HEADING, "flex-1")}>
           {title}
         </h2>
-        <Button
-          aria-label={`New ${kind} preset`}
-          disabled={creating}
-          focusableWhenDisabled
-          onClick={() => void create()}
-        >
-          <PlusIcon size={16} />
-          New
-        </Button>
+        {!phone && <NewPresetButton kind={kind} creation={creation} />}
       </div>
       <p className="max-w-help text-pretty text-note text-reed">{note}</p>
-      {failed !== null && (
+      {creation.failed !== null && (
         <p role="alert" className="text-ember text-note">
-          Not created: {failed}.
+          Not created: {creation.failed}.
         </p>
       )}
       {presets.isError ? (
@@ -292,5 +251,81 @@ function PresetList({
         </ul>
       )}
     </section>
+  );
+}
+
+/** One creation owner per kind, shared by its header or section action. */
+function usePresetCreation(kind: PresetKind) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [failed, setFailed] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  // This kind's New: one id and preset until the server acknowledges it.
+  const [creates] = useState(() => creations<NewPreset>());
+
+  /**
+   * After the server acknowledged a new preset: the list reloads and the
+   * preset opens. Awaited inside the creation, so New stays held until the
+   * route has changed; a failure here leaves the preset made and listed, and
+   * never makes it again.
+   */
+  const openCreated = async (id: string) => {
+    try {
+      await refreshPresets(queryClient, kind);
+      // A new preset opens with its name selected, ready to be named.
+      presetArrivals.arriveAt({ id, selectName: true });
+      await navigate({
+        to: kind === "prompt" ? "/presets/prompt/$id" : "/presets/sampler/$id",
+        params: { id },
+      });
+    } catch {
+      // The preset is in the list; it opens from its row.
+    }
+  };
+
+  const create = async () => {
+    // Another New of this kind on its way answers undefined: it opens its preset.
+    await creates.run(kind, async ({ take }) => {
+      setCreating(true);
+      const make = async () => {
+        const { id, payload } = take(
+          kind === "prompt"
+            ? { kind: "prompt", preset: defaultPromptPreset("New prompt preset") }
+            : { kind: "sampler", preset: defaultSamplerPreset("New sampler preset") },
+        );
+        const created =
+          payload.kind === "prompt"
+            ? await createPreset("prompt", id, payload.preset)
+            : await createPreset("sampler", id, payload.preset);
+        setFailed(created.ok ? null : created.reason);
+        if (created.ok) await openCreated(id);
+        return created;
+      };
+      return make().finally(() => setCreating(false));
+    });
+  };
+
+  return { failed, creating, create };
+}
+
+function NewPresetButton({
+  kind,
+  creation,
+  labelled = false,
+}: {
+  kind: PresetKind;
+  creation: ReturnType<typeof usePresetCreation>;
+  labelled?: boolean;
+}) {
+  return (
+    <Button
+      aria-label={`New ${kind} preset`}
+      disabled={creation.creating}
+      focusableWhenDisabled
+      onClick={() => void creation.create()}
+    >
+      {!labelled && <PlusIcon size={16} />}
+      {labelled ? `New ${kind}` : "New"}
+    </Button>
   );
 }

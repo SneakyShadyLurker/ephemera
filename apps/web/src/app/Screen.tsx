@@ -77,6 +77,7 @@ export function ScreenHeader({
   frame,
   gutters,
   yieldsTitle = false,
+  collection = false,
 }: {
   title: ReactNode;
   children?: ReactNode;
@@ -96,19 +97,37 @@ export function ScreenHeader({
    * name in view below, stuck or not), so the name never shows twice; it stays the heading.
    */
   yieldsTitle?: boolean;
+  /** Collection actions have one labelled row below the title on phones. */
+  collection?: boolean;
 }) {
   const phone = useFormFactor() === "phone";
   const writing = useInFlight();
   const story = storyTitle ?? lead !== undefined;
   return (
-    <HeaderFrame frame={frame} gutters={gutters} edge={edge}>
+    <HeaderFrame
+      frame={frame}
+      gutters={gutters}
+      edge={edge}
+      toolbar={
+        phone && collection ? (
+          <HeaderActions
+            role="toolbar"
+            aria-label="Collection actions"
+            className="gap-1 px-4 pb-2 [&>button]:px-2.5"
+          >
+            {children}
+          </HeaderActions>
+        ) : undefined
+      }
+    >
       {phone && (
         // The mark on a plate, so it reads as the control that opens the navigation.
         <MoreButton
           aria-label="Open navigation"
+          className="h-11"
           onClick={() => setNavOpen(true)}
           mark={<MarkIcon dripping writing={writing} size={20} />}
-          cue={<MenuIcon size={14} />}
+          cue={<MenuIcon />}
         />
       )}
       {back && <BackControl back={back} />}
@@ -116,6 +135,7 @@ export function ScreenHeader({
       <HeaderTitle
         className={cn(
           "min-w-0 flex-1 truncate text-ink tablet:px-0",
+          phone && collection && "overflow-visible text-clip",
           lead || back ? "pr-2 pl-1" : "px-2",
           // A display step above the navigation's labels, one size on every screen.
           story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
@@ -125,7 +145,7 @@ export function ScreenHeader({
       >
         {title}
       </HeaderTitle>
-      <HeaderActions>{children}</HeaderActions>
+      {!(phone && collection) && <HeaderActions>{children}</HeaderActions>}
     </HeaderFrame>
   );
 }

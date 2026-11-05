@@ -218,7 +218,7 @@ export function LibraryScreen() {
           event.currentTarget.value = "";
         }}
       />
-      <ScreenHeader title="Lorebooks" frame={FRAME} gutters={SCROLL_GUTTERS}>
+      <ScreenHeader collection title="Lorebooks" frame={FRAME} gutters={SCROLL_GUTTERS}>
         <HeaderAction
           label="Import lorebook"
           labelledOnPhone

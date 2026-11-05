@@ -60,16 +60,29 @@ export function HeaderFrame({
   frame,
   gutters,
   edge,
+  toolbar,
   children,
 }: {
   frame?: string | undefined;
   gutters?: string | undefined;
   edge?: ReactNode;
+  toolbar?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <header className="header-hairline sticky top-0 box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
-      <div className={cn("flex min-w-0 flex-1", gutters && cn("overflow-hidden", gutters))}>
+    <header
+      className={cn(
+        "header-hairline sticky top-0 box-content flex shrink-0 border-b pt-[env(safe-area-inset-top)]",
+        toolbar ? "flex-col" : "h-14",
+      )}
+    >
+      <div
+        className={cn(
+          "flex min-w-0 flex-1",
+          toolbar && "h-14 shrink-0 flex-none",
+          gutters && cn("overflow-hidden", gutters),
+        )}
+      >
         <div
           className={cn(
             "flex min-w-0 flex-1 items-center gap-1",
@@ -81,6 +94,7 @@ export function HeaderFrame({
         </div>
       </div>
       {edge}
+      {toolbar}
     </header>
   );
 }

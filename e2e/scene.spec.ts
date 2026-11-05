@@ -119,8 +119,8 @@ test("on a phone the button sits under the band's portrait and paints there too"
   await page.setViewportSize({ width: 390, height: 844 });
   await comfy({ mode: "plain" });
   const name = await sceneChat(page, request, `On the stairs ${mark(keptBase(), "steer")}`);
-  // The band above the story, not the latest reply's float.
-  await expect(lastReply(page).locator("[data-presence]")).toHaveCount(0);
+  // The phone band opens the latest reply, with scene painting below its portrait.
+  await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
   const band = page.locator("[data-presence]");
   await expect(band).toHaveCount(1);
   await expectUnder(sceneButton(band), chatPortrait(page, name));

@@ -80,7 +80,9 @@ test("a new chat starts as the bound persona, else the default; turns keep their
     .locator("..")
     .getByRole("button", { name: "Make default", exact: true })
     .click();
-  await expect(card(page, fallback).getByText("Default", { exact: true })).toBeVisible();
+  await expect(
+    card(page, fallback).locator("..").getByText("Default", { exact: true }),
+  ).toBeVisible();
   // The sheet's switch reads the same setting.
   await page.goto(`/personas/${defaultId}`);
   await expect(page.getByRole("switch", { name: "Default persona" })).toBeChecked();
@@ -185,7 +187,7 @@ test("Session's 'Always use with' binds the persona to the character", async ({ 
   await closeSession(page);
 
   await page.goto("/personas");
-  await expect(card(page, persona)).toContainText(`With ${character}`);
+  await expect(card(page, persona).locator("..")).toContainText(`With ${character}`);
 });
 
 for (const { name, width, height, scheme } of [
