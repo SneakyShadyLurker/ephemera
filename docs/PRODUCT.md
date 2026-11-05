@@ -304,13 +304,15 @@ Version 1.0 holds everything below.
   so the description takes only the style of dress it suggests.
 
 **AI Rework**
-- From a saved character's sheet, **AI Rework** in the header (an icon on
-  phones, also named in More actions) opens a composer: a popover on tablet
+- From a saved character's sheet, **AI Rework** in the header (also named
+  in More actions) opens a composer: a popover on tablet
   and desktop, a bottom drawer on phones. The owner writes what should change, picks a model
   (the saved one by default), its reasoning effort and the persona `{{user}}`
   is. Reasoning offers the model's supported levels and starts at Model
   default; an unsupported choice falls back to that default. The choice
   stays in tab memory until leaving the sheet, a reload or `pagehide`.
+  On phones, Chat and AI Rework share a labelled toolbar below the title,
+  leaving room for the character's name and More actions above.
 - The model receives the card's fields as the sheet shows them (name,
   description, first message, alternate greetings, creator notes, tags
   and the Character's Note), the embedded lorebook, the

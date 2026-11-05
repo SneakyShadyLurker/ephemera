@@ -16,6 +16,7 @@ import {
   HeaderActions,
   HeaderFrame,
   HeaderTitle,
+  PHONE_TOOLBAR,
 } from "./Header.tsx";
 import { setNavOpen } from "./ui.ts";
 
@@ -110,11 +111,7 @@ export function ScreenHeader({
       edge={edge}
       toolbar={
         phone && collection ? (
-          <HeaderActions
-            role="toolbar"
-            aria-label="Collection actions"
-            className="gap-1 px-4 pb-2 [&>button]:px-2.5"
-          >
+          <HeaderActions role="toolbar" aria-label="Collection actions" className={PHONE_TOOLBAR}>
             {children}
           </HeaderActions>
         ) : undefined

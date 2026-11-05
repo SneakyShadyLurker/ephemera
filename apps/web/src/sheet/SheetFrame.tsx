@@ -7,6 +7,7 @@ import {
   HeaderActions,
   HeaderFrame,
   HeaderTitle,
+  PHONE_TOOLBAR,
 } from "@/app/Header.tsx";
 import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { CheckIcon, SavingIcon } from "@/components/icons";
@@ -73,6 +74,7 @@ export function SheetHeaderFrame({
   titleClassName,
   subtitle,
   titleReplacement,
+  direct,
   children,
 }: {
   back: BackTarget;
@@ -83,11 +85,28 @@ export function SheetHeaderFrame({
   titleClassName?: string;
   subtitle?: ReactNode;
   titleReplacement?: ReactNode;
+  direct?: ReactNode;
   children?: ReactNode;
 }) {
   const leaving = useLeavingSheet();
+  const phone = useFormFactor() === "phone";
   return (
-    <HeaderFrame frame={frame} gutters={gutters}>
+    <HeaderFrame
+      frame={frame}
+      gutters={gutters}
+      toolbar={
+        phone && direct ? (
+          <HeaderActions
+            role="toolbar"
+            aria-label="Sheet actions"
+            className={PHONE_TOOLBAR}
+            inert={leaving}
+          >
+            {direct}
+          </HeaderActions>
+        ) : undefined
+      }
+    >
       <BackControl back={back} />
       <div className="contents" inert={leaving}>
         {title !== undefined ? (
@@ -100,10 +119,16 @@ export function SheetHeaderFrame({
               )}
               {subtitle && <p className="truncate text-meta text-reed">{subtitle}</p>}
             </div>
-            <HeaderActions>{children}</HeaderActions>
+            <HeaderActions>
+              {!phone && direct}
+              {children}
+            </HeaderActions>
           </>
         ) : (
-          children
+          <>
+            {!phone && direct}
+            {children}
+          </>
         )}
       </div>
     </HeaderFrame>
@@ -172,6 +197,7 @@ export function SheetHeader({
   noun,
   frame = SHEET_FRAME.form,
   gutters = SCROLL_GUTTERS,
+  direct,
   children,
 }: {
   back: BackTarget;
@@ -183,6 +209,8 @@ export function SheetHeader({
   frame?: string;
   /** The body scroller's gutter class; SheetBody keeps `SCROLL_GUTTERS`. */
   gutters?: string;
+  /** Commands kept on a second labelled row on phones, after Saved on wider screens. */
+  direct?: ReactNode;
   children?: ReactNode;
 }) {
   const phone = useFormFactor() === "phone";
@@ -197,12 +225,14 @@ export function SheetHeader({
       titleReplacement={
         failing ? <SaveState status={status} creating={creating} noun={noun} short /> : undefined
       }
+      direct={phone ? direct : undefined}
     >
       {!failing && (
         <span className="px-2 max-tablet:sr-only">
           <SaveState status={status} creating={creating} noun={noun} />
         </span>
       )}
+      {!phone && direct}
       {children}
     </SheetHeaderFrame>
   );

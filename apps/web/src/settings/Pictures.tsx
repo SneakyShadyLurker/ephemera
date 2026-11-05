@@ -9,7 +9,7 @@ import { ModelSelect } from "@/components/model-select";
 import { cn } from "@/lib/cn";
 import { useModelOptions } from "../api.ts";
 import { ART_STATUS_KEY } from "../creator/queries.ts";
-import { FOCUS_WITHIN } from "../sheet/fields.ts";
+import { LINE_FIELD } from "../sheet/fields.ts";
 import { SAVED_UNCHECKED } from "../workflows/copy.ts";
 import { ImportPanel, type WorkflowDraft } from "../workflows/ImportPanel.tsx";
 import { workflowsQuery } from "../workflows/queries.ts";
@@ -305,41 +305,32 @@ function AddressField({
         </p>
       }
     >
-      <div
-        className={cn(
-          "flex h-9 items-center rounded-md border border-control-edge bg-surface px-3 touch:h-11",
-          ROW_SELECT,
-          FOCUS_WITHIN,
-          invalid && "border-ember",
-        )}
-      >
-        <input
-          ref={inputRef}
-          id={id}
-          type="url"
-          inputMode="url"
-          autoComplete="off"
-          spellCheck={false}
-          translate="no"
-          placeholder="http://comfyui.local:8188"
-          aria-invalid={invalid}
-          aria-describedby={`${id}-help`}
-          value={address}
-          onChange={(event) => setAddress(event.target.value)}
-          onFocus={() => setEditing(true)}
-          onBlur={() => {
-            setEditing(false);
+      <input
+        ref={inputRef}
+        id={id}
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        spellCheck={false}
+        translate="no"
+        placeholder="http://comfyui.local:8188"
+        aria-invalid={invalid}
+        aria-describedby={`${id}-help`}
+        value={address}
+        onChange={(event) => setAddress(event.target.value)}
+        onFocus={() => setEditing(true)}
+        onBlur={() => {
+          setEditing(false);
+          commit();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
             commit();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            }
-          }}
-          className="min-w-0 flex-1 bg-transparent text-ink text-ui outline-none placeholder:text-reed"
-        />
-      </div>
+          }
+        }}
+        className={cn(LINE_FIELD, ROW_SELECT, "min-w-0 px-3", invalid && "border-ember")}
+      />
     </SettingRow>
   );
 }

@@ -6,14 +6,13 @@ import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { MemoryIcon } from "@/components/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SwitchField } from "@/components/ui/switch";
-import { cn } from "@/lib/cn";
 import { useReworkLocked } from "../rework/session.ts";
 import { SHEET_GRID, HELP as SHEET_HELP, sheetLabel } from "../sheet/fields.ts";
 import { notReached } from "../signin/signin.ts";
 import { countsText, setMemoryOn } from "./memory.ts";
 import { memoryOnIn, memoryQuery } from "./queries.ts";
 
-const HELP = cn(SHEET_HELP, "text-turn");
+const HELP = SHEET_HELP;
 
 /** Said wherever memory is offered: what it keeps, and what it never does. */
 export const MEMORY_KEPT =
@@ -80,10 +79,8 @@ export function MemorySwitch({
       <SwitchField
         label="Remember the story"
         description={
-          <span className="text-turn">
-            {description ??
-              `${name} remembers each chat as it grows. Turned off, new chats are forgotten. ${MEMORY_KEPT}`}
-          </span>
+          description ??
+          `${name} remembers each chat as it grows. Turned off, new chats are forgotten. ${MEMORY_KEPT}`
         }
         checked={on}
         disabled={state === undefined || busy}

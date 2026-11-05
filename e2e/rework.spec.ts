@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { CARD_LIMITS } from "../packages/core/src/card/limits.ts";
+import { PALETTES } from "../packages/core/src/palettes.ts";
 import { uniqueName } from "./support/cards.ts";
 import { beacons, expectUpstreamAborted, upstreamRecords } from "./support/chat.ts";
 import { portraitPng } from "./support/creator-fixtures.ts";
@@ -133,6 +134,59 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
   const description = page.getByRole("group", { name: "Description, under review" });
   await expect(description.locator("ins").first()).toContainText(`Replaced one ${kept}-acc.`);
   await expect(description.locator("del").first()).toContainText(ANCHOR_ONE);
+
+  // Measure the actual proposal, including its painted ground, across every built-in theme.
+  const insertion = description.locator("ins").first();
+  await expect(insertion).toBeVisible();
+  const contrasts = await insertion.evaluate((node, palettes) => {
+    const root = document.documentElement;
+    const original = {
+      theme: root.getAttribute("data-theme"),
+      palette: root.getAttribute("data-palette"),
+    };
+    const luminance = (color: string) => {
+      const probe = document.createElement("span");
+      probe.style.color = `color(from ${color} srgb r g b)`;
+      document.body.append(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      const [r = 0, g = 0, b = 0] = (value.match(/-?[\d.]+(e-?\d+)?/g) ?? [])
+        .slice(0, 3)
+        .map(Number)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const results = [];
+    try {
+      for (const scheme of ["light", "dark"]) {
+        root.dataset.theme = scheme;
+        for (const palette of palettes) {
+          root.dataset.palette = palette;
+          // Flush styles, then settle this insertion's ground transition before measuring.
+          for (const animation of node.getAnimations()) animation.finish();
+          const style = getComputedStyle(node);
+          const foreground = luminance(style.color);
+          const background = luminance(style.backgroundColor);
+          results.push({
+            palette,
+            scheme,
+            ratio:
+              (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+          });
+        }
+      }
+    } finally {
+      for (const [key, value] of Object.entries(original)) {
+        if (value === null) root.removeAttribute(`data-${key}`);
+        else root.setAttribute(`data-${key}`, value);
+      }
+    }
+    return results;
+  }, PALETTES);
+  expect(contrasts).toHaveLength(12);
+  for (const { palette, scheme, ratio } of contrasts) {
+    expect(ratio, `${palette} ${scheme}: rendered insertion`).toBeGreaterThanOrEqual(7);
+  }
 
   // Long unchanged runs are folded; opening one reveals its words in place and keeps it open.
   const folds = description.getByText(/^Show \d+ unchanged words$/);
@@ -446,6 +500,24 @@ for (const size of [
     const base = canary(`rw${size.name}`);
     const id = await createReworkCharacter(page.request, base, { portrait: true });
     await openSheet(page, id);
+    const toolbar = page.getByRole("toolbar", { name: "Sheet actions", exact: true });
+    if (size.drawer) {
+      await expect(toolbar).toBeVisible();
+      await expect(toolbar.getByRole("button", { name: "Chat", exact: true })).toHaveText("Chat");
+      await expect(toolbar.getByRole("button", { name: "AI Rework", exact: true })).toHaveText(
+        "AI Rework",
+      );
+      await expect(toolbar.getByRole("button")).toHaveCount(2);
+      const firstRow = await page
+        .getByRole("button", { name: "More actions", exact: true })
+        .boundingBox();
+      const secondRow = await toolbar.boundingBox();
+      expect(firstRow).not.toBeNull();
+      expect(secondRow).not.toBeNull();
+      expect(secondRow?.y).toBeGreaterThanOrEqual((firstRow?.y ?? 0) + (firstRow?.height ?? 0));
+    } else {
+      await expect(toolbar).toHaveCount(0);
+    }
     await openRework(page);
     // The same header close in the phone drawer and the wider popover.
     await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(size.drawer ? 1 : 0);

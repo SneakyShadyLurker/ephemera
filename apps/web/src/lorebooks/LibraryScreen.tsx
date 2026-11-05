@@ -4,7 +4,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState } from "react";
 import { HeaderAction } from "@/app/Browse.tsx";
 import { EmptyState } from "@/app/EmptyState.tsx";
-import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress, JSON_FILE_TYPES } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
 import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
@@ -54,7 +53,6 @@ const EMPTY_TEXT =
   "Background and events for your characters. An entry can apply always, on keywords or by chance.";
 
 export function LibraryScreen() {
-  const phone = useFormFactor() === "phone";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const library = useQuery(libraryQuery);
@@ -231,7 +229,6 @@ export function LibraryScreen() {
           text="New"
           labelledOnPhone
           icon={PlusIcon}
-          variant={phone ? undefined : "outline"}
           disabled={creating}
           focusableWhenDisabled
           onClick={actions.create}

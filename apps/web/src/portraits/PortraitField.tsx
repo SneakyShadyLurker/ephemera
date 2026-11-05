@@ -171,7 +171,12 @@ export function PortraitField({
             </Menu>
           ) : (
             <>
-              <Button size="text" disabled={busy || locked} onClick={() => picker.current?.click()}>
+              <Button
+                variant="outline"
+                size="text"
+                disabled={busy || locked}
+                onClick={() => picker.current?.click()}
+              >
                 Replace
               </Button>
               <Tooltip label="Remove portrait">

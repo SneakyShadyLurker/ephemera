@@ -241,7 +241,7 @@
   --surface-pressed: var(--surface-pressed-base);
   --surface-selected: var(--surface-selected-base);
   --rush: var(--rush-base);
-  /* The dusk wash on what an AI Rework writes: its insertions and the fields it just filled. */
+  /* The dusk wash on fields an AI Rework just filled. Insertions use the selected surface. */
   --dusk-wash: color-mix(in oklab, var(--dusk) 18%, transparent);
 
   --radius: 0.5rem;
@@ -1684,8 +1684,8 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
- * AI Rework's tracked changes. Insertions: ink on the dusk wash with a
- * dusk-line underline. Deletions: full-strength ember, struck through
+ * AI Rework's tracked changes. Insertions: ink on the selected surface with a
+ * dusk-line underline. Deletions: full-strength reed, struck through
  * once. Wash and colour back up <ins>, <del> and their spoken prefixes.
  * A rejected change (`data-decision="rejected"` on its group) swaps
  * emphasis in place: the original returns to ink, the proposal fades to
@@ -1694,8 +1694,8 @@ details[open] > summary .disclosure-chevron {
 @utility ins-wash {
   color: var(--ink);
   text-decoration: none;
-  background-color: var(--dusk-wash);
-  box-shadow: inset 0 -1px var(--dusk-line);
+  background-color: var(--surface-selected);
+  box-shadow: inset 0 -2px var(--dusk-line);
 }
 
 @utility tracked-ins {
@@ -1719,7 +1719,7 @@ details[open] > summary .disclosure-chevron {
     text-decoration-color var(--duration-quick) var(--ease-fade);
 }
 
-/* A keyword or tag the change removes: struck ember on the error surface. */
+/* A keyword or tag the change removes: struck reed on the selected surface. */
 @utility tracked-chip-del {
   color: var(--reed);
   background-color: var(--surface-selected);
@@ -1731,7 +1731,7 @@ details[open] > summary .disclosure-chevron {
     text-decoration-color var(--duration-quick) var(--ease-fade);
 }
 
-/* A keyword or tag the change adds: on the dusk wash. */
+/* A keyword or tag the change adds: on the selected surface. */
 @utility tracked-chip-ins {
   @apply ins-wash;
   transition:

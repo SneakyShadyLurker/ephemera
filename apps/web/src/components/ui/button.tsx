@@ -10,6 +10,12 @@ const DISABLED_OUTLINE = "disabled:border-rush data-disabled:border-rush";
  * opacity, and keeps the button's shape: an outlined one stays outlined. A
  * disabled button that keeps focus (`focusableWhenDisabled`) has no
  * `:disabled`, only Base UI's `data-disabled`, so both are styled.
+ *
+ * Primary: one commit per view or panel. Outline: entity commands (Chat,
+ * AI Rework, New art, Remember now). Quiet: icon and label navigation,
+ * panels and collection verbs. Link: inline actions beside the line they
+ * affect (Dismiss, Undo, Show details, Change, Brainstorm, Make default).
+ * Danger: destructive actions.
  */
 const buttonVariants = cva(
   "press relative inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md border font-medium text-ui disabled:cursor-default disabled:bg-transparent disabled:text-text-disabled data-disabled:cursor-default data-disabled:bg-transparent data-disabled:text-text-disabled [&_svg]:pointer-events-none [&_svg]:shrink-0",

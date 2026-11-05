@@ -16,8 +16,8 @@ import { reworkStore, useReworkLocked } from "./session.ts";
 
 /**
  * The sheet header's AI Rework button and the composer it opens: a popover
- * on tablet and desktop, the bottom drawer on phones. Labelled on tablet and
- * desktop, an icon on phones. A character not yet saved has nothing to
+ * on tablet and desktop, the bottom drawer on phones. Labelled at every
+ * width. A character not yet saved has nothing to
  * rework, and none starts while a run works or is under review, or while the
  * portrait changes (the run would read it as it was). The sheet
  * owns whether the composer is open, so the dock can reopen it (Try again).
