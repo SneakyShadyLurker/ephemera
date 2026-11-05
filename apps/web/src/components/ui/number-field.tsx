@@ -40,7 +40,7 @@ function NumberField({
         className={cn("min-w-0", className)}
         {...props}
       >
-        <NumberFieldPrimitive.Group className="flex h-9 overflow-hidden rounded-md border border-control-edge bg-surface transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-focus data-disabled:border-rush touch:h-[calc(--spacing(11)+2px)]">
+        <NumberFieldPrimitive.Group className="flex h-9 overflow-hidden rounded-md border border-control-edge bg-surface transition-[border-color,box-shadow] duration-(--duration-tint-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-focus data-disabled:border-rush touch:h-[calc(--spacing(11)+2px)]">
           <NumberFieldPrimitive.Decrement
             aria-label={label ? `Decrease ${label}` : "Decrease"}
             className={STEPPER}

@@ -414,7 +414,7 @@ function Entry({
           key={wash?.key ?? "still"}
           data-cast-changed={wash === undefined ? undefined : ""}
           style={wash?.style}
-          className="line-clamp-2 @chat-roomy/chat:line-clamp-3 justify-self-start rounded-sm text-narration text-note transition-colors duration-(--duration-quick) ease-fade group-hover:text-ink"
+          className="line-clamp-2 @chat-roomy/chat:line-clamp-3 justify-self-start rounded-sm text-narration text-note transition-colors duration-(--duration-tint-quick) ease-fade group-hover:text-ink"
         >
           {text}
         </span>
@@ -852,7 +852,7 @@ function RosterView({
             {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
           </span>
           {line !== "" && (
-            <span className="text-narration text-note transition-colors duration-(--duration-quick) ease-fade group-hover:text-ink">
+            <span className="text-narration text-note transition-colors duration-(--duration-tint-quick) ease-fade group-hover:text-ink">
               {line}
             </span>
           )}

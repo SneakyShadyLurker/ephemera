@@ -1,7 +1,12 @@
 import type { Locator, Page } from "@playwright/test";
 import { uniqueName } from "./support/cards.ts";
 import { castEntry, openRecord } from "./support/cast.ts";
-import { keeperWoman } from "./support/cast-fixtures.ts";
+import {
+  DEVELOPED_HAIR,
+  DEVELOPMENT_TURN,
+  keeperWoman,
+  SHEET_WOMAN,
+} from "./support/cast-fixtures.ts";
 import {
   chooseModel,
   headerAction,
@@ -80,6 +85,209 @@ function exitFrames(surface: Locator) {
         sample();
       }),
   );
+}
+
+/** Watch the same indicator through the real primitive's arrival or departure. */
+async function indicatorFrames(control: Locator, action: Locator, leaving: boolean) {
+  const sampling = control.evaluate(
+    (root, outgoing) =>
+      new Promise<
+        {
+          scale: string;
+          opacity: number;
+          ending: boolean;
+          checked: boolean;
+          background: string;
+          border: string;
+        }[]
+      >((resolve) => {
+        let indicator = outgoing ? root.querySelector("span") : null;
+        let finished = false;
+        const frames: {
+          scale: string;
+          opacity: number;
+          ending: boolean;
+          checked: boolean;
+          background: string;
+          border: string;
+        }[] = [];
+        const observer = new MutationObserver(sample);
+        function sample() {
+          indicator ??= root.querySelector("span");
+          if (indicator === null) return;
+          if (!indicator.isConnected) {
+            finished = true;
+            observer.disconnect();
+            resolve(frames);
+            return;
+          }
+          const style = getComputedStyle(indicator);
+          const face = getComputedStyle(root);
+          frames.push({
+            scale: style.scale,
+            opacity: Number.parseFloat(style.opacity),
+            ending: indicator.hasAttribute("data-ending-style"),
+            checked: root.hasAttribute("data-checked"),
+            background: face.backgroundColor,
+            border: face.borderTopColor,
+          });
+          if (!outgoing && frames.length > 2 && Number.parseFloat(style.opacity) === 1) {
+            finished = true;
+            observer.disconnect();
+            resolve(frames);
+          }
+        }
+        observer.observe(root, { attributes: true, childList: true, subtree: true });
+        sample();
+        const tick = () => {
+          sample();
+          if (!finished) {
+            requestAnimationFrame(tick);
+          }
+        };
+        requestAnimationFrame(tick);
+      }),
+    leaving,
+  );
+  await action.click();
+  return sampling;
+}
+
+test("reduced-motion check and radio indicators keep their size while tints switch instantly", async ({
+  page,
+  request,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const character = uniqueName("Motion choice");
+  await createCharacterViaApi(request, character);
+  const instruction = "The lighthouse bell rings";
+  await createEventViaApi(request, instruction);
+  await page.goto("/lorebooks");
+  await page.getByRole("button", { name: "Events", exact: true }).click();
+  const events = page.getByRole("list", { name: "Events" });
+  await events.getByRole("button", { name: instruction, exact: true }).click();
+  await events.locator("summary").filter({ hasText: "Advanced" }).click();
+  const all = events.getByRole("radio", { name: "All characters", exact: true });
+  const chosen = events.getByRole("radio", { name: "Chosen characters and tags" });
+  const radioExit = await indicatorFrames(all, chosen, true);
+  const radioArrival = await indicatorFrames(all, all, false);
+  await chosen.click();
+  await events.getByRole("button", { name: "Characters", exact: true }).click();
+  const choice = page.getByRole("dialog").getByRole("checkbox", { name: character });
+  const checkArrival = await indicatorFrames(choice, choice, false);
+  const checkExit = await indicatorFrames(choice, choice, true);
+  for (const frames of [radioExit, radioArrival, checkArrival, checkExit]) {
+    expect(frames.some(({ opacity }) => opacity > 0 && opacity < 1)).toBe(true);
+    for (const frame of frames) expect(frame.scale).toBe("1");
+    const changed = frames.filter(({ checked }) => checked === frames.at(-1)?.checked);
+    expect(new Set(changed.map(({ background }) => background)).size).toBe(1);
+    expect(new Set(changed.map(({ border }) => border)).size).toBe(1);
+  }
+  for (const frames of [radioExit, checkExit]) {
+    expect(frames.some(({ ending, opacity }) => ending && opacity > 0 && opacity < 1)).toBe(true);
+    expect(new Set(frames.map(({ background }) => background)).size).toBe(2);
+    expect(new Set(frames.map(({ border }) => border)).size).toBe(2);
+  }
+  await expect(all).not.toBeChecked();
+  await expect(chosen).toBeChecked();
+  await expect(choice).not.toBeChecked();
+  await expect(choice.locator("span")).toHaveCount(0);
+});
+
+/** Sample real elapsed animation time without pausing or seeking the wash. */
+function castWashFrames(field: Locator) {
+  return field.evaluate(
+    (element) =>
+      new Promise<{
+        delay: number;
+        duration: number;
+        frames: { progress: number; wash: string }[];
+      }>((resolve) => {
+        const animation = element
+          .getAnimations()
+          .find(
+            (candidate) =>
+              candidate instanceof CSSAnimation && candidate.animationName === "cast-settle",
+          );
+        if (animation?.effect === null || animation === undefined) {
+          throw new Error("No Cast wash");
+        }
+        const effect = animation.effect;
+        const timing = effect.getTiming();
+        const frames: { progress: number; wash: string }[] = [];
+        const sample = () => {
+          frames.push({
+            progress: Number(effect.getComputedTiming().progress),
+            wash: getComputedStyle(element).getPropertyValue("--cast-wash").trim(),
+          });
+          if (frames.at(-1)?.progress === 1) {
+            resolve({ delay: timing.delay ?? 0, duration: Number(timing.duration), frames });
+          } else requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+}
+
+for (const aged of [false, true]) {
+  test(`reduced-motion Cast holds a changed field until its snapshot deadline (${aged ? "later record mount" : "open record"})`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const characterId = await createCharacterViaApi(request, "Motion wash", {
+      description: "A lighthouse keeper.",
+      firstMessage: "The lamp room is warm.",
+    });
+    await patchSettings(request, { model: "mock-fast", castModel: "mock-cast", characterId });
+    await page.goto("/");
+    await expect(castEntry(page, keeperWoman([]))).toBeVisible();
+    // A new person has no previous fields to wash. Use the fixture's actual
+    // development of an existing person's hair, through narration and keeper.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/cast/update", async (route) => {
+      await held;
+      await route.continue();
+    });
+    await send(page, DEVELOPMENT_TURN);
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const openHair = async () => {
+      const record = await openRecord(page, SHEET_WOMAN);
+      await record.locator("summary").filter({ hasText: "Looks" }).click();
+      return record.locator('[data-cast-field="hair"][data-cast-changed]');
+    };
+    let hair: Locator;
+    if (aged) {
+      release();
+      await expect(castEntry(page, SHEET_WOMAN)).toHaveAttribute("data-present", "true");
+      await page.waitForTimeout(350);
+      hair = await openHair();
+    } else {
+      await page
+        .locator("[data-cast]")
+        .filter({ visible: true })
+        .locator("summary")
+        .filter({ hasText: SHEET_WOMAN })
+        .click();
+      hair = await openHair();
+      release();
+    }
+    await expect(hair).toContainText(DEVELOPED_HAIR);
+    const sample = await castWashFrames(hair);
+    if (aged) expect(sample.delay).toBeLessThan(-250);
+    expect(sample.duration).toBe(1200);
+    const holding = sample.frames.filter(({ progress }) => progress < 1);
+    expect(holding.some(({ progress }) => progress > 0.25 && progress < 0.9)).toBe(true);
+    expect(new Set(holding.map(({ wash }) => wash)).size).toBe(1);
+    const cleared = sample.frames.at(-1)?.wash;
+    expect(["rgba(0, 0, 0, 0)", "oklab(0 0 0 / 0)"]).toContain(cleared);
+    expect(holding[0]?.wash).not.toBe(cleared);
+  });
 }
 
 /** Sample the actual layout slot until Session reaches its new endpoint. */
@@ -1124,8 +1332,18 @@ test("reduced motion fades a rejected new entry at full height, then folds it at
   // The body stays in the sheet, folded to its padding; sample its content height until it has collapsed.
   const folding = body.evaluate(
     (element) =>
-      new Promise<{ height: number; opacity: number }[]>((resolve) => {
-        const frames: { height: number; opacity: number }[] = [];
+      new Promise<
+        { height: number; opacity: number; rejected: boolean; background: string; shadow: string }[]
+      >((resolve) => {
+        const insertion = element.querySelector(".tracked-ins");
+        if (insertion === null) throw new Error("No proposed entry text");
+        const frames: {
+          height: number;
+          opacity: number;
+          rejected: boolean;
+          background: string;
+          shadow: string;
+        }[] = [];
         const sample = () => {
           const style = getComputedStyle(element);
           const frame = {
@@ -1134,6 +1352,9 @@ test("reduced motion fades a rejected new entry at full height, then folds it at
               Number.parseFloat(style.paddingTop) -
               Number.parseFloat(style.paddingBottom),
             opacity: Number.parseFloat(style.opacity),
+            rejected: element.closest('[data-decision="rejected"]') !== null,
+            background: getComputedStyle(insertion).backgroundColor,
+            shadow: getComputedStyle(insertion).boxShadow,
           };
           frames.push(frame);
           if (frame.height < 0.5) return resolve(frames);
@@ -1151,6 +1372,12 @@ test("reduced motion fades a rejected new entry at full height, then folds it at
   expect(fading.length).toBeGreaterThan(0);
   for (const frame of fading) expect(frame.height).toBeCloseTo(height, 0);
   expect(frames.at(-1)?.height).toBeCloseTo(0, 0);
+  const rejected = frames.filter((frame) => frame.rejected);
+  expect(rejected.length).toBeGreaterThan(1);
+  expect(new Set(rejected.map(({ background }) => background))).toEqual(
+    new Set(["rgba(0, 0, 0, 0)"]),
+  );
+  expect(new Set(rejected.map(({ shadow }) => shadow))).toEqual(new Set(["none"]));
   await expect(page.getByRole("button", { name: "Restore new entry: Night porter" })).toBeFocused();
 });
 

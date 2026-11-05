@@ -728,7 +728,7 @@ function ChatHistoryBand({
         <span className="grid min-w-0 flex-1">
           <span
             className={cn(
-              "font-medium text-ui italic transition-colors duration-(--duration-quick) ease-fade",
+              "font-medium text-ui italic transition-colors duration-(--duration-tint-quick) ease-fade",
               enabled ? "text-ink" : "text-reed",
             )}
           >
@@ -847,7 +847,7 @@ function BlockRow(props: RowProps) {
               <span className="grid min-w-0 flex-1 items-center gap-x-3 tablet:grid-cols-[13rem_minmax(0,1fr)]">
                 <span
                   className={cn(
-                    "truncate font-medium text-ui transition-colors duration-(--duration-quick) ease-fade",
+                    "truncate font-medium text-ui transition-colors duration-(--duration-tint-quick) ease-fade",
                     enabled ? "text-ink" : "text-reed",
                   )}
                 >
@@ -855,7 +855,7 @@ function BlockRow(props: RowProps) {
                 </span>
                 <span
                   className={cn(
-                    "truncate text-note transition-colors duration-(--duration-quick) ease-fade",
+                    "truncate text-note transition-colors duration-(--duration-tint-quick) ease-fade",
                     enabled && block.kind !== "source" && meta !== "Empty"
                       ? "text-narration"
                       : "text-reed",

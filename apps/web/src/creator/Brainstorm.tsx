@@ -328,7 +328,7 @@ function Pitch({
       )}
       <span
         className={cn(
-          "block text-pretty text-story-phone transition-[color,opacity] duration-(--duration-quick) ease-fade",
+          "block text-pretty text-story-phone transition-[color,opacity] duration-[var(--duration-tint-quick),var(--duration-quick)] ease-fade",
           // A list being replaced fades to dim as the round starts.
           dim ? "text-reed opacity-70 starting:text-ink starting:opacity-100" : "text-ink",
         )}

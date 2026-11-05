@@ -291,8 +291,12 @@
   --reveal-gap: 80ms;
   --duration-press: 80ms;
   --duration-release: 140ms;
-  /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
+  /* Colour, border and brightness feedback applies instantly under reduced motion. */
   --duration-tint: 100ms;
+  --duration-tint-quick: 120ms;
+  --duration-tint-arrive: 180ms;
+  --duration-tint-panel: 240ms;
+  --ease-step-end: step-end;
   --duration-quick: 120ms;
   --duration-arrive: 180ms;
   --duration-panel-in: 240ms;
@@ -306,7 +310,7 @@
   --duration-swipe-out: 400ms;
   /* The glow on fields an AI Rework just wrote: a fade, so reduced motion keeps it. */
   --duration-settle: 700ms;
-  /* The dusk wash on what the cast's newest snapshot changed: a fade. */
+  /* The cast snapshot's wash: a fade normally, a hold then clear under reduced motion. */
   --duration-wash: 1200ms;
   --rise: 4px;
   --panel-shift: 12px;
@@ -340,8 +344,8 @@
 
 :root {
   transition:
-    --tint-mix var(--duration-panel-in) var(--ease-fade),
-    --tint-h var(--duration-panel-in) var(--ease-fade);
+    --tint-mix var(--duration-tint-panel) var(--ease-fade),
+    --tint-h var(--duration-tint-panel) var(--ease-fade);
 }
 
 :root[data-atmosphere] {
@@ -389,6 +393,10 @@
     --ease-spring: var(--ease-fade);
     --duration-press: 0ms;
     --duration-release: 0ms;
+    --duration-tint: 0ms;
+    --duration-tint-quick: 0ms;
+    --duration-tint-arrive: 0ms;
+    --duration-tint-panel: 0ms;
     --duration-arrive: var(--duration-quick);
     --duration-panel-in: var(--duration-quick);
     --duration-panel-out: var(--duration-quick);
@@ -613,7 +621,8 @@
  */
 /*
  * A highlight is its tone's ink on a faint wash of it, which fades in as it
- * arrives: the story's highlights and the cast record's toned fields.
+ * arrives, instantly under reduced motion: the story's highlights and the
+ * cast record's toned fields.
  * `data-tone` picks the tone, rose unless sage or iris.
  */
 @utility tone-wash {
@@ -625,7 +634,7 @@
   padding-inline: 0.15em;
   color: var(--tone);
   box-decoration-break: clone;
-  transition: background-color var(--duration-arrive) var(--ease-fade);
+  transition: background-color var(--duration-tint-arrive) var(--ease-fade);
   @starting-style {
     background-color: transparent;
   }
@@ -1208,7 +1217,7 @@
 /* Words in a creator field the lamp listens to light the mark's lamp faintly, without movement. */
 @utility lamplight-mark {
   & [data-lamp] {
-    transition: filter var(--duration-panel-in) var(--ease-fade);
+    transition: filter var(--duration-tint-panel) var(--ease-fade);
   }
 }
 :root:has(textarea[data-lamp-field]:focus:not(:placeholder-shown)) .lamplight-mark [data-lamp] {
@@ -1715,8 +1724,8 @@ details[open] > summary .disclosure-chevron {
   box-decoration-break: clone;
   transition:
     opacity var(--duration-quick) var(--ease-fade),
-    background-color var(--duration-quick) var(--ease-fade),
-    box-shadow var(--duration-quick) var(--ease-fade),
+    background-color var(--duration-tint-quick) var(--ease-fade),
+    box-shadow var(--duration-tint-quick) var(--ease-fade),
     display var(--duration-quick) allow-discrete;
 }
 
@@ -1726,8 +1735,8 @@ details[open] > summary .disclosure-chevron {
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;
   transition:
-    color var(--duration-quick) var(--ease-fade),
-    text-decoration-color var(--duration-quick) var(--ease-fade);
+    color var(--duration-tint-quick) var(--ease-fade),
+    text-decoration-color var(--duration-tint-quick) var(--ease-fade);
 }
 
 /* A keyword or tag the change removes: struck reed on the selected surface. */
@@ -1737,9 +1746,9 @@ details[open] > summary .disclosure-chevron {
   text-decoration-line: line-through;
   text-decoration-thickness: 1px;
   transition:
-    color var(--duration-quick) var(--ease-fade),
-    background-color var(--duration-quick) var(--ease-fade),
-    text-decoration-color var(--duration-quick) var(--ease-fade);
+    color var(--duration-tint-quick) var(--ease-fade),
+    background-color var(--duration-tint-quick) var(--ease-fade),
+    text-decoration-color var(--duration-tint-quick) var(--ease-fade);
 }
 
 /* A keyword or tag the change adds: on the selected surface. */
@@ -1747,8 +1756,8 @@ details[open] > summary .disclosure-chevron {
   @apply ins-wash;
   transition:
     opacity var(--duration-quick) var(--ease-fade),
-    background-color var(--duration-quick) var(--ease-fade),
-    box-shadow var(--duration-quick) var(--ease-fade);
+    background-color var(--duration-tint-quick) var(--ease-fade),
+    box-shadow var(--duration-tint-quick) var(--ease-fade);
 }
 
 /*
@@ -1806,7 +1815,7 @@ details[open] > summary .disclosure-chevron {
   scroll-margin-block: 6rem;
   box-decoration-break: clone;
   box-shadow: inset 2px 0 transparent;
-  transition: box-shadow var(--duration-quick) var(--ease-fade);
+  transition: box-shadow var(--duration-tint-quick) var(--ease-fade);
   &[data-current] {
     box-shadow: inset 2px 0 var(--dusk-line);
   }
@@ -1852,9 +1861,10 @@ details[open] > summary .disclosure-chevron {
 
 /*
  * The cast panel. What the newest snapshot changed holds the dusk wash, then
- * settles to nothing over --duration-settle, once (a fade, so reduced motion
- * keeps it); a layer over a toned field's own wash, line by line. A field
- * the owner corrected carries a dusk hairline at its start.
+ * settles to nothing over --duration-wash, once. Reduced motion holds the
+ * wash until that deadline, then clears it instantly; a layer over a toned
+ * field's own wash, line by line. A field the owner corrected carries a dusk
+ * hairline at its start.
  */
 @property --cast-wash {
   syntax: "<color>";
@@ -1878,6 +1888,9 @@ details[open] > summary .disclosure-chevron {
   background-image: linear-gradient(var(--cast-wash), var(--cast-wash));
   box-decoration-break: clone;
   animation: cast-settle var(--duration-wash) var(--ease-fade) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation-timing-function: var(--ease-step-end);
+  }
 }
 
 [data-cast-corrected] {

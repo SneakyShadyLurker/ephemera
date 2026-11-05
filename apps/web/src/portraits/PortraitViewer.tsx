@@ -78,7 +78,7 @@ export function PortraitViewer({
         disabled={disabled}
         onClick={() => morph(true)}
         className={cn(
-          "block cursor-zoom-in rounded-lg outline-offset-4 transition-[filter] duration-(--duration-quick) ease-fade enabled:hover:brightness-[1.04] disabled:cursor-default",
+          "block cursor-zoom-in rounded-lg outline-offset-4 transition-[filter] duration-(--duration-tint-quick) ease-fade enabled:hover:brightness-[1.04] disabled:cursor-default",
           open && "invisible",
           className,
         )}
@@ -116,7 +116,7 @@ export function PortraitViewer({
                   aria-label="Close the portrait"
                   className={cn(
                     buttonVariants({ variant: "outline", size: "icon" }),
-                    "pointer-events-auto fixed top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-full bg-surface shadow-overlay transition-[opacity,scale,background-color] delay-(--duration-quick) duration-(--duration-arrive) ease-spring starting:scale-90 starting:opacity-0 motion-reduce:delay-0 motion-reduce:starting:scale-100",
+                    "pointer-events-auto fixed top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-full bg-surface shadow-overlay transition-[opacity,scale,background-color] delay-(--duration-quick) duration-[var(--duration-arrive),var(--duration-arrive),var(--duration-tint-arrive)] ease-spring starting:scale-90 starting:opacity-0 motion-reduce:delay-0 motion-reduce:starting:scale-100",
                   )}
                 >
                   <CloseIcon size={20} />

@@ -77,7 +77,7 @@ function ComboboxPopup({
           {...(finalFocus === undefined ? {} : { finalFocus })}
           className="pop flex max-h-[min(24rem,var(--available-height))] flex-col overflow-hidden rounded-lg border border-rush bg-surface shadow-overlay outline-none"
         >
-          <div className="flex h-10 shrink-0 items-center gap-2 border-rush border-b px-3 transition-[border-color] duration-(--duration-quick) ease-fade focus-within:border-dusk-line touch:h-12">
+          <div className="flex h-10 shrink-0 items-center gap-2 border-rush border-b px-3 transition-[border-color] duration-(--duration-tint-quick) ease-fade focus-within:border-dusk-line touch:h-12">
             <SearchIcon size={16} className="shrink-0 text-reed" />
             <ComboboxPrimitive.Input
               aria-label={find.label}

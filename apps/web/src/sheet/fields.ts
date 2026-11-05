@@ -13,7 +13,7 @@ const FIELD_FACE =
 /** A boxed field: in the control edge at rest, ringed while focused, growing with its text. */
 const BOXED = cn(
   FIELD_FACE,
-  "w-full resize-none border-control-edge [field-sizing:content] transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade focus:shadow-focus",
+  "w-full resize-none border-control-edge [field-sizing:content] transition-[border-color,box-shadow] duration-(--duration-tint-quick) ease-fade focus:shadow-focus",
 );
 
 /**
@@ -71,7 +71,7 @@ export const TITLE_FIELD = cn(
  */
 export const PROSE_FACE = cn(
   FIELD_FACE,
-  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus touch:min-h-11",
+  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-tint-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus touch:min-h-11",
 );
 
 export const PROSE_FIELD = cn(
@@ -81,7 +81,7 @@ export const PROSE_FIELD = cn(
 
 /** The focus of a field made of several parts (tokens, a search box with its icon, the composer). */
 export const FOCUS_WITHIN =
-  "transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-focus";
+  "transition-[border-color,box-shadow] duration-(--duration-tint-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-focus";
 
 /**
  * Where a sheet label's first line meets what it labels: a boxed field's

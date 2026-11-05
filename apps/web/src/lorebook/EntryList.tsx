@@ -466,7 +466,7 @@ function Row({
         <span className={ROW_CONTENT}>
           <span
             className={cn(
-              "truncate text-ui transition-colors duration-(--duration-quick) ease-fade",
+              "truncate text-ui transition-colors duration-(--duration-tint-quick) ease-fade",
               entry.enabled ? "text-ink" : "text-reed",
             )}
           >
