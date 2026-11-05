@@ -1313,18 +1313,29 @@ details[open] > summary .disclosure-chevron {
 /* The header hairline appears once the screen's content scrolls beneath it. */
 @keyframes hairline {
   from {
-    border-bottom-color: transparent;
+    opacity: 0;
   }
   to {
-    border-bottom-color: var(--rush);
+    opacity: 1;
   }
 }
 
 @utility header-hairline {
   border-bottom-color: transparent;
-  animation: hairline linear both;
-  animation-timeline: --thread;
-  animation-range: 0 3rem;
+  &::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    /* Cover the retained border, before the header's positioned edge slot. */
+    bottom: -1px;
+    height: 1px;
+    background: var(--rush);
+    opacity: 0;
+    pointer-events: none;
+    animation: hairline linear both;
+    animation-timeline: --thread;
+    animation-range: 0 3rem;
+  }
 }
 
 /*
