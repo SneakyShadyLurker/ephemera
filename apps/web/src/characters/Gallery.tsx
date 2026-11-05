@@ -154,7 +154,12 @@ export function GalleryScreen() {
         {characters.isError ? (
           <ListLoadFailed what="Characters" onRetry={() => void characters.refetch()} />
         ) : empty ? (
-          <EmptyGallery phone={phone} onImport={openPicker} onCreate={createWithAi} />
+          <EmptyGallery
+            phone={phone}
+            onImport={openPicker}
+            onNew={newCharacter}
+            onCreate={createWithAi}
+          />
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
           <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
@@ -321,12 +326,13 @@ function FilterSheet({ list }: { list: CharacterSummary[] }) {
     <>
       <Button
         variant="outline"
-        size="icon"
         aria-label={active > 0 ? `Filter and order, ${active} tags checked` : "Filter and order"}
         className={cn(active > 0 && "border-ink")}
         onClick={() => setOpen(true)}
       >
         <TagIcon size={16} />
+        Filter and order
+        {active > 0 && <span className="text-meta text-reed tabular-nums">{active}</span>}
       </Button>
       <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
         <DrawerContent>
@@ -526,17 +532,18 @@ function Cast({
 }
 
 /**
- * Empty library: import is the first step (most stories start from a card
- * already made), with the drop hint where dropping works; New character and
- * Create with AI stay in the header.
+ * Empty library: one primary Import and up to two quiet actions, New and
+ * Create with AI, with the drop hint where dropping works.
  */
 function EmptyGallery({
   phone,
   onImport,
+  onNew,
   onCreate,
 }: {
   phone: boolean;
   onImport: () => void;
+  onNew: () => void;
   onCreate: () => void;
 }) {
   return (
@@ -553,6 +560,10 @@ function EmptyGallery({
             <Button variant="primary" onClick={onImport}>
               <ImportIcon size={16} />
               Import
+            </Button>
+            <Button variant="quiet" aria-label="New character" onClick={onNew}>
+              <PlusIcon size={16} />
+              New
             </Button>
             <Button variant="quiet" onClick={onCreate}>
               <LampFlameIcon size={16} />

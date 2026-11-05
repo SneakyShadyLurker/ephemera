@@ -117,6 +117,36 @@ describe("the import panel", () => {
     expect(save(html).disabled).toBe(true);
   });
 
+  it("collapses only settled mappings and puts readiness before the mapping", () => {
+    const ready = render(inspected());
+    expect(ready).toMatch(
+      /<details class="disclosure"><summary[^>]*>Ephemera fills these four places/,
+    );
+    expect(text(ready)).toContain("All found in this file");
+    expect(ready.indexOf("On your ComfyUI")).toBeLessThan(ready.indexOf("All found in this file"));
+    const pending = render(inspected({}));
+    expect(text(pending)).not.toContain("All found in this file");
+    const selected = render(
+      inspected({}, undefined, { type: "choose", place: "output", node: "7" }),
+    );
+    expect(save(selected).disabled).toBe(false);
+    expect(selected).toContain('aria-label="Output node"');
+    expect(text(selected)).not.toContain("All found in this file");
+    const blocked = render(
+      inspected({ output: "7", blocked: [{ classType: "KSampler", reason: "not_allowed" }] }),
+    );
+    expect(text(blocked)).not.toContain("All found in this file");
+    expect(blocked.indexOf("Ephemera cannot run these nodes")).toBeLessThan(
+      blocked.indexOf("other nodes keep their settings"),
+    );
+    const missing = render(
+      inspected({ output: "7", live: { state: "missing", nodes: ["MyNode"], models: [] } }),
+    );
+    expect(text(missing)).toContain("All found in this file");
+    expect(missing.indexOf("MyNode")).toBeLessThan(missing.indexOf("All found in this file"));
+    expect(text(missing)).not.toContain("Every node and model file is there.");
+  });
+
   it("refuses a file that is not JSON in the tab, with Choose another file", () => {
     const html = render(
       run({ type: "refused", request: null, fileName: FILE, refusal: { kind: "not_json" } }),

@@ -25,8 +25,8 @@ import {
   DISPLAY_HEADING,
   FIELD_LABEL,
   GROUP_HEADING,
-  HELP,
   REQUEST_FIELD,
+  REQUEST_HELP,
 } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { StatusDot } from "../workflows/WorkflowRow.tsx";
@@ -206,7 +206,7 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
           aria-describedby={unavailable === null ? example : `${example} ${reason}`}
           className={cn(REQUEST_FIELD, "max-h-[min(28rem,42dvh)] min-h-[calc(6*1.75rem+1.5rem)]")}
         />
-        <p id={example} className={HELP}>
+        <p id={example} className={REQUEST_HELP}>
           For example: {copy.example}
         </p>
       </div>

@@ -456,26 +456,34 @@ function SampleScene({ compact = false }: { compact?: boolean }) {
       )}
     >
       <div>
-        <Nameplate voice="story" name="Mara" className="static shadow-none" />
-        <div className="prose-turn voice-story voice-scene text-story-phone [&_blockquote]:my-0">
-          <CardProse text={compact ? COMPACT_SAMPLE : SAMPLE} streaming={false} />
-        </div>
-        {!compact && (
-          <div aria-hidden="true" className="mt-3 text-note text-reed">
-            <span className={buttonVariants({ variant: "quiet", size: "text" })}>New reply</span>
-          </div>
-        )}
-      </div>
-      <div>
         <Nameplate voice="line" name="You" className="static shadow-none" />
         <p className="prose-turn voice-line slip text-line text-ink">
           {compact ? "I'm coming in." : "The tide is turning. Are you coming in?"}
         </p>
       </div>
-      {!compact && (
-        <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-          <span className={buttonVariants({ variant: "primary" })}>Send</span>
+      <div>
+        <Nameplate voice="story" name="Mara" className="static shadow-none" />
+        <div className="prose-turn voice-story voice-scene text-story-phone [&_blockquote]:my-0">
+          <CardProse text={compact ? COMPACT_SAMPLE : SAMPLE} streaming={false} />
         </div>
+      </div>
+      {!compact && (
+        <>
+          <div aria-hidden="true" inert className="pointer-events-none flex items-center gap-1">
+            <span className={buttonVariants({ variant: "quiet", size: "text" })}>New reply</span>
+            <span className={buttonVariants({ variant: "quiet", size: "text" })}>Continue</span>
+          </div>
+          <div
+            aria-hidden="true"
+            inert
+            className="pointer-events-none flex min-w-0 items-end gap-2 rounded-xl border border-control-edge bg-surface p-1.5"
+          >
+            <span className="min-w-0 flex-1 self-center py-1.5 pl-2.5 text-ink text-line">
+              I'll mind the stair.
+            </span>
+            <span className={buttonVariants({ variant: "primary" })}>Send</span>
+          </div>
+        </>
       )}
     </figure>
   );

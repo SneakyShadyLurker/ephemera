@@ -1206,7 +1206,13 @@ export function RecordText({ entry }: { entry: CastEntry }) {
         {rows.length > 0 && (
           <dl className="grid grid-cols-1 gap-y-1 @[20rem]:grid-cols-[5.5rem_minmax(0,1fr)] @[20rem]:gap-x-2">
             {rows.map((field) => (
-              <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
+              <div
+                key={field}
+                className={cn(
+                  "col-span-full grid grid-cols-subgrid items-baseline",
+                  editing?.field === field && "@max-[28rem]:grid-cols-1",
+                )}
+              >
                 <dt className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</dt>
                 <dd className="min-w-0 break-words text-narration text-ui">{value(field)}</dd>
               </div>
@@ -1247,7 +1253,13 @@ export function RecordText({ entry }: { entry: CastEntry }) {
           </summary>
           <dl className="mt-2 grid grid-cols-1 gap-y-2 font-story @[20rem]:grid-cols-[6.5rem_minmax(0,1fr)] @[20rem]:gap-x-3">
             {unrecorded.map((field) => (
-              <div key={field} className="col-span-full grid grid-cols-subgrid items-baseline">
+              <div
+                key={field}
+                className={cn(
+                  "col-span-full grid grid-cols-subgrid items-baseline",
+                  editing?.field === field && "@max-[28rem]:grid-cols-1",
+                )}
+              >
                 <dt className="font-sans text-meta text-reed">{CAST_FIELD_LABELS[field]}</dt>
                 <dd className="min-w-0 break-words text-narration text-ui">
                   {editor(field, <span className="font-sans text-note text-reed">Add</span>)}

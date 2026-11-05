@@ -203,6 +203,11 @@ test("a saved workflow file shows where Ephemera's values go, then saves as read
     panel.getByRole("heading", { name: "Import a workflow", exact: true }),
   ).toBeFocused();
   await expect(panel.getByRole("status")).toHaveText(READY);
+  const mapping = panel.locator("details").filter({ hasText: "All found in this file" });
+  await expect(mapping).not.toHaveAttribute("open");
+  await expect(mapping.locator("summary")).toContainText("All found in this file");
+  await expect(mappingRows(panel)).toHaveCount(0);
+  await mapping.locator("summary").click();
   const rows = mappingRows(panel);
   await expect(rows).toHaveCount(4);
   for (const [index, place] of ["Prompt", "Size and count", "Seed", "Image output"].entries()) {
@@ -217,6 +222,9 @@ test("a saved workflow file shows where Ephemera's values go, then saves as read
 
   const name = uniqueName("Lighthouse");
   await panel.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  await choose(panel, "Family", "General");
+  await expect(mapping).toHaveAttribute("open", "");
+  await expect(rows.nth(0)).toBeVisible();
   await panel.getByRole("button", { name: "Save workflow", exact: true }).click();
   await expect(panel).toHaveCount(0);
   const row = workflowRow(page, name);
@@ -231,6 +239,7 @@ test("a workflow with two image outputs asks for one before it saves", async ({ 
   const panel = await openImport(page, twoSaverUiFile());
   const output = panel.getByRole("combobox", { name: "Output node", exact: true });
   await expect(output).toBeVisible();
+  await expect(panel.getByText("All found in this file", { exact: true })).toHaveCount(0);
   await expect(mappingRows(panel)).toHaveCount(4);
   await expect(panel.getByText("Choose the output node", { exact: true })).toBeVisible();
   const save = panel.getByRole("button", { name: "Save workflow", exact: true });
@@ -240,6 +249,8 @@ test("a workflow with two image outputs asks for one before it saves", async ({ 
   await expect(notChosen).toHaveCount(0);
 
   await choose(panel, "Output node", SECOND_SAVER);
+  await expect(output).toBeVisible();
+  await expect(panel.getByText("All found in this file", { exact: true })).toHaveCount(0);
   await panel.getByText("Import details", { exact: true }).click();
   await expect(notChosen).toBeVisible();
   await expect(panel.getByText("Choose one mapping before saving.")).toHaveCount(0);
@@ -408,6 +419,7 @@ test("a file read and not saved asks before it is left", async ({ comfy, page })
   await openSettings(page);
   const panel = await openImport(page, cleanUiFile());
   await expect(panel.getByRole("status")).toHaveText(READY);
+  await panel.locator("summary").filter({ hasText: "Ephemera fills these four places" }).click();
 
   const guard = page.getByRole("alertdialog", { name: "Discard this import?" });
   const presets = page.getByRole("link", { name: "Presets" });
@@ -466,6 +478,7 @@ test("an import in progress survives a look at another Settings category", async
 
   await settingsTab(page, "Pictures").click();
   await expect(panel).toBeVisible();
+  await panel.locator("summary").filter({ hasText: "Ephemera fills these four places" }).click();
   await expect(mappingRows(panel)).toHaveCount(4);
   await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
 });

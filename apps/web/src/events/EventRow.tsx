@@ -19,6 +19,7 @@ import { cn } from "@/lib/cn";
 import { InlineStatus, NoticeCard } from "../app/NoticeCard.tsx";
 import { isFailure, type SaveStatus, saveStatusText, useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
+import { InlineSave } from "../sheet/InlineSave.tsx";
 import { type EventSaveFields, eventSaving, fromSaveFields, toSaveFields } from "./autosave.ts";
 import { EventEditor } from "./EventEditor.tsx";
 import { deleteEvent } from "./queries.ts";
@@ -159,6 +160,10 @@ function EventRowBody({
   const [removing, setRemoving] = useState(false);
   /** The average fades only after the owner changes the numbers here, never on opening. */
   const [lively, setLively] = useState(false);
+  const [edited, setEdited] = useState(false);
+  useLayoutEffect(() => {
+    if (!open) setEdited(false);
+  }, [open]);
   const id = stored?.id ?? createdId;
   const autosave = useAutosave<EventSaveFields, StoredEvent>({
     id: stored?.id ?? null,
@@ -203,6 +208,7 @@ function EventRowBody({
   }, [gone, removing, rowKey, onGone, unsaved, settle, isUnsaved, pause, resume]);
 
   const change = (patch: Partial<EventSaveFields>) => {
+    if (open) setEdited(true);
     if ("chance" in patch || "cooldown" in patch) setLively(true);
     setLimited(false);
     setFields((current) => ({ ...current, ...patch }));
@@ -357,11 +363,25 @@ function EventRowBody({
             />
           </div>
         )}
-        {!orphaned && status.kind === "needs-name" && (
-          <InlineStatus as="p" role="presentation" className="px-1 pb-3">
-            Write the instruction to save this event.
-          </InlineStatus>
-        )}
+        {!orphaned &&
+          failure === null &&
+          status.kind !== "conflict" &&
+          (open || status.kind === "needs-name") && (
+            <div className="px-1 pb-3">
+              <div className="grid min-h-5">
+                {status.kind === "needs-name" ? (
+                  <InlineStatus as="p" role="presentation">
+                    Write the instruction to save this event.
+                  </InlineStatus>
+                ) : open &&
+                  edited &&
+                  !blank &&
+                  (status.kind === "saving" || status.kind === "saved") ? (
+                  <InlineSave status={status} noun="event" />
+                ) : null}
+              </div>
+            </div>
+          )}
         {failure !== null && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-3">
             <InlineStatus tone="error" as="p" role="alert">

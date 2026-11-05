@@ -76,15 +76,24 @@ export function MappingList({
   rows,
   disabled,
   onChoose,
+  showHeading = true,
 }: {
   rows: MappingRow[];
   disabled: boolean;
   onChoose: (place: ChoicePlace, node: string) => void;
+  /** A settled mapping's disclosure already names the list. */
+  showHeading?: boolean;
 }) {
   const headingId = useId();
   return (
     <section aria-labelledby={headingId} className="grid gap-2 arrive">
-      <Heading id={headingId} />
+      {showHeading ? (
+        <Heading id={headingId} />
+      ) : (
+        <h4 id={headingId} className="sr-only">
+          Ephemera fills these four places
+        </h4>
+      )}
       <ul aria-label="Where Ephemera's values go" className="grid">
         {rows.map((row) => {
           const { choice } = row;

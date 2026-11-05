@@ -251,7 +251,7 @@ function PromptPresetEditor({
   const chat = inChat(fields.blocks);
   const customCount = fields.blocks.filter((block) => block.kind === "custom").length;
   const addButton = (
-    <div className="flex shrink-0 flex-wrap gap-2">
+    <div className="-ml-3.5 flex shrink-0 flex-wrap gap-2 touch:-ml-4">
       {missingOptional(fields.blocks).map((id) => (
         <Button
           key={id}

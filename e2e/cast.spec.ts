@@ -1082,6 +1082,85 @@ test("a value corrects where it stands, Escape and leaving unchanged keep it, an
   await expect(record.getByRole("button", { name: "Revert hair" })).toHaveCount(0);
 });
 
+test.describe("narrow cast correction", () => {
+  test.use({ hasTouch: true });
+
+  for (const width of [360, 390]) {
+    test(`${width}px outfit edits use the record width and preserve completion keys`, async ({
+      page,
+      request,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await castChat(request);
+      await seeded(page);
+      const record = await openRecord(page, SEEDED);
+      const outfit = record.locator('[data-cast-edit="outfit"]');
+      const row = record
+        .locator("dt")
+        .filter({ hasText: /^Outfit$/ })
+        .locator("..");
+      const label = row.locator("dt");
+      const labelX = (await label.boundingBox())?.x;
+      const box = record.getByRole("textbox", { name: "Outfit", exact: true });
+      const long =
+        "A rain-dark wool coat over a long linen dress, sturdy boots and a loosely tied red scarf.";
+      await outfit.click();
+      await box.fill(long);
+      await expect(box).toBeFocused();
+      expect((await label.boundingBox())?.x).toBe(labelX);
+      const fieldBox = await box.boundingBox();
+      const rowBox = await row.boundingBox();
+      const labelBox = await label.boundingBox();
+      expect(fieldBox?.y).toBeGreaterThanOrEqual((labelBox?.y ?? 0) + (labelBox?.height ?? 0));
+      expect(fieldBox?.width).toBeGreaterThanOrEqual(rowBox?.width ?? Infinity);
+
+      // Composition and Shift+Enter keep editing; Escape cancels without closing the record.
+      await box.dispatchEvent("keydown", { key: "Enter", code: "Enter", isComposing: true });
+      await expect(box).toBeFocused();
+      await box.press("End");
+      await box.press("Shift+Enter");
+      await expect(box).toHaveValue(`${long}\n`);
+      await box.press("Escape");
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toBeFocused();
+      await expect(outfit).toContainText(KEEPER_WOMAN_OUTFIT);
+
+      await outfit.click();
+      await box.fill(`  ${long}  `);
+      // Reduced viewport height approximates keyboard room, not a native keyboard.
+      await page.setViewportSize({ width, height: 480 });
+      await box.scrollIntoViewIfNeeded();
+      const done = record.getByRole("button", { name: "Done", exact: true });
+      await done.scrollIntoViewIfNeeded();
+      for (const control of [box, done]) {
+        const bounds = await control.boundingBox();
+        expect(bounds?.y).toBeGreaterThanOrEqual(0);
+        expect((bounds?.y ?? Infinity) + (bounds?.height ?? Infinity)).toBeLessThanOrEqual(480);
+      }
+      await done.click();
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toBeFocused();
+      await expect(outfit).toContainText(long);
+      await expect(row.locator("[data-inline-save]")).toHaveText("Saved");
+      await expect(row.getByRole("button", { name: "Revert outfit" })).toBeVisible();
+
+      await outfit.click();
+      await box.fill("a blue scarf");
+      await box.press("Enter");
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toBeFocused();
+      await expect(outfit).toContainText("a blue scarf");
+      await outfit.click();
+      await box.fill("a green scarf");
+      await record.getByRole("heading", { name: SEEDED }).click();
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toContainText("a green scarf");
+      await row.getByRole("button", { name: "Revert outfit" }).click();
+      await expect(outfit).toContainText(KEEPER_WOMAN_OUTFIT);
+    });
+  }
+});
+
 test("an empty More details correction moves with focus and Saved feedback", async ({
   page,
   request,

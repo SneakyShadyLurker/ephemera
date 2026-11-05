@@ -39,7 +39,7 @@ export function EmptyState({
   title: ReactNode;
   /** The direction: at most two lines. */
   children?: ReactNode;
-  /** The first step, as one or two buttons. */
+  /** The first step, as one primary and up to two quiet actions. */
   actions?: ReactNode;
   art?: { role: keyof typeof ART_WIDTH; image: ReactNode };
   /** The heading's level: 3 inside a section that has its own heading. */

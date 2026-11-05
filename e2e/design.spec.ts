@@ -27,6 +27,7 @@ import {
   closeSession,
   createCharacterViaApi,
   createLorebookViaApi,
+  createPersonaViaApi,
   expectNoOverflow,
   FORM_FACTORS,
   linkLorebookViaApi,
@@ -422,6 +423,90 @@ test.describe("on a touch phone", () => {
     );
   });
 });
+
+for (const hasTouch of [false, true]) {
+  test.describe(`portrait action rows with ${hasTouch ? "coarse" : "fine"} pointer`, () => {
+    test.use({ hasTouch });
+
+    test("character and persona actions stay on one row at every sheet width", async ({ page }) => {
+      const id = await createCharacterViaApi(page.request, uniqueName("Portrait row"), {
+        tags: ["lighthouse", "harbour", "lantern", "fog", "letters", "tides", "island"],
+      });
+      const png = solidPng([90, 110, 130]);
+      await setPortraitViaApi(page.request, id, png);
+      const persona = await createPersonaViaApi(page.request, uniqueName("Portrait persona"));
+      for (const width of [360, 390, 820, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/characters/${id}`);
+        const identity = page.locator("#s-identity");
+        const portrait = identity.locator('img[src*="/portrait/image"]');
+        const art = identity.getByRole("button", { name: "New art", exact: true });
+        const more = identity.getByRole("button", { name: "Portrait actions", exact: true });
+        await expect(portrait).toBeVisible();
+        await expect(more).toBeVisible();
+        const frame = await portrait.boundingBox();
+        const artBox = await art.boundingBox();
+        const moreBox = await more.boundingBox();
+        expect(frame?.width).toBe(width < 720 ? 88 : 112);
+        expect(
+          Math.abs(
+            (artBox?.y ?? 0) +
+              (artBox?.height ?? 0) / 2 -
+              (moreBox?.y ?? Infinity) -
+              (moreBox?.height ?? 0) / 2,
+          ),
+        ).toBeLessThanOrEqual(2);
+        if (width >= 720) {
+          expect(artBox?.x).toBe(frame?.x);
+          expect(artBox?.y).toBeGreaterThanOrEqual((frame?.y ?? 0) + (frame?.height ?? 0));
+        }
+        const name = identity.getByRole("textbox", { name: "Name", exact: true });
+        await name.focus();
+        await page.keyboard.press("Tab");
+        await expect(art).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(more).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(
+          identity.getByRole("button", { name: "Remove tag lighthouse", exact: true }),
+        ).toBeFocused();
+        await tabTo(page, identity.getByRole("textbox", { name: "Tags", exact: true }));
+        await expect(identity.getByRole("textbox", { name: "Tags", exact: true })).toBeFocused();
+        await expectNoOverflow(page);
+
+        await page.goto(`/personas/${persona}`);
+        const personal = page.getByRole("region", { name: "Identity", exact: true });
+        if (width === 360) {
+          await expect(
+            personal.getByRole("button", { name: "Add portrait", exact: true }),
+          ).toBeVisible();
+          await personal.locator('input[type="file"]').setInputFiles({
+            name: "portrait.png",
+            mimeType: "image/png",
+            buffer: png,
+          });
+        }
+        const replace = personal.getByRole("button", { name: "Replace", exact: true });
+        const remove = personal.getByRole("button", { name: "Remove portrait", exact: true });
+        await expect(replace).toBeVisible();
+        const replaceBox = await replace.boundingBox();
+        const removeBox = await remove.boundingBox();
+        expect(
+          Math.abs(
+            (replaceBox?.y ?? 0) +
+              (replaceBox?.height ?? 0) / 2 -
+              (removeBox?.y ?? Infinity) -
+              (removeBox?.height ?? 0) / 2,
+          ),
+        ).toBeLessThanOrEqual(2);
+        const image = await personal.locator('img[src*="/portrait/image"]').boundingBox();
+        expect(image?.width).toBe(width < 720 ? 120 : 112);
+        expect((removeBox?.x ?? 0) + (removeBox?.width ?? Infinity)).toBeLessThanOrEqual(width);
+        await expectNoOverflow(page);
+      }
+    });
+  });
+}
 
 /** The computed type of the first element `selector` matches inside `scope`. */
 const typeOf = (scope: Locator, selector: string) =>

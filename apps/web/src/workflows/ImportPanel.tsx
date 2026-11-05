@@ -79,6 +79,7 @@ import {
   type SaveFailure,
   type SaveTarget,
   saveCheck,
+  unchosen,
 } from "./panel-state.ts";
 import {
   createWorkflow,
@@ -542,8 +543,6 @@ export function PanelView({
         </div>
       )}
 
-      {draft !== null && <DraftBody draft={draft} disabled={saving} dispatch={dispatch} />}
-
       {state.phase !== "idle" &&
         !refused &&
         (stalled === null || stalled === "comfyui_required") && (
@@ -574,6 +573,8 @@ export function PanelView({
             </InlineStatus>
           </div>
         )}
+
+      {draft !== null && <DraftBody draft={draft} disabled={saving} dispatch={dispatch} />}
 
       {draft !== null && (
         <Fields draft={draft} names={names} disabled={saving} dispatch={dispatch} />
@@ -637,13 +638,35 @@ function DraftBody({
   const report = reportOf(draft);
   const problem = choiceProblem(draft);
   const blocked = blockedGroups(draft);
+  const rows = mappingRows(draft);
+  const settled =
+    draft.final.ok &&
+    problem === null &&
+    blocked.length === 0 &&
+    unchosen(draft).length === 0 &&
+    rows.every((row) => row.choice === null && row.targets.length > 0);
+  const mapping = (
+    <MappingList
+      rows={rows}
+      disabled={disabled}
+      showHeading={!settled}
+      onChoose={(place, node) => dispatch({ type: "choose", place, node })}
+    />
+  );
   return (
     <>
-      <MappingList
-        rows={mappingRows(draft)}
-        disabled={disabled}
-        onChoose={(place, node) => dispatch({ type: "choose", place, node })}
-      />
+      {settled ? (
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            Ephemera fills these four places
+            <span className="font-normal text-reed">All found in this file</span>
+            <DisclosureChevron />
+          </summary>
+          <div className="pt-2">{mapping}</div>
+        </details>
+      ) : (
+        mapping
+      )}
       {problem !== null && (
         <div className="grid gap-1">
           <InlineStatus tone="error" as="p" role="alert">
@@ -651,19 +674,6 @@ function DraftBody({
           </InlineStatus>
           <NodesInvolved nodes={problem.nodes} />
         </div>
-      )}
-      <OtherNodes nodes={otherNodes(draft)} />
-      {report.changed.length + report.skipped.length > 0 && (
-        <details className="disclosure">
-          <summary className={SUMMARY_LINE}>
-            Import details
-            <DisclosureChevron />
-          </summary>
-          <div className="grid gap-3 pt-2 text-ui">
-            <ReportGroup title="Changed" items={report.changed} heading="h4" />
-            <ReportGroup title="Left out" items={report.skipped} heading="h4" />
-          </div>
-        </details>
       )}
       {blocked.length > 0 && (
         <div className="grid gap-2">
@@ -690,6 +700,19 @@ function DraftBody({
             ))}
           </div>
         </div>
+      )}
+      <OtherNodes nodes={otherNodes(draft)} />
+      {report.changed.length + report.skipped.length > 0 && (
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            Import details
+            <DisclosureChevron />
+          </summary>
+          <div className="grid gap-3 pt-2 text-ui">
+            <ReportGroup title="Changed" items={report.changed} heading="h4" />
+            <ReportGroup title="Left out" items={report.skipped} heading="h4" />
+          </div>
+        </details>
       )}
     </>
   );

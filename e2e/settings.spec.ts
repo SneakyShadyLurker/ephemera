@@ -1,5 +1,5 @@
 import type { Locator } from "@playwright/test";
-import { ROLE_LABELS } from "../apps/web/src/palettes/roles.ts";
+import { BUILT_IN_NAMES, ROLE_LABELS } from "../apps/web/src/palettes/roles.ts";
 import {
   type CustomPaletteInput,
   PALETTE_ROLES,
@@ -451,7 +451,19 @@ for (const width of [390, 834]) {
       await expect(sample.getByText(text, { exact: true })).toBeVisible();
     }
     await expect(sample).toContainText("I'm coming in.");
+    await expect(sample.locator(":scope > div").first()).toContainText("You");
+    await expect(sample.locator("[inert]")).toHaveCount(0);
+    await expect(sample.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
     await expect(editor.getByRole("button", { name: "Preview", exact: true })).toBeVisible();
+    await editor.getByRole("button", { name: "Preview", exact: true }).click();
+    const full = page
+      .getByRole("dialog", { name: "Palette preview", exact: true })
+      .getByRole("figure", { name: "Sample scene" });
+    await expect(full.locator("[inert]")).toHaveCount(2);
+    await expect(full.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
+    await expect(full.locator("[data-tone]")).toHaveCount(4);
+    await expect(full.locator("[inert]").last()).toContainText("Send");
+    await page.keyboard.press("Escape");
     await editor.getByRole("button", { name: /^All colours/ }).click();
     for (const scheme of ["Day", "Night"]) {
       await editor
@@ -493,6 +505,51 @@ for (const width of [390, 834]) {
     await editor.getByRole("button", { name: "Cancel", exact: true }).click();
   });
 }
+
+test("the full palette scene stays inert and fits 900px in every palette and scheme", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/settings?section=appearance");
+  await page.getByRole("button", { name: /^Your palettes/ }).click();
+  for (const name of Object.values(BUILT_IN_NAMES)) {
+    await page.getByRole("button", { name: "New palette", exact: true }).click();
+    await page.getByRole("menuitem", { name: new RegExp(`^${name}\\b`) }).click();
+    const editor = page.getByRole("region", { name: "New palette", exact: true });
+    const sample = editor.getByRole("figure", { name: "Sample scene" }).filter({ visible: true });
+    for (const scheme of ["Day", "Night"]) {
+      await editor
+        .getByRole("group", { name: "Editing scheme" })
+        .getByRole("button", { name: scheme, exact: true })
+        .click();
+      await expect(sample.locator(":scope > div").first()).toContainText("You");
+      await expect(sample).toContainText("Mara");
+      for (const tone of ["rose", "sage", "iris", "mist"]) {
+        await expect(sample.locator(`[data-tone="${tone}"]`)).toBeVisible();
+      }
+      await expect(sample).toContainText("Older than his letters made him sound.");
+      const decoration = sample.locator("[inert]");
+      await expect(decoration).toHaveCount(2);
+      await expect(decoration.first()).toHaveText("New replyContinue");
+      await expect(decoration.last()).toContainText("I'll mind the stair.Send");
+      await expect(sample.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
+      expect(
+        await decoration.evaluateAll((nodes) =>
+          nodes.every(
+            (node) =>
+              node.getAttribute("aria-hidden") === "true" &&
+              getComputedStyle(node).pointerEvents === "none",
+          ),
+        ),
+      ).toBe(true);
+      const box = await sample.boundingBox();
+      expect(box?.y).toBeGreaterThanOrEqual(0);
+      expect((box?.y ?? Infinity) + (box?.height ?? Infinity)).toBeLessThanOrEqual(900);
+    }
+    await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
+});
 
 /** A full custom palette for the API: every role one colour, the text another. */
 function plainPalette(name: string): CustomPaletteInput {

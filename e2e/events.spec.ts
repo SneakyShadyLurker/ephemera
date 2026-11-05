@@ -58,6 +58,105 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 
+for (const entry of ["Lorebooks", "chat"] as const) {
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`${entry} event feedback follows saves only during the edited open visit (${reducedMotion})`, async ({
+      page,
+      request,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await freshChat(request);
+      await page.goto("/lorebooks");
+      await openEvents(page);
+      if (entry === "chat") {
+        await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+      }
+      const scope =
+        entry === "chat"
+          ? page.getByRole("dialog", { name: "Events", exact: true })
+          : page.locator("main");
+      await scope.getByRole("button", { name: "New event", exact: true }).click();
+      const row = scope.locator("li[data-event]").first();
+      const feedback = row.locator("[data-inline-save]");
+      const hint = row.getByText("Write the instruction to save this event.");
+      await expect(hint).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+      const hintHeight = (await hint.locator("..").boundingBox())?.height;
+      const instruction = row.getByRole("textbox", { name: "Instruction", exact: true });
+      const text = "The lantern dims.";
+      await instruction.fill(text);
+      await expect(feedback).toHaveText("Saved");
+      expect((await feedback.locator("..").boundingBox())?.height).toBe(hintHeight);
+      const saved = (await storedEvents(request))[0];
+      if (saved === undefined) throw new Error("event did not save");
+
+      // A real save held in flight supplies Saving; the presentation owns no timer or save.
+      const held = await holdAnswer(page, saved.id, "PATCH");
+      try {
+        await instruction.fill("The lantern brightens.");
+        await held.committed;
+        await expect(feedback).toHaveText("Saving");
+      } finally {
+        held.release();
+      }
+      await expect(feedback).toHaveText("Saved");
+      const disclosure = row.locator("[data-disclosure]");
+      await disclosure.click();
+      await expect(feedback).toHaveCount(0);
+      await disclosure.click();
+      await expect(instruction).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+
+      // Failed edits keep the existing single failure and Retry hierarchy.
+      await page.route("**/api/events/*", (route) =>
+        route.request().method() === "PATCH" ? route.abort() : route.fallback(),
+      );
+      await instruction.fill("The lantern goes dark.");
+      await instruction.press("Tab");
+      await expect(row.getByRole("alert")).toContainText("Not saved");
+      await expect(row.getByRole("alert")).toHaveCount(1);
+      await expect(feedback).toHaveCount(0);
+      await page.unroute("**/api/events/*");
+      await row.getByRole("button", { name: "Retry", exact: true }).click();
+      await expect(feedback).toHaveText("Saved");
+      await instruction.fill("");
+      await expect(hint).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+      await instruction.fill(text);
+      await expect(feedback).toHaveText("Saved");
+
+      // Keep both rule sentences on one line, isolating save feedback from metadata wrapping.
+      await row.getByText("Advanced", { exact: true }).click();
+      const chance = row.getByRole("textbox", { name: "Chance per reply in percent" });
+      const quiet = row.getByRole("textbox", { name: "Quiet afterwards in replies" });
+      await chance.fill("0");
+      await chance.press("Tab");
+      await quiet.fill("0");
+      await quiet.press("Tab");
+      await expect
+        .poll(async () => (await storedEvents(request))[0])
+        .toMatchObject({
+          chance: 0,
+          cooldown: 0,
+        });
+      await expect(feedback).toHaveText("Saved");
+
+      // A closed switch never acquires feedback or changes the closed row's height.
+      await disclosure.click();
+      await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      await expect(instruction).toBeHidden();
+      const height = (await row.boundingBox())?.height;
+      await row.getByRole("switch").click();
+      await expect.poll(async () => (await storedEvents(request))[0]?.enabled).toBe(false);
+      expect((await row.boundingBox())?.height).toBe(height);
+      await expect(feedback).toHaveCount(0);
+      await disclosure.click();
+      await expect(instruction).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+    });
+  }
+}
+
 test("closing Events saves edits made while its close save is waiting", async ({
   page,
   request,

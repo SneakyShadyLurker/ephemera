@@ -120,7 +120,7 @@ Version 1.0 holds everything below.
   caption width.
   A persona's card opens its sheet.
   An empty gallery says so on the same edges as a full one and offers
-  Import as the first step, with Create with AI beside it. Import, New and
+  Import as the first step, with New and Create with AI beside it. Import, New and
   Create with AI stay in the header; on phones they share a labelled toolbar
   below the full title. Empty screens carry an engraving drawn in the palette's
   colours: the first run, the empty characters, personas, library and
@@ -268,7 +268,9 @@ Version 1.0 holds everything below.
   are read from it. An owner keeps up to 24. The import panel shows where
   Ephemera fills the prompt, the size and count, the seed and the image
   output, asks which node to use where the file leaves one open, and says
-  what the owner's ComfyUI lacks, with changes and omissions under Import
+  what the owner's ComfyUI lacks before the mapping. A fully resolved mapping
+  without selectable alternatives folds under "Ephemera fills these four places";
+  choices and mapping problems stay open. Changes and omissions wait under Import
   details and the nodes a refusal concerns under a disclosure; it
   saves the workflow under a name and a family (Krea 2, MOSS or General for
   any other model). Ephemera takes out the file's own prompt, scales the
@@ -468,7 +470,9 @@ Version 1.0 holds everything below.
   characters and cards carrying any chosen tag. A user keeps up to 200
   events, newest first, and one event names up to 100 characters. A new
   event leads with its instruction; chance, quiet replies and scope are
-  summarized below it and edited under Advanced.
+  summarized below it and edited under Advanced. An open event shows Saving
+  or Saved after an edit during that visit; untouched and closed rows omit
+  that acknowledgement. Save failures keep their existing notice and recovery actions.
 - Each new reply for a character rolls the chance of every event that is
   on, in scope and not cooling down. Of the events that hit, exactly one,
   drawn at random, goes into that request as a system direction after the
@@ -1025,7 +1029,8 @@ notes are not scanned.
   or is refused is shown above whichever category is open. The palette
   editor widens beside a sticky preview on desktop; smaller screens offer
   Preview, and phones and tablets also keep a compact sample. The sample uses the chat's
-  nameplates, character prose and player slip.
+  nameplates, character prose and player slip. The full preview also shows
+  inert reply actions and a composer with Send inside it.
 
 ### Prompt and lorebook behavior
 

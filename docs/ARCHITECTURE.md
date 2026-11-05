@@ -2084,8 +2084,10 @@ both settings together. Session orders Character, Persona, Sampler preset,
 Prompt preset and Model, folding explanations but keeping model and
 reasoning mismatches visible. The palette editor widens its Settings frame
 on desktop for a sticky sample beside the fields, offers Preview on smaller
-screens and a compact live sample on phones, using the chat's nameplates,
-prose and slip. The server sets the saved theme and palette on the app
+screens and a compact live sample on phones and tablets, using the chat's
+nameplates, prose and slip. The full sample's reply actions and composer
+are inert decorations, without focusable controls or event handlers.
+The server sets the saved theme and palette on the app
 shell's `<html>` (`data-theme`, `data-palette`) with Bun's `HTMLRewriter`,
 and links the requester's custom palettes as `/api/palettes.css` when there
 are any (the policy allows no inline style), so a reload paints them before

@@ -93,7 +93,7 @@ export function PortraitField({
   return (
     <div
       className={cn(
-        "grid content-start gap-1",
+        "grid min-w-0 grid-cols-1 content-start gap-1",
         // Phones: the portrait small at the row's start, its actions beside its foot.
         compactOnPhone &&
           "grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:grid-rows-[auto_auto_1fr_auto] tablet:gap-x-6 tablet:gap-y-4",
@@ -146,9 +146,9 @@ export function PortraitField({
        */}
       <div
         className={cn(
-          "flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap",
+          "flex w-max flex-nowrap items-center gap-1 pt-1 empty:hidden",
           compactOnPhone &&
-            "col-start-2 row-start-2 self-end pt-0 tablet:col-start-1 tablet:row-start-4 tablet:pt-1",
+            "col-start-2 row-start-2 self-end pt-0 tablet:col-span-full tablet:col-start-1 tablet:row-start-4",
         )}
       >
         {primary?.({ busy })}

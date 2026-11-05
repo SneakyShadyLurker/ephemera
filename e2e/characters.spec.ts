@@ -586,11 +586,55 @@ test("an empty library invites an import on the populated gallery's edges", asyn
   expect(Math.abs(empty.left - populated.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(empty.right - populated.right)).toBeLessThanOrEqual(1);
   expect(Math.abs(((await heading.boundingBox())?.x ?? 0) - populated.left)).toBeLessThanOrEqual(1);
-  // Import and the quiet AI creation path sit together in the empty state.
+  // Import and both quiet creation paths sit together in the empty state.
   const body = page.locator("main [data-skip-target]");
-  await expect(body.getByRole("button")).toHaveCount(2);
+  await expect(body.getByRole("button")).toHaveCount(3);
   await expect(body.getByRole("button", { name: "Import", exact: true })).toBeVisible();
   await expect(body.getByRole("button", { name: "Create with AI" })).toBeVisible();
+});
+
+test("the empty phone gallery wraps its actions and New opens the existing character editor", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/characters");
+  const body = page.locator("main [data-skip-target]");
+  const actions = body.getByRole("button");
+  await expect(actions).toHaveText(["Import", "New", "Create with AI"]);
+  for (const action of await actions.all()) {
+    const box = await action.boundingBox();
+    expect(box?.x).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? Infinity)).toBeLessThanOrEqual(360);
+  }
+  await actions.nth(0).focus();
+  await page.keyboard.press("Tab");
+  const manual = body.getByRole("button", { name: "New character", exact: true });
+  await expect(manual).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(body.getByRole("button", { name: "Create with AI", exact: true })).toBeFocused();
+  await manual.click();
+  await expect(page).toHaveURL(/\/characters\/new$/);
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeVisible();
+});
+
+test("the phone Filter and order label keeps its checked count and drawer choices", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await createCharacterViaApi(page.request, uniqueName("Tagged"), { tags: ["harbour"] });
+  await page.goto("/characters");
+  const trigger = page.getByRole("button", { name: /^Filter and order/ });
+  await expect(trigger).toHaveText("Filter and order");
+  await trigger.click();
+  const drawer = page.getByRole("dialog", { name: "Filter and order", exact: true });
+  await drawer.getByRole("checkbox", { name: /harbour/ }).check();
+  await drawer.getByRole("radio", { name: "Name", exact: true }).check();
+  await drawer.getByRole("button", { name: "Close filter and order" }).click();
+  await expect(trigger).toHaveText("Filter and order1");
+  await expect(trigger).toHaveAccessibleName("Filter and order, 1 tags checked");
+  await trigger.click();
+  await expect(drawer.getByRole("checkbox", { name: /harbour/ })).toBeChecked();
+  await expect(drawer.getByRole("radio", { name: "Name", exact: true })).toBeChecked();
 });
 
 test("collection actions share the phone toolbar below the full gallery title", async ({
