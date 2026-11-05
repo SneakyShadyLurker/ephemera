@@ -1,6 +1,8 @@
 import { parseCardAnswer } from "@ephemera/core";
 import { useRef } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { buttonVariants } from "@/components/ui/button";
+import { WindowLink } from "../settings/window-link.tsx";
 import { ArtStack } from "./ArtStack.tsx";
 import { type ArtSessionHost, ArtSessionProvider } from "./art-session.tsx";
 import { CardHeading, SHOWCASE_GRID } from "./CardLayout.tsx";
@@ -31,6 +33,10 @@ export function Showcase({ card }: { card: CardRun }) {
   const locked = useCreator((state) => state.keepRun?.status === "saving");
   // Kept: the art travels into its place in the gallery or the sheet.
   const leaving = useCreator((state) => state.keepRun?.status === "kept");
+  const portraitsOff = useCreator(
+    (state) =>
+      state.images.length === 0 && state.art?.status === "skipped" && state.art.reason === "off",
+  );
   const newArt = useRef<HTMLButtonElement>(null);
   const again = useRef<HTMLButtonElement>(null);
   const host: ArtSessionHost = {
@@ -47,11 +53,23 @@ export function Showcase({ card }: { card: CardRun }) {
       <ArtStack name={name} phone={phone} newArt={newArt} again={again} />
     </ArtSessionProvider>
   );
+  const noPortrait = (
+    <p className="flex flex-wrap items-center gap-x-3 text-note text-reed">
+      <span>No portrait</span>
+      <WindowLink
+        model={null}
+        section="pictures"
+        className={buttonVariants({ variant: "link", size: "text" })}
+      >
+        Set up pictures
+      </WindowLink>
+    </p>
+  );
 
   if (phone) {
     return (
       <div className="grid gap-6 px-5 pt-4 pb-8">
-        {art}
+        {portraitsOff ? noPortrait : art}
         {heading}
         {text}
       </div>
@@ -59,13 +77,16 @@ export function Showcase({ card }: { card: CardRun }) {
   }
   return (
     <div className="@container">
-      <div className={SHOWCASE_GRID}>
-        <aside className="grid max-w-48 content-start @card:sticky @card:top-8 @card:max-w-none @card:self-start">
-          {art}
-        </aside>
+      <div className={portraitsOff ? "grid gap-6 px-6 py-8" : SHOWCASE_GRID}>
+        {!portraitsOff && (
+          <aside className="grid max-w-48 content-start @card:sticky @card:top-8 @card:max-w-none @card:self-start">
+            {art}
+          </aside>
+        )}
         <div className="grid min-w-0 content-start gap-8">
           <div className="grid gap-4">
             {heading}
+            {portraitsOff && noPortrait}
             <TagChips kind={card.kind} />
           </div>
           {text}

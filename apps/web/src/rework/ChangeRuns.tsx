@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useRef } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import type { Run, Segment } from "./tracked.ts";
@@ -172,6 +173,10 @@ export function ChangeRuns({
   children?: ReactNode;
 }) {
   const pure = isPureInsertion(change.runs);
+  const compact =
+    change.find.length + change.replace.length <= 160 &&
+    !/[\r\n]/.test(change.find + change.replace);
+  const longRemoved = change.find.length > 160 || /[\r\n]/.test(change.find);
   return (
     // biome-ignore lint/a11y/useSemanticElements: a change inside running text; a fieldset would break the line.
     <span
@@ -183,18 +188,31 @@ export function ChangeRuns({
       data-decision={decision}
       data-pure={pure ? "" : undefined}
       className={cn(
-        "change-mark change-arrive group/change my-4 block border-rush border-b pb-3 pl-3",
+        "change-mark change-arrive group/change my-3 block border-rush border-b pb-2 pl-3",
       )}
     >
       {change.find !== "" && (
-        <span className="block">
-          <span className={cn(COMPACT_LABEL, "block font-sans")}>Removed</span>
-          <Deleted text={change.find} />
+        <span className={compact ? "mr-3" : "block"}>
+          <span className={cn(COMPACT_LABEL, "mr-1.5 font-sans")}>Removed</span>
+          {longRemoved ? (
+            <details className="disclosure group/removed">
+              <summary className={cn(SUMMARY_LINE, "flex min-w-0 gap-2 font-sans")}>
+                <span className="min-w-0 flex-1 truncate group-open/removed:hidden">
+                  <Deleted text={change.find} />
+                </span>
+                <DisclosureChevron />
+                <span className="shrink-0">Show removed</span>
+              </summary>
+              <Deleted text={change.find} />
+            </details>
+          ) : (
+            <Deleted text={change.find} />
+          )}
         </span>
       )}
       {change.replace !== "" && (
-        <span className="mt-1 block">
-          <span className={cn(COMPACT_LABEL, "block font-sans")}>Proposed</span>
+        <span className={compact ? undefined : "mt-1 block"}>
+          <span className={cn(COMPACT_LABEL, "mr-1.5 font-sans")}>Proposed</span>
           <Inserted text={change.replace} />
         </span>
       )}

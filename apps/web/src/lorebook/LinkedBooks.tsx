@@ -149,6 +149,7 @@ export function LinkedBooks({
       empty="No lorebooks in your library yet."
       noMatch="No lorebook matches."
       choices={choices}
+      actions={{ add: "Link", linked: "Linked", remove: "Unlink" }}
       onToggle={(choice, checked) => {
         if (id === null) return;
         setDone(null);

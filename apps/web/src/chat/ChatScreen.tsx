@@ -17,6 +17,7 @@ import {
   markInspectorUnavailable,
   overlayIntent,
   overlayOwnsKeys,
+  setEventsOpen,
   toggleSession,
   useUi,
 } from "@/app/ui.ts";
@@ -142,7 +143,9 @@ function ChatHeader({
   const sessionOpen = useUi((state) => state.sessionOpen);
   const character = useChatCharacter();
   const phone = useFormFactor() === "phone";
-  const [eventsOpen, setEventsOpen] = useState(false);
+  const eventsOpen = useUi((state) => state.eventsOpen);
+  // Navigation closes the sheet, as the header's former local state did.
+  useEffect(() => () => setEventsOpen(false), []);
   const eventsButton = useRef<HTMLButtonElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   return (
@@ -172,12 +175,12 @@ function ChatHeader({
             <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
               <Button
                 ref={sessionToggle}
-                size="icon"
+                className="gap-1 px-2 touch:px-2"
                 aria-label="Session"
                 aria-pressed={sessionOpen}
                 onClick={toggleSession}
               >
-                <SessionIcon />
+                Session
               </Button>
             </Tooltip>
           </>
@@ -224,7 +227,7 @@ function ChatHeader({
  * Phones: the header keeps the name, the cast and Session, and this menu
  * holds the rest under the labels the wider header gives them: Memory with
  * how many turns it remembers, Events, Prompt with the meter's figures once
- * the window is nearly full, Session under its name, and Clear chat. The
+ * the window is nearly full, and Clear chat. The
  * remembered count also sits in the menu button's corner, as on the Memory
  * mark, so it shows without opening the menu.
  */
@@ -246,7 +249,7 @@ function ChatMenu({
     <>
       <Menu>
         <MenuTrigger render={<Button ref={trigger} className="gap-1 px-2 touch:px-2" />}>
-          Story
+          Chat
           <ChevronDownIcon size={16} />
           {memory !== null && <RememberedCount count={memory.remembered} />}
         </MenuTrigger>
@@ -277,10 +280,6 @@ function ChatMenu({
                 {figures}
               </span>
             )}
-          </MenuItem>
-          <MenuItem aria-haspopup="dialog" onClick={toggleSession}>
-            <SessionIcon size={16} />
-            Session
           </MenuItem>
           <MenuSeparator />
           <MenuItem danger disabled={empty} onClick={clear.request}>

@@ -15,7 +15,7 @@ test("an upstream error shows a failed reply without upstream text", async ({ pa
   await send(page, input);
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
   await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-    "Reply failed. No reply: the model's provider answered with an error. Try again.Try again",
+    "No reply: the model's provider answered with an error.Try again",
   );
 });
 

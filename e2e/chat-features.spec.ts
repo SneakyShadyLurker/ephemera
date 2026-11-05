@@ -86,7 +86,7 @@ for (const [fixture, notice] of [
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expect(lastReply(page).getByText(notice, { exact: true })).toBeVisible();
     await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-      fixture === "blocked" ? `Reply stopped. ${notice}Try again` : notice,
+      fixture === "blocked" ? `${notice}Try again` : notice,
     );
   });
 }
@@ -325,7 +325,7 @@ test("a failed reply says why and Try again replaces it in place", async ({ page
   await send(page, line);
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
   await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-    "Reply failed. No reply: the server couldn't be reached. Check the connection, then try again.Try again",
+    "No reply: the server couldn't be reached.Try again",
   );
   // Try again sits beside the failure, replacing the empty attempt in place.
   const actions = replyActions(page);

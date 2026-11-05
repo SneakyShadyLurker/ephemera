@@ -7,4 +7,4 @@
  * root shell's sign-in slot reads it without the turn renderer.
  */
 export const SCRIPT_FRAME =
-  "w-full px-5 tablet:pr-[4.75rem] tablet:pl-8 desktop:pr-[5.75rem] desktop:pl-12";
+  "w-full px-5 tablet:pr-[4.75rem] tablet:pl-8 desktop:pr-(--inset-story-end) desktop:pl-(--inset-story-start)";

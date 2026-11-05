@@ -38,8 +38,10 @@ function queries(): Record<Query, MediaQueryList> {
 function subscribe(onChange: () => void): () => void {
   const all = Object.values(queries());
   for (const query of all) query.addEventListener("change", onChange);
+  window.addEventListener("resize", onChange);
   return () => {
     for (const query of all) query.removeEventListener("change", onChange);
+    window.removeEventListener("resize", onChange);
   };
 }
 
@@ -54,7 +56,26 @@ export function useFormFactor(): FormFactor {
 }
 
 /** Whether Session can dock beside the thread, read now. */
-export const canDock = (): boolean => queries().dock.matches;
+export const canDock = (): boolean => {
+  const style = getComputedStyle(document.documentElement);
+  // Container widths scale with the root above full HD; media-query rems do not.
+  const minimum =
+    Number.parseFloat(style.getPropertyValue("--breakpoint-dock")) *
+    Number.parseFloat(style.fontSize);
+  const useful =
+    [
+      "--container-story",
+      "--container-entries",
+      "--container-rail",
+      "--inset-story-start",
+      "--inset-story-end",
+    ].reduce((sum, token) => sum + Number.parseFloat(style.getPropertyValue(token)), 0) *
+    Number.parseFloat(style.fontSize);
+  // Stable scroll gutters, where the browser reserves them, consume real story width too.
+  const thread = document.querySelector<HTMLElement>('[role="log"] > div');
+  const gutters = thread ? thread.offsetWidth - thread.clientWidth : 0;
+  return queries().dock.matches && window.innerWidth >= Math.max(minimum, useful + gutters);
+};
 
 export function useCanDock(): boolean {
   return useSyncExternalStore(subscribe, canDock);

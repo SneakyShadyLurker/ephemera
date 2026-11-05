@@ -118,7 +118,8 @@ describe("the workflows list in Settings > Pictures", () => {
     expect(rowOf(markup, "Flux Dev Portrait")).toContain("In use");
     expect(rowOf(markup, "Krea 2 Gonzalomo")).not.toContain("In use");
     const moss = rowOf(markup, "Moss Studio");
-    expect(moss).toContain("Missing requirements");
+    expect(moss).toContain("Unavailable");
+    expect(moss).toContain("Install requirements or change workflow.");
     expect(moss).toContain("TextEncodeMOSSImageEdit");
     expect(moss).toContain("moss_v2.safetensors");
     expect(rowOf(markup, "Flux Dev Portrait")).not.toContain("Model files");

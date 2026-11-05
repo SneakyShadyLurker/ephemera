@@ -56,7 +56,7 @@ const variants = {
   enter: (travel: Travel) => ({
     x: distance(travel),
     opacity: 0,
-    height: (travel.still || travel.streaming ? null : travel.from) ?? "auto",
+    height: travel.still ? "auto" : (travel.from ?? "auto"),
     minHeight: !travel.still && travel.streaming ? (travel.from ?? 0) : 0,
   }),
   exit: (travel: Travel) => ({
@@ -161,12 +161,42 @@ export function SwipeFrame({
   );
 }
 
-function SwipePanel({ children, ...props }: ComponentProps<typeof m.div>) {
+function SwipePanel({
+  children,
+  animate,
+  transition: panelTransition,
+  ...props
+}: Omit<ComponentProps<typeof m.div>, "children"> & { children?: ReactNode }) {
   const present = useIsPresent();
   const travel: Travel = usePresenceData();
+  const content = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(travel.from);
+  useLayoutEffect(() => {
+    const element = content.current;
+    if (!element || !present) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      // Keep the occupied slot until the incoming prose has completed layout.
+      frame = requestAnimationFrame(() => setHeight(element.getBoundingClientRect().height));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    measure();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [present]);
   return (
     <m.div
       {...props}
+      animate={{
+        ...(typeof animate === "object" ? animate : {}),
+        height:
+          travel.still || travel.streaming || travel.from === null ? "auto" : (height ?? "auto"),
+      }}
+      transition={{ ...panelTransition, height: travel.still ? { duration: 0 } : spring() }}
       // Cancels only the retained outgoing frame's flow height. Both prose blocks
       // keep the same float context; the incoming frame owns the region's height.
       style={{ marginBottom: present ? undefined : -(travel.from ?? 0) }}
@@ -175,7 +205,7 @@ function SwipePanel({ children, ...props }: ComponentProps<typeof m.div>) {
       inert={!present}
       aria-hidden={!present || undefined}
     >
-      {children}
+      <div ref={content}>{children}</div>
     </m.div>
   );
 }

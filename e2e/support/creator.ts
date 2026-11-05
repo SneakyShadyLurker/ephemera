@@ -110,8 +110,8 @@ export function kindControl(page: Page) {
   };
 }
 
-/** Keep's label while no portrait is on show, for either kind. */
-export const KEEP_WITHOUT_PORTRAIT = "Keep without portrait";
+/** The primary Keep action names the card's kind, with or without art. */
+export const KEEP_WITHOUT_PORTRAIT = /^Keep (character|scenario)$/;
 
 export const IMAGES = ["img0", "img1", "img2", "img3"] as const satisfies Mark[];
 

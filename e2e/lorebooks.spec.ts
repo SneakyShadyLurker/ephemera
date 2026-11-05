@@ -365,8 +365,8 @@ test("a character takes at most eight books: the ninth link is refused with 8 of
   await page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }).click();
   const books8 = page.getByRole("dialog", { name: `Lorebooks linked to ${character}` });
   await books8.getByRole("searchbox", { name: "Find a lorebook" }).fill(ninth);
-  await expect(books8.getByRole("checkbox", { name: ninth })).toBeDisabled();
-  await expect(books8.getByRole("checkbox", { name: ninth })).not.toBeChecked();
+  await expect(books8.getByRole("button", { name: `Link ${ninth}`, exact: true })).toBeDisabled();
+  await expect(books8.getByText("Linked", { exact: true })).toHaveCount(0);
   await expect(books8.getByRole("button", { name: "New lorebook" })).toBeDisabled();
   await expect(books8).toContainText("8 of 8 lorebooks linked");
   // The server refuses it too.
@@ -766,7 +766,7 @@ test("a sheet's New lorebook whose answer was lost is sent again under its id, m
   await expect(link).toBeEnabled();
   await link.click();
   const picker = page.getByRole("dialog", { name: `Lorebooks linked to ${character}` });
-  const create = picker.getByRole("button", { name: "New lorebook" });
+  const create = picker.getByRole("button", { name: "New lorebook", exact: true });
   await create.click();
   await expect(picker.getByRole("alert").filter({ hasText: "Not created:" })).toBeVisible();
   // The server stored it; the tab never heard, and nothing is linked yet.
@@ -850,12 +850,12 @@ test("a sheet's New whose link failed, then linked from the picker, makes anothe
   await expect(link).toBeEnabled();
   await link.click();
   const picker = page.getByRole("dialog", { name: `Lorebooks linked to ${character}` });
-  const create = picker.getByRole("button", { name: "New lorebook" });
+  const create = picker.getByRole("button", { name: "New lorebook", exact: true });
   await create.click();
   await expect(picker.getByRole("alert").filter({ hasText: "Not linked:" })).toBeVisible();
 
   // The book was made; the owner links it by hand.
-  const orphan = picker.getByRole("checkbox", { name: "New lorebook" });
+  const orphan = picker.getByRole("button", { name: "Link New lorebook", exact: true });
   await orphan.click();
   await expect(picker).not.toBeVisible();
   await expect(page.locator("#s-lorebook")).toContainText("1 of 8 linked");

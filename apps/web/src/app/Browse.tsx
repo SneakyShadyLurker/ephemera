@@ -45,17 +45,25 @@ function TileText({
   name,
   caption,
   captionId,
+  compact = false,
 }: {
   name: string;
   caption: ReactNode;
   captionId?: string;
+  compact?: boolean;
 }) {
   return (
     <>
       <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
         {name}
       </span>
-      <span id={captionId} className="min-h-4 break-words px-0.5 pt-0.5 text-meta text-reed">
+      <span
+        id={captionId}
+        className={cn(
+          "min-h-4 px-0.5 pt-0.5 text-meta text-reed",
+          compact ? "truncate" : "break-words",
+        )}
+      >
         {caption}
       </span>
     </>
@@ -147,10 +155,10 @@ export function PortraitTile({
         // The plate covers the whole tile; Edit, later and positioned, lies above it.
         className="group grid min-w-0 cursor-pointer text-start outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:focus-ring"
       >
-        <TileText name={name} caption={caption} captionId={captionId} />
+        <TileText name={name} caption={caption} captionId={captionId} compact />
       </button>
       {/* Always there, quiet in reed, so the way to the sheet is found without hovering. */}
-      <div className="mt-1">
+      <div className="relative row-span-2 self-stretch pt-2.5">
         <Link
           {...sheet}
           aria-label={`Edit ${name}`}

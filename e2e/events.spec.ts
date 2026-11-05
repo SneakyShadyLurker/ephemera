@@ -107,7 +107,21 @@ test("an event made on the Lorebooks screen survives a reload and shows in the i
   await expect(events.getByRole("button", { name: text })).toContainText("All characters");
   await expect(page.getByRole("switch", { name: `Enable ${text}` })).toBeChecked();
 
-  await page.goto("/");
+  await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText("Events apply across your chats.");
+  await expect(sheet.getByRole("list", { name: "Events" })).toContainText(text);
+  await sheet.getByRole("link", { name: "Events in Lorebooks", exact: true }).click();
+  await expect(page).toHaveURL(/\/lorebooks$/);
+  await expect(page.getByRole("button", { name: "Events", exact: true })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(page.getByRole("region", { name: "Events", exact: true })).toContainText(
+    "Events apply across your chats.",
+  );
+  await mainLink(page, "Chat").click();
   const line = canary("in");
   const direction = `${LEAD}${text}.${CLOSE}`;
   expect(await exchange(page, line)).toEqual([direction]);

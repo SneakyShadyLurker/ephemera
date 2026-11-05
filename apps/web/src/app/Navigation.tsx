@@ -102,7 +102,7 @@ export function Rail({ compact }: { compact: boolean }) {
       aria-label="Main"
       className={cn(
         "flex h-dvh shrink-0 flex-col overflow-y-auto border-rush border-r pb-4",
-        compact ? "w-20 items-stretch px-1.5" : "w-52 px-3",
+        compact ? "w-20 items-stretch px-1.5" : "w-rail px-3",
       )}
     >
       <div

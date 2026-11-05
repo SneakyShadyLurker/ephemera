@@ -442,20 +442,11 @@ describe("partial reply footer", () => {
   );
 
   it.each([
-    [
-      { failure: "unreachable", text: "" },
-      "No reply: the server couldn't be reached. Check the connection, then try again.",
-    ],
-    [
-      { failure: "server", text: "" },
-      "No reply: the model's provider answered with an error. Try again.",
-    ],
-    [
-      { failure: "provider", text: "" },
-      "No reply: the model's provider answered with an error. Try again.",
-    ],
-    [{ failure: "stream", text: "" }, "No reply: the connection dropped. Try again."],
-    [{ failure: "unreadable", text: "" }, "No reply: the reply could not be read. Try again."],
+    [{ failure: "unreachable", text: "" }, "No reply: the server couldn't be reached."],
+    [{ failure: "server", text: "" }, "No reply: the model's provider answered with an error."],
+    [{ failure: "provider", text: "" }, "No reply: the model's provider answered with an error."],
+    [{ failure: "stream", text: "" }, "No reply: the connection dropped."],
+    [{ failure: "unreadable", text: "" }, "No reply: the reply could not be read."],
     [{ failure: "stream" }, "The reply was cut off: the connection dropped."],
     [
       { failure: "provider" },

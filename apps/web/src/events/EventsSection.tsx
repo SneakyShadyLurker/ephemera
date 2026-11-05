@@ -1,13 +1,15 @@
 import { EVENT_LIMITS, type EventFields, type StoredEvent } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { AnimatePresence, useIsPresent } from "motion/react";
 import * as m from "motion/react-m";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { fade, MotionScope, spring } from "@/app/motion.tsx";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
-import { useReducedMotion } from "@/app/reduced-motion.ts";
+import { scrollBehavior, useReducedMotion } from "@/app/reduced-motion.ts";
+import { setEventsOpen, setLibraryEventsOpen, useUi } from "@/app/ui.ts";
 import { PlusIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { countOf } from "@/lib/text";
 import { charactersQuery } from "../characters/queries.ts";
 import { SettingsRow } from "../lorebook/SettingsRow.tsx";
@@ -161,6 +163,17 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
   const characters = useQuery(charactersQuery);
   /** Closed on arrival: one row above the lorebooks, however many events it holds. */
   const [shown, setShown] = useState(inSheet);
+  const libraryEventsOpen = useUi((state) => state.libraryEventsOpen);
+  useEffect(() => {
+    if (inSheet || !libraryEventsOpen) return;
+    setShown(true);
+    setLibraryEventsOpen(false);
+    requestAnimationFrame(() => {
+      const section = document.getElementById("events");
+      section?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
+      section?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    });
+  }, [inSheet, libraryEventsOpen]);
   const newButton = useRef<HTMLButtonElement>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -400,8 +413,36 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="grid min-w-0 flex-1 basis-64 gap-1">
           <p className="max-w-help text-pretty text-note text-reed">
-            One line the story is given now and then, by chance.
+            One line the story is given now and then, by chance. Events apply across your chats.
           </p>
+          {inSheet ? (
+            <Link
+              to="/lorebooks"
+              className={buttonVariants({
+                variant: "link",
+                size: "text",
+                className: "justify-self-start",
+              })}
+              onClick={() => {
+                setEventsOpen(false);
+                setLibraryEventsOpen(true);
+              }}
+            >
+              Events in Lorebooks
+            </Link>
+          ) : (
+            <Link
+              to="/"
+              className={buttonVariants({
+                variant: "link",
+                size: "text",
+                className: "justify-self-start",
+              })}
+              onClick={() => setEventsOpen(true)}
+            >
+              Events in chat
+            </Link>
+          )}
           {atLimit && <p className="max-w-help text-pretty text-note text-reed">{LIMIT_NOTE}</p>}
         </div>
         {!empty && !failed && newEvent}
@@ -442,7 +483,11 @@ export function EventsSection({ inSheet = false }: { inSheet?: boolean }) {
   );
 
   return (
-    <section aria-label="Events" className={inSheet ? "grid gap-4" : undefined}>
+    <section
+      id={inSheet ? undefined : "events"}
+      aria-label="Events"
+      className={inSheet ? "grid gap-4" : undefined}
+    >
       {inSheet ? (
         body
       ) : (

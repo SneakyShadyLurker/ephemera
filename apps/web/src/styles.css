@@ -426,9 +426,14 @@
   --container-page: 50.5rem;
   --container-column: 44rem;
   --container-creator: 66rem;
+  /* Palette form and its live scene, beside the Settings index. */
+  --container-palette: 66rem;
   --container-browse: 160rem;
   /* The lorebook's entry list beside its editor. */
   --container-entries: 27rem;
+  --container-rail: 13rem;
+  --inset-story-start: 3rem;
+  --inset-story-end: 5.75rem;
   /* The character sheet's index beside its form, and the gap between them. */
   --container-index: 11rem;
   --gap-index: 3rem;

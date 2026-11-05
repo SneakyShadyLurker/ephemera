@@ -31,14 +31,20 @@ function SelectTrigger({
   className,
   placeholder,
   look = "field",
+  leading,
   children,
   ...props
-}: SelectPrimitive.Trigger.Props & { placeholder: string; look?: "field" | "inline" }) {
+}: SelectPrimitive.Trigger.Props & {
+  placeholder: string;
+  look?: "field" | "inline";
+  leading?: ReactNode;
+}) {
   return (
     <SelectPrimitive.Trigger
       className={cn(look === "inline" ? INLINE_TRIGGER : TRIGGER, className)}
       {...props}
     >
+      {leading}
       {children ?? (
         <SelectPrimitive.Value
           placeholder={placeholder}

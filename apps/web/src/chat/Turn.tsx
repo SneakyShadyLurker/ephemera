@@ -4,7 +4,6 @@ import { useFormFactor } from "@/app/form-factor.ts";
 import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { MODEL_BUSY } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
 import { useSignedIn } from "../signin/hooks.ts";
@@ -17,7 +16,7 @@ import { REFUSAL_NOTE, WINDOW_UNKNOWN } from "./refusal.ts";
 import { SwipeFrame } from "./Swipe.tsx";
 import { chatStore, useChat } from "./session.ts";
 import { type AssistantMessage, type MessageStatus, type Reply, shownReply } from "./store.ts";
-import { GreetingActions, ReplyActions, TurnActions } from "./TurnActions.tsx";
+import { GreetingActions, REPLY_ACTION_ROW, ReplyActions, TurnActions } from "./TurnActions.tsx";
 
 // The Markdown renderer loads apart from the page; the thread preloads it on mount.
 const Markdown = lazy(() => loadMarkdown().then((module) => ({ default: module.Markdown })));
@@ -66,14 +65,14 @@ const failedNote = (reply: Reply) =>
   reply.text !== ""
     ? cutNote(reply)
     : reply.failure === "unreachable"
-      ? "No reply: the server couldn't be reached. Check the connection, then try again."
+      ? "No reply: the server couldn't be reached."
       : reply.failure === "stream"
-        ? "No reply: the connection dropped. Try again."
+        ? "No reply: the connection dropped."
         : reply.failure === "unreadable"
-          ? "No reply: the reply could not be read. Try again."
+          ? "No reply: the reply could not be read."
           : reply.failure === undefined
             ? "No reply."
-            : "No reply: the model's provider answered with an error. Try again.";
+            : "No reply: the model's provider answered with an error.";
 
 /**
  * Who speaks, named at the start of each turn in the voice that follows: the
@@ -82,12 +81,13 @@ const failedNote = (reply: Reply) =>
  * the top of the view while its turn scrolls past. Assistive technology and
  * find-in-page hear the name once, with the qualifier and the colon.
  */
-function Nameplate({
+export function Nameplate({
   voice,
   name,
   qualifier = "",
   writing = false,
   actions,
+  className,
 }: {
   voice: "story" | "line";
   name: string;
@@ -96,9 +96,10 @@ function Nameplate({
   writing?: boolean;
   /** On phones, the turn's More: at the hairline's end, or beside the owner's name. */
   actions?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div data-speaker="" data-voice={voice} className="nameplate">
+    <div data-speaker="" data-voice={voice} className={cn("nameplate", className)}>
       <p className="nameplate-name">
         {name}
         <span className="sr-only">{`${qualifier}: `}</span>
@@ -271,7 +272,7 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
     : reply.refusal !== undefined
       ? REFUSAL_NOTE[reply.refusal]
       : reply.busy && reply.status === "failed"
-        ? MODEL_BUSY
+        ? "The model is busy."
         : reply.status === "failed"
           ? failedNote(reply)
           : (STATUS_NOTE[reply.status] ?? partial);
@@ -304,11 +305,6 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
             ) : undefined
           }
         >
-          {shown.ember && (
-            <span className="font-medium">
-              {reply.status === "complete" && !reply.failed ? "Reply stopped. " : "Reply failed. "}
-            </span>
-          )}
           <span>{shown.windowRefusal ? <WindowRefusal /> : shown.note}</span>
         </InlineStatus>
       )}
@@ -391,38 +387,44 @@ function ReplyTurn({
           <EditField id={message.id} label={`Edit ${character}'s ${kind}`} story />
         ) : (
           <>
-            {reply.reasoning !== "" ? (
-              <Reasoning
-                key={reply.id}
-                reply={reply}
-                messageId={message.id}
-                editable={!locked && !folded}
-              />
-            ) : (
-              showHidden && reply.hiddenMs !== undefined && <HiddenReasoning ms={reply.hiddenMs} />
-            )}
-            <div data-prose="" data-voice="story" className="voice-story voice-scene">
-              <SwipeFrame
-                replyId={reply.id}
-                swipeable={last}
-                streaming={streaming}
-                ready={reply.text !== "" || !streaming}
-              >
+            <SwipeFrame
+              replyId={reply.id}
+              swipeable={last}
+              streaming={streaming}
+              ready={reply.text !== "" || !streaming}
+            >
+              {reply.reasoning !== "" ? (
+                <Reasoning
+                  key={reply.id}
+                  reply={reply}
+                  messageId={message.id}
+                  editable={!locked && !folded}
+                />
+              ) : (
+                showHidden &&
+                reply.hiddenMs !== undefined && <HiddenReasoning ms={reply.hiddenMs} />
+              )}
+              <div data-prose="" data-voice="story" className="voice-story voice-scene">
                 <Prose text={formatLocationLine(reply.text)} streaming={streaming} />
-              </SwipeFrame>
-              <ReplyNote reply={reply} last={last} />
-            </div>
+                <ReplyNote reply={reply} last={last} />
+              </div>
+            </SwipeFrame>
             {last &&
               !locked &&
-              !streaming &&
               reply.status !== "waiting" &&
               (!message.greeting || message.replies.length > 1) && (
                 // Below the prose end: the portrait and cast never push this row away.
                 <div
-                  data-reply-actions=""
-                  className="-ml-2 pt-1 font-sans transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+                  data-reply-actions={streaming ? undefined : ""}
+                  aria-hidden={streaming || undefined}
+                  className={cn(
+                    "-ml-2 pt-1 font-sans transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
+                    streaming && "invisible",
+                  )}
                 >
-                  {message.greeting ? (
+                  {streaming ? (
+                    <div className={REPLY_ACTION_ROW} />
+                  ) : message.greeting ? (
                     <GreetingActions message={message} />
                   ) : (
                     <ReplyActions message={message} />

@@ -2051,6 +2051,7 @@ test("on a phone the chat menu holds Prompt and Clear chat, and both work", asyn
   await menuButton.click();
   const menu = page.getByRole("menu", { name: "Chat actions" });
   // Nothing written yet: Clear is there, disabled, as the header's is.
+  await expect(menu.getByRole("menuitem", { name: "Session", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("menuitem", { name: "Clear chat" })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(menuButton).toBeFocused();
@@ -2473,9 +2474,9 @@ test("hovered rows ease their ground on the tint timing, and a palette tile pres
   await greeting.hover();
   expect(await transitionOf(greeting, "background-color")).toMatchObject({ duration: tint });
 
-  // A checklist label in the link picker.
+  // The explicit Link action in the character's single-add picker.
   await page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }).click();
-  const label = page.locator("label").filter({ hasText: book });
+  const label = page.getByRole("button", { name: `Link ${book}`, exact: true });
   await label.hover();
   expect(await transitionOf(label, "background-color")).toMatchObject({ duration: tint });
   await page.keyboard.press("Escape");

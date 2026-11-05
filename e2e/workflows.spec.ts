@@ -48,7 +48,9 @@ async function openSettings(page: Page) {
 async function openDescribe(page: Page) {
   await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator('[data-kind="subject"]').click();
+  await expect(
+    page.getByRole("button", { name: "Change from Subject", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("textbox", { name: COPY.subject.field })).toBeVisible();
 }
 

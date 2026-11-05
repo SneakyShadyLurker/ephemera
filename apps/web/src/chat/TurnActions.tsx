@@ -40,6 +40,8 @@ import { type AssistantMessage, canGenerateAlternate, shownReply } from "./store
 /** Compact icon buttons for message actions; 44px on touch. */
 const ICON = "size-11";
 const LABELLED = "h-11 gap-1.5 px-1.5 text-note touch:px-1.5";
+/** The reply footer's occupied slot, also reserved while its controls wait for a reply. */
+export const REPLY_ACTION_ROW = "flex h-11 items-center gap-1";
 
 const edit = (id: string) => chatStore.getState().startEdit(id);
 const remove = (id: string) => chatStore.getState().remove(id);
@@ -235,7 +237,7 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
       </Tooltip>
     );
   return (
-    <div className="flex h-11 items-center gap-1">
+    <div className={REPLY_ACTION_ROW}>
       {count > 1 ? (
         <fieldset className="flex shrink-0 items-center gap-0">
           <legend className="sr-only">Replies</legend>

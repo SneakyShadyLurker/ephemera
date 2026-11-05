@@ -24,6 +24,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
+import { Nameplate } from "../chat/Turn.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
 import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
@@ -57,9 +58,9 @@ type Scheme = "light" | "dark";
 const SCHEME_WORDS = { light: "By day", dark: "By night" } as const;
 
 /** A synthetic scene in every voice and highlight; nothing of a chat. */
-const SAMPLE = `Mara (31): *She sets the lantern down on the sill.* "You came back. :rose[Mind the blue tin], and :sage[the third stair creaks]."
+const SAMPLE = `*She sets the lantern down on the sill.* "You came back. :rose[Mind the blue tin], and :sage[the third stair creaks]."
 
-Mara (31): :thought[Older than his letters made him sound.]
+:thought[Older than his letters made him sound.]
 
 The wind worries at the shutters. :iris[A gull cries over the water.] :mist[The light turns, and turns.]`;
 
@@ -223,9 +224,9 @@ export function PaletteEditor({
           onClose();
         }
       }}
-      className="grid max-w-xl gap-5 rounded-xl border border-rush bg-surface p-4 transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-y-(--rise) starting:opacity-0 tablet:p-5 desktop:max-w-wide"
+      className="grid w-full max-w-xl gap-5 rounded-xl border border-rush bg-surface p-4 transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-y-(--rise) starting:opacity-0 tablet:p-5 desktop:max-w-palette"
     >
-      <div className="grid min-w-0 gap-5 desktop:grid-cols-2 desktop:items-start">
+      <div className="grid min-w-0 gap-5 desktop:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] desktop:items-start">
         <div className="grid min-w-0 gap-5">
           <div className="flex items-start justify-between gap-3">
             <div className="grid gap-0.5">
@@ -317,6 +318,10 @@ export function PaletteEditor({
                 <SampleScene />
               </PopoverContent>
             </Popover>
+          </div>
+
+          <div className="tablet:hidden">
+            <SampleScene compact />
           </div>
 
           {KEY_GROUPS.map((group) => (
@@ -440,20 +445,33 @@ export function PaletteEditor({
   );
 }
 
-function SampleScene() {
+function SampleScene({ compact = false }: { compact?: boolean }) {
   return (
     <figure
       aria-label="Sample scene"
-      className="grid gap-3 rounded-lg border border-rush bg-canvas px-4 py-3.5"
+      className={cn(
+        "grid rounded-lg border border-rush bg-canvas",
+        compact ? "gap-2 px-3 py-2" : "gap-3 px-4 py-3.5",
+      )}
     >
-      <p className="slip text-line text-ink">The tide is turning. Are you coming in?</p>
-      <div className="voice-scene [&_blockquote]:my-0">
-        <CardProse text={SAMPLE} streaming={false} />
+      <div>
+        <Nameplate voice="story" name="Mara" className="static shadow-none" />
+        <div className="prose-turn voice-story voice-scene text-story-phone [&_blockquote]:my-0">
+          <CardProse text={compact ? '"You came back."' : SAMPLE} streaming={false} />
+        </div>
       </div>
-      <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-        <span className={buttonVariants({ variant: "primary" })}>Send</span>
-        <span className={buttonVariants({ variant: "outline" })}>New reply</span>
+      <div>
+        <Nameplate voice="line" name="You" className="static shadow-none" />
+        <p className="prose-turn voice-line slip text-line text-ink">
+          {compact ? "I'm coming in." : "The tide is turning. Are you coming in?"}
+        </p>
       </div>
+      {!compact && (
+        <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
+          <span className={buttonVariants({ variant: "primary" })}>Send</span>
+          <span className={buttonVariants({ variant: "outline" })}>New reply</span>
+        </div>
+      )}
     </figure>
   );
 }

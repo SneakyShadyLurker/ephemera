@@ -6,7 +6,7 @@ import { type ReactNode, type RefObject, useId, useState } from "react";
 import { canDock, useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
 import { NoticeSlot } from "@/app/NoticeCard.tsx";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
-import { CloseIcon } from "@/components/icons";
+import { CloseIcon, SamplerIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -135,12 +135,12 @@ function SessionFields() {
   return (
     // One shrinkable column: a long name truncates in its trigger instead of widening the panel.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto px-5 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-      <PromptPresetField />
-      <SamplerPresetField />
-      <ModelField />
-      <hr className="border-rush" />
       <CharacterField />
       <PersonaField />
+      <hr className="border-rush" />
+      <SamplerPresetField />
+      <PromptPresetField />
+      <ModelField />
     </div>
   );
 }
@@ -412,6 +412,11 @@ function PresetSelect<T extends { id: string; name: string }>({
       <SelectTrigger
         aria-labelledby={labelId}
         look={look}
+        leading={
+          look === "inline" ? (
+            <SamplerIcon size={16} className="shrink-0 tablet:hidden" />
+          ) : undefined
+        }
         placeholder={look === "inline" ? "None" : presetPlaceholder(presets)}
       />
       <SelectContent label={`${label}s`} {...(look === "inline" && { className: "min-w-64" })}>

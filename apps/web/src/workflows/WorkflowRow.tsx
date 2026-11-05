@@ -215,7 +215,9 @@ export function WorkflowRow({
   const words = (
     <span className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-note">
       {row.scope === "user" && <span className="text-reed">{nodeCount(row.workflow.nodes)}</span>}
-      <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>{shown.words}</span>
+      <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>
+        {shown.tone === "problem" ? "Unavailable" : shown.words}
+      </span>
       {inUse && <span className="text-reed">In use</span>}
     </span>
   );
@@ -365,18 +367,19 @@ export function WorkflowRow({
       ) : (
         <span />
       )}
-      {(problem !== null || shown.missing !== null || (inUse && shown.reason !== null)) && (
+      {(problem !== null || shown.missing !== null || shown.reason !== null) && (
         <div className="col-span-2 grid gap-2 pt-1 pb-1 pl-4">
           {problem !== null && (
             <InlineStatus tone="error" as="p" id={problemId} role="alert">
               {problem}
             </InlineStatus>
           )}
-          {inUse && shown.reason !== null && (
-            <p className="text-pretty text-reed text-ui">{shown.reason}</p>
-          )}
+          {shown.reason !== null && <p className="text-pretty text-reed text-ui">{shown.reason}</p>}
           {shown.missing !== null && (
-            <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
+            <>
+              <p className="text-note text-reed">Install requirements or change workflow.</p>
+              <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
+            </>
           )}
         </div>
       )}

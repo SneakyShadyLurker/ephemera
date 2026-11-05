@@ -63,7 +63,6 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
   const keepRun = useCreator((s) => s.keepRun);
   const rewrite = useCreator((s) => s.rewrite);
   const discard = useCreator((s) => s.discard);
-  const portraitless = useCreator((s) => s.images.length === 0);
   // Which confirmation, kept apart from whether it is open so its words hold while it closes.
   const [confirm, setConfirm] = useState<"rewrite" | "discard">("discard");
   const [asking, setAsking] = useState(false);
@@ -111,9 +110,7 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
         ? "Try the portrait again"
         : failure !== null
           ? "Try again"
-          : portraitless
-            ? "Keep without portrait"
-            : `Keep ${noun}`;
+          : `Keep ${noun}`;
 
   return (
     // The scroller's gutters above it, so the bar's frame keeps the content's edges. Its own

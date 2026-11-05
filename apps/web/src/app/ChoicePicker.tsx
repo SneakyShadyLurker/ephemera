@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Drawer,
   DrawerClose,
+  DrawerCloseIcon,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
@@ -51,6 +52,7 @@ export function ChoiceList({
   notice,
   footer,
   compact = false,
+  actions,
 }: {
   choices: readonly Choice[];
   findLabel: string;
@@ -60,6 +62,8 @@ export function ChoiceList({
   notice?: ReactNode;
   footer?: ReactNode;
   compact?: boolean;
+  /** Explicit single-add actions, used by the character's lorebook picker. */
+  actions?: { add: string; linked: string; remove: string };
 }) {
   const [find, setFind] = useState("");
   const shown = choices.filter((choice) => matches(find, choice.name));
@@ -84,38 +88,62 @@ export function ChoiceList({
         <ul className="min-h-0 overflow-y-auto overscroll-contain">
           {shown.map((choice) => (
             <li key={choice.id}>
-              <label
-                aria-busy={choice.pending || undefined}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-sm px-2.5",
-                  compact ? "min-h-9 touch:min-h-11" : "min-h-11 py-1 touch:min-h-12",
-                  choice.disabled ? "cursor-default" : "row cursor-pointer",
-                )}
-              >
-                <Checkbox
-                  checked={choice.checked}
-                  disabled={choice.disabled === true || choice.pending === true}
-                  onCheckedChange={(next) => onToggle(choice, next)}
-                />
-                {!compact && (choice.leaf ?? <span aria-hidden="true" className="w-5" />)}
-                <span className="grid min-w-0 flex-1">
-                  <span
-                    title={choice.name}
-                    className={cn(
-                      "truncate text-ui",
-                      choice.disabled && !choice.checked ? "text-reed" : "text-ink",
+              {actions ? (
+                <div
+                  aria-busy={choice.pending || undefined}
+                  className="flex min-h-14 items-center gap-3 px-2.5 py-1"
+                >
+                  {choice.leaf}
+                  <span className="grid min-w-0 flex-1">
+                    <span className="truncate text-ink text-ui">{choice.name}</span>
+                    {choice.note && <span className="text-meta text-reed">{choice.note}</span>}
+                    {choice.checked && (
+                      <span className="text-meta text-reed">{actions.linked}</span>
                     )}
-                  >
-                    {choice.name}
                   </span>
-                  {choice.note && (
-                    <span className="truncate text-meta text-reed">{choice.note}</span>
+                  <Button
+                    variant="outline"
+                    aria-label={`${choice.checked ? actions.remove : actions.add} ${choice.name}`}
+                    disabled={choice.pending || choice.disabled}
+                    onClick={() => onToggle(choice, !choice.checked)}
+                  >
+                    {choice.checked ? actions.remove : actions.add}
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  aria-busy={choice.pending || undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-sm px-2.5",
+                    compact ? "min-h-9 touch:min-h-11" : "min-h-11 py-1 touch:min-h-12",
+                    choice.disabled ? "cursor-default" : "row cursor-pointer",
                   )}
-                </span>
-                {choice.count !== undefined && (
-                  <span className="text-meta text-reed tabular-nums">{choice.count}</span>
-                )}
-              </label>
+                >
+                  <Checkbox
+                    checked={choice.checked}
+                    disabled={choice.disabled === true || choice.pending === true}
+                    onCheckedChange={(next) => onToggle(choice, next)}
+                  />
+                  {!compact && (choice.leaf ?? <span aria-hidden="true" className="w-5" />)}
+                  <span className="grid min-w-0 flex-1">
+                    <span
+                      title={choice.name}
+                      className={cn(
+                        "truncate text-ui",
+                        choice.disabled && !choice.checked ? "text-reed" : "text-ink",
+                      )}
+                    >
+                      {choice.name}
+                    </span>
+                    {choice.note && (
+                      <span className="truncate text-meta text-reed">{choice.note}</span>
+                    )}
+                  </span>
+                  {choice.count !== undefined && (
+                    <span className="text-meta text-reed tabular-nums">{choice.count}</span>
+                  )}
+                </label>
+              )}
             </li>
           ))}
         </ul>
@@ -172,7 +200,11 @@ export function ChoicePicker({
           <DrawerContent finalFocus={triggerRef}>
             <DrawerHeader>
               <DrawerTitle>{sheetTitle}</DrawerTitle>
-              <DrawerClose render={<Button variant="outline" />}>Done</DrawerClose>
+              {list.actions ? (
+                <DrawerCloseIcon label={`Close ${sheetTitle.toLowerCase()}`} />
+              ) : (
+                <DrawerClose render={<Button variant="outline" />}>Done</DrawerClose>
+              )}
             </DrawerHeader>
             <div className="flex min-h-0 flex-col px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
               <ChoiceList {...list} />

@@ -26,6 +26,7 @@ import { formatCount, sentence } from "@/lib/text";
 import { FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
 import { useModelOptions } from "../api.ts";
 import { ReasoningSelect, useEffortChoice } from "../creator/ReasoningSelect.tsx";
+import { usePaletteDraft } from "../palettes/draft.ts";
 import { PersonaOptions } from "../personas/PersonaSelect.tsx";
 import { personasQuery } from "../personas/queries.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
@@ -88,6 +89,13 @@ export function SettingsScreen({
     scroller.current?.scrollTo({ top: 0 });
   };
   const category = shown === null ? null : SECTION_TEXT[shown];
+  const paletteDraft = usePaletteDraft();
+  const editingPalette = shown === "appearance" && paletteDraft !== null;
+  const frame = cn(
+    SETTINGS_FRAME,
+    editingPalette &&
+      "desktop:max-w-[calc(var(--container-index)+var(--gap-index)+var(--container-palette))]",
+  );
 
   return (
     <main className="flex min-w-0 flex-1 flex-col [timeline-scope:--thread]">
@@ -99,7 +107,7 @@ export function SettingsScreen({
             ? { label: "Settings", onBack: () => back(fromList), iconOnly: true }
             : undefined
         }
-        frame={SETTINGS_FRAME}
+        frame={frame}
         gutters={SCROLL_GUTTERS}
       />
       <div
@@ -111,7 +119,7 @@ export function SettingsScreen({
           SCROLL_GUTTERS,
         )}
       >
-        <div className={cn(SETTINGS_FRAME, "grid gap-6 pt-4 pb-16 tablet:gap-8 tablet:pt-8")}>
+        <div className={cn(frame, "grid gap-6 pt-4 pb-16 tablet:gap-8 tablet:pt-8")}>
           <SaveAlerts />
           {phone && shown === null && (
             <nav aria-label="Settings categories">
@@ -144,7 +152,11 @@ export function SettingsScreen({
               const section = sectionSchema.safeParse(next);
               if (details.reason === "none" && section.success) open(section.data);
             }}
-            className="tablet:grid tablet:grid-cols-[9rem_minmax(0,1fr)] tablet:items-start tablet:gap-x-8 desktop:grid-cols-[var(--container-index)_minmax(0,var(--container-measure))] desktop:gap-x-(--gap-index)"
+            className={cn(
+              "tablet:grid tablet:grid-cols-[9rem_minmax(0,1fr)] tablet:items-start tablet:gap-x-8 desktop:grid-cols-[var(--container-index)_minmax(0,var(--container-measure))] desktop:gap-x-(--gap-index)",
+              editingPalette &&
+                "desktop:grid-cols-[var(--container-index)_minmax(0,var(--container-palette))]",
+            )}
           >
             <TabsList
               aria-label="Settings categories"

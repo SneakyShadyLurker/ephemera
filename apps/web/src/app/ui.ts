@@ -6,6 +6,8 @@ interface UiState {
   navOpen: boolean;
   sessionOpen: boolean;
   inspectorOpen: boolean;
+  eventsOpen: boolean;
+  libraryEventsOpen: boolean;
   /** The inspector's code did not load; the browser keeps that until the page reloads. */
   inspectorUnavailable: boolean;
 }
@@ -14,6 +16,8 @@ export const uiStore = createStore<UiState>()(() => ({
   navOpen: false,
   sessionOpen: false,
   inspectorOpen: false,
+  eventsOpen: false,
+  libraryEventsOpen: false,
   inspectorUnavailable: false,
 }));
 
@@ -55,6 +59,12 @@ export const setSessionOpen = (sessionOpen: boolean) => {
   intent++;
   uiStore.setState({ sessionOpen });
 };
+export const setEventsOpen = (eventsOpen: boolean) => {
+  intent++;
+  uiStore.setState({ eventsOpen });
+};
+export const setLibraryEventsOpen = (libraryEventsOpen: boolean) =>
+  uiStore.setState({ libraryEventsOpen });
 export const toggleSession = () => {
   intent++;
   uiStore.setState((state) => ({ sessionOpen: !state.sessionOpen }));

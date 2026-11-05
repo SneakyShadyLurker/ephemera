@@ -270,7 +270,7 @@ test("without a ComfyUI address the card is kept without art", async ({ page, re
     model: "mock-fast",
   });
   await expect(heading(page, name)).toBeVisible();
-  await expect(page.getByText("Portraits off", { exact: true })).toBeVisible();
+  await expect(page.getByText("No portrait", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT }).click();
   await expect(keptNote(page, name)).toBeVisible({ timeout: ART_TIMEOUT });
   const kept = (await listCharacters(request)).filter((character) => character.name === name);
@@ -389,7 +389,7 @@ test("a finished card's frame closes its light before the showcase, with portrai
   await expect(page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByText("Portraits off", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("No portrait", { exact: true })).toBeVisible({ timeout: 20_000 });
   expect(await rimEndings(page)).toEqual([CLOSED]);
   await expect(page.locator(".lamplight-rim")).toHaveCount(0);
 });
