@@ -31,7 +31,7 @@ import { isComposing } from "@/lib/keys.ts";
 import { countOf } from "@/lib/text";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import { FAMILY_NAMES } from "../settings/pictures.ts";
-import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
+import { PANEL_COMMIT, PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { useSetting } from "../settings/settings.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import {
@@ -594,29 +594,30 @@ export function PanelView({
       {check.unchosen > 0 && <p className={HELP}>{unchosenSummary(check.unchosen)}</p>}
 
       <div className={PANEL_FOOTER}>
-        <span className="flex-1" />
         {(refused || stalled === "busy" || stalled === "unreachable") && (
           <Button variant="outline" onClick={onChooseFile}>
             Choose another file
           </Button>
         )}
-        <Button variant="quiet" disabled={saving} onClick={onCancel}>
-          Cancel
-        </Button>
-        {!refused && (
-          <Button variant="primary" disabled={!check.enabled} onClick={() => onSave()}>
-            {saving ? (
-              <>
-                <SavingIcon size={16} />
-                Saving
-              </>
-            ) : replace !== null ? (
-              "Replace file"
-            ) : (
-              "Save workflow"
-            )}
+        <div className={PANEL_COMMIT}>
+          <Button variant="quiet" disabled={saving} onClick={onCancel}>
+            Cancel
           </Button>
-        )}
+          {!refused && (
+            <Button variant="primary" disabled={!check.enabled} onClick={() => onSave()}>
+              {saving ? (
+                <>
+                  <SavingIcon size={16} />
+                  Saving
+                </>
+              ) : replace !== null ? (
+                "Replace file"
+              ) : (
+                "Save workflow"
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       {children}
     </section>

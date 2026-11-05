@@ -1,3 +1,4 @@
+import type { Locator } from "@playwright/test";
 import { ROLE_LABELS } from "../apps/web/src/palettes/roles.ts";
 import {
   type CustomPaletteInput,
@@ -303,6 +304,134 @@ test("a theme and palette chosen before the saved settings load stay once they d
 /** The editor's hex field for a colour, by its label. */
 const hexField = (page: import("@playwright/test").Page, label: string) =>
   page.getByRole("textbox", { name: `${label}, hex`, exact: true });
+
+/** All nine interior hit targets must reach the control, including near its edges. */
+async function expectPaletteControlPainted(control: Locator) {
+  await expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.top >= 0 &&
+          rect.bottom <= window.innerHeight &&
+          rect.left >= 0 &&
+          rect.right <= window.innerWidth &&
+          [0.1, 0.5, 0.9].every((x) =>
+            [0.1, 0.5, 0.9].every((y) =>
+              element.contains(
+                document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height * y),
+              ),
+            ),
+          )
+        );
+      }),
+    )
+    .toBe(true);
+}
+
+test.describe("palette phone actions in the flow", () => {
+  test.use({ hasTouch: true });
+
+  for (const width of [390, 360]) {
+    for (const scheme of ["dark", "light"] as const) {
+      test(`${width}px ${scheme}: focused Background and saved actions stay uncovered`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto("/settings?section=appearance");
+        await page.waitForLoadState("networkidle");
+        await page.getByRole("button", { name: /^Your palettes/ }).click();
+        await page.getByRole("button", { name: "New palette" }).click();
+        await page.getByRole("menuitem", { name: /^Tokyo Night\b/ }).click();
+        const name = uniqueName("Phone palette");
+        let editor = page.getByRole("region", { name: "New palette" });
+        await editor.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+
+        for (const saved of [false, true]) {
+          // The enclosing slot folds in; measure end-of-scroll only after its height settles.
+          const slot = editor.locator("xpath=..");
+          await expect
+            .poll(() =>
+              slot.evaluate((element) =>
+                Math.abs(
+                  element.getBoundingClientRect().height -
+                    (element.firstElementChild?.getBoundingClientRect().height ?? Infinity),
+                ),
+              ),
+            )
+            .toBeLessThan(1);
+          const cancel = editor.getByRole("button", { name: "Cancel", exact: true });
+          const save = editor.getByRole("button", { name: "Save palette", exact: true });
+          const remove = editor.getByRole("button", { name: "Delete", exact: true });
+          await expect(remove).toHaveCount(saved ? 1 : 0);
+          for (const height of [844, 480]) {
+            // A shallow viewport approximates keyboard space, not a native software keyboard.
+            await page.setViewportSize({ width, height });
+            const swatch = editor.getByLabel("Background", { exact: true });
+            await swatch.evaluate((element) =>
+              element.scrollIntoView({ block: "end", behavior: "instant" }),
+            );
+            await swatch.focus();
+            await page.keyboard.press("Tab");
+            await expect(hexField(page, "Background")).toBeFocused();
+            await expectPaletteControlPainted(hexField(page, "Background"));
+
+            await page.locator("[data-skip-target]").evaluate((scroller) => {
+              scroller.scrollTop = scroller.scrollHeight;
+            });
+            await expectPaletteControlPainted(cancel);
+            await expectPaletteControlPainted(save);
+            if (saved) await expectPaletteControlPainted(remove);
+            const cancelBox = await cancel.boundingBox();
+            const saveBox = await save.boundingBox();
+            expect(cancelBox?.y).toBeCloseTo(saveBox?.y ?? Infinity, 0);
+            expect((cancelBox?.x ?? Infinity) + (cancelBox?.width ?? Infinity)).toBeLessThan(
+              saveBox?.x ?? 0,
+            );
+            const lastField = await editor.locator("input").last().boundingBox();
+            const firstAction = await (saved ? remove : cancel).boundingBox();
+            expect((lastField?.y ?? Infinity) + (lastField?.height ?? Infinity)).toBeLessThan(
+              firstAction?.y ?? 0,
+            );
+            if (saved && width === 360) {
+              const deleteBox = await remove.boundingBox();
+              expect((deleteBox?.y ?? Infinity) + (deleteBox?.height ?? Infinity)).toBeLessThan(
+                cancelBox?.y ?? 0,
+              );
+            }
+            const rowRight = await save.evaluate(
+              (element) => element.parentElement?.parentElement?.getBoundingClientRect().right,
+            );
+            expect(saveBox?.x).toBeDefined();
+            expect((saveBox?.x ?? 0) + (saveBox?.width ?? 0)).toBeCloseTo(rowRight ?? 0, 0);
+            await expectNoOverflow(page);
+            expect(
+              await editor.evaluate((element) => element.scrollWidth - element.clientWidth),
+            ).toBeLessThanOrEqual(0);
+            await cancel.focus();
+            await page.keyboard.press("Tab");
+            await expect(save).toBeFocused();
+            await expectPaletteControlPainted(save);
+          }
+          if (!saved) {
+            await save.click();
+            await expect(editor).toBeHidden();
+            await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
+            editor = page.getByRole("region", { name: `Edit ${name}`, exact: true });
+          } else {
+            await cancel.click();
+            await expect(editor).toBeHidden();
+            // Editing replaces its Edit button, so the existing owner returns to the row trigger.
+            await expect(page.getByRole("button", { name: /^Your palettes/ })).toBeFocused();
+          }
+        }
+      });
+    }
+  }
+});
 
 for (const width of [390, 834]) {
   test(`at ${width}px palette roles wrap and the live sample carries all four highlights`, async ({

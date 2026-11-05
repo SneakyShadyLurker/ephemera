@@ -26,7 +26,7 @@ import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
 import { Nameplate } from "../chat/Turn.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
-import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
+import { PANEL_COMMIT, PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { FIELD_LABEL, HELP, LINE_FIELD, SECTION_HEADING } from "../sheet/fields.ts";
 import { identity } from "../signin/identity.ts";
@@ -387,13 +387,14 @@ export function PaletteEditor({
                 Delete
               </Button>
             )}
-            <span className="flex-1" />
-            <Button variant="quiet" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" disabled={busy !== null} onClick={() => void save()}>
-              {busy === "saving" ? "Saving" : "Save palette"}
-            </Button>
+            <div className={PANEL_COMMIT}>
+              <Button variant="quiet" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy !== null} onClick={() => void save()}>
+                {busy === "saving" ? "Saving" : "Save palette"}
+              </Button>
+            </div>
           </div>
         </div>
         <div data-palette-preview="" className="sticky top-0 hidden desktop:block">

@@ -1,8 +1,8 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { uniqueName } from "./support/cards.ts";
 import { ART_TIMEOUT, COPY, expectBatch, recordArt } from "./support/creator.ts";
 import { keptBase, ownerDescription } from "./support/creator-fixtures.ts";
-import { choose, readSettings } from "./support/entities.ts";
+import { choose, expectNoOverflow, readSettings } from "./support/entities.ts";
 import { sceneButton, sceneChat, scenePicture } from "./support/scene.ts";
 import { settingsTab } from "./support/settings.ts";
 import { expect, test } from "./support/test.ts";
@@ -56,6 +56,140 @@ async function openDescribe(page: Page) {
 
 const workflowPicker = (page: Page) =>
   page.getByRole("combobox", { name: "Workflow", exact: true });
+
+/** A heading or action must be painted throughout its interior, with no clipping or overlay. */
+async function expectWorkflowControlPainted(control: Locator) {
+  await expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.top >= 0 &&
+          rect.bottom <= window.innerHeight &&
+          rect.left >= 0 &&
+          rect.right <= window.innerWidth &&
+          [0.1, 0.5, 0.9].every((x) =>
+            [0.1, 0.5, 0.9].every((y) =>
+              element.contains(
+                document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height * y),
+              ),
+            ),
+          )
+        );
+      }),
+    )
+    .toBe(true);
+}
+
+test.describe("workflow phone actions in the flow", () => {
+  test.use({ hasTouch: true });
+
+  for (const { width, phase } of [
+    { width: 390, phase: "normal" },
+    { width: 360, phase: "normal" },
+    { width: 360, phase: "refused" },
+    { width: 360, phase: "busy" },
+    { width: 360, phase: "unreachable" },
+  ] as const) {
+    test(`${width}px ${phase}: arrival heading and end actions remain reachable`, async ({
+      comfy,
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await comfy({ objectInfo: SDXL_OBJECT_INFO });
+      if (phase === "busy" || phase === "unreachable") {
+        await page.route("**/api/workflows/inspect", (route) =>
+          phase === "busy"
+            ? route.fulfill({ status: 429, json: { error: "busy" } })
+            : route.abort(),
+        );
+      }
+      await openSettings(page);
+      const panel = await openImport(
+        page,
+        phase === "refused"
+          ? {
+              name: "portrait.json",
+              mimeType: "application/json",
+              buffer: Buffer.from("not a workflow {"),
+            }
+          : cleanUiFile(),
+      );
+      const heading = panel.getByRole("heading", { name: "Import a workflow", exact: true });
+      await expect(heading).toBeFocused();
+      await expectWorkflowControlPainted(heading);
+      if (phase === "normal") await expect(panel.getByRole("status")).toHaveText(READY);
+      else await expect(panel.getByRole("alert")).toBeVisible();
+      await expect(heading).toBeFocused();
+      await expectWorkflowControlPainted(heading);
+
+      const chooseFile = panel.getByRole("button", { name: "Choose another file", exact: true });
+      const cancel = panel.getByRole("button", { name: "Cancel", exact: true });
+      const save = panel.getByRole("button", { name: "Save workflow", exact: true });
+      await expect(chooseFile).toHaveCount(phase === "normal" ? 0 : 1);
+      await expect(save).toHaveCount(phase === "refused" ? 0 : 1);
+      if (phase === "busy" || phase === "unreachable") await expect(save).toBeDisabled();
+
+      for (const height of [844, 480]) {
+        // Reduced height approximates keyboard space; it does not emulate a native keyboard.
+        await page.setViewportSize({ width, height });
+        if (phase === "normal") {
+          const name = panel.getByRole("textbox", { name: "Name", exact: true });
+          await name.click();
+          await expect(name).toBeFocused();
+          await expectWorkflowControlPainted(name);
+          await page.keyboard.press("Tab");
+          await expect(panel.getByRole("combobox", { name: "Family", exact: true })).toBeFocused();
+        }
+        await page.locator("[data-skip-target]").evaluate((scroller) => {
+          scroller.scrollTop = scroller.scrollHeight;
+        });
+        await expectWorkflowControlPainted(cancel);
+        if (phase !== "normal") {
+          await expectWorkflowControlPainted(chooseFile);
+          await chooseFile.focus();
+          await page.keyboard.press("Tab");
+          await expect(cancel).toBeFocused();
+        }
+        if (phase !== "refused") {
+          await expectWorkflowControlPainted(save);
+          const cancelBox = await cancel.boundingBox();
+          const saveBox = await save.boundingBox();
+          expect(cancelBox?.y).toBeCloseTo(saveBox?.y ?? Infinity, 0);
+          expect((cancelBox?.x ?? Infinity) + (cancelBox?.width ?? Infinity)).toBeLessThan(
+            saveBox?.x ?? 0,
+          );
+          if (phase !== "normal") {
+            const chooseBox = await chooseFile.boundingBox();
+            expect((chooseBox?.y ?? Infinity) + (chooseBox?.height ?? Infinity)).toBeLessThan(
+              cancelBox?.y ?? 0,
+            );
+          } else {
+            await cancel.focus();
+            await page.keyboard.press("Tab");
+            await expect(save).toBeFocused();
+            await expectWorkflowControlPainted(save);
+          }
+        }
+        await expectNoOverflow(page);
+        expect(
+          await panel.evaluate((element) => element.scrollWidth - element.clientWidth),
+        ).toBeLessThanOrEqual(0);
+      }
+      await cancel.click();
+      if (phase === "normal") {
+        await page
+          .getByRole("alertdialog")
+          .getByRole("button", { name: "Discard", exact: true })
+          .click();
+      }
+      await expect(panel).toHaveCount(0);
+      await expect(importButton(page)).toBeFocused();
+    });
+  }
+});
 
 test("a saved workflow file shows where Ephemera's values go, then saves as ready", async ({
   comfy,
