@@ -1,7 +1,7 @@
 import { entryOrigin, type LorebookStatus, type LorebookReport as Report } from "@ephemera/core";
 import { useId, useState } from "react";
 import { LorebookIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
 import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
@@ -244,7 +244,10 @@ function Row({
                 title={entry.title}
                 // The visible words lead the name, so speech input finds the link by them.
                 label={`${origin.name}: edit ${entry.title}`}
-                className="min-w-0 max-w-[60%] shrink truncate rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-3 hover:text-ink touch:relative touch:-my-3.5 touch:py-3.5"
+                className={cn(
+                  buttonVariants({ variant: "link", size: "inline" }),
+                  "min-w-0 max-w-[60%] shrink truncate text-meta",
+                )}
               >
                 {origin.name}
               </EntryLink>

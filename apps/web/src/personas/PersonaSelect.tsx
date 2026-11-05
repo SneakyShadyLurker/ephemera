@@ -1,6 +1,5 @@
 import type { PersonaSummary } from "@ephemera/core";
 import { useQuery } from "@tanstack/react-query";
-import { PersonaIcon } from "@/components/icons";
 import {
   LEAF_TRIGGER,
   Select,
@@ -58,6 +57,8 @@ export function PersonaSelect({
         aria-labelledby={labelId}
         placeholder="You"
         look={size === "inline" ? "inline" : "field"}
+        caption={size === "inline" ? "Persona" : undefined}
+        captionId={size === "inline" ? labelId : undefined}
         className={sizing.trigger}
       >
         <span
@@ -67,7 +68,6 @@ export function PersonaSelect({
             size === "field" ? "gap-3" : "gap-2",
           )}
         >
-          {size === "inline" && <PersonaIcon size={16} className="shrink-0 tablet:hidden" />}
           {persona && size !== "inline" && (
             <PortraitLeaf
               owner="personas"

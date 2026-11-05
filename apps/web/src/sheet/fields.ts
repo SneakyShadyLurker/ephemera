@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
  * on the page until it is used (a title or a name).
  */
 const FIELD_FACE =
-  "rounded-md border bg-surface text-ink outline-none placeholder:text-reed focus:border-dusk-line";
+  "rounded-md border bg-surface text-ink outline-none placeholder:text-reed focus:border-dusk-line focus:shadow-focus";
 
 /** A boxed field: in the control edge at rest, ringed while focused, growing with its text. */
 const BOXED = cn(

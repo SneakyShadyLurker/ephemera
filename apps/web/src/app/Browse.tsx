@@ -95,6 +95,7 @@ export function PortraitTile({
   transition,
   onOpen,
   actions,
+  actionsBelow = false,
 }: {
   owner: PortraitOwner;
   id: string;
@@ -109,6 +110,7 @@ export function PortraitTile({
   onOpen: () => void;
   /** A persona's More menu, outside the link that opens its sheet. */
   actions?: ReactNode;
+  actionsBelow?: boolean;
 }) {
   const captionId = useId();
   const sheet = {
@@ -119,7 +121,7 @@ export function PortraitTile({
   const portrait = (
     <Portrait
       owner={owner}
-      {...(owner === "personas" ? { name } : {})}
+      {...(owner === "personas" || version !== null ? { name } : {})}
       id={id}
       version={version}
       arriving={arriving}
@@ -136,11 +138,18 @@ export function PortraitTile({
         <div className="col-span-2">{portrait}</div>
         <Link
           {...sheet}
-          className="group grid min-w-0 rounded-sm outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:focus-ring"
+          className={cn(
+            "group grid min-w-0 rounded-sm outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:focus-ring",
+            actionsBelow && "col-span-2",
+          )}
         >
           <TileText name={name} caption={caption} />
         </Link>
-        {actions && <div className="relative mt-1">{actions}</div>}
+        {actions && (
+          <div className={cn("relative mt-1", actionsBelow && "col-span-2 justify-self-start")}>
+            {actions}
+          </div>
+        )}
       </div>
     );
   }

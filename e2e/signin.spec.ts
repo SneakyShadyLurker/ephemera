@@ -384,16 +384,16 @@ test.describe("sign-in expiry", () => {
       `Signed out ${crypto.randomUUID().slice(0, 6)}`,
     );
     await page.goto(`/characters/${id}`);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     // The page's code has all arrived (app/preload.ts) before the session goes.
     await page.waitForLoadState("networkidle");
     await expire(context);
     const description = "Written while signed out.";
     await page.getByRole("textbox", { name: "Description" }).fill(description);
-    await expect(page.getByText("Not saved: signed out")).toBeVisible();
+    await expect(page.locator("header").getByText("Not saved: signed out")).toBeVisible();
     await expect(notice(page)).toContainText("Your edits are kept in this tab");
     await signInThroughPortal(page, context);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     await expect(notice(page)).toContainText("Your edits are saved.");
     const saved = await request.get(`/api/characters/${id}`);
     expect((await saved.json()).card.description).toBe(description);
@@ -406,7 +406,7 @@ test.describe("sign-in expiry", () => {
   }) => {
     const id = await createCharacterViaApi(request, `Export ${crypto.randomUUID().slice(0, 6)}`);
     await page.goto(`/characters/${id}`);
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     // The page's code has all arrived (app/preload.ts) before the session goes.
     await page.waitForLoadState("networkidle");
     await expire(context);

@@ -76,6 +76,8 @@ export function PresetsScreen() {
       <ScreenHeader title="Presets" frame={FRAME} gutters={SCROLL_GUTTERS}>
         <HeaderAction
           label="Import preset"
+          text="Import"
+          labelledOnPhone
           icon={ImportIcon}
           onClick={() => picker.current?.click()}
         />

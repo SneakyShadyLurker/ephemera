@@ -10,6 +10,7 @@ import {
 } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useId, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { NumberField } from "@/components/ui/number-field";
@@ -138,6 +139,8 @@ function SamplerPresetEditor({
   const efforts = REASONING_EFFORTS.filter(
     (effort) => offered.includes(effort) || effort === values.reasoning,
   );
+  const reasoningUnavailable =
+    replyModel !== null && modelInfo !== undefined && !offered.includes(values.reasoning);
   const reasoningHelp =
     replyModel === null || modelInfo === undefined
       ? "How long a reasoning model thinks first. Every level shows until a model is chosen."
@@ -168,6 +171,7 @@ function SamplerPresetEditor({
         />
       </SheetHeader>
       <SheetBody
+        saving={{ status: autosave.status, noun: "preset" }}
         label="Sampler preset"
         after={
           autosave.status.kind === "conflict" && (
@@ -303,12 +307,16 @@ function SamplerPresetEditor({
                 ))}
               </SelectContent>
             </Select>
-            <p
-              key={reasoningHelp}
-              className={`${HELP} transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0`}
-            >
-              {reasoningHelp}
-            </p>
+            {reasoningUnavailable ? (
+              <InlineStatus as="p">{reasoningHelp}</InlineStatus>
+            ) : (
+              <p
+                key={reasoningHelp}
+                className={`${HELP} transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0`}
+              >
+                {reasoningHelp}
+              </p>
+            )}
           </div>
         </Section>
       </SheetBody>

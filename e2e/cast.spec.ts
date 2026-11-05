@@ -270,12 +270,13 @@ for (const factor of FACTORS) {
       await expect(roster).toBeVisible();
       await expect(roster.getByRole("region", { name: "Away" })).toContainText(SHEET_WOMAN);
       await expect(roster).not.toContainText(KEEPER_MAN);
-      // A name opens her record in the drawer; Back returns to the roster.
-      await roster.getByRole("list", { name: "Present" }).getByText(SEEDED).click();
-      const record = castRecord(page, SEEDED);
+      // Present records are expanded and editable directly; away records stay folded.
+      const record = roster.getByRole("group", { name: `${SEEDED} record`, exact: true });
       await expect(record).toContainText(KEEPER_WOMAN_OUTFIT);
-      await record.getByRole("button", { name: "Back to the cast" }).click();
-      await expect(castRecord(page, "Cast").getByRole("list", { name: "Present" })).toBeVisible();
+      await expect(record.locator('[data-cast-edit="outfit"]')).toBeVisible();
+      await expect(
+        roster.getByRole("region", { name: "Away" }).locator(":scope > ul > li > details"),
+      ).not.toHaveAttribute("open", "");
       await page.getByRole("dialog").getByRole("button", { name: "Close the cast" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
 

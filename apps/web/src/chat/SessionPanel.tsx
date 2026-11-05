@@ -4,9 +4,9 @@ import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-q
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useId, useState } from "react";
 import { canDock, useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
-import { CloseIcon, SamplerIcon } from "@/components/icons";
+import { CloseIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -149,10 +149,12 @@ function SessionFields() {
 function Field({
   label,
   note,
+  status,
   children,
 }: {
   label: string;
   note?: ReactNode;
+  status?: ReactNode;
   children: (labelId: string) => ReactNode;
 }) {
   const labelId = useId();
@@ -162,6 +164,7 @@ function Field({
         {label}
       </span>
       {children(labelId)}
+      {status && <InlineStatus as="p">{status}</InlineStatus>}
       {note && (
         <details className="disclosure">
           <summary className={SUMMARY_LINE}>
@@ -234,7 +237,7 @@ function CharacterField() {
                   <Link
                     to="/characters"
                     onClick={leaveSession}
-                    className="underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
+                    className={buttonVariants({ variant: "link", size: "inline" })}
                   >
                     Characters
                   </Link>
@@ -340,6 +343,7 @@ function PresetField<T extends { id: string; name: string }>({
   kind,
   label,
   note,
+  status,
   presets,
   chosen,
   onChoose,
@@ -347,12 +351,13 @@ function PresetField<T extends { id: string; name: string }>({
   kind: PresetKind;
   label: string;
   note: string | undefined;
+  status?: ReactNode;
   presets: UseQueryResult<T[]>;
   chosen: T | undefined;
   onChoose: (preset: T) => void;
 }) {
   return (
-    <Field label={label} note={note}>
+    <Field label={label} note={note} status={status}>
       {(labelId) => (
         <div className="flex items-center gap-1">
           <PresetSelect
@@ -412,11 +417,8 @@ function PresetSelect<T extends { id: string; name: string }>({
       <SelectTrigger
         aria-labelledby={labelId}
         look={look}
-        leading={
-          look === "inline" ? (
-            <SamplerIcon size={16} className="shrink-0 tablet:hidden" />
-          ) : undefined
-        }
+        caption={look === "inline" ? "Sampler" : undefined}
+        captionId={look === "inline" ? labelId : undefined}
         placeholder={look === "inline" ? "None" : presetPlaceholder(presets)}
       />
       <SelectContent label={`${label}s`} {...(look === "inline" && { className: "min-w-64" })}>
@@ -473,18 +475,27 @@ function SamplerPresetField() {
   const model = useModelInfo(settings.model);
   const named = chosen?.values.model ?? null;
   const effort = chosen?.values.reasoning;
-  const note = chosen
-    ? named !== null && settings.model !== null && named !== settings.model
-      ? `${chosen.name} names ${named}; this chat now uses ${settings.model}.`
-      : model !== undefined && effort !== undefined && !offeredEfforts(model).includes(effort)
-        ? `${chosen.name} asks for ${REASONING_LABELS[effort].toLowerCase()} reasoning; ${model.id} doesn't offer it, so none is sent.`
-        : samplerSummary(chosen.values, false)
-    : undefined;
+  const overridden =
+    chosen && named !== null && settings.model !== null && named !== settings.model;
+  const unsupported =
+    chosen &&
+    model !== undefined &&
+    effort !== undefined &&
+    !offeredEfforts(model).includes(effort);
+  const status = (
+    <>
+      {overridden && `${chosen.name} names ${named}; this chat now uses ${settings.model}.`}
+      {overridden && unsupported && " "}
+      {unsupported &&
+        `${chosen.name} asks for ${REASONING_LABELS[effort].toLowerCase()} reasoning; ${model.id} doesn't offer it, so none is sent.`}
+    </>
+  );
   return (
     <PresetField
       kind="sampler"
       label="Sampler preset"
-      note={note}
+      note={chosen ? samplerSummary(chosen.values, false) : undefined}
+      status={overridden || unsupported ? status : undefined}
       presets={presets}
       chosen={chosen}
       onChoose={choose}
@@ -520,16 +531,14 @@ function ModelField() {
   return (
     <Field
       label="Model"
-      note={
+      status={
         window === null && model !== null ? (
           <>
-            Used for every reply from now on, and kept after a reload. No known context window:{" "}
-            <WindowLink model={model}>set one</WindowLink> to send.
+            No known context window: <WindowLink model={model}>set one</WindowLink> to send.
           </>
-        ) : (
-          `Used for every reply from now on, and kept after a reload.${windowNote}`
-        )
+        ) : undefined
       }
+      note={`Used for every reply from now on, and kept after a reload.${windowNote}`}
     >
       {(labelId) => (
         <ModelSelect

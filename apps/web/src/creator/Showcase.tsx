@@ -5,7 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { WindowLink } from "../settings/window-link.tsx";
 import { ArtStack } from "./ArtStack.tsx";
 import { type ArtSessionHost, ArtSessionProvider } from "./art-session.tsx";
-import { CardHeading, SHOWCASE_GRID } from "./CardLayout.tsx";
+import { CardHeading, CREATOR_FRAME, SHOWCASE_GRID } from "./CardLayout.tsx";
 import { ShowcaseText, TagChips } from "./CardText.tsx";
 import { creatorStore, useCreator } from "./session.ts";
 import type { CardRun } from "./store.ts";
@@ -37,6 +37,12 @@ export function Showcase({ card }: { card: CardRun }) {
     (state) =>
       state.images.length === 0 && state.art?.status === "skipped" && state.art.reason === "off",
   );
+  const withoutPortrait = useCreator(
+    (state) =>
+      state.images.length === 0 &&
+      state.art?.status !== "running" &&
+      state.art?.status !== "waiting",
+  );
   const newArt = useRef<HTMLButtonElement>(null);
   const again = useRef<HTMLButtonElement>(null);
   const host: ArtSessionHost = {
@@ -50,7 +56,7 @@ export function Showcase({ card }: { card: CardRun }) {
   };
   const art = (
     <ArtSessionProvider host={host}>
-      <ArtStack name={name} phone={phone} newArt={newArt} again={again} />
+      <ArtStack name={name} phone={phone} newArt={newArt} again={again} compactEmpty />
     </ArtSessionProvider>
   );
   const noPortrait = (
@@ -69,16 +75,20 @@ export function Showcase({ card }: { card: CardRun }) {
   if (phone) {
     return (
       <div className="grid gap-6 px-5 pt-4 pb-8">
-        {portraitsOff ? noPortrait : art}
+        {!withoutPortrait && art}
         {heading}
+        {portraitsOff && noPortrait}
+        {withoutPortrait && !portraitsOff && art}
         {text}
       </div>
     );
   }
   return (
     <div className="@container">
-      <div className={portraitsOff ? "grid gap-6 px-6 py-8" : SHOWCASE_GRID}>
-        {!portraitsOff && (
+      <div
+        className={withoutPortrait ? `${CREATOR_FRAME} max-w-form grid gap-6 py-8` : SHOWCASE_GRID}
+      >
+        {!withoutPortrait && (
           <aside className="grid max-w-48 content-start @card:sticky @card:top-8 @card:max-w-none @card:self-start">
             {art}
           </aside>
@@ -87,6 +97,7 @@ export function Showcase({ card }: { card: CardRun }) {
           <div className="grid gap-4">
             {heading}
             {portraitsOff && noPortrait}
+            {withoutPortrait && !portraitsOff && art}
             <TagChips kind={card.kind} />
           </div>
           {text}

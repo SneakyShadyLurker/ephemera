@@ -31,7 +31,7 @@ test("a successful create with a lost response reconciles later edits before ope
   ).toBeVisible();
   await page.getByLabel("Description").fill("Typed after the response was lost.");
   await expect(page).toHaveURL(/\/personas\/[0-9a-f-]{36}$/);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   expect(posts).toHaveLength(2);
   expect(posts[1]).toEqual(posts[0]);
   await page.reload();
@@ -154,7 +154,9 @@ test("an edit made during a reorder, while a save is in flight, is saved with th
       { timeout: 15_000 },
     )
     .toEqual({ firstMessage: "Opening, edited again.", alternateGreetings: ["Two", "One"] });
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 });
 
 test("a save refused because another tab saved first is resolved by Keep mine or Reload", async ({
@@ -256,7 +258,9 @@ test("Reload works on a sheet that just created its character, and keeps the edi
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(uniqueName("Fresh"));
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   const id = page.url().split("/").at(-1) ?? "";
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
   await saveElsewhere(page, id);
   const notes = page.getByRole("textbox", { name: "Creator notes" });
   await notes.fill("Edited here.");
@@ -280,5 +284,7 @@ test("Reload works on a sheet that just created its character, and keeps the edi
   );
   await expect(notes).toHaveValue("");
   await notes.fill("Saved after the reload.");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 });

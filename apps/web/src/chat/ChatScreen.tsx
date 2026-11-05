@@ -21,26 +21,11 @@ import {
   toggleSession,
   useUi,
 } from "@/app/ui.ts";
-import {
-  ChevronDownIcon,
-  ClearIcon,
-  EventsIcon,
-  InspectIcon,
-  MemoryIcon,
-  SessionIcon,
-} from "@/components/icons";
+import { ClearIcon, EventsIcon, InspectIcon, SessionIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import {
-  Menu,
-  MenuContent,
-  MenuItem,
-  MenuLinkItem,
-  MenuSeparator,
-  MenuTrigger,
-} from "@/components/ui/menu";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
-import { countOf } from "@/lib/text";
 import { OpenEpisodeContext, useEpisodeEditor } from "../memory/EpisodeEditor.tsx";
 import { applyAtmosphere, useAtmosphere } from "../portraits/atmosphere.ts";
 import { useSetting } from "../settings/settings.ts";
@@ -52,7 +37,7 @@ import { useChatCharacter } from "./character.ts";
 import { EventsSheet } from "./EventsSheet.tsx";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { useGreetings } from "./greetings.ts";
-import { MemoryLink, MemoryMark, RememberedCount, useMemoryStatus } from "./MemoryMark.tsx";
+import { MemoryMark } from "./MemoryMark.tsx";
 import { METER_ID, MeterFigures, PromptButton, useMeterFigures, Waterline } from "./Meter.tsx";
 import { ModelNotice } from "./ModelNotice.tsx";
 import { loadInspector, openInspector } from "./open-inspector.ts";
@@ -166,6 +151,7 @@ function ChatHeader({
           <>
             {/* The roster scrolls away with the band; this keeps the cast in reach. */}
             <CastHeaderControl />
+            <MemoryMark compact />
             <ChatMenu
               composer={composer}
               empty={empty}
@@ -242,29 +228,15 @@ function ChatMenu({
   trigger: RefObject<HTMLButtonElement | null>;
   onEvents: () => void;
 }) {
-  const memory = useMemoryStatus();
   const figures = useMeterFigures();
   const clear = useClearChatDialog({ composer, returnTo: trigger });
   return (
     <>
       <Menu>
         <MenuTrigger render={<Button ref={trigger} className="gap-1 px-2 touch:px-2" />}>
-          Chat
-          <ChevronDownIcon size={16} />
-          {memory !== null && <RememberedCount count={memory.remembered} />}
+          More
         </MenuTrigger>
         <MenuContent label="Chat actions">
-          {memory !== null && (
-            <MenuLinkItem closeOnClick render={<MemoryLink characterId={memory.characterId} />}>
-              <MemoryIcon size={16} />
-              <span className="flex-1">Memory</span>
-              {memory.remembered > 0 && (
-                <span className="text-meta text-reed tabular-nums">
-                  {countOf(memory.remembered, "turn")} remembered
-                </span>
-              )}
-            </MenuLinkItem>
-          )}
           <MenuItem aria-haspopup="dialog" onClick={onEvents}>
             <EventsIcon size={16} />
             Events

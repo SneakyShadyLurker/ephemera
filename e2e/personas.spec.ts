@@ -31,7 +31,7 @@ test("a persona is created, edited, given a portrait, duplicated and deleted", a
   await page.getByRole("textbox", { name: "Name" }).fill(name);
   await page.getByLabel("Description").fill("A cartographer's apprentice.");
   await expect(page).toHaveURL(/\/personas\/[0-9a-f-]{36}$/);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 
   // The avatar goes through the portrait pipeline and is served for revalidation on every use.
   const portrait = page.waitForResponse((response) =>
@@ -74,10 +74,12 @@ test("a new chat starts as the bound persona, else the default; turns keep their
   await createCharacterViaApi(page.request, withBinding);
   await createCharacterViaApi(page.request, withoutBinding);
 
-  // A gallery card can become the default through its own More menu.
+  // A gallery card offers its default action directly.
   await page.goto("/personas");
-  await page.getByRole("button", { name: `More for ${fallback}`, exact: true }).click();
-  await page.getByRole("menuitem", { name: "Make default", exact: true }).click();
+  await card(page, fallback)
+    .locator("..")
+    .getByRole("button", { name: "Make default", exact: true })
+    .click();
   await expect(card(page, fallback).getByText("Default", { exact: true })).toBeVisible();
   // The sheet's switch reads the same setting.
   await page.goto(`/personas/${defaultId}`);
@@ -94,11 +96,19 @@ test("a new chat starts as the bound persona, else the default; turns keep their
   await chooseModel(page, "mock-fast");
   await chooseCharacter(page, withBinding);
   await openSession(page);
-  await expect(page.getByRole("combobox", { name: "Persona" })).toContainText(bound);
+  await expect(
+    page
+      .locator("[data-session-dock], [data-session-sheet]")
+      .getByRole("combobox", { name: "Persona" }),
+  ).toContainText(bound);
   await closeSession(page);
   await chooseCharacter(page, withoutBinding);
   await openSession(page);
-  await expect(page.getByRole("combobox", { name: "Persona" })).toContainText(fallback);
+  await expect(
+    page
+      .locator("[data-session-dock], [data-session-sheet]")
+      .getByRole("combobox", { name: "Persona" }),
+  ).toContainText(fallback);
   await closeSession(page);
 
   await send(page, canary("in"));
@@ -111,7 +121,9 @@ test("a new chat starts as the bound persona, else the default; turns keep their
 
   // Changing persona keeps the chat and leaves earlier cues alone.
   await openSession(page);
-  const persona = page.getByRole("combobox", { name: "Persona" });
+  const persona = page
+    .locator("[data-session-dock], [data-session-sheet]")
+    .getByRole("combobox", { name: "Persona" });
   await persona.click();
   await page.getByRole("option", { name: bound, exact: true }).click();
   await closeSession(page);
@@ -163,7 +175,9 @@ test("Session's 'Always use with' binds the persona to the character", async ({ 
   await page.goto("/");
   await chooseCharacter(page, character);
   await openSession(page);
-  const combobox = page.getByRole("combobox", { name: "Persona" });
+  const combobox = page
+    .locator("[data-session-dock], [data-session-sheet]")
+    .getByRole("combobox", { name: "Persona" });
   await combobox.click();
   await page.getByRole("option", { name: persona, exact: true }).click();
   await page.getByRole("checkbox", { name: `Always use with ${character}` }).click();
@@ -202,7 +216,10 @@ test("a binding that could not be saved from Session says so", async ({ page }) 
   await page.goto("/");
   await chooseCharacter(page, character);
   await openSession(page);
-  await page.getByRole("combobox", { name: "Persona" }).click();
+  await page
+    .locator("[data-session-dock], [data-session-sheet]")
+    .getByRole("combobox", { name: "Persona" })
+    .click();
   await page.getByRole("option", { name: persona, exact: true }).click();
   await page.route("**/api/personas/bindings/**", (route) => route.abort());
   await page.getByRole("checkbox", { name: `Always use with ${character}` }).click();

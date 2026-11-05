@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { ChoicePicker } from "@/app/ChoicePicker.tsx";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { LorebookIcon, PlusIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { byName } from "@/lib/find";
 import { booksOf, LINKS_FULL_TEXT, linksFull } from "../lorebooks/library.ts";
@@ -183,7 +183,19 @@ export function LinkedBooks({
       }
     />
   );
-  if (utility) return picker;
+  if (utility)
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2" data-link-trigger="">
+        {picker}
+        <InlineStatus
+          as="span"
+          role="status"
+          className="min-w-0 break-words text-meta empty:hidden"
+        >
+          {done}
+        </InlineStatus>
+      </div>
+    );
   return (
     <div ref={list} className="grid gap-3">
       <h3 className={FIELD_LABEL}>Linked from your library</h3>
@@ -206,10 +218,13 @@ export function LinkedBooks({
                     to="/lorebooks/$id"
                     params={{ id: book.id }}
                     title={book.name}
-                    // Its target grows past the line into the row: 24px, 44px on touch.
-                    className="relative -my-0.5 truncate py-0.5 text-ink text-ui underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:-my-3 touch:py-3"
+                    // Reserve the whole target in the row; only the words may clip.
+                    className={cn(
+                      buttonVariants({ variant: "link", size: "text" }),
+                      "h-6 min-w-0 justify-start px-0 text-ui",
+                    )}
                   >
-                    {book.name}
+                    <span className="truncate">{book.name}</span>
                   </Link>
                 )}
                 <span className="text-meta text-reed">{entriesText(book)}</span>

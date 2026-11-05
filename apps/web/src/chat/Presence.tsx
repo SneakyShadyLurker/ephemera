@@ -56,7 +56,12 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         art={<FullPortrait id={character.id} version={character.portrait} shown={size} />}
         className={COLUMN[placement]}
       >
-        <Portrait id={character.id} version={character.portrait} size={size} />
+        <Portrait
+          id={character.id}
+          name={character.name}
+          version={character.portrait}
+          size={size}
+        />
       </PortraitViewer>
       {/* The reply's one light on tablet and desktop; phones carry it on the nameplate's hairline. */}
       {placement === "float" && <ReplyRim />}
@@ -166,7 +171,7 @@ export function HeaderPortrait() {
       data-presence-header=""
       className="presence-in relative isolate shrink-0"
     >
-      <Leaf id={character.id} version={character.portrait} className="w-8" />
+      <Leaf id={character.id} name={character.name} version={character.portrait} className="w-8" />
     </span>
   );
 }

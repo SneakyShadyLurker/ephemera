@@ -93,28 +93,31 @@ export async function moreAction(page: Page, scope: Locator, item: string) {
   await page.getByRole("menuitem", { name: item, exact: true }).click();
 }
 
-/** The phone's chat menu, which holds the header's Memory, Prompt and Clear chat. */
+/** The phone's More menu, which holds Events, Prompt and Clear chat. */
 export const chatMenuButton = (page: Page) =>
-  page.getByRole("button", { name: "Chat", exact: true });
+  page.getByRole("button", { name: "More", exact: true });
 
 /**
  * Runs one of the chat header's actions: its own control from tablet up, the
  * chat menu's item of the same name on phones.
  */
 export async function headerAction(page: Page, name: "Clear chat" | "Prompt" | "Memory") {
+  if (name === "Memory") {
+    await page.locator("[data-memory-mark]").click();
+    return;
+  }
   if (await chatMenuButton(page).isVisible()) {
     await chatMenuButton(page).click();
     await page
       .getByRole("menu", { name: "Chat actions" })
       .getByRole("menuitem", {
-        name: name === "Memory" ? /^Memory/ : name,
-        exact: name !== "Memory",
+        name,
+        exact: true,
       })
       .click();
     return;
   }
-  if (name === "Memory") await page.locator("[data-memory-mark]").click();
-  else await page.getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name, exact: true }).click();
 }
 
 /** Clear through its confirmation dialog, never remembering the ending. */

@@ -19,9 +19,10 @@ import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
 import { motionMs } from "@/app/motion-tokens.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { CheckIcon, IdeasIcon, NextIcon } from "@/components/icons";
+import { CheckIcon, ChevronDownIcon, IdeasIcon, NextIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
@@ -531,6 +532,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
   const [expanded, setExpanded] = useState(false);
   const feedbackId = useId();
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
+  const focusFeedback = useRef(false);
 
   // Back from Describe, the list is where it was and focus on the idea that was picked.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only on arrival.
@@ -618,28 +620,39 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
               {request}
             </span>
           </Button>
-          <div className="-ml-2 flex flex-wrap gap-1">
-            <Button size="text" onClick={() => inTransition(editIdeasRequest)}>
-              Edit request
-            </Button>
-            <Button size="text" onClick={() => inTransition(resetIdeas)}>
-              Start over
-            </Button>
-            <Button
-              size="text"
-              onClick={() => {
-                feedbackRef.current?.scrollIntoView({
-                  block: "center",
-                  behavior: scrollBehavior(),
-                });
-                feedbackRef.current?.focus({ preventScroll: true });
-              }}
-            >
-              Adjust ideas
-            </Button>
-            <Button size="text" disabled={running || model.model === null} onClick={adjust}>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" disabled={running || model.model === null} onClick={adjust}>
               New ideas
             </Button>
+            <Menu>
+              <MenuTrigger render={<Button />}>
+                Options
+                <ChevronDownIcon size={16} />
+              </MenuTrigger>
+              <MenuContent
+                label="Brainstorm options"
+                finalFocus={() => {
+                  if (!focusFeedback.current) return true;
+                  focusFeedback.current = false;
+                  feedbackRef.current?.scrollIntoView({
+                    block: "center",
+                    behavior: scrollBehavior(),
+                  });
+                  feedbackRef.current?.focus({ preventScroll: true });
+                  return false;
+                }}
+              >
+                <MenuItem onClick={() => inTransition(editIdeasRequest)}>Edit request</MenuItem>
+                <MenuItem onClick={() => inTransition(resetIdeas)}>Start over</MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    focusFeedback.current = true;
+                  }}
+                >
+                  Adjust ideas
+                </MenuItem>
+              </MenuContent>
+            </Menu>
           </div>
         </div>
       )}

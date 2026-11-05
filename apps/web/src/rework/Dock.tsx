@@ -175,6 +175,8 @@ function DockPresenter({
       : `Change ${(index ?? 0) + 1} of ${order.length}, ${fieldLabel(currentChange.field, view.base)}`;
   const line = lineOf(view, model, current, saved ? null : save);
   const accepted = acceptedChanges(view).length;
+  const unplaced = view.changes.filter((change) => !change.ok).length;
+  const applyLine = `${changes(accepted)} to apply${unplaced > 0 ? `, ${unplaced} left out` : ""}`;
   const edited = view.phase === "applied" ? leftByUndo(view, card) : [];
   const writtenFields = Object.keys(view.applied?.written ?? {}).length;
 
@@ -275,7 +277,7 @@ function DockPresenter({
       );
       break;
     case "review": {
-      const nothing = view.ended === "complete" && order.length === 0;
+      const nothing = view.ended === "complete" && view.changes.length === 0;
       below = (
         <>
           {nothing && view.summary !== null && (
@@ -377,14 +379,14 @@ function DockPresenter({
                 {view.phase === "review" &&
                 view.ended === "complete" &&
                 !line.failure &&
-                order.length > 0
-                  ? `${accepted} of ${changes(order.length)}`
+                view.changes.length > 0
+                  ? applyLine
                   : line.text}
                 {view.phase === "review" &&
                   (view.ended !== "complete" || line.failure) &&
                   order.length > 0 && (
                     <span className="mt-0.5 block font-normal text-meta text-reed">
-                      {accepted} of {changes(order.length)}
+                      {applyLine}
                     </span>
                   )}
                 {view.phase === "review" && current && (
@@ -401,7 +403,7 @@ function DockPresenter({
             {!present || line.failure
               ? ""
               : view.phase === "review" && order.length > 0
-                ? `${accepted} of ${changes(order.length)} selected. ${current ?? ""}`
+                ? `${applyLine}. ${current ?? ""}`
                 : line.announce}
           </p>
           <p role="alert" className="sr-only">

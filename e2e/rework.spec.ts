@@ -59,7 +59,7 @@ test("reasoning follows the model's offered levels and is sent with the rework",
   const fallbackRequest = (await fallback).postDataJSON();
   expect(fallbackRequest).toMatchObject({ model: "mock-lowonly" });
   expect(fallbackRequest).not.toHaveProperty("reasoning");
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
   await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
 
   await openRework(page);
@@ -68,7 +68,7 @@ test("reasoning follows the model's offered levels and is sent with the rework",
   const selected = page.waitForRequest("**/api/creator/rework");
   await submitRework(page, { request: ownerRequest(base, "kept-effort"), model: "mock-fast" });
   expect((await selected).postDataJSON()).toMatchObject({ model: "mock-fast", reasoning: "xhigh" });
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
   await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
 
   // Leaving the sheet drops the composer's tab-memory choice.
@@ -91,7 +91,7 @@ test("compose, stream and review: the dock counts the changes and the fields are
   await submitRework(page, { request: ownerRequest(base, "kept-flow"), model: "mock-fast" });
 
   const bar = dock(page);
-  await expect(bar).toContainText("3 of 3 changes");
+  await expect(bar).toContainText("3 changes to apply, 1 left out");
   await expect(bar.getByText("1 could not be placed")).toBeVisible();
   await expect(bar.getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
   // The changed field shows its tracked view; the others stay, read-only.
@@ -128,7 +128,7 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
   await openSheet(page, id);
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, kept), model: "mock-fast" });
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
 
   const description = page.getByRole("group", { name: "Description, under review" });
   await expect(description.locator("ins").first()).toContainText(`Replaced one ${kept}-acc.`);
@@ -234,7 +234,7 @@ test("a rework started after the saved book changed elsewhere builds on the newe
 
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-book"), model: "mock-fast" });
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
   // The model read the newer book, and the sheet shows it.
   expect(await upstreamRecords(newer)).toHaveLength(1);
   await expect(lorebook).toContainText("2 entries, 2 enabled");
@@ -306,7 +306,7 @@ test("the portrait switch follows what the model reads", async ({ page }) => {
     request: ownerRequest(base, "kept-portrait"),
     model: "mock-textonly",
   });
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
   const [record] = await upstreamRecords(`${base}-req`);
   expect(record?.model).toBe("mock-textonly");
   expect(record?.image).toBe(false);
@@ -401,7 +401,7 @@ test("a portrait change under way holds AI Rework until it ends, an open compose
   await expect(rework).toBeEnabled();
   await field.press("Control+Enter");
   await expect(composer(page)).toHaveCount(0);
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
   expect(reworks).toBe(1);
 });
 
@@ -454,7 +454,7 @@ for (const size of [
     await submitRework(page, { request: ownerRequest(base, "kept-layout"), model: "mock-fast" });
 
     const bar = dock(page);
-    await expect(bar).toContainText("3 of 3 changes");
+    await expect(bar).toContainText("3 changes to apply");
     // The unmatched change waits behind its disclosure, closed, on every form factor.
     const unmatched = bar.locator("details");
     await expect(unmatched).toHaveCount(1);
@@ -528,7 +528,7 @@ test("the keyboard alone opens, sends, navigates, rejects and reaches Apply", as
   await page.keyboard.press("Control+Enter");
   await expect(composer(page)).toHaveCount(0);
   const bar = dock(page);
-  await expect(bar).toContainText("3 of 3 changes");
+  await expect(bar).toContainText("3 changes to apply");
 
   const next = bar.getByRole("button", { name: "Next change" });
   await tabTo(page, next);
@@ -563,7 +563,7 @@ test("under reduced motion the review arrives without movement", async ({ page }
         ).length,
   );
   expect(moved).toBe(0);
-  await expect(dock(page)).toContainText("3 of 3 changes", { timeout: 20_000 });
+  await expect(dock(page)).toContainText("3 changes to apply", { timeout: 20_000 });
   await expect(dock(page).getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
 });
 
@@ -575,7 +575,7 @@ test("a hostile replacement shows as text: no image, link or script, no request 
   await openSheet(page, id);
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-hostile"), model: "mock-hostile" });
-  await expect(dock(page)).toContainText("3 of 3 changes");
+  await expect(dock(page)).toContainText("3 changes to apply");
   const view = page.getByRole("group", { name: "Description, under review" });
   await expect(view).toContainText("Read [the harbour board](");
   await expect(view).toContainText("<script>document.title = 'owned'</script>");
@@ -909,7 +909,7 @@ for (const size of SHOTS === undefined ? [] : SIZES) {
       ).toHaveValue(ownerRequest(base, "kept-shot"));
       await shot("04-composer-filled");
       await submitRework(page, { request: ownerRequest(base, "kept-shot"), model: "mock-fast" });
-      await expect(dock(page)).toContainText("3 of 3 changes");
+      await expect(dock(page)).toContainText("3 changes to apply");
       await shot("05-review-arrived");
       await dock(page).getByText("1 could not be placed").click();
       await shot("06-review-unmatched");
@@ -925,7 +925,7 @@ for (const size of SHOTS === undefined ? [] : SIZES) {
         .click();
       await page.getByRole("button", { name: "Reject change 2 of 3" }).click();
       await expect(page.getByRole("button", { name: "Restore change 2 of 3" })).toBeFocused();
-      await expect(dock(page)).toContainText("2 of 3 changes");
+      await expect(dock(page)).toContainText("2 changes to apply");
       await toTop(page, "#s-description");
       await shot("08-tracked-rejected");
       await toTop(page, "#s-lorebook");
@@ -956,7 +956,7 @@ for (const size of SHOTS === undefined ? [] : SIZES) {
       await openSheet(page, id);
       await openRework(page);
       await submitRework(page, { request: "Rework her for the customs raid.", model: "mock-fast" });
-      await expect(dock(page)).toContainText("13 of 13 changes");
+      await expect(dock(page)).toContainText("13 changes to apply");
       await toTop(page, "#s-identity");
       await shot("1-identity");
       await toTop(page, "#s-description");

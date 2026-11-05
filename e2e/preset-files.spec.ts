@@ -78,6 +78,7 @@ test("a SillyTavern preset imports as a prompt and a sampler preset, with a repo
   const report = page.getByRole("status").filter({ hasText: `Imported ${name}` });
   await expect(report).toContainText("as a prompt preset and a sampler preset");
   await report.getByRole("button", { name: "Show details" }).click();
+  await report.getByText(/^\d+ unsupported or omitted settings?$/).click();
   await expect(report.getByRole("heading", { name: "Left out" })).toBeVisible();
   await expect(report).toContainText("Top K");
   await expect(report).toContainText("Context size: each model's own window is used instead.");
@@ -149,7 +150,7 @@ test("foreign placement and triggers survive native edits, with no retired contr
   ] as const)
     await expect(page.getByRole("button", { name: trigger, exact: true, pressed })).toBeVisible();
   await page.getByRole("textbox", { name: "Continue", exact: true }).fill("Continue in the rain.");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   const id = page.url().split("/").at(-1);
   const { preset } = await (await page.request.get(`/api/presets/prompt/${id}`)).json();
   expect(preset).not.toHaveProperty("formats");

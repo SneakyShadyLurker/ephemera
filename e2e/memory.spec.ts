@@ -4,7 +4,6 @@ import { CONTINUED_SCENE, NEW_SCENE, STORY_HEADING } from "../packages/core/src/
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
   characterRow,
-  chatMenuButton,
   chooseCharacter,
   chooseModel,
   clearChat,
@@ -1126,9 +1125,10 @@ for (const { width, height, form } of [
     const first = await twoExchanges(page);
     await rememberNow(page);
     await expect(seam(page).getByRole("status")).toHaveText(heldLine(3));
-    // On a phone the mark is in the chat menu; its count shows on the menu's button.
+    // On a phone Memory opens directly from the labelled header action.
     if (form === "phone") {
-      await expect(chatMenuButton(page).locator("[data-remembered-count]")).toHaveText("3");
+      await expect(memoryMark(page)).toBeVisible();
+      await expect(memoryMark(page)).toHaveAccessibleName("Memory");
     }
     await openMemory(page);
     // Labelled on every width: on a phone too, the word says where it goes.

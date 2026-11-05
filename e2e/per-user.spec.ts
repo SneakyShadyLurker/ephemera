@@ -216,7 +216,7 @@ test.describe("a same-tab switch to another user", () => {
       await signInAs(context, a);
       await page.goto(`/characters/${id}`);
       await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
-      await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 
       const typed = `Typed after the switch ${crypto.randomUUID()}`;
       const release = await holdBackgroundReads(page);

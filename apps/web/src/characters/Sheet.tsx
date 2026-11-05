@@ -31,6 +31,7 @@ import { ChatIcon, EditIcon, SectionsIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
+import { cn } from "@/lib/cn";
 import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { CastSection } from "../cast/CastSection.tsx";
@@ -50,6 +51,7 @@ import { isLocked } from "../rework/store.ts";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
+import { AuthoringField, AuthoringInput } from "../sheet/FieldFeedback.tsx";
 import { COMPACT_LABEL, FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { SheetActions } from "../sheet/SheetActions.tsx";
@@ -353,7 +355,7 @@ function SheetEditor({
       </label>
       <div className="grid gap-2">
         <ReviewField field={{ kind: "text", key }} label={CARD_FIELD_LABELS[key]}>
-          <textarea
+          <AuthoringField
             id={`field-${key}`}
             value={String(fields[key])}
             maxLength={CARD_LIMITS.textLength}
@@ -409,6 +411,7 @@ function SheetEditor({
       </SheetHeader>
 
       <SheetBody
+        saving={{ status: autosave.status, noun: "character" }}
         label="Character sheet"
         after={
           autosave.status.kind === "conflict" && (
@@ -446,6 +449,7 @@ function SheetEditor({
            */}
           <div className="col-span-full">
             <PortraitField
+              name={fields.name}
               compactOnPhone
               identity={
                 <ReviewField
@@ -464,17 +468,19 @@ function SheetEditor({
               }
               tags={<TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />}
               details={
-                <div className="grid min-w-0 gap-3">
-                  <div className="min-w-0 flex-1">
-                    <CardDetails fields={fields} edit={edit} locked={locked} />
-                  </div>
-                  {phone && (
-                    <div className="flex items-center justify-between gap-3">
-                      <SectionsMenu />
-                      <LinkedBooks id={id} name={fields.name} locked={locked} utility />
-                    </div>
-                  )}
-                </div>
+                <CardDetails
+                  fields={fields}
+                  edit={edit}
+                  locked={locked}
+                  toolbar={
+                    phone ? (
+                      <>
+                        <SectionsMenu />
+                        <LinkedBooks id={id} name={fields.name} locked={locked} utility />
+                      </>
+                    ) : undefined
+                  }
+                />
               }
               owner="characters"
               noun="character"
@@ -574,10 +580,14 @@ function SmallField({
   locked: boolean;
   onChange: (value: string) => void;
 }) {
+  const fieldId = useId();
   return (
-    <label className="grid gap-1.5">
-      <span className={COMPACT_LABEL}>{label}</span>
-      <input
+    <div className="grid gap-1.5">
+      <label htmlFor={fieldId} className={COMPACT_LABEL}>
+        {label}
+      </label>
+      <AuthoringInput
+        id={fieldId}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
@@ -587,7 +597,7 @@ function SmallField({
         onChange={(event) => onChange(event.target.value)}
         className={LINE_FIELD}
       />
-    </label>
+    </div>
   );
 }
 
@@ -634,25 +644,39 @@ function CardDetails({
   fields,
   edit,
   locked,
+  toolbar,
 }: {
   fields: EditableFields;
   edit: Edit;
   locked: boolean;
+  toolbar?: ReactNode;
 }) {
   const set = [fields.creator, fields.characterVersion && `version ${fields.characterVersion}`]
     .filter(Boolean)
     .join(", ");
   return (
-    <details className="disclosure col-span-full border-rush border-y tablet:col-start-2 tablet:col-span-1">
-      <summary className="flex h-12 cursor-pointer list-none items-center gap-2 text-ink text-ui">
-        <span>Card details</span>
-        <DisclosureChevron className="text-reed" />
-        <span className="min-w-0 flex-1 truncate pl-1 text-meta text-reed">{set}</span>
-      </summary>
-      <div className="grid gap-3 pb-4 tablet:grid-cols-3">
-        <SmallFields fields={fields} edit={edit} locked={locked} />
-      </div>
-    </details>
+    <div
+      className={cn(
+        "grid min-w-0 items-center gap-x-1 border-rush border-y",
+        toolbar && "grid-cols-[auto_minmax(0,1fr)_auto]",
+      )}
+    >
+      {toolbar}
+      <details
+        className={cn("disclosure", toolbar && "contents [&::details-content]:col-span-full")}
+      >
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 px-2 text-ink text-ui">
+          <span>{toolbar ? "Details" : "Card details"}</span>
+          <DisclosureChevron className="text-reed" />
+          {!toolbar && (
+            <span className="min-w-0 flex-1 truncate pl-1 text-meta text-reed">{set}</span>
+          )}
+        </summary>
+        <div className="grid gap-3 pb-4 tablet:grid-cols-3">
+          <SmallFields fields={fields} edit={edit} locked={locked} />
+        </div>
+      </details>
+    </div>
   );
 }
 
@@ -777,7 +801,7 @@ function SectionsMenu() {
   return (
     <div className="flex shrink-0 items-center gap-1">
       <Menu>
-        <MenuTrigger render={<Button aria-label="Go to section" />}>
+        <MenuTrigger render={<Button aria-label="Go to section" className="px-2 touch:px-2" />}>
           <SectionsIcon size={16} />
           Sections
         </MenuTrigger>
@@ -931,7 +955,7 @@ function CharactersNote({
             field={{ kind: "text", key: "characterNote" }}
             label={CARD_FIELD_LABELS.characterNote}
           >
-            <textarea
+            <AuthoringField
               id={textId}
               value={value.prompt}
               rows={2}

@@ -36,6 +36,7 @@ import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
+import { AuthoringField, AuthoringInput } from "../sheet/FieldFeedback.tsx";
 import {
   COMPACT_LABEL,
   FIELD,
@@ -366,6 +367,7 @@ function PromptPresetEditor({
         />
       </SheetHeader>
       <SheetBody
+        saving={{ status: autosave.status, noun: "preset" }}
         label="Prompt preset"
         aside={wide && <FormattingKey placement="aside" />}
         asideFrame="keyed"
@@ -588,7 +590,7 @@ function ActionsSection({
               <label htmlFor={id} className={FIELD_LABEL}>
                 {label}
               </label>
-              <textarea
+              <AuthoringField
                 id={id}
                 name={id}
                 aria-describedby={`${id}-help`}
@@ -652,7 +654,7 @@ function ReasoningSection({
           </label>
           <div className="flex max-w-60 items-center gap-1 text-reed text-ui">
             <span aria-hidden="true">&lt;</span>
-            <input
+            <AuthoringInput
               id={tagId}
               value={reasoning.tag}
               maxLength={PRESET_LIMITS.reasoningTagLength}
@@ -975,9 +977,12 @@ function OpenBlock({
         <div className="grid gap-4 tablet:pl-10">
           <div className="grid gap-4 tablet:grid-cols-[minmax(0,1fr)_auto]">
             {custom && (
-              <label className="grid gap-1.5">
-                <span className={COMPACT_LABEL}>Name</span>
-                <input
+              <div className="grid gap-1.5">
+                <label htmlFor={`${id}-name`} className={COMPACT_LABEL}>
+                  Name
+                </label>
+                <AuthoringInput
+                  id={`${id}-name`}
                   name="block-name"
                   value={custom.name}
                   maxLength={PRESET_LIMITS.nameLength}
@@ -987,7 +992,7 @@ function OpenBlock({
                   }
                   className={LINE_FIELD}
                 />
-              </label>
+              </div>
             )}
             <div className={cn("grid gap-1.5", !custom && "tablet:col-span-2")}>
               <span id={`${id}-role`} className={COMPACT_LABEL}>
@@ -1095,7 +1100,7 @@ function OpenBlock({
             )}
           </div>
           {(block.kind === "text" || block.kind === "custom") && (
-            <textarea
+            <AuthoringField
               aria-label={`${name} text`}
               value={block.content}
               maxLength={PRESET_LIMITS.blockText}
@@ -1117,7 +1122,7 @@ function OpenBlock({
           <label htmlFor={`${id}-template`} className={COMPACT_LABEL}>
             Template
           </label>
-          <textarea
+          <AuthoringField
             id={`${id}-template`}
             aria-describedby={`${id}-template-help`}
             value={block.template ?? ""}

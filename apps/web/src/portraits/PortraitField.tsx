@@ -22,6 +22,7 @@ export function PortraitField({
   id,
   version,
   noun,
+  name,
   locked = false,
   arrived: arrivedVersion = null,
   primary,
@@ -37,6 +38,7 @@ export function PortraitField({
   version: number | null;
   /** What the sheet edits, for the hint on a new sheet ("character", "persona"). */
   noun: string;
+  name: string;
   /**
    * Add, Replace and Remove are off while an AI Rework works or is under
    * review: a changed portrait would make changes made to match it stale.
@@ -123,6 +125,7 @@ export function PortraitField({
           </button>
         ) : (
           <Portrait
+            name={name}
             owner={owner}
             id={id ?? ""}
             version={version}
@@ -145,7 +148,7 @@ export function PortraitField({
         className={cn(
           "flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap",
           compactOnPhone &&
-            "col-start-2 row-start-2 self-end tablet:col-start-1 tablet:row-start-4",
+            "col-start-2 row-start-2 self-end pt-0 tablet:col-start-1 tablet:row-start-4 tablet:pt-1",
         )}
       >
         {primary?.({ busy })}

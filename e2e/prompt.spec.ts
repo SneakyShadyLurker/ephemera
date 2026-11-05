@@ -206,7 +206,7 @@ test("the inspector shows the cached share and where the next prompt stops match
   await openSession(page);
   await page.getByRole("link", { name: `Edit ${name}` }).click();
   await page.getByRole("textbox", { name: "Author's Note" }).fill(changed);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Chat" }).click();
   // Session comes back open, as it was left.
   await expect(page.getByRole("dialog", { name: "Session" })).toBeVisible();

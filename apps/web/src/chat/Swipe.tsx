@@ -1,8 +1,9 @@
 import { AnimatePresence, type PanInfo, useIsPresent, usePresenceData } from "motion/react";
 import * as m from "motion/react-m";
 import { type ComponentProps, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { useStickToBottomContext } from "use-stick-to-bottom";
 import { create } from "zustand";
-import { useCoarsePointer } from "@/app/form-factor.ts";
+import { useCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
 import { fade, spring } from "@/app/motion.tsx";
 import { motionPx } from "@/app/motion-tokens.ts";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
@@ -56,7 +57,7 @@ const variants = {
   enter: (travel: Travel) => ({
     x: distance(travel),
     opacity: 0,
-    height: travel.still ? "auto" : (travel.from ?? "auto"),
+    height: travel.still || travel.streaming ? "auto" : (travel.from ?? "auto"),
     minHeight: !travel.still && travel.streaming ? (travel.from ?? 0) : 0,
   }),
   exit: (travel: Travel) => ({
@@ -95,9 +96,11 @@ export function SwipeFrame({
   children: ReactNode;
 }) {
   const coarse = useCoarsePointer();
+  const phone = useFormFactor() === "phone";
   const { direction, far } = useSwipeMotion();
   const still = useReducedMotion();
   const frame = useRef<HTMLDivElement>(null);
+  const { stopScroll } = useStickToBottomContext();
   const [kept, setKept] = useState<{ id: string; children: ReactNode; from: number | null }>({
     id: replyId,
     children,
@@ -106,6 +109,7 @@ export function SwipeFrame({
   // Empty streaming alternates wait behind the readable one. Only rendered prose is retained.
   useLayoutEffect(() => {
     if (replyId !== kept.id && !ready) return;
+    if (phone && replyId !== kept.id && !streaming) stopScroll();
     const from =
       replyId !== kept.id ? (frame.current?.getBoundingClientRect().height ?? null) : kept.from;
     setKept((current) =>
@@ -113,7 +117,7 @@ export function SwipeFrame({
         ? current
         : { id: replyId, children, from },
     );
-  }, [replyId, ready, children, kept.id, kept.from]);
+  }, [replyId, ready, children, kept.id, kept.from, streaming, stopScroll, phone]);
   const visibleId = kept.id;
   const visible = replyId === kept.id ? children : kept.children;
   const custom: Travel = { direction, far, still, streaming, from: kept.from };
@@ -137,7 +141,7 @@ export function SwipeFrame({
             x: 0,
             opacity: 1,
             height: "auto",
-            minHeight: !still && streaming ? (kept.from ?? 0) : 0,
+            minHeight: phone || (!still && streaming) ? (kept.from ?? 0) : 0,
           }}
           exit="exit"
           transition={transition()}
@@ -196,7 +200,10 @@ function SwipePanel({
         height:
           travel.still || travel.streaming || travel.from === null ? "auto" : (height ?? "auto"),
       }}
-      transition={{ ...panelTransition, height: travel.still ? { duration: 0 } : spring() }}
+      transition={{
+        ...panelTransition,
+        height: travel.still || travel.streaming ? { duration: 0 } : spring(),
+      }}
       // Cancels only the retained outgoing frame's flow height. Both prose blocks
       // keep the same float context; the incoming frame owns the region's height.
       style={{ marginBottom: present ? undefined : -(travel.from ?? 0) }}

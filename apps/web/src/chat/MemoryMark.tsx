@@ -72,7 +72,7 @@ export function RememberedCount({ count }: { count: number }) {
  * are remembered after the word. It opens the character's memory screen,
  * whose Back returns to the chat.
  */
-export function MemoryMark() {
+export function MemoryMark({ compact = false }: { compact?: boolean }) {
   const status = useMemoryStatus();
   if (status === null) return null;
   return (
@@ -83,11 +83,12 @@ export function MemoryMark() {
       className={cn(
         buttonVariants(),
         "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
+        compact && "gap-1 px-2 touch:px-2",
       )}
     >
-      <MemoryIcon size={16} />
+      {!compact && <MemoryIcon size={16} />}
       Memory
-      {status.remembered > 0 && (
+      {!compact && status.remembered > 0 && (
         <span
           key={status.remembered}
           className="text-meta text-reed tabular-nums transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"

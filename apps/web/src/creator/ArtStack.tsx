@@ -850,11 +850,13 @@ export function ArtStack({
   phone,
   newArt,
   again,
+  compactEmpty = false,
 }: {
   name: string;
   phone: boolean;
   newArt: RefObject<HTMLButtonElement | null>;
   again: RefObject<HTMLButtonElement | null>;
+  compactEmpty?: boolean;
 }) {
   const showing = useArtShowing();
 
@@ -874,18 +876,20 @@ export function ArtStack({
       <div
         className={cn(
           "grid content-start justify-items-start gap-3",
-          phone && "grid-cols-[6rem_minmax(0,1fr)] items-end gap-4",
+          phone && !compactEmpty && "grid-cols-[6rem_minmax(0,1fr)] items-end gap-4",
         )}
       >
-        <div
-          className={cn(
-            "@container relative grid aspect-[2/3] w-24 overflow-hidden rounded-lg bg-surface",
-            !phone && "@card:w-40",
-            FRAME_GLIDE,
-          )}
-        >
-          <NameLeaf name={name} />
-        </div>
+        {!compactEmpty && (
+          <div
+            className={cn(
+              "@container relative grid aspect-[2/3] w-24 overflow-hidden rounded-lg bg-surface",
+              !phone && "@card:w-40",
+              FRAME_GLIDE,
+            )}
+          >
+            <NameLeaf name={name} />
+          </div>
+        )}
         {showing === "off" ? (
           <ArtStatus />
         ) : (

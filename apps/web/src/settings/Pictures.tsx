@@ -131,7 +131,7 @@ export function Pictures() {
                 </p>
                 <p>
                   On this server are the ones the server ships. Each row says whether it can paint
-                  now, and the one Create with AI uses says In use. Up to{" "}
+                  now, and the one Create with AI uses says Selected. Up to{" "}
                   {WORKFLOW_LIMITS.workflows} of yours.
                 </p>
               </>

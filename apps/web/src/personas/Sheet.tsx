@@ -25,6 +25,7 @@ import {
 } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
+import { AuthoringField } from "../sheet/FieldFeedback.tsx";
 import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
@@ -202,6 +203,7 @@ function PersonaEditor({
       </SheetHeader>
 
       <SheetBody
+        saving={{ status: autosave.status, noun: "persona" }}
         label="Persona sheet"
         after={
           autosave.status.kind === "conflict" && (
@@ -218,6 +220,7 @@ function PersonaEditor({
           className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
           <PortraitField
+            name={fields.name}
             owner="personas"
             noun="persona"
             id={id}
@@ -242,7 +245,7 @@ function PersonaEditor({
             Description
           </label>
           <div className="grid gap-2">
-            <textarea
+            <AuthoringField
               id="persona-description"
               value={fields.description}
               maxLength={CARD_LIMITS.textLength}

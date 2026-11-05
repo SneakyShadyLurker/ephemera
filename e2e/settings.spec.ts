@@ -614,7 +614,11 @@ test("after a reload the app comes back with its selection and an empty chat", a
   await openSession(page);
   await expect(page.getByRole("combobox", { name: "Model", exact: true })).toHaveText("mock-slow");
   await expect(characterRow(page)).toContainText(character);
-  await expect(page.getByRole("combobox", { name: "Persona" })).toContainText(persona);
+  await expect(
+    page
+      .locator("[data-session-dock], [data-session-sheet]")
+      .getByRole("combobox", { name: "Persona" }),
+  ).toContainText(persona);
   await expect(page.getByRole("combobox", { name: "Sampler preset" })).toContainText(sampler);
   await expect(page.getByRole("combobox", { name: "Prompt preset" })).toContainText(prompt);
   // The character's row and the four pickers share one trigger: a portrait beside a name does
@@ -1241,7 +1245,9 @@ test("a lorebook source template wraps the entries sent together", async ({ page
     .locator('[data-block="lorebookBefore"]')
     .getByRole("textbox", { name: "Template" });
   await template.fill("[The world: {{content}}]");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
   await openChat(page, "mock-fast");
   await chooseCharacter(page, character);

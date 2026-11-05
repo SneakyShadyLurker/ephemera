@@ -231,7 +231,7 @@ test("deleting the workflow in use goes back to the default", async ({ comfy, pa
   await expect.poll(async () => (await readSettings(request)).comfyuiWorkflow).not.toBe(before);
   await openSettings(page);
   const row = workflowRow(page, name);
-  await expect(row).toContainText("In use");
+  await expect(row).toContainText("Selected");
 
   await actionsFor(page, name).click();
   await page.getByRole("menuitem", { name: "Delete" }).click();

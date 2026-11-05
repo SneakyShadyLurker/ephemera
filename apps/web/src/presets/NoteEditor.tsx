@@ -3,6 +3,7 @@ import { PRESET_LIMITS } from "@ephemera/core";
 import { useId } from "react";
 import { NumberField } from "@/components/ui/number-field";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { AuthoringField } from "../sheet/FieldFeedback.tsx";
 import { FIELD } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
@@ -40,7 +41,7 @@ export function NoteEditor({
         <label htmlFor={textId} className="sr-only">
           Author's Note
         </label>
-        <textarea
+        <AuthoringField
           id={textId}
           name="authors-note"
           value={note.text}

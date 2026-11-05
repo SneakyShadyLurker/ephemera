@@ -173,7 +173,12 @@ test("a new character is saved once named, and every field and greeting persists
 
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+  const nameSave = page
+    .getByRole("textbox", { name: "Name", exact: true })
+    .locator("..")
+    .locator("[data-inline-save]");
+  await expect(nameSave).toHaveText("Saved");
 
   // The optional details wait in Card details, after the portrait, name and tags.
   await page.getByText("Card details", { exact: true }).click();
@@ -186,6 +191,8 @@ test("a new character is saved once named, and every field and greeting persists
     ["Creator notes", "For testing."],
   ];
   for (const [label, value] of fields) await page.getByLabel(label, { exact: true }).fill(value);
+  // A field's own saved feedback stays still while another field is edited.
+  await expect(nameSave).toHaveText("Saved");
   await page.getByRole("textbox", { name: "Tags" }).fill("mystery");
   await page.getByRole("textbox", { name: "Tags" }).press("Enter");
 
@@ -250,7 +257,7 @@ test("a character just created, duplicated, is itself again on Back", async ({ p
   await page.locator("header").getByRole("button", { name: "New character" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   const created = page.url();
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Duplicate" }).click();
@@ -323,7 +330,9 @@ test("a failed save says so and retries; leaving with it unsaved asks", async ({
   await leave.getByRole("button", { name: "Stay" }).click();
 
   await page.unroute("**/api/characters/*");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 });
 
 test("duplicate, export and delete, with a chat draft that is never at risk", async ({ page }) => {

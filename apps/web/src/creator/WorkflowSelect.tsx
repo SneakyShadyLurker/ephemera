@@ -31,11 +31,13 @@ export function WorkflowSelect({
   labelId,
   disabled = false,
   className,
+  actionLabel,
 }: {
   labelId: string;
   /** Held by the host beyond a single workflow (a run painting). */
   disabled?: boolean;
   className?: string;
+  actionLabel?: string;
 }) {
   const comfyuiWorkflow = useSetting((settings) => settings.comfyuiWorkflow);
   const workflows = useQuery(artWorkflowsQuery);
@@ -70,7 +72,9 @@ export function WorkflowSelect({
             name === undefined && "text-reed",
           )}
         >
-          {name ?? (workflows.isError ? "Workflows not listed" : "Listing workflows…")}
+          {actionLabel ??
+            name ??
+            (workflows.isError ? "Workflows not listed" : "Listing workflows…")}
         </span>
       </SelectTrigger>
       <SelectContent label="Workflows" className="min-w-64">

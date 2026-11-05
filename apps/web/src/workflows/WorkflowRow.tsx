@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { artStatusQuery } from "../creator/queries.ts";
+import { WorkflowSelect } from "../creator/WorkflowSelect.tsx";
 import {
   FAMILY_NAMES,
   nameTakenLine,
@@ -123,6 +124,13 @@ export function WorkflowRow({
     status.isPending ? "checking" : status.isError ? "failed" : status.data,
   );
   const problemId = useId();
+  const chooseId = useId();
+  const cannotRun = status.data !== undefined && status.data.state !== "ready";
+  const reason =
+    shown.reason ??
+    (shown.missing !== null
+      ? "The picture server lacks this workflow's requirements."
+      : "Add a picture server address to run this workflow.");
   const actionsRef = useRef<HTMLButtonElement>(null);
   // Rename and Family take focus themselves; the menu then leaves it alone.
   const handoff = useRef(false);
@@ -215,10 +223,14 @@ export function WorkflowRow({
   const words = (
     <span className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-note">
       {row.scope === "user" && <span className="text-reed">{nodeCount(row.workflow.nodes)}</span>}
-      <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>
-        {shown.tone === "problem" ? "Unavailable" : shown.words}
-      </span>
-      {inUse && <span className="text-reed">In use</span>}
+      {inUse ? (
+        <>
+          <span className="text-reed">Selected</span>
+          {cannotRun && <span className="text-ink">Cannot run</span>}
+        </>
+      ) : (
+        <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>{shown.words}</span>
+      )}
     </span>
   );
 
@@ -367,17 +379,36 @@ export function WorkflowRow({
       ) : (
         <span />
       )}
-      {(problem !== null || shown.missing !== null || shown.reason !== null) && (
+      {(problem !== null ||
+        shown.missing !== null ||
+        shown.reason !== null ||
+        (inUse && cannotRun)) && (
         <div className="col-span-2 grid gap-2 pt-1 pb-1 pl-4">
           {problem !== null && (
             <InlineStatus tone="error" as="p" id={problemId} role="alert">
               {problem}
             </InlineStatus>
           )}
-          {shown.reason !== null && <p className="text-pretty text-reed text-ui">{shown.reason}</p>}
+          {inUse && cannotRun ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-0 flex-1 basis-64 text-note text-reed">{reason}</p>
+              <span id={chooseId} className="sr-only">
+                Choose another
+              </span>
+              <WorkflowSelect
+                labelId={chooseId}
+                actionLabel="Choose another"
+                className="w-auto tablet:w-auto"
+              />
+            </div>
+          ) : (
+            shown.reason !== null && <p className="text-pretty text-reed text-ui">{shown.reason}</p>
+          )}
           {shown.missing !== null && (
             <>
-              <p className="text-note text-reed">Install requirements or change workflow.</p>
+              {!inUse && (
+                <p className="text-note text-reed">Install requirements or change workflow.</p>
+              )}
               <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
             </>
           )}

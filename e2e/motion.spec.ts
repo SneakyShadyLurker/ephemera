@@ -595,7 +595,7 @@ for (const kind of ["characters", "personas"] as const) {
     }
     await expect(page).toHaveURL(new RegExp(`/${kind}/[0-9a-f-]{36}$`));
     await expect(name).toBeFocused();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
       "First save keeps typing",
@@ -972,7 +972,7 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-exit"), model: "mock-fast" });
   const bar = page.locator('[role="region"][aria-label="AI Rework"]');
-  await expect(bar).toContainText("3 of 3 changes");
+  await expect(bar).toContainText("3 changes to apply");
   await expect(bar).toHaveCSS("opacity", "1");
   const cleared = bar.evaluate(
     (element) =>
@@ -997,7 +997,7 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   );
   await bar.getByRole("button", { name: "Discard", exact: true }).click();
   const after = await cleared;
-  expect(after.outgoing).toContain("3 of 3 changes");
+  expect(after.outgoing).toContain("3 changes to apply");
   expect(after.outgoing).toContain("1 could not be placed");
   expect(after.inert).toBe(true);
   expect(after.remains).toBe(false);
@@ -1071,7 +1071,7 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-fade"), model: "mock-fast" });
   const bar = page.locator('[role="region"][aria-label="AI Rework"]');
-  await expect(bar).toContainText("3 of 3 changes");
+  await expect(bar).toContainText("3 changes to apply");
   await expect(bar).toHaveCSS("opacity", "1");
   const height = (await bar.boundingBox())?.height ?? 0;
   const closing = exitFrames(bar);
@@ -1082,7 +1082,7 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
     expect(frame.height).toBeCloseTo(height, 0);
     expect(frame.inert).toBe(true);
     expect(frame.hidden).toBe(true);
-    expect(frame.text).toContain("3 of 3 changes");
+    expect(frame.text).toContain("3 changes to apply");
   }
   await expect(bar).toHaveCount(0);
 });

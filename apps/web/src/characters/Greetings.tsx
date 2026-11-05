@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { ReviewField, useReview, useSettled } from "../rework/ReviewField.tsx";
 import { useReworkLocked } from "../rework/session.ts";
 import { TrackedText } from "../rework/TrackedText.tsx";
+import { AuthoringField } from "../sheet/FieldFeedback.tsx";
 import { FIELD, FIELD_LABEL, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import {
   CloseRow,
@@ -137,7 +138,7 @@ export function Greetings({
             field={{ kind: "text", key: "firstMessage" }}
             label={CARD_FIELD_LABELS.firstMessage}
           >
-            <textarea
+            <AuthoringField
               id={firstId}
               value={first}
               placeholder="How the story opens"
@@ -285,7 +286,7 @@ export function Greetings({
                                 </>
                               )}
                             </div>
-                            <textarea
+                            <AuthoringField
                               id={`${firstId}-${key}`}
                               aria-label={label}
                               value={text}

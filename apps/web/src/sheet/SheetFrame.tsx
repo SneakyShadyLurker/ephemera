@@ -17,6 +17,7 @@ import { useSignedIn } from "../signin/hooks.ts";
 import { identity } from "../signin/identity.ts";
 import { SignInSheetRow } from "../signin/SignInSlots.tsx";
 import { isFailure, type SaveStatus, saveStatusText } from "./autosave.ts";
+import { AuthoringField, FieldSaving } from "./FieldFeedback.tsx";
 import { TITLE_FIELD } from "./fields.ts";
 
 /*
@@ -381,6 +382,7 @@ export function SheetBody({
   asideFrame = "indexed",
   children,
   after,
+  saving,
 }: {
   label: string;
   onBlur: () => void;
@@ -390,6 +392,7 @@ export function SheetBody({
   children: ReactNode;
   /** A notice kept at the end of the fields, sticky above the bottom (a save conflict). */
   after?: ReactNode;
+  saving?: { status: SaveStatus; noun: string };
 }) {
   // While the sign-in notice floats at the end, a focused field scrolls clear of it.
   const signedIn = useSignedIn();
@@ -420,7 +423,7 @@ export function SheetBody({
           onSubmit={(event) => event.preventDefault()}
           onBlur={onBlur}
         >
-          {children}
+          <FieldSaving value={saving ?? null}>{children}</FieldSaving>
           <SignInSheetRow />
           {after}
         </form>
@@ -492,7 +495,7 @@ export function NameField({
     if (autoSelect) field.current?.select();
   }, [autoSelect]);
   return (
-    <textarea
+    <AuthoringField
       ref={field}
       data-sheet-heading=""
       aria-label="Name"

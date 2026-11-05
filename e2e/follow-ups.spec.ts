@@ -137,7 +137,9 @@ test("a character's Character's Note is edited on its sheet, sent at its depth a
   await section.getByRole("textbox", { name: "Depth" }).blur();
   await choose(page, "Role", "User");
   await expect(section).toContainText("1 message from the end, as a user message");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
   await expectNoOverflow(page);
   expect(await seriousAxeViolations(page)).toEqual([]);
 

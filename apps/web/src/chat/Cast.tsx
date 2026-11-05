@@ -24,7 +24,7 @@ import { fade, MotionScope } from "@/app/motion.tsx";
 import { staggerStep } from "@/app/motion-tokens.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
-import { BackIcon, CastIcon, CloseIcon, EditIcon } from "@/components/icons";
+import { BackIcon, CloseIcon, EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -665,8 +665,8 @@ export function CastHeaderControl() {
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={(event) => openCast(null, event.currentTarget)}
+      className="gap-1 px-2 touch:px-2"
     >
-      <CastIcon size={16} />
       Cast
     </Button>
   );
@@ -882,13 +882,47 @@ function RosterView({
       <EditorBody className="grid content-start gap-3 font-story pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {present.length > 0 && (
           <ul aria-label="Present" className="grid gap-1">
-            {present.map(row)}
+            {present.map((entry) =>
+              drawer ? (
+                <li key={entry.id} className="grid gap-3 border-rush border-b pb-4">
+                  <h3 className={GROUP_HEADING}>{entry.anchor.name}</h3>
+                  <RecordText entry={entry} expanded />
+                  <Button
+                    variant="link"
+                    className="justify-self-start"
+                    onClick={() => removeFromCast(entry)}
+                  >
+                    Remove from cast
+                  </Button>
+                </li>
+              ) : (
+                row(entry)
+              ),
+            )}
           </ul>
         )}
         {away.length > 0 && (
           <section aria-label="Away" className="grid gap-1">
             <p className="font-sans text-meta text-reed">Away</p>
-            <ul className="grid gap-1">{away.map(row)}</ul>
+            <ul className="grid gap-1">
+              {away.map((entry) =>
+                drawer ? (
+                  <li key={entry.id}>
+                    <details className="disclosure">
+                      <summary className={SUMMARY_LINE}>
+                        {entry.anchor.name}
+                        <DisclosureChevron />
+                      </summary>
+                      <div className="pt-3">
+                        <RecordText entry={entry} />
+                      </div>
+                    </details>
+                  </li>
+                ) : (
+                  row(entry)
+                ),
+              )}
+            </ul>
           </section>
         )}
         <Status />
@@ -1066,7 +1100,7 @@ function Revert({ entry, field }: { entry: CastEntry; field: TextField }) {
  * value is corrected where it stands (EditableValue); the details not
  * recorded wait under "More details", to be written there.
  */
-export function RecordText({ entry }: { entry: CastEntry }) {
+export function RecordText({ entry, expanded = false }: { entry: CastEntry; expanded?: boolean }) {
   const correction = useChat((state) => state.cast.corrections[entry.id]);
   const change = useChat(latestChange);
   const mountedAt = useMountedAt();
@@ -1079,7 +1113,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
   const shows = (field: TextField) => {
     const text = castFieldText(entry, field);
     if (corrections.has(field)) return true;
-    return text !== "" && (field !== "age" || text.trim() !== ageOf(entry));
+    return text !== "" && (expanded || field !== "age" || text.trim() !== ageOf(entry));
   };
   const value = (field: TextField) => (
     <>
@@ -1122,7 +1156,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
         )}
       </section>
     );
-    return title === "Looks" || title === "Intimate" ? (
+    return !expanded && (title === "Looks" || title === "Intimate") ? (
       <details key={title} className="disclosure">
         <summary className={cn(SUMMARY_LINE, "font-sans")}>
           {title}
@@ -1136,7 +1170,10 @@ export function RecordText({ entry }: { entry: CastEntry }) {
   });
   const unrecorded = SECTIONS.flatMap(([, fields]) => fields.filter((field) => !shows(field)));
   return (
-    <div className="@container grid gap-3 font-story">
+    <fieldset
+      aria-label={`${entry.anchor.name} record`}
+      className="@container grid min-w-0 gap-3 font-story"
+    >
       {sections.length > 0 ? (
         sections
       ) : (
@@ -1166,7 +1203,7 @@ export function RecordText({ entry }: { entry: CastEntry }) {
         Corrections to looks and character hold for this chat; the current state yields to the next
         update.
       </p>
-    </div>
+    </fieldset>
   );
 }
 

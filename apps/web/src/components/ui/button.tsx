@@ -26,7 +26,7 @@ const buttonVariants = cva(
          * the reed explanation around it by a quiet underline that darkens under
          * the pointer.
          */
-        link: "border-transparent font-normal text-reed underline decoration-control-edge underline-offset-4 hover:text-ink hover:decoration-current disabled:no-underline data-disabled:no-underline",
+        link: "border-transparent font-normal text-ink underline decoration-control-edge underline-offset-4 hover:decoration-current disabled:no-underline data-disabled:no-underline",
       },
       size: {
         default: "h-9 px-3.5 touch:h-11 touch:px-4",
@@ -58,7 +58,13 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size }), className)}
+      className={cn(
+        buttonVariants({
+          variant: variant ?? (size === "text" || size === "inline" ? "link" : undefined),
+          size,
+        }),
+        className,
+      )}
       {...props}
     />
   );

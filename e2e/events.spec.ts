@@ -82,6 +82,7 @@ test("an event made on the Lorebooks screen survives a reload and shows in the i
   const instruction = page.getByRole("textbox", { name: "Instruction" });
   await expect(instruction).toBeFocused();
   await instruction.fill(text);
+  await page.getByText("Advanced", { exact: true }).click();
   const chance = page.getByRole("textbox", { name: "Chance per reply in percent" });
   await chance.fill("100");
   await chance.press("Tab");
@@ -175,6 +176,7 @@ test("an event chosen for a tag fires for a character with it, not for one witho
   await openEvents(page);
   const events = page.getByRole("list", { name: "Events" });
   await events.getByRole("button", { name: text }).click();
+  await page.getByText("Advanced", { exact: true }).click();
   await page.getByRole("radio", { name: "Chosen characters and tags" }).click();
   await expect(events.getByRole("button", { name: text })).toContainText("Applies to no one yet.");
   await page.getByRole("button", { name: "Tags", exact: true }).click();
@@ -276,6 +278,7 @@ test("a blank new event never holds leaving; a cleared instruction stays not sav
   // A new event with its numbers changed and no instruction: nothing to keep.
   await page.getByRole("button", { name: "New event" }).click();
   const fresh = page.locator("li[data-event]").first();
+  await fresh.getByText("Advanced", { exact: true }).click();
   const chance = fresh.getByRole("textbox", { name: "Chance per reply in percent" });
   await chance.fill("70");
   await chance.press("Tab");
@@ -291,6 +294,7 @@ test("a blank new event never holds leaving; a cleared instruction stays not sav
   expect(dialogs).toBe(0);
   await openEvents(page);
   await page.getByRole("button", { name: "New event" }).click();
+  await page.locator("li[data-event]").first().getByText("Advanced", { exact: true }).click();
   const again = page
     .locator("li[data-event]")
     .first()

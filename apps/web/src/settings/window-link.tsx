@@ -1,5 +1,6 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import type { ReactNode, Ref } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { type Section, WINDOW_SECTION } from "./sections.ts";
 
@@ -21,8 +22,7 @@ declare module "@tanstack/react-router" {
 }
 
 /** In a line of text: underlined ink. */
-const INLINE =
-  "text-ink underline decoration-rush underline-offset-4 transition-[text-decoration-color] duration-(--duration-quick) ease-fade hover:decoration-ink";
+const INLINE = buttonVariants({ variant: "link", size: "inline" });
 
 /**
  * A link to Context on `model`'s window field; without a model, to the

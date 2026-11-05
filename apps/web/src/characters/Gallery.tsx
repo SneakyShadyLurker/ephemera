@@ -123,7 +123,13 @@ export function GalleryScreen() {
           icon={ImportIcon}
           onClick={openPicker}
         />
-        <HeaderAction label="New character" icon={PlusIcon} onClick={newCharacter} />
+        <HeaderAction
+          label="New character"
+          text="New"
+          labelledOnPhone
+          icon={PlusIcon}
+          onClick={newCharacter}
+        />
         {/* Phones name it under the search instead, while the cast shows. */}
         {(!phone || characters.isError) && (
           <HeaderAction label="Create with AI" icon={LampFlameIcon} onClick={createWithAi} />

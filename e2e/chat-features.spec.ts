@@ -455,7 +455,7 @@ test("the preset's Author's Note reaches the model at depth 1 as the user, is la
   await expect(sendNote).toHaveAccessibleDescription(
     "Off: kept here and not placed in the prompt; {{authorsNote}} still reads it.",
   );
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Chat" }).click();
   // Session comes back open, as it was left.
   await expect(page.getByRole("dialog", { name: "Session" })).toBeVisible();
@@ -655,7 +655,7 @@ test("the prompt preset's Continue instruction is edited in Actions and joins na
   const nudge = `[Go on, {{char}}. ${uniqueName("nudge")}]`;
   const actions = page.getByRole("region", { name: "Actions", exact: true });
   await actions.getByRole("textbox", { name: "Continue", exact: true }).fill(nudge);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 
   await openChat(page, "mock-fast");
   await openSession(page);

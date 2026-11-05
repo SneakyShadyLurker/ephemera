@@ -16,9 +16,7 @@ import {
 } from "@/app/Screen.tsx";
 import { PlusIcon } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
-import { MoreButton } from "@/components/more-button";
 import { Button } from "@/components/ui/button";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
 import { andList } from "@/lib/text";
 import { charactersQuery } from "../characters/queries.ts";
@@ -39,6 +37,8 @@ export function PersonasScreen() {
   const personas = useQuery(personasQuery);
   const list = personas.data ?? [];
   const empty = personas.isSuccess && list.length === 0;
+  const defaultPersonaId = useSetting((settings) => settings.defaultPersonaId);
+  const defaultPersona = list.find((persona) => persona.id === defaultPersonaId);
   // The header sits on what the body shows: the cast and an empty list share one frame.
   const frame = personas.isError ? PAGE_FRAME : BROWSE_FRAME;
   const newPersona = () => void navigate({ to: "/personas/$id", params: { id: "new" } });
@@ -57,7 +57,13 @@ export function PersonasScreen() {
           </span>
         }
       >
-        <HeaderAction label="New persona" icon={PlusIcon} onClick={newPersona} />
+        <HeaderAction
+          label="New persona"
+          text="New"
+          labelledOnPhone
+          icon={PlusIcon}
+          onClick={newPersona}
+        />
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -76,8 +82,8 @@ export function PersonasScreen() {
           // A container, so the cards' minimum grows with the space (`cqi`).
           <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
             <p className="max-w-measure text-pretty text-note text-reed">
-              Who you are in the story. New chats start as the default persona, unless the character
-              goes with another.
+              New chats write as {defaultPersona?.name ?? "You"}, unless the character goes with
+              another persona.
             </p>
             <Cast list={list} />
           </div>
@@ -107,26 +113,24 @@ function Cast({ list }: { list: PersonaSummary[] }) {
               version={persona.portrait}
               transition={opened === persona.id}
               onOpen={() => setOpenedPersona(persona.id)}
+              actionsBelow
               actions={
                 !isDefault && (
-                  <Menu>
-                    <MenuTrigger render={<MoreButton aria-label={`More for ${persona.name}`} />} />
-                    <MenuContent label={`${persona.name} actions`}>
-                      <MenuItem
-                        onClick={() => {
-                          updateSettings({ defaultPersonaId: persona.id });
-                          // Becoming the default removes this menu; return focus to its card.
-                          requestAnimationFrame(() =>
-                            document
-                              .querySelector<HTMLElement>(`[data-persona="${persona.id}"] a`)
-                              ?.focus(),
-                          );
-                        }}
-                      >
-                        Make default
-                      </MenuItem>
-                    </MenuContent>
-                  </Menu>
+                  <Button
+                    variant="link"
+                    size="text"
+                    onClick={() => {
+                      updateSettings({ defaultPersonaId: persona.id });
+                      // Becoming the default removes this action; return focus to its card.
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector<HTMLElement>(`[data-persona="${persona.id}"] a`)
+                          ?.focus(),
+                      );
+                    }}
+                  >
+                    Make default
+                  </Button>
                 )
               }
               caption={

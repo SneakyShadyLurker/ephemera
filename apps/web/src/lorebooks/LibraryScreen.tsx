@@ -221,12 +221,15 @@ export function LibraryScreen() {
       <ScreenHeader title="Lorebooks" frame={FRAME} gutters={SCROLL_GUTTERS}>
         <HeaderAction
           label="Import lorebook"
+          labelledOnPhone
           text="Import"
           icon={ImportIcon}
           onClick={actions.import}
         />
         <HeaderAction
           label="New lorebook"
+          text="New"
+          labelledOnPhone
           icon={PlusIcon}
           variant={phone ? undefined : "outline"}
           disabled={creating}

@@ -74,7 +74,11 @@ test("hostile persona and preset text stays inert in every place it shows", asyn
   await openChat(page, "mock-fast");
   await openSession(page);
   await choose(page, "Persona", HOSTILE_NAME);
-  await expect(page.getByRole("combobox", { name: "Persona" })).toContainText("<img");
+  await expect(
+    page
+      .locator("[data-session-dock], [data-session-sheet]")
+      .getByRole("combobox", { name: "Persona" }),
+  ).toContainText("<img");
   await closeSession(page);
   await send(page, canary("in"));
   await expect(messages(page).first()).toContainText(`Mallory ${tag}`);

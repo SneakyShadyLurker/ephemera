@@ -315,7 +315,7 @@ function EventRowBody({
               className="mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
             />
             {/* Chance and scope share one metadata line, wrapping only when it runs out. */}
-            <span className={cn(ROW_META, "col-span-2")}>
+            <span className={open ? "sr-only" : cn(ROW_META, "col-span-2")}>
               <span id={ruleId} className="text-pretty">
                 <RuleText rule={rule} lively={lively} />
               </span>
