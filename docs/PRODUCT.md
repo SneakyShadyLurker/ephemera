@@ -115,20 +115,23 @@ Version 1.0 holds everything below.
   The gallery is where a chat's character is chosen: a card itself starts
   a chat with its character, asking first when that clears the open chat,
   and the empty chat's Choose a character and Session's character row open
-  it. A card's Edit, in the portrait's corner, opens its sheet: with a
-  mouse it shows on hover or keyboard focus, on touch it stays as its pen.
+  it. The portrait and name form the Chat target; Edit stays visible beside
+  the details below the name and opens the sheet. The name keeps the full
+  caption width.
   A persona's card opens its sheet.
   An empty gallery says so on the same edges as a full one and offers
-  Import cards as the first step; New character and Create with AI stay in
-  the header, except that a phone gallery with cards offers Create with AI
-  once, under the search. Empty screens carry an engraving drawn in the palette's
+  Import as the first step, with Create with AI beside it. Import, New and
+  Create with AI stay in the header; on phones they share a labelled toolbar
+  below the full title. Empty screens carry an engraving drawn in the palette's
   colours: the first run, the empty characters, personas, library and
   memories, the not-found and error screens, and Create with AI's three
   kinds. Populated views, settings, editors and notices have none.
 - The character sheet leads with the portrait, the name and the tags;
   Nickname, Creator and Version wait in Card details. Under the portrait
   one row holds New art and a menu with Replace and Remove; a persona's
-  holds Replace and Remove.
+  holds Replace and Remove. On phones the portrait and its actions form a
+  compact group, with the name beside the portrait and tags across the
+  sheet; Sections, Link a lorebook and Details share the toolbar beneath them.
 
 **Create with AI**
 - From the gallery, a model the owner picks (the saved one by default),
@@ -170,8 +173,10 @@ Version 1.0 holds everything below.
     fewest tokens: fragments and `label: value` lines, no filler, word
     limits as ceilings. Only the opening, the pitch, quoted speech and the
     `<Tone>` sample are full sentences.
-- The three kinds are offered as equals side by side, each with its title
-  and one sentence. Brainstorm, a quieter row below the kinds, turns a mood or a few words
+- Create with AI opens in Describe for a Subject. Change offers the three
+  kinds as equals side by side, each with its title and one sentence.
+  Brainstorm is reachable from Describe and from a quieter row below the
+  kinds, and turns a mood or a few words
   into ideas: the model reads the request as one of the three kinds and
   writes ten ideas of it, each a one-line pitch with a brief behind it,
   filling in row by row as they arrive. Stop keeps what arrived. Another
@@ -182,7 +187,9 @@ Version 1.0 holds everything below.
   editable; Back to ideas returns to the list and remembers the edit. A
   short list, a failure or a request of no clear kind says so, and a
   failed round leaves the list before it. Going back to the tiles keeps
-  the session, unsent text included.
+  the session, unsent text included. New ideas leads the settled list;
+  Options holds Edit request, Start over and Adjust ideas, whose feedback
+  is sent with Send adjustment.
 - The card fills in as the model writes, and Stop ends it. A finished card
   also has an opening (a `> Location:` line, an empty line and one
   sentence, set in that shape even when the model strays): on a Subject
@@ -249,17 +256,20 @@ Version 1.0 holds everything below.
   ends it; new art that fails or is stopped keeps the portraits on show,
   and a failure says why. Without an address, or when the art fails, the
   card can be kept without a portrait. Settings shows whether ComfyUI answers and, for
-  each workflow, whether it can paint now, naming any node or model it lacks.
+  each workflow, whether it can paint now, with missing requirements under
+  What is missing.
 - Settings > Pictures lists the workflows: the owner's own under Yours,
   then the server's, each with its family, its status in words (Ready,
-  Checking, Missing requirements, Unavailable or Unchecked) and In use beside
-  the one portraits paint with. Import takes a ComfyUI workflow file, saved
+  Checking, Missing requirements, Unavailable or Unchecked). The chosen one
+  says Selected and, when it cannot paint, Cannot run, with a reason and
+  Choose another. Import takes a ComfyUI workflow file, saved
   from ComfyUI or exported as API, chosen or dropped on the section on
   tablet and desktop; a saved one needs ComfyUI to answer, since its nodes
   are read from it. An owner keeps up to 24. The import panel shows where
   Ephemera fills the prompt, the size and count, the seed and the image
   output, asks which node to use where the file leaves one open, and says
-  what it changed, what it left out and what the owner's ComfyUI lacks; it
+  what the owner's ComfyUI lacks, with changes and omissions under Import
+  details and the nodes a refusal concerns under a disclosure; it
   saves the workflow under a name and a family (Krea 2, MOSS or General for
   any other model). Ephemera takes out the file's own prompt, scales the
   picture to the requested size just before it is sent, and refuses any
@@ -271,7 +281,9 @@ Version 1.0 holds everything below.
   answers, and cannot paint.
 - Keep saves an ordinary character with the chosen portrait, ready to chat
   with or edit in its sheet. If only the portrait fails to save, the card is
-  kept and the portrait can be tried again.
+  kept and the portrait can be tried again. Without a portrait, the card's
+  text leads, with a quiet No portrait line and Set up pictures when pictures
+  are off; Keep still names the kind of card being kept.
 - Nothing is kept before Keep, and only the card and the one chosen
   portrait after it. The description, the card, a direction for new art,
   the image prompt and the four portraits live in the open tab, and in the server for one request.
@@ -293,8 +305,8 @@ Version 1.0 holds everything below.
 
 **AI Rework**
 - From a saved character's sheet, **AI Rework** in the header (an icon on
-  phones) opens a composer: a popover on tablet and desktop, a bottom
-  drawer on phones. The owner writes what should change, picks a model
+  phones, also named in More actions) opens a composer: a popover on tablet
+  and desktop, a bottom drawer on phones. The owner writes what should change, picks a model
   (the saved one by default), its reasoning effort and the persona `{{user}}`
   is. Reasoning offers the model's supported levels and starts at Model
   default; an unsupported choice falls back to that default. The choice
@@ -350,14 +362,15 @@ Version 1.0 holds everything below.
   it writes sounds like the character talking, not prose.
 - The model answers with changes, each naming its field, the
   passage it replaces and a reason. They appear inline as tracked changes
-  while the model writes, in each field's place: struck and inserted words
-  (a removal stays struck in view, however long),
-  long unchanged stretches folded behind "Show N unchanged words", a large
-  rewrite as one inserted passage with "Show original", and each change's
-  reason with Accept and Reject at the end of its sentence. Lorebook
+  while the model writes, in each field's place: Removed and Proposed
+  passages on separate quiet faces at reading size, long removals folded
+  behind Show removed, and long unchanged stretches folded behind
+  "Show N unchanged words". Each change's reason follows it with Reject,
+  or Restore once rejected, always visible. Lorebook
   entries the changes touch, add or remove show above the lorebook's
   summary; a new entry is accepted or rejected whole. A bar under the sheet
-  counts the changes, steps through them with Previous and Next, lists the
+  counts the changes to apply and the ones it could not place as left out,
+  steps through them with Previous and Next, lists the
   ones that could not be matched (never applied) and offers Discard and
   Apply. Stop keeps what arrived for review.
 - While the model works and under review the fields are read-only, and
@@ -407,7 +420,8 @@ Version 1.0 holds everything below.
 **Personas**
 - Name, avatar and description. One default persona; optionally bind a
   persona to a character. Avatars go through the same pipeline as character
-  portraits.
+  portraits. The gallery says who new chats write as and offers Make default
+  under each other persona; its phone header keeps New below the full title.
 
 **Lorebooks**
 - A library of lorebooks beside the ones embedded in cards: create,
@@ -417,7 +431,8 @@ Version 1.0 holds everything below.
   in and, beside them, the characters it is linked to; then the books in
   character cards, which open in their card's editor and can be copied to
   the library as books of their own; then Events. One Find across the
-  column covers book and character names.
+  column covers book and character names. On phones the full title sits
+  above a labelled Import and New toolbar.
 - Link a book to any number of characters, up to 8 books per character.
   A character's chats read its embedded book and its linked books together,
   in link order; deleting a book or a character removes its links. Links
@@ -425,9 +440,13 @@ Version 1.0 holds everything below.
   is linked to, since an edit reaches all of them, and manages them; a
   character's sheet lists its linked books beside the one in its card,
   links one from the library or a new one, and unlinks one, which keeps
-  the book in the library.
+  the book in the library. Link a lorebook offers searchable Link and Unlink
+  rows; one successful action closes the picker and names the result in
+  place. New lorebook creates and links one without opening its editor.
 - An entry goes in one of three ways, each with its own mark wherever the
   entry shows: always, on its keywords, or by chance with a percentage.
+  The editor's entries lead the pane; scan depth, token budget and Chaining
+  wait under Book settings, with their current values in its summary.
 - Import SillyTavern World Info files or standalone card lorebooks and
   convert them to native data. Export and re-import Ephemera lorebook JSON.
   Reports say what was kept, changed and left out.
@@ -436,12 +455,17 @@ Version 1.0 holds everything below.
 - One-line instructions the story is given now and then, by chance, kept
   per user in one compact Events row at the end of the Lorebooks screen,
   after the library and the books in cards. The row arrives closed and says how many events there are and
-  how many are on; opened, it lists them. Each event has its instruction
+  how many are on; opened, it lists them. Events in the chat header opens
+  the same list without leaving the story, in a side sheet or a bottom
+  sheet on phones, where More holds Events. Events in chat and Events in
+  Lorebooks link the two views. Each event has its instruction
   (up to 500 characters, one line, macros filled as in the Author's Note),
   a chance per reply (0 to 100%, one decimal), a cooldown in replies (0 to
   1,000), an on/off switch and a scope: all characters, or chosen
   characters and cards carrying any chosen tag. A user keeps up to 200
-  events, newest first, and one event names up to 100 characters.
+  events, newest first, and one event names up to 100 characters. A new
+  event leads with its instruction; chance, quiet replies and scope are
+  summarized below it and edited under Advanced.
 - Each new reply for a character rolls the chance of every event that is
   on, in scope and not cooling down. Of the events that hit, exactly one,
   drawn at random, goes into that request as a system direction after the
@@ -450,8 +474,8 @@ Version 1.0 holds everything below.
   event out of the N replies after the one it fired on. A swipe or a
   regenerate rolls again; Continue, Write for me and the inspector's
   preview never roll, and a chat without a character has no events.
-- The chat shows nothing of an event; the prompt inspector shows the one a
-  request carried as "Event".
+- The story shows nothing of a firing event; the prompt inspector shows
+  the one a request carried as "Event".
 - The definitions are saved like characters; which event fired on which
   reply is chat content, kept only in the open tab and forgotten with the
   chat.
@@ -564,8 +588,8 @@ Version 1.0 holds everything below.
   its turns, which return to the story when they were folded. The
   inspector says when a prompt folded memories, and a preview when it
   would. While a memory is written the seam says so; a failure keeps the
-  turns live and offers Try again. A mark beside the context meter says
-  memory is on, with the count of remembered turns, and opens the memory
+  turns live and offers Try again. Memory in the chat header says
+  memory is on, with the count of remembered turns from tablet up, and opens the memory
   screen, whose Back then returns to
   the chat; it shows once the character's memory has loaded, and no
   memory is sent or written before.
@@ -579,7 +603,10 @@ Version 1.0 holds everything below.
   lists the memories newest first, a chapter folding the ones it gathers;
   each opens to edit its title, summary, cues and Always in the prompt, or
   to delete it. Remember now writes a memory of the open chat with this
-  character whatever its size.
+  character whatever its size. The header names Memory and the character;
+  on phones the switch keeps one status line, with its explanation under
+  What memory keeps. Notebook prose carries an edit cue and saves on Enter
+  or leaving the field, with Done on touch and save feedback beside the edit.
 - Settings > Memory & cast holds memory's settings: Open new chats where the story left
   off, on by default (off, the card's greeting opens every chat), the
   model memory calls use (the reply's
@@ -682,9 +709,14 @@ Version 1.0 holds everything below.
   each shown only when it holds something: Now (Last seen once she is
   away) leads with what she is doing, then her mood, outfit, clothing
   state, position and the rest of her state; then Looks, Character and
-  Intimate. Edit record shows every field in the same sections; Save keeps
-  the changes as the owner's corrections for this chat, a fixed field for
-  the whole chat and a state field until the keeper next answers. Revert
+  Intimate, with Looks and Intimate folded. Pressing a value edits it in
+  place; Enter or leaving the field saves, Done does the same on touch,
+  and Escape cancels without closing the record. More details offers fields
+  not yet recorded. Each saved edit shows feedback there and keeps the
+  owner's correction for this chat, a fixed field for the whole chat and
+  a state field until the keeper next answers. On phones the whole roster
+  opens with present people's records ready to edit, and away people's
+  records folded under their names. Revert
   takes a corrected field back to what was recorded. Remove from cast
   leaves her out of the chat's cast, for the narrator and the keeper too,
   and the roster says she was removed, with Undo, until the cast next
@@ -731,7 +763,9 @@ Version 1.0 holds everything below.
 - Sampler presets: model, max output tokens, temperature, top-p,
   frequency and presence penalty, seed, reasoning effort (low to maximum,
   as the model offers) where the model supports it. The context window is
-  the model's own, not a preset value; Settings can cap it per model.
+  the model's own, not a preset value; Settings can cap it per model. Each
+  sampler parameter keeps its label and value on one row, with a slider
+  below where offered and save feedback under the whole parameter.
 - Import SillyTavern Chat Completion preset JSON as native prompt and sampler
   presets, with recognized instructions converted into blocks, source templates
   and actions. The report names approximations and discarded settings. Valid
@@ -740,17 +774,35 @@ Version 1.0 holds everything below.
   JSON files. Native imports create only their own kind and retain their name,
   Author's Note, actions and templates. Exports wait for pending edits to save;
   a conflict or an oversized readable legacy item is explained inline.
+  The phone preset library keeps its full title above one labelled action
+  row: Import, New sampler and New prompt.
 - Characters, personas and presets autosave. When another tab saved the
   same one first, the save is refused and the sheet offers Reload or Keep
-  mine.
+  mine. Authoring fields show their own Saved feedback, which stays while
+  another field is edited; lasting saves and failures are reported in place.
 
 **Chat**
+- Persona and Sampler sit in one row of labelled choices under the composer
+  on every screen, using the same choices as Session. Session lists
+  Character and Persona first, then Sampler preset, Prompt preset and Model.
+  Explanations fold away; model and reasoning mismatches stay
+  visible. Choosing a sampler that names a model switches to that model.
+  Remove character starts a chat without one through the usual confirmation.
+  Session docks only when the story keeps its readable width beside it;
+  otherwise it opens as a sheet.
+- On phones the header names Cast, More and Session, with Memory directly
+  available once loaded while memory is on; More holds Events, Prompt and Clear chat. The
+  navigation button carries the mark and a menu cue, and its sheet also
+  offers the theme switch and Appearance.
 - Start from a character's greeting; swipe between alternate greetings.
   If a required character, persona or preset cannot load, the greeting
   waits with **Try again**.
 - Streaming replies with stop.
 - Regenerate, and swipes: step through alternate replies, swiping past the
-  last one generates a new one.
+  last one generates a new one. New reply stays separate from Previous and
+  Next in the action row directly below the latest reply's prose, above
+  scene pictures; the row keeps its place while the reply streams. A swipe
+  holds the turn's height until the replacement has laid out.
 - Edit or delete any message, delete a message and everything after it,
   or delete one alternate reply, each with Undo; continue a reply;
   impersonate (the model writes the user's next message into the composer).
@@ -791,7 +843,12 @@ Version 1.0 holds everything below.
   prose in a reading sans across the page and yours in the interface sans on
   a slip at the trailing edge, a room that leans
   faintly toward the portrait's colour, and the lamp's light travelling the
-  portrait's frame while they write.
+  portrait's frame while they write. The portrait and Cast move to a new
+  reply as soon as it starts, in a band above it on phones, without replaying
+  their entrance. The header title yields whenever the character's nameplate
+  is visible in the story, including before it sticks. Replacing a portrait
+  keeps the old image until the new one decodes; an image that cannot load
+  shows a quiet unavailable face.
 - **Picture this scene**: with a ComfyUI address saved, a button under the
   character's portrait, in the float and in the phone band (alone in its
   place when there is no portrait), paints one 2:3 picture of the moment.
@@ -826,11 +883,12 @@ Version 1.0 holds everything below.
   room before any reply. Continue clears the old reason while it writes and
   uses the new attempt's reason afterwards. A partial continuation leaves
   its cast snapshot stale until a complete reply can be processed.
-- A failed reply says why in the footer: the server could not be reached,
+- A failed reply says why in one sentence in the footer beside Try again:
+  the server could not be reached,
   the connection dropped, what came down it could not be read, or the
   provider answered with an error. One that
-  failed before any text leads its actions with Try again, which replaces
-  it in place; one cut off mid-stream keeps its text and says why it
+  failed before any text is retried in place; one cut off mid-stream keeps
+  its text and says why it
   stopped. A reply you stop says Stopped.
 - Prompt inspector: the exact prompt of the last request, with the model's
   own count, how much of it the provider's prompt cache served, and what
@@ -961,7 +1019,10 @@ notes are not scanned.
   The category is in the address (`/settings?section=memory`), so links
   open the right one. Every setting that changes behavior explains itself
   in an infotip beside its label. Choices save at once; a save that fails
-  or is refused is shown above whichever category is open.
+  or is refused is shown above whichever category is open. The palette
+  editor widens beside a sticky preview on desktop; smaller screens offer
+  Preview, and phones also keep a compact sample. The sample uses the chat's
+  nameplates, character prose and player slip.
 
 ### Prompt and lorebook behavior
 

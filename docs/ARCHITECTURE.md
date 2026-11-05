@@ -66,9 +66,9 @@ Major versions are architectural choices; exact versions live in
 | Server data | TanStack Query 5 | Fetching and caching persisted entities; UI settings read once per tab before the first render and saved through one serialized mutation |
 | Chat state | Zustand 5, no `persist` | In-memory chat tree with swipes. The thread subscribes to message ids; each turn reads its own message at its place in the thread, checked by id, so a store change costs a turn one lookup and a streaming reply re-renders only its turn |
 | Styling | Tailwind CSS 4 | CSS-first design tokens and utilities. Each colour palette defines every colour token once as a `light-dark()` pair, so the theme picks the scheme and `data-palette` on `<html>` (or on each half of a Settings swatch, beside that half's `color-scheme`, since the production build rewrites `light-dark()` into variables that resolve where a token is declared) only the colours; core's `PALETTES` lists them. The default, Tokyo Night (core's `DEFAULT_PALETTE`), needs no attribute: its block also carries `:root` and comes first, so every other palette overrides it by source order. Up to three custom palettes (`custom-1`..`custom-3`) are the same token set as hex pairs, which core's `customPaletteCss` writes as rules for both the server's `/api/palettes.css` and the browser's constructed stylesheet; the editor previews a draft the same way over the whole app, and core's `CONTRAST_FLOORS` are both the built-ins' test and the editor's warnings. Layout widths and container query thresholds are `--container-*` theme tokens; the three breakpoints (tablet, desktop, dock) are defined once in the theme, and the form-factor hook reads them from there; Session docks only past the dock breakpoint when the window also holds the story's readable width, the rail and the dock (their container and inset tokens), and is a sheet otherwise. Above full HD the root font size scales with the window's width and height, whichever allows less, to a quarter larger at 4K, so type, spacing and icons grow together. Corners, layers and type sizes are theme tokens too: `rounded-*` steps by role (written beside the radius tokens), named `--z-*` layers and the `text-*` scale; one `:focus-visible` outline draws keyboard focus, with `focus-ring-inset` (and the `row` utility) where a clip would cut it; field faces and the sheets' label grammar have one owner (`sheet/fields.ts`), and a unit test fails on an arbitrary corner, layer or type size, or an icon scaled off the set's drawn sizes |
-| Components | shadcn/ui on Base UI | Accessible primitives owned in the repo; the shadcn CLI runs on demand, not as a dependency. Menus scroll within the height their positioner finds. The AI Rework and New art phone sheets opt into Base UI's virtual keyboard handling, which keeps the focused field in view above a software keyboard. Every Find (the gallery, the lorebook library, a book's entries and the checklists) matches each word of the query anywhere in what it searches, ignoring case and accents, and every name order reads case and accents aside and numbers by value, in the reader's locale (`apps/web/src/lib/find.ts`) |
+| Components | shadcn/ui on Base UI | Accessible primitives owned in the repo; the shadcn CLI runs on demand, not as a dependency. `components/ui/editor-shell.tsx` owns responsive dialog/drawer editors and their header, scrolling body and footer, also used by working popovers; close comes last, and footer actions stay outside the scroller and above the safe area. `app/Header.tsx` owns screen and sheet header frames, back controls, titles and action slots. `components/ui/row-layout.ts` owns collection, entry and diagnostic row layouts and separate action columns; `row` owns interaction and inset focus. `InlineStatus` in `app/NoticeCard.tsx` owns compact feedback and error lines, with optional adjacent actions. Menus scroll within the height their positioner finds. The AI Rework, Events and responsive editor phone sheets opt into Base UI's virtual keyboard handling, which keeps the focused field in view above a software keyboard. Every Find (the gallery, the lorebook library, a book's entries and the checklists) matches each word of the query anywhere in what it searches, ignoring case and accents, and every name order reads case and accents aside and numbers by value, in the reader's locale (`apps/web/src/lib/find.ts`) |
 | Chat UI | AI Elements, Streamdown, remark-breaks, remark-smartypants, micromark-extension-directive | Thread scroll owner (Conversation); streaming Markdown rendered inert, a single newline a line break, straight quotes, dashes and ellipses set as typographic ones; word-level fade-in while streaming. Highlights are text directives (only the text form of the directive syntax is parsed) named by core's `HIGHLIGHT_TONES`, rendered as `<span data-tone>` (the sanitizer admits that attribute with those values only), so assistive technology reads the words alone, every other text directive restored as written, and `:thought[words]` (core's `THOUGHT_MARK`) rendered as `<span data-voice="thought">`; a remend handler closes an open highlight or thought while it streams and holds back a cue still arriving (core's `opensCue`); after sanitizing, a rehype plugin sets apart a story paragraph's cue (core's `splitCue`) and quoted speech and marks character lines for CSS |
-| Motion | Native CSS and View Transitions; Motion 13 for presence, gestures and layout | `styles.css` owns every duration, curve, delay and stagger as tokens; script reads them as they apply (`app/motion-tokens.ts`) and keeps no copy, and a unit test fails on a raw motion time elsewhere. Base UI owns its surfaces' presence through public render state and starting and ending styles; retained closing popups receive native `inert`. Docked Session uses a measured Collapsible panel to resize its layout slot. `NoticeSlot`, the AI Rework dock and Events Undo use Motion's `AnimatePresence` and `useIsPresent` to retain outgoing content and make it inert immediately. Dwell and Undo deadlines remain domain timers, separate from animation completion. Normal motion folds these measured layout slots away; reduced motion holds their full size through the closing fade. Expansion has one owner: a native `details` with `interpolate-size` and discrete `content-visibility`, or a Base UI Collapsible panel on the same timing (`components/ui/disclosure.tsx`). Critical `NoticeSlot` uses synchronous lean `domAnimation`; drag and layout scopes keep the cached lazy `domMax` bundle through `MotionScope` and `LazyMotion`. The character gallery's order and tag filters apply inside `startTransition` with a transition type, so React's `<ViewTransition>` glides the cards; a search applies at once. The creator's states and the portrait viewer start their view transitions by hand, since their state lives in an external store or their element stays mounted; the creator's completion carries the `creator-complete` transition type, under which the old page fades out before the new one fades in while the named frame and heading glide beneath the header's own group, and the viewer's carries the `portrait-viewer` type, under which the portrait is the only named element, so no other named part of the page lifts above the veil or the travelling art; Motion's drag swipes a reply on touch and slides alternates, and its layout animation glides reordered greetings and prompt blocks (reorders apply at once, never inside a transition), never in `AnimatePresence`'s `popLayout` mode or its view helpers, which inject `<style>` elements. A sheet's header title rises in once the sheet's own title has scrolled out of view: an `IntersectionObserver` on the sheet's scroller, watching that title, sets an attribute that drives an interruptible timed transition, never a scroll-linked one, so it never rests half faded (Chromium's compositor `timeline-trigger` crashed the tab when a block expanded while focus scrolled the sheet). Streamdown's animate plugin tags newly streamed words with CSS variables and Ephemera's own keyframes fade them in. Activity (Lamplight) is one `styles.css` section: an inline SVG rim whose rects measure 100 along the frame, so its dashes lap any frame at one speed, animated through a registered custom property; a hairline pass; and the mark's drip, whose playback rate changes in place through the Web Animations API while anything is written, so the loop never restarts. The rim's closure and fade on a finished piece of work also run through the Web Animations API, from `components/lamplight.tsx` |
+| Motion | Native CSS and View Transitions; Motion 13 for presence, gestures and layout | `styles.css` owns every duration, curve, delay and stagger as tokens; script reads them as they apply (`app/motion-tokens.ts`) and keeps no copy, and a unit test fails on a raw motion time elsewhere. Base UI owns its surfaces' presence through public render state and starting and ending styles; retained closing popups receive native `inert`. Drawers and their backdrops close on `--duration-panel-out`; under reduced motion drawers transition opacity alone, with no animated travel, height or filter. Docked Session uses a measured Collapsible panel to resize its layout slot. `NoticeSlot`, the AI Rework dock and Events Undo use Motion's `AnimatePresence` and `useIsPresent` to retain outgoing content and make it inert immediately. Dwell and Undo deadlines remain domain timers, separate from animation completion. Normal motion folds these measured layout slots away; reduced motion holds their full size through the closing fade. Expansion has one owner: a native `details` with `interpolate-size` and discrete `content-visibility`, or a Base UI Collapsible panel on the same timing (`components/ui/disclosure.tsx`). Critical `NoticeSlot` uses synchronous lean `domAnimation`; drag and layout scopes keep the cached lazy `domMax` bundle through `MotionScope` and `LazyMotion`. The character gallery's order and tag filters apply inside `startTransition` with a transition type, so React's `<ViewTransition>` glides the cards; a search applies at once. The creator's states and the portrait viewer start their view transitions by hand, since their state lives in an external store or their element stays mounted; the creator's completion carries the `creator-complete` transition type, under which the old page fades out before the new one fades in while the named frame and heading glide beneath the header's own group, and the viewer's carries the `portrait-viewer` type, under which the portrait is the only named element, so no other named part of the page lifts above the veil or the travelling art; Motion's drag swipes a reply on touch and slides alternates, holding the previous height until the replacement has laid out, and its layout animation glides reordered greetings and prompt blocks (reorders apply at once, never inside a transition), never in `AnimatePresence`'s `popLayout` mode or its view helpers, which inject `<style>` elements. A sheet's header title rises in once the sheet's own title has scrolled out of view: an `IntersectionObserver` on the sheet's scroller, watching that title, sets an attribute that drives an interruptible timed transition, never a scroll-linked one, so it never rests half faded (Chromium's compositor `timeline-trigger` crashed the tab when a block expanded while focus scrolled the sheet). Streamdown's animate plugin tags newly streamed words with CSS variables and Ephemera's own keyframes fade them in. Activity (Lamplight) is one `styles.css` section: an inline SVG rim whose rects measure 100 along the frame, so its dashes lap any frame at one speed, animated through a registered custom property; a hairline pass; and the mark's drip, whose playback rate changes in place through the Web Animations API while anything is written, so the loop never restarts. The rim's closure and fade on a finished piece of work also run through the Web Animations API, from `components/lamplight.tsx` |
 | Extras | Own icon set, Geist, Marcellus, Atkinson Hyperlegible Next | Icons drawn for Ephemera, variable typeface, inscriptional capitals for the wordmark only, Atkinson Hyperlegible Next, a variable reading sans drawn for legibility with a true italic, for the character's prose only; notices are inline or float over the content column, never toasts. The mark (a crescent and its amber lamp) is plain SVG in `apps/web/brand`; the favicon in `apps/web/public` is a heavier small-size cut whose own `prefers-color-scheme` rule switches it to the dark palette (the interface draws the same cut as `MarkIcon`, and the brand's full cut where the mark is shown large), with ICO and touch icon fallbacks. Illustrations: ten engraved pieces in `apps/web/src/assets/illustrations`, each a night file (the lit lines) and a day file (the ink of a print), bundled as WebP and used as luminance masks (`mask-mode: luminance`) by one `Illustration` component (`components/illustration.tsx`) and the `illustration` utility in `styles.css`; the fill is palette roles only (reed lines by day; ink lines and a soft dusk glow at the lamp by night), so every built-in and custom palette recolours the art, and the `dark` variant picks the file, so only the shown scheme's file loads. Portrait tint: the chat character's thumb drawn to a 24 by 36 canvas in the browser, a chroma-weighted OKLab hue from its colourful mid-light pixels (none when under 8 % are), and the surface tokens mixed in OKLCH toward that hue at their own lightness by a registered `--tint-mix` (at most 10 % light, 14 % dark, then scaled by the square of how much the pixels' hues agree) that fades in and out on the root; held in component state, nothing persisted or sent |
 | Tracked changes | jsdiff (`diff`) 8 | AI Rework's word diffs in the browser: `diffWordsWithSpace` per change, whitespace kept, memoized and cleared with the review |
 | Dates | dayjs with `utc`, `timezone`, `duration` and `relativeTime` | Date macros, UTC offsets and relative differences in `packages/core`; naive dates use the browser's zone, including DST. It reaches the browser in the shared API chunk |
@@ -82,6 +82,33 @@ Major versions are architectural choices; exact versions live in
 | Quality | TypeScript 7, Biome 2, Vitest 5, Playwright | Types, lint and format, unit tests, browser flows and the retention test matrix |
 
 ### Editor arrival and navigation
+
+`sheet/fields.ts` owns boxed, single-line, compact, title, request and open
+prose faces, their shared focus treatment, review passages and heading and
+label roles. `sheet/FieldFeedback.tsx` gives authoring fields their own save
+state through the sheet's context; an edited field keeps its Saved note
+while another is edited. `sheet/InlineSave.tsx` renders local save feedback,
+delaying the pending word for fast saves. `sheet/ProseField.tsx` owns the
+open prose edit cue and Enter or blur to finish, with Done on touch; memory
+uses it and flushes the notebook on blur.
+
+Phone collection headers keep the full title above a labelled action row.
+Character tiles use the portrait and full-width name as the Chat target,
+with Edit always visible beside the metadata below. The phone navigation
+sheet includes theme and Appearance controls. In chat, Memory is a direct
+header action and More holds Events, Prompt and Clear chat; Events opens
+`chat/EventsSheet.tsx`, reusing `events/EventsSection.tsx` in a side sheet or
+phone bottom sheet. Links open the same Events list in chat or Lorebooks.
+The event editor leads with the instruction and folds timing and scope
+under Advanced. Character lorebook linking uses the shared choice picker's
+Link and Unlink row actions; success closes it and reports the named book
+in place. The phone character sheet groups Sections, Link a lorebook and
+Details below its compact identity.
+
+Memory keeps its title and the character's name in the header; phones fold
+the switch's longer explanation under What memory keeps. The lorebook
+editor folds scan depth, budget and Chaining under Book settings, with
+their current values in the summary, so the entries lead the pane.
 
 The seven editor routes for characters, personas, prompt and sampler presets,
 library lorebooks, character lorebooks and memory load existing records before
@@ -101,6 +128,18 @@ Back remains available. A new character or persona starts locally; its first
 save keeps the mounted editor under its logical saved pathname, so replacing
 `/new` with the created id preserves typing and focus. Search-only book entry
 navigation stays local and does not fetch the book again.
+
+The chat title yields while any character nameplate is visible in the
+story, stuck or not; `Thread` observes them against its scroller and sets
+`data-name-shown`. The latest reply owns the portrait and Cast on every
+screen, including while waiting for text; moving them there does not replay
+their entrance. Focus on the portrait or its viewer holds that placement
+until focus leaves. Reply actions sit below the prose inside the turn,
+ahead of scene pictures, with a reserved row while streaming. Latest has
+its own reserved row on phones and floats over the story from tablet up.
+`portraits/Portrait.tsx` retains the decoded image until its replacement
+decodes, including across sign-in renewal, and supplies an unavailable face
+instead of a broken image.
 
 ## Generation flow
 
@@ -890,6 +929,13 @@ section and the queries in `apps/web/src/cast/`. The register, its
 snapshots, the owner's corrections, the acknowledged sheet and every
 keeper request and answer are chat content.
 
+The panel edits each projected value in place: Enter or blur commits one
+correction, Escape cancels it, and touch offers Done. Empty fields wait
+under More details, with Looks and Intimate folded. A keeper update landing
+mid-edit leaves the draft intact and reports it. Each committed field shows
+local save feedback and its Revert action. The phone roster opens present
+people's records directly and folds the records of away people under their names.
+
 1. **Entries.** An entry has an id assigned once by an injected id
    function, a role (`principal` or `minor`), a fixed anchor (the name,
    gender and the record's fields), earlier names (`aka`, at most four),
@@ -1613,7 +1659,11 @@ content's path: the tab's memory and one request in the server.
   Portraits are decoded from their bytes in memory with WebCodecs'
   `ImageDecoder`, never through a Blob the browser could page to disk, and
   drawn on canvas, so the policy keeps `img-src 'self'` with no object URL
-  and no `blob:` or `data:` source. Until a batch is on show, Keep reads "Keep without portrait". Card text renders as plain text or through the tightened renderer.
+  and no `blob:` or `data:` source. A fresh visit opens Subject's Describe
+  form; Change opens the kind choices, and Brainstorm is available from
+  Describe. Without a portrait the showcase leads with the card text and
+  compact art status, while Keep names the card's kind. Card text renders
+  as plain text or through the tightened renderer.
   A request an expired sign-in refused is sent once more after renewal.
   The brainstorm slice (`brainstorm-slice.ts`) holds the request, the list
   on show, the round being written, the earlier lists, the pick with the
@@ -1822,11 +1872,16 @@ AI Rework:
   the sheet, a reload and `pagehide` empty it all, the word diff memo
   included. While a run works or is under review the sheet's `edit()`
   ignores every call and the fields are read-only. Tracked views
-  (`tracked.ts`) cut each field's original text at its changes, fold
-  unchanged runs over 60 words to the sentences beside a change, show a
-  change whose find and replacement pass 80 words and keep under 40 % of
-  the find as one inserted passage (a removal stays struck inline), and stand each reason row at the end of the sentence
-  holding its change; everything renders as text nodes. Apply writes the
+  (`tracked.ts`) cut each field's original text at its changes and fold
+  unchanged runs over 60 words to the sentences beside a change.
+  `ChangeRuns` shows Removed and Proposed passages on separate field faces;
+  a removal over 160 characters or containing a line break folds behind
+  Show removed. Each reason follows its proposal with one always-visible
+  Reject or Restore action; new changes start accepted. Tags and keys group
+  their removed and proposed chips under the same labels. The dock counts
+  accepted, placeable changes to apply and unplaceable changes left out,
+  and Previous and Next focus the change blocks. Everything renders as text
+  nodes. Apply writes the
   accepted changes into the sheet's draft (the lorebook included) and the
   autosave saves them; Undo restores the fields Apply wrote, skipping any
   typed in since.
@@ -2008,12 +2063,20 @@ The root route loads the settings before the first render. The chat store
 reads the model, sampler preset and persona from them when sending, and the
 creator, the studio and Picture this scene read the image prompt model when
 a batch or picture starts; each
-user turn keeps the persona it was sent as, in memory. Session, Settings and
-the theme switch change them through one mutation, applied in the tab at
+user turn keeps the persona it was sent as, in memory. Session, the labelled
+Persona and Sampler choices under the composer, Settings and the theme
+switch change them through one mutation, applied in the tab at
 once and saved in order. A save that fails or is refused is said inline on
 Settings and, wherever else the choice was made, in a notice over the
 content column. A change made before the settings first loaded is laid over
-them once they do. The server sets the saved theme and palette on the app
+them once they do. `chat/ChatChoices.tsx` shares the persona selector and
+sampler choice owner with Session; selecting a sampler with a model changes
+both settings together. Session orders Character, Persona, Sampler preset,
+Prompt preset and Model, folding explanations but keeping model and
+reasoning mismatches visible. The palette editor widens its Settings frame
+on desktop for a sticky sample beside the fields, offers Preview on smaller
+screens and a compact live sample on phones, using the chat's nameplates,
+prose and slip. The server sets the saved theme and palette on the app
 shell's `<html>` (`data-theme`, `data-palette`) with Bun's `HTMLRewriter`,
 and links the requester's custom palettes as `/api/palettes.css` when there
 are any (the policy allows no inline style), so a reload paints them before
