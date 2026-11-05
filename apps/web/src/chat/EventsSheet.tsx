@@ -32,7 +32,10 @@ export function EventsSheet({
   const close = async () => {
     if (closing.current) return;
     closing.current = true;
-    const saved = await (saving.current?.flush() ?? Promise.resolve(true)).catch(() => false);
+    let saved: boolean;
+    do {
+      saved = await (saving.current?.flush() ?? Promise.resolve(true)).catch(() => false);
+    } while (saved && saving.current?.hasUnsaved());
     closing.current = false;
     if (saved) onOpenChange(false);
     else setWarned(true);

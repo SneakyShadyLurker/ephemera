@@ -8,6 +8,7 @@ import {
   NextIcon,
   PreviousIcon,
   RegenerateIcon,
+  WriteForMeIcon,
 } from "@/components/icons";
 import { MoreButton } from "@/components/more-button.tsx";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ import { type AssistantMessage, canGenerateAlternate, shownReply } from "./store
 /** Compact icon buttons for message actions; 44px on touch. */
 const ICON = "size-11";
 const LABELLED =
-  "size-11 gap-1.5 p-0 text-note touch:p-0 @min-[22rem]/reply-actions:w-auto @min-[22rem]/reply-actions:px-1.5";
+  "size-11 gap-1.5 p-0 text-note touch:p-0 @min-[22rem]/reply-actions:w-auto @min-[22rem]/reply-actions:px-1.5 touch:@min-[22rem]/reply-actions:px-1.5";
 /** The reply footer's occupied slot, also reserved while its controls wait for a reply. */
 export const REPLY_ACTION_ROW = "@container/reply-actions flex h-11 items-center gap-1";
 
@@ -266,7 +267,7 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
       {newReply}
       {continuing ? (
         <p className="flex size-11 shrink-0 items-center justify-center text-note text-reed @min-[22rem]/reply-actions:w-auto @min-[22rem]/reply-actions:px-1.5">
-          <NextIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
+          <WriteForMeIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
           <span className="sr-only @min-[22rem]/reply-actions:not-sr-only">Continuing…</span>
         </p>
       ) : (
@@ -278,7 +279,7 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
               onClick={() => void chatStore.getState().continueReply()}
               className={LABELLED}
             >
-              <NextIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
+              <WriteForMeIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
               <span className="sr-only @min-[22rem]/reply-actions:not-sr-only">Continue</span>
             </Button>
           </Tooltip>

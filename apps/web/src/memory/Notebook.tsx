@@ -232,7 +232,6 @@ export function NotebookEditor({
         </label>
         <ProseField
           id={situationId}
-          saveStatus={saveStatus}
           value={fields.name}
           readOnly={held}
           aria-busy={writing}
@@ -250,7 +249,6 @@ export function NotebookEditor({
         dispatch={dispatch}
         source={source}
         onChange={(opening) => onChange({ opening })}
-        saveStatus={saveStatus}
       />
       <Lines
         label="Relationships"
@@ -287,7 +285,6 @@ export function NotebookEditor({
       />
       <CastLines
         lines={fields.cast}
-        saveStatus={saveStatus}
         readOnly={held}
         pending={writing}
         onChange={(cast) => onChange({ cast })}
@@ -324,7 +321,6 @@ function OpeningField({
   dispatch,
   source,
   onChange,
-  saveStatus,
 }: {
   opening: string;
   readOnly: boolean;
@@ -332,7 +328,6 @@ function OpeningField({
   dispatch: (event: OpeningWriteEvent) => void;
   source: OpeningSource | undefined;
   onChange: (opening: string) => void;
-  saveStatus?: SaveStatus | undefined;
 }) {
   const fieldId = useId();
   const helpId = useId();
@@ -440,7 +435,6 @@ function OpeningField({
         <div className="relative grid">
           <ProseField
             id={fieldId}
-            saveStatus={saveStatus}
             value={opening}
             readOnly={readOnly || writing}
             aria-busy={writing}
@@ -589,7 +583,6 @@ function Lines({
                 className="group/line grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-1 border-rush border-b py-1"
               >
                 <ProseField
-                  saveStatus={saveStatus}
                   onBlur={() => void onCommit?.()}
                   ref={(element) => {
                     fields.current[at] = element;
@@ -666,13 +659,11 @@ const detailText = (person: CastLinePerson, field: CastAnchorField) =>
  */
 function CastLines({
   lines: list,
-  saveStatus,
   readOnly,
   pending,
   onChange,
 }: {
   lines: string[];
-  saveStatus?: SaveStatus | undefined;
   readOnly: boolean;
   /** Held while the opening is written. */
   pending: boolean;
@@ -745,7 +736,6 @@ function CastLines({
                   {person === null ? (
                     <div className="flex min-w-0 items-start gap-1">
                       <ProseField
-                        saveStatus={saveStatus}
                         ref={(element) => {
                           rows.current[at] = element;
                         }}

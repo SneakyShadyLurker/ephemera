@@ -94,10 +94,37 @@ for (const width of [320, 360]) {
     await expect(replyCounter(page)).toContainText("2 / 2");
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expectComposerAndActionsFit(page, width);
+    const continueButton = replyActions(page).getByRole("button", {
+      name: "Continue",
+      exact: true,
+    });
+    const nextIcon = await replyActions(page)
+      .getByRole("button", { name: "Next reply", exact: true })
+      .locator("svg")
+      .innerHTML();
+    expect(await continueButton.locator("svg").innerHTML()).not.toBe(nextIcon);
+    await chooseModel(page, "mock-slow");
     await replyActions(page).getByRole("button", { name: "Continue", exact: true }).click();
     await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    const reserved = await lastReply(page)
+      .locator("[data-reply-actions-reserved]")
+      .evaluate((row) => {
+        const rect = row.getBoundingClientRect();
+        return {
+          status: row.closest("[data-message]")?.getAttribute("data-status"),
+          left: rect.left,
+          right: rect.right,
+          height: rect.height,
+          buttons: row.querySelectorAll("button").length,
+        };
+      });
+    expect(reserved.status).toBe("streaming");
+    expect(reserved.height).toBeGreaterThanOrEqual(44);
+    expect(reserved.left).toBeGreaterThanOrEqual(0);
+    expect(reserved.right).toBeLessThanOrEqual(width);
+    expect(reserved.buttons).toBe(0);
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
     await expectComposerAndActionsFit(page, width);
-    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   });
 }
 
@@ -222,6 +249,20 @@ test.describe("on a touch phone", () => {
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expectComposerAndActionsFit(page, 390);
+    await page.setViewportSize({ width: 480, height: 844 });
+    await expectComposerAndActionsFit(page, 480);
+    for (const name of ["New reply", "Continue"]) {
+      const padding = await replyActions(page)
+        .getByRole("button", { name, exact: true })
+        .evaluate((button) => {
+          const style = getComputedStyle(button);
+          return [Number.parseFloat(style.paddingLeft), Number.parseFloat(style.paddingRight)];
+        });
+      expect(
+        padding.every((side) => side > 0),
+        `${name} label has side padding`,
+      ).toBe(true);
+    }
   });
 
   test("the story's tail stays in view when the viewport shrinks", async ({ page }) => {

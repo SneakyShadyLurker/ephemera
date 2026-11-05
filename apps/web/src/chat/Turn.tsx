@@ -428,7 +428,7 @@ function ReplyTurn({
                   )}
                 >
                   {streaming ? (
-                    <div className={REPLY_ACTION_ROW} />
+                    <div data-reply-actions-reserved="" className={REPLY_ACTION_ROW} />
                   ) : message.greeting ? (
                     <GreetingActions message={message} />
                   ) : (

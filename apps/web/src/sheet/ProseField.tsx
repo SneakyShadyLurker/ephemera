@@ -2,7 +2,6 @@ import { type ComponentProps, useRef, useState } from "react";
 import { EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import type { SaveStatus } from "./autosave.ts";
 
 /** The open prose face keeps a quiet editing cue even before focus. */
 export function ProseField({
@@ -13,9 +12,8 @@ export function ProseField({
   onBlur,
   onPointerDown,
   onKeyDown,
-  saveStatus: _saveStatus,
   ...props
-}: ComponentProps<"textarea"> & { saveStatus?: SaveStatus | undefined }) {
+}: ComponentProps<"textarea">) {
   const [editing, setEditing] = useState(false);
   const field = useRef<HTMLTextAreaElement | null>(null);
   const settledFocus = useRef(false);

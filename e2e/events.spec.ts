@@ -58,25 +58,38 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 
-test("closing Events immediately saves its edit before the drawer leaves", async ({
+test("closing Events saves edits made while its close save is waiting", async ({
   page,
   request,
 }) => {
   await freshChat(request);
   const original = "The lamp flickers.";
   const edited = "The lamp flickers twice.";
-  await createEventViaApi(request, original);
-  await page.goto("/lorebooks");
-  await openEvents(page);
-  await page.getByRole("link", { name: "Events in chat", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "Events", exact: true });
-  await sheet.getByRole("button", { name: original }).click();
-  await sheet.getByRole("textbox", { name: "Instruction" }).fill(edited);
-  await page.keyboard.press("Escape");
-  await expect(sheet).toHaveCount(0);
-  expect((await storedEvents(request))[0]?.text).toBe(edited);
-  await page.getByRole("button", { name: "Events", exact: true }).click();
-  await expect(sheet.getByRole("button", { name: edited })).toBeVisible();
+  const later = " Then it goes dark.";
+  const id = await createEventViaApi(request, original);
+  const held = await holdAnswer(page, id, "PATCH");
+  try {
+    await page.goto("/lorebooks");
+    await openEvents(page);
+    await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+    await sheet.getByRole("button", { name: original }).click();
+    const instruction = sheet.getByRole("textbox", { name: "Instruction" });
+    await instruction.fill(edited);
+    await page.keyboard.press("Escape");
+    await held.committed;
+    await expect(sheet).toBeVisible();
+    await instruction.press("End");
+    await instruction.pressSequentially(later);
+    await expect(instruction).toHaveValue(edited + later);
+    held.release();
+    await expect(sheet).toHaveCount(0);
+    expect((await storedEvents(request))[0]?.text).toBe(edited + later);
+    await page.getByRole("button", { name: "Events", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: edited + later })).toBeVisible();
+  } finally {
+    held.release();
+  }
 });
 
 test("a failed save keeps Events and its draft open when dismissed", async ({ page, request }) => {
