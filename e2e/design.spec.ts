@@ -3050,7 +3050,7 @@ test("an address that leads nowhere says so and leads back to the story", async 
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });
 
-for (const width of [390, 1280]) {
+for (const width of [360, 390, 1280]) {
   test(`at ${width}px a sheet's header title rises in once the name scrolls away and never rests half faded`, async ({
     page,
   }) => {
@@ -3086,6 +3086,15 @@ for (const width of [390, 1280]) {
     }
     await scrollTo(400);
     await expect.poll(opacity).toBe(1);
+    const status = page.locator("header").getByText("Saved", { exact: true });
+    await expect(status).toHaveCount(1);
+    await expect(status).toBeVisible();
+    const fit = await title.evaluate((node) => {
+      const row = node.closest("header")?.firstElementChild?.getBoundingClientRect();
+      const rect = node.getBoundingClientRect();
+      return !!row && rect.top >= row.top && rect.bottom <= row.bottom;
+    });
+    expect(fit).toBe(true);
     await scrollTo(0);
     await expect.poll(opacity).toBe(0);
   });

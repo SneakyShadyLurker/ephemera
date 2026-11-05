@@ -206,15 +206,20 @@ test.describe("sign-in expiry", () => {
     expect(console.join("\n")).not.toContain("Inspector-");
   });
 
-  test("a screen whose code cannot load says so and never reloads the tab", async ({
+  test("a failed screen returns to the story and reloads only with the owner's guarded action", async ({
     page,
     context,
   }) => {
     // Hashed chunk names change with every build: the Settings screen's is the one with its copy.
+    let blockChunk = true;
+    let failedFetches = 0;
     await context.route(`${APP_ORIGIN}/assets/settings-*.js`, async (route) => {
       const response = await route.fetch();
       const body = await response.text();
-      if (body.includes("Starting a chat")) return route.abort();
+      if (blockChunk && body.includes("Starting a chat")) {
+        failedFetches++;
+        return route.abort();
+      }
       return route.fulfill({ response, body });
     });
     await openChat(page, "mock-fast");
@@ -222,23 +227,46 @@ test.describe("sign-in expiry", () => {
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await page.evaluate(() => Object.assign(window, { kept: true }));
     let dialogs = 0;
+    let allowReload = false;
     page.on("dialog", (dialog) => {
       dialogs++;
-      void dialog.dismiss();
+      expect(dialog.type()).toBe("beforeunload");
+      void (allowReload ? dialog.accept() : dialog.dismiss());
     });
     const main = page.getByRole("navigation", { name: "Main" });
     await main.getByRole("link", { name: "Settings" }).click();
     // The browser keeps a failed module fetch until a reload, so nothing offers a futile retry.
     await expect(page.getByRole("alert")).toContainText(
-      "a reload brings the screen back and ends the chat",
+      "Its code did not arrive, and only a reload brings it back. Your chat is still here.",
     );
     await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
     await expect(main).toBeVisible();
     expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBe(true);
     expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
     expect(dialogs).toBe(0);
-    await main.getByRole("link", { name: "Chat" }).click();
+    const fetchesBeforeRecovery = failedFetches;
+    await page.getByRole("link", { name: "Back to the story" }).click();
     await expect(turns(page)).toHaveCount(2);
+    expect(dialogs).toBe(0);
+    await main.getByRole("link", { name: "Settings" }).click();
+    const reload = page.getByRole("button", { name: "Reload and end the chat" });
+    await expect(reload).toBeVisible();
+    expect(failedFetches).toBe(fetchesBeforeRecovery);
+    // Cancelling the existing unload guard keeps the tab and its chat untouched.
+    await reload.click();
+    await expect.poll(() => dialogs).toBe(1);
+    expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBe(true);
+    await page.getByRole("link", { name: "Back to the story" }).click();
+    await expect(turns(page)).toHaveCount(2);
+    await main.getByRole("link", { name: "Settings" }).click();
+    blockChunk = false;
+    allowReload = true;
+    await reload.click();
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    expect(dialogs).toBe(2);
+    expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBeUndefined();
+    await main.getByRole("link", { name: "Chat" }).click();
+    await expect(turns(page)).toHaveCount(0);
   });
 
   test("a tab from an earlier build offers a reload and keeps the chat", async ({

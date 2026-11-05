@@ -241,6 +241,23 @@ for (const { name, width, height, scheme } of [
     ]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      if (path === `/presets/prompt/${promptId}`) {
+        const add = page.getByRole("button", { name: "Add block", exact: true });
+        await expect(add).toHaveCount(1);
+        const position = await add.evaluate((button) => {
+          const help = button.parentElement?.parentElement?.querySelector("p");
+          const list = document.querySelector('[aria-label="Blocks in send order"]');
+          if (!help || !list) throw new Error("No blocks help or list");
+          return {
+            afterHelp: !!(help.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING),
+            beforeList: !!(button.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING),
+            belowHelp: button.getBoundingClientRect().top >= help.getBoundingClientRect().bottom,
+          };
+        });
+        expect(position.afterHelp).toBe(true);
+        expect(position.beforeList).toBe(true);
+        if (width === 390) expect(position.belowHelp).toBe(true);
+      }
       await expectNoOverflow(page);
       expect(await seriousAxeViolations(page), path).toEqual([]);
     }

@@ -365,14 +365,15 @@ Version 1.0 holds everything below.
 - The model answers with changes, each naming its field, the
   passage it replaces and a reason. They appear inline as tracked changes
   while the model writes, in each field's place: Removed and Proposed
-  passages on separate quiet faces at reading size, long removals folded
+  passages at reading size within the field's one frame, long removals folded
   behind Show removed, and long unchanged stretches folded behind
   "Show N unchanged words". Each change's reason follows it with Reject,
-  or Restore once rejected, always visible. Lorebook
+  or Restore once rejected, always visible. Rejected changes label the original
+  Kept and the proposal Rejected, or Not added for a pure insertion. Lorebook
   entries the changes touch, add or remove show above the lorebook's
   summary; a new entry is accepted or rejected whole. A bar under the sheet
-  counts the changes to apply and the ones it could not place as left out,
-  steps through them with Previous and Next, lists the
+  counts the changes to apply and the rejected changes separately,
+  steps through them with Previous and Next and a position counter, lists the
   ones that could not be matched (never applied) and offers Discard and
   Apply. Stop keeps what arrived for review.
 - While the model works and under review the fields are read-only, and
@@ -1023,7 +1024,7 @@ notes are not scanned.
   in an infotip beside its label. Choices save at once; a save that fails
   or is refused is shown above whichever category is open. The palette
   editor widens beside a sticky preview on desktop; smaller screens offer
-  Preview, and phones also keep a compact sample. The sample uses the chat's
+  Preview, and phones and tablets also keep a compact sample. The sample uses the chat's
   nameplates, character prose and player slip.
 
 ### Prompt and lorebook behavior

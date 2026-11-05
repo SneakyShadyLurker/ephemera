@@ -225,10 +225,15 @@ export function SheetHeader({
       titleReplacement={
         failing ? <SaveState status={status} creating={creating} noun={noun} short /> : undefined
       }
+      subtitle={
+        phone && !failing ? (
+          <SaveState status={status} creating={creating} noun={noun} short />
+        ) : undefined
+      }
       direct={phone ? direct : undefined}
     >
-      {!failing && (
-        <span className="px-2 max-tablet:sr-only">
+      {!phone && (
+        <span className="px-2">
           <SaveState status={status} creating={creating} noun={noun} />
         </span>
       )}

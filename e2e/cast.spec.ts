@@ -340,6 +340,89 @@ test("an update starting under the phone's band lights its hairline and says Upd
   await expect(castUpdating(page)).toHaveCount(0);
 });
 
+test("reduced-motion phone Cast names hold their place through streaming and Updating", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await castChat(request);
+  await seeded(page);
+  await chooseModel(page, "mock-slow");
+  const release = await hold(page, "**/api/cast/update");
+  const sampling = page.evaluate(
+    () =>
+      new Promise<
+        {
+          x: number;
+          y: number;
+          headingWidth: number;
+          streaming: boolean;
+          updating: boolean;
+          stale: boolean;
+        }[]
+      >((resolve) => {
+        const frames: {
+          x: number;
+          y: number;
+          headingWidth: number;
+          streaming: boolean;
+          updating: boolean;
+          stale: boolean;
+        }[] = [];
+        const start = performance.now();
+        const sample = () => {
+          const panel = [...document.querySelectorAll<HTMLElement>("[data-cast]")].find(
+            (node) => node.getBoundingClientRect().width > 0,
+          );
+          const name = panel?.querySelector("[data-cast-name]");
+          const heading = panel?.firstElementChild?.firstElementChild;
+          const reply = [...document.querySelectorAll('[data-message][data-role="assistant"]')].at(
+            -1,
+          );
+          if (panel && name && heading) {
+            const bounds = panel.getBoundingClientRect();
+            const rect = name.getBoundingClientRect();
+            const frame = {
+              x: rect.left - bounds.left,
+              y: rect.top - bounds.top,
+              headingWidth: heading.getBoundingClientRect().width,
+              streaming: reply?.getAttribute("data-status") === "streaming",
+              updating: panel.querySelector("[data-cast-updating]") !== null,
+              stale: panel.textContent?.includes("As of the previous reply") ?? false,
+            };
+            frames.push(frame);
+            if (frame.updating) return resolve(frames);
+          }
+          if (performance.now() - start > 15_000) return resolve(frames);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+  try {
+    // No marker: the keeper returns the same names before and after this reply.
+    await send(page, "Lamp without a marker.");
+    const frames = await sampling;
+    const streaming = frames.filter((frame) => frame.streaming);
+    expect(streaming.length).toBeGreaterThan(2);
+    expect(streaming.some((frame) => frame.stale)).toBe(false);
+    expect(frames.some((frame) => frame.updating)).toBe(true);
+    expect(new Set(frames.map(({ x, y, headingWidth }) => `${x},${y},${headingWidth}`)).size).toBe(
+      1,
+    );
+    await expect(castUpdating(page)).toBeVisible();
+    const before = await castPanel(page).locator("[data-cast-name]").first().boundingBox();
+    release();
+    await expect(castUpdating(page)).toHaveCount(0);
+    const after = await castPanel(page).locator("[data-cast-name]").first().boundingBox();
+    expect(after?.x).toBe(before?.x);
+    expect(after?.y).toBe(before?.y);
+  } finally {
+    release();
+  }
+});
+
 test("the narrator is sent the whole cast, and the inspector shows its block, its state line, the counts and the keeper", async ({
   page,
   request,

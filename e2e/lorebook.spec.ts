@@ -456,6 +456,27 @@ for (const { name, width, height, scheme } of [
 
     await page.goto(`/characters/${id}/lorebook`);
     await expect(entries(page)).toBeVisible();
+    const summary = page.locator("summary").filter({ hasText: "Book settings" });
+    await expect(summary).toContainText("Last 2 messages, default budget, chaining on");
+    const answer = summary.getByText("Last 2 messages, default budget, chaining on", {
+      exact: true,
+    });
+    const summaryFit = await answer.evaluate((node) => {
+      const bounds = node.closest("summary")?.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const lines = [...range.getClientRects()];
+      return {
+        clipped: node.scrollWidth > node.clientWidth,
+        contained:
+          !!bounds &&
+          lines.every((line) => line.left >= bounds.left && line.right <= bounds.right + 1),
+        ellipsis: getComputedStyle(node).textOverflow,
+      };
+    });
+    expect(summaryFit.clipped).toBe(false);
+    expect(summaryFit.contained).toBe(true);
+    expect(summaryFit.ellipsis).not.toBe("ellipsis");
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
 

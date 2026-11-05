@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { uniqueName } from "./support/cards.ts";
 import {
   createCharacterViaApi,
+  createLorebookViaApi,
   createPersonaViaApi,
   createPresetViaApi,
   expectNoOverflow,
@@ -9,6 +10,102 @@ import {
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { expect, test, unsafe } from "./support/test.ts";
+
+for (const kind of ["character", "persona", "prompt", "lorebook"] as const) {
+  test(`the ${kind} header has one readable save state on phones and desktop`, async ({ page }) => {
+    const name = uniqueName("Mara Voss");
+    let path: string;
+    let api: string;
+    if (kind === "character") {
+      const id = await createCharacterViaApi(page.request, name);
+      path = `/characters/${id}`;
+      api = `/api/characters/${id}`;
+    } else if (kind === "persona") {
+      const id = await createPersonaViaApi(page.request, name);
+      path = `/personas/${id}`;
+      api = `/api/personas/${id}`;
+    } else if (kind === "lorebook") {
+      const id = await createLorebookViaApi(page.request, name);
+      path = `/lorebooks/${id}`;
+      api = `/api/lorebooks/${id}`;
+    } else {
+      const { presets } = await (await page.request.get("/api/presets/prompt")).json();
+      const id = await createPresetViaApi(page.request, "prompt", {
+        blocks: presets[0].blocks,
+        name,
+      });
+      path = `/presets/prompt/${id}`;
+      api = `/api/presets/prompt/${id}`;
+    }
+    await page.goto(path);
+    const header = page.locator("main header");
+    for (const width of [360, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const status = header.getByText("Saved", { exact: true });
+      await expect(status).toHaveCount(1);
+      await expect(status).toBeVisible();
+      // Hidden copies can still announce; count the complete alert subtree too.
+      await expect(header.locator('[role="alert"]')).toHaveCount(1);
+      const geometry = await status.evaluate((node) => {
+        const title = node.closest("header")?.querySelector("h1");
+        if (!title) throw new Error("No sheet title");
+        const row = title.closest("header")?.firstElementChild?.getBoundingClientRect();
+        const heading = title.getBoundingClientRect();
+        // The hidden title is translated during arrival; measure the slot it occupies.
+        const shift = Number.parseFloat(getComputedStyle(title).translate.split(" ")[1] ?? "0");
+        const state = (node.parentElement?.parentElement ?? node).getBoundingClientRect();
+        return {
+          row: row && { top: row.top, bottom: row.bottom, height: row.height },
+          title: { top: heading.top - shift, bottom: heading.bottom - shift },
+          status: { top: state.top, bottom: state.bottom, left: state.left },
+          titleLeft: heading.left,
+        };
+      });
+      expect(geometry.row?.height).toBe(56);
+      expect(geometry.title.top).toBeGreaterThanOrEqual(geometry.row?.top ?? Infinity);
+      expect(geometry.status.bottom).toBeLessThanOrEqual(geometry.row?.bottom ?? 0);
+      if (width < 768) {
+        expect(geometry.status.top).toBeGreaterThanOrEqual(geometry.title.bottom);
+        expect(geometry.status.left).toBeCloseTo(geometry.titleLeft, 0);
+      } else expect(geometry.status.top).toBeLessThan(geometry.title.bottom);
+    }
+    await page.setViewportSize({ width: 360, height: 900 });
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**${api}`, async (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback();
+      await pending;
+      return route.abort();
+    });
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill(`${name} edited`);
+    await expect(header.getByText("Saving", { exact: true })).toHaveCount(1);
+    await expect
+      .poll(() =>
+        header.getByText("Saving", { exact: true }).evaluate((node) => {
+          let opacity = 1;
+          for (
+            let at: Element | null = node;
+            at?.tagName !== "HEADER" && at;
+            at = at.parentElement
+          ) {
+            opacity *= Number.parseFloat(getComputedStyle(at).opacity);
+          }
+          return opacity;
+        }),
+      )
+      .toBe(1);
+    release();
+    await expect(
+      header.getByText("Not saved: can't reach Ephemera. Retrying", { exact: true }),
+    ).toHaveCount(2);
+    await expect(header.getByRole("heading", { level: 1 })).toHaveCount(0);
+    await expect(header.locator('[role="alert"]')).toHaveCount(1);
+    await page.unroute(`**${api}`);
+    await expect(header.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  });
+}
 
 test("a successful create with a lost response reconciles later edits before opening the saved sheet", async ({
   page,

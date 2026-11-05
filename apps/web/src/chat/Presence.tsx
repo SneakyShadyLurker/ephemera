@@ -135,7 +135,7 @@ export function Presence({
     <div
       key={character.id}
       data-presence=""
-      className={cn(!inReply && "-mt-2", portrait ? "pb-4" : "pb-3")}
+      className={cn(!inReply && "-mt-2", portrait ? "pb-4" : "pb-3", cast && "touch:pb-1")}
     >
       {inReply ? column : head}
       {cast && <CastPanel placement="band" />}

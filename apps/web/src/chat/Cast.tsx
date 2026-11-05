@@ -175,7 +175,7 @@ function castStatusText(state: ChatState): string {
   }
   if (sheetUnread(state)) return "Couldn't read the cast from the card.";
   if (busyOf(state)) return "";
-  return stale(state) ? "As of the previous reply" : "";
+  return !state.generating && stale(state) ? "As of the previous reply" : "";
 }
 
 /**
@@ -345,7 +345,16 @@ function Heading({ passing, band }: { passing: boolean; band: boolean }) {
     <div className="grid gap-1">
       <p className="flex flex-wrap items-baseline gap-x-2 font-sans text-meta text-reed">
         Cast
-        <Updating shown={!band || reduced} live />
+        {band && reduced ? (
+          <span className="grid">
+            <span inert aria-hidden="true" className="invisible text-note [grid-area:1/1]">
+              Updating…
+            </span>
+            <Updating shown live className="[grid-area:1/1]" />
+          </span>
+        ) : (
+          <Updating shown={!band} live />
+        )}
       </p>
       <span aria-hidden="true" className="relative h-px">
         <span
@@ -557,7 +566,7 @@ function BandRoster({
   const rosterOpen = useCastSurface((state) => state.open && state.entryId === null);
   const row = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  // The heading's width too: under reduced motion "Updating…" arrives and leaves in the row.
+  // The heading's width too: reduced motion reserves the room for "Updating…".
   const [headingWidth, setHeadingWidth] = useState(0);
   useEffect(() => {
     const element = row.current;

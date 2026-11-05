@@ -16,7 +16,7 @@ import { chatStore } from "./session.ts";
  * spring. Buttons and keys slide it on the same spring. The arriving alternate
  * grows or shrinks from the height of the one it replaces, so what follows
  * moves on the spring. Streaming replies keep their natural height as text
- * arrives. Alternates overlap in normal text flow for the crossfade, keeping
+ * arrives. Alternates overlap in normal text flow for the incoming fade, keeping
  * the portrait's float around both. The old prose stays until the new prose
  * is ready. Reduced motion keeps only the fade.
  */
@@ -208,6 +208,7 @@ function SwipePanel({
       }}
       transition={{
         ...panelTransition,
+        opacity: present ? fade("--duration-quick") : { duration: 0 },
         height: travel.still || travel.streaming ? { duration: 0 } : spring(),
       }}
       // Cancels only the retained outgoing frame's flow height. Both prose blocks

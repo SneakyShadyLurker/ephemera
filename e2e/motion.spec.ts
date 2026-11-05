@@ -1582,48 +1582,81 @@ test("New reply removes the outgoing alternate under normal motion, including re
   }
 });
 
-test("New reply shows growing streaming prose without clipping", async ({ page }) => {
-  await openChat(page, "mock-fast");
-  await send(page, canary("in"));
-  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-  await chooseModel(page, "mock-long");
-  const sampling = page.evaluate(
-    () =>
-      new Promise<{ text: string; opacity: number; x: number; clipped: number }[]>((resolve) => {
-        const frames: { text: string; opacity: number; x: number; clipped: number }[] = [];
-        const start = performance.now();
-        const sample = () => {
-          const frame = document.querySelector<HTMLElement>(
-            '[data-message][data-role="assistant"]:last-of-type [data-swipe]:not([data-leaving])',
-          );
-          if (frame) {
-            const style = getComputedStyle(frame);
-            frames.push({
-              text: frame.textContent ?? "",
-              opacity: Number.parseFloat(style.opacity),
-              x: new DOMMatrixReadOnly(style.transform).m41,
-              clipped: frame.scrollHeight - frame.clientHeight,
-            });
-          }
-          if (performance.now() - start > 1500) resolve(frames);
-          else requestAnimationFrame(sample);
-        };
-        sample();
-      }),
-  );
-  await replyActions(page).getByRole("button", { name: "New reply" }).click();
-  const frames = await sampling;
-  const arriving = frames.filter(({ text, opacity }) => text.includes("Line 1") && opacity > 0);
-  expect(arriving, JSON.stringify(frames.slice(-5))).not.toHaveLength(0);
-  expect(arriving.some(({ x }) => Math.abs(x) > 0.5)).toBe(true);
-  expect(
-    arriving
-      .filter(({ clipped }) => clipped > 1)
-      .map(({ clipped, x, opacity }) => ({ clipped, x, opacity })),
-  ).toEqual([]);
-  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
-});
+for (const reduced of [false, true]) {
+  test(`New reply keeps one readable layer without clipping (${reduced ? "reduced" : "normal"} motion)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: reduced ? "reduce" : "no-preference" });
+    await openChat(page, "mock-fast");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await chooseModel(page, "mock-long");
+    const sampling = page.evaluate(
+      () =>
+        new Promise<
+          {
+            text: string;
+            opacity: number;
+            x: number;
+            clipped: number;
+            readable: number;
+            outgoingSafe: boolean;
+          }[]
+        >((resolve) => {
+          const frames: {
+            text: string;
+            opacity: number;
+            x: number;
+            clipped: number;
+            readable: number;
+            outgoingSafe: boolean;
+          }[] = [];
+          const start = performance.now();
+          const sample = () => {
+            const frame = document.querySelector<HTMLElement>(
+              '[data-message][data-role="assistant"]:last-of-type [data-swipe]:not([data-leaving])',
+            );
+            if (frame) {
+              const style = getComputedStyle(frame);
+              const layers = [
+                ...(frame.parentElement?.querySelectorAll<HTMLElement>("[data-swipe]") ?? []),
+              ];
+              const leaving = layers.filter((layer) => layer.hasAttribute("data-leaving"));
+              frames.push({
+                text: frame.textContent ?? "",
+                opacity: Number.parseFloat(style.opacity),
+                x: new DOMMatrixReadOnly(style.transform).m41,
+                clipped: frame.scrollHeight - frame.clientHeight,
+                readable: layers.filter(
+                  (layer) => Number.parseFloat(getComputedStyle(layer).opacity) > 0.05,
+                ).length,
+                outgoingSafe: leaving.every(
+                  (layer) => layer.inert && layer.getAttribute("aria-hidden") === "true",
+                ),
+              });
+            }
+            if (performance.now() - start > 1500) resolve(frames);
+            else requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    const frames = await sampling;
+    const arriving = frames.filter(({ text, opacity }) => text.includes("Line 1") && opacity > 0);
+    expect(arriving, JSON.stringify(frames.slice(-5))).not.toHaveLength(0);
+    expect(frames.every(({ readable, outgoingSafe }) => readable <= 1 && outgoingSafe)).toBe(true);
+    if (reduced) expect(arriving.every(({ x }) => x === 0)).toBe(true);
+    else expect(arriving.some(({ x }) => Math.abs(x) > 0.5)).toBe(true);
+    expect(
+      arriving
+        .filter(({ clipped }) => clipped > 1)
+        .map(({ clipped, x, opacity }) => ({ clipped, x, opacity })),
+    ).toEqual([]);
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+  });
+}
 
 for (const viewport of [
   { width: 1440, height: 900 },

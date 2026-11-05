@@ -20,7 +20,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { m } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
-import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
+import { useCanDock } from "@/app/form-factor.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
 import { ChatIcon, MoreIcon, PlusIcon } from "@/components/icons";
@@ -159,7 +159,6 @@ function PromptPresetEditor({
   onReload: () => Promise<void>;
 }) {
   const queryClient = useQueryClient();
-  const phone = useFormFactor() === "phone";
   // Wide enough for the formatting key beside the form, as the character sheet's index.
   const wide = useCanDock();
   const [fields, setFields] = useState(preset);
@@ -407,9 +406,9 @@ function PromptPresetEditor({
             Blocks
           </h2>
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-            <div className="flex min-h-9 items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <p className={HELP}>Sent top to bottom. Switch a block off to leave it out.</p>
-              {!phone && addButton}
+              {addButton}
             </div>
             <ol
               aria-label="Blocks in send order"
@@ -445,7 +444,6 @@ function PromptPresetEditor({
                 ),
               )}
             </ol>
-            {phone && <div>{addButton}</div>}
             {removed !== null && (
               <InlineStatus as="p" role="status" className="flex items-center gap-2 arrive">
                 {blockName(removed.block)} removed.

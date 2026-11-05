@@ -1739,6 +1739,16 @@ details[open] > summary .disclosure-chevron {
     text-decoration-color var(--duration-tint-quick) var(--ease-fade);
 }
 
+/* Decision-aware runs keep their painted wrapper while del/ins semantics change.
+ * Only the wrapper paints the mark, so its transitions survive Reject and Restore. */
+.tracked-ins > ins.tracked-ins {
+  background-color: transparent;
+  box-shadow: none;
+}
+.tracked-del > del.tracked-del {
+  text-decoration: none;
+}
+
 /* A keyword or tag the change removes: struck reed on the selected surface. */
 @utility tracked-chip-del {
   color: var(--reed);

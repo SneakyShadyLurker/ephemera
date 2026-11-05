@@ -1,3 +1,4 @@
+import { ROLE_LABELS } from "../apps/web/src/palettes/roles.ts";
 import {
   type CustomPaletteInput,
   PALETTE_ROLES,
@@ -302,6 +303,67 @@ test("a theme and palette chosen before the saved settings load stay once they d
 /** The editor's hex field for a colour, by its label. */
 const hexField = (page: import("@playwright/test").Page, label: string) =>
   page.getByRole("textbox", { name: `${label}, hex`, exact: true });
+
+for (const width of [390, 834]) {
+  test(`at ${width}px palette roles wrap and the live sample carries all four highlights`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1112 });
+    await page.goto("/settings?section=appearance");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: /^Your palettes/ }).click();
+    await page.getByRole("button", { name: "New palette" }).click();
+    await page.getByRole("menuitem", { name: /^Tokyo Night\b/ }).click();
+    const editor = page.getByRole("region", { name: "New palette" });
+    const sample = editor.getByRole("figure", { name: "Sample scene" }).filter({ visible: true });
+    await expect(sample).toHaveCount(1);
+    await expect(sample).toContainText("She sets the lantern down.");
+    for (const text of ["Mind the tin", "the stair creaks", "A gull cries.", "The light turns."]) {
+      await expect(sample.getByText(text, { exact: true })).toBeVisible();
+    }
+    await expect(sample).toContainText("I'm coming in.");
+    await expect(editor.getByRole("button", { name: "Preview", exact: true })).toBeVisible();
+    await editor.getByRole("button", { name: /^All colours/ }).click();
+    for (const scheme of ["Day", "Night"]) {
+      await editor
+        .getByRole("group", { name: "Editing scheme" })
+        .getByRole("button", { name: scheme })
+        .click();
+      for (const role of PALETTE_ROLES) {
+        const input = hexField(page, ROLE_LABELS[role]);
+        await expect(input).toBeVisible();
+        const fit = await input.evaluate((element) => {
+          const node = element as HTMLInputElement;
+          const label = node.labels?.[0];
+          const row = node.parentElement;
+          if (!label || !row) throw new Error("No colour label or row");
+          const rect = row.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(label);
+          const lines = [...text.getClientRects()];
+          return {
+            clipped: label.scrollWidth > label.clientWidth,
+            contained: lines.every(
+              (line) => line.left >= rect.left && line.right <= rect.right + 1,
+            ),
+            hexWidth: node.getBoundingClientRect().width,
+            labelRight: label.getBoundingClientRect().right,
+            hexLeft: node.getBoundingClientRect().left,
+          };
+        });
+        expect(fit.clipped, ROLE_LABELS[role]).toBe(false);
+        expect(fit.contained, ROLE_LABELS[role]).toBe(true);
+        expect(fit.labelRight).toBeLessThanOrEqual(fit.hexLeft);
+        expect(fit.hexWidth).toBe(92);
+      }
+      const room = await editor.getByLabel("Background", { exact: true }).boundingBox();
+      const panels = await editor.getByLabel("Panels", { exact: true }).boundingBox();
+      expect(panels?.x).toBe(room?.x);
+      expect(panels?.y).toBeGreaterThan(room?.y ?? Infinity);
+    }
+    await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
+}
 
 /** A full custom palette for the API: every role one colour, the text another. */
 function plainPalette(name: string): CustomPaletteInput {

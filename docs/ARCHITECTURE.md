@@ -92,6 +92,10 @@ delaying the pending word for fast saves. `sheet/ProseField.tsx` owns the
 open prose edit cue and Enter or blur to finish, with Done on touch; memory
 uses it and flushes the notebook on blur.
 
+Shared sheet headers show save status below the title on phones and beside
+the actions on wider screens. A phone save failure replaces the title;
+only one save-status subtree and failure announcement renders at a time.
+
 Phone collection headers keep the full title above a labelled action row.
 Character tiles use the portrait and full-width name as the Chat target,
 with Edit always visible beside the metadata below. The phone navigation
@@ -1874,13 +1878,16 @@ AI Rework:
   ignores every call and the fields are read-only. Tracked views
   (`tracked.ts`) cut each field's original text at its changes and fold
   unchanged runs over 60 words to the sentences beside a change.
-  `ChangeRuns` shows Removed and Proposed passages on separate field faces;
+  `ChangeRuns` shows Removed and Proposed passages within one field frame;
   a removal over 160 characters or containing a line break folds behind
   Show removed. Each reason follows its proposal with one always-visible
   Reject or Restore action; new changes start accepted. Tags and keys group
-  their removed and proposed chips under the same labels. The dock counts
-  accepted, placeable changes to apply and unplaceable changes left out,
-  and Previous and Next focus the change blocks. Everything renders as text
+  their removed and proposed chips under the same labels. Rejection changes
+  those labels to Kept and Rejected (Not added for a pure insertion), and
+  removes active deletion/insertion semantics from the rejected change.
+  The dock counts accepted, placeable changes to apply and rejected changes
+  separately; its disclosure lists changes that could not be placed.
+  Previous and Next focus the change blocks beside a position counter. Everything renders as text
   nodes. Apply writes the
   accepted changes into the sheet's draft (the lorebook included) and the
   autosave saves them; Undo restores the fields Apply wrote, skipping any
@@ -2038,8 +2045,10 @@ again, the preview and portraits load again. Every code chunk loads in the
 first idle moment after the first paint. A chunk that still fails stays
 failed for the page's life (the browser's module map keeps it), so the
 router's lazy route component, which would reload the tab, is replaced
-(`src/app/router-package.ts`) by one that shows a calm error saying a
-reload ends the chat. Exports confirm the session with a request Ephemera
+(`src/app/router-package.ts`) by one that shows a calm error. A failed screen
+offers Back to the story when away from the story route, retaining the chat,
+and Reload and end the chat, which uses the existing unload guard. Nothing
+reloads automatically. Exports confirm the session with a request Ephemera
 must answer before they download, because Chromium follows a redirected
 download as a navigation.
 

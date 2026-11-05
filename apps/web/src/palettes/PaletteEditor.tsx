@@ -64,6 +64,10 @@ const SAMPLE = `*She sets the lantern down on the sill.* "You came back. :rose[M
 
 The wind worries at the shutters. :iris[A gull cries over the water.] :mist[The light turns, and turns.]`;
 
+const COMPACT_SAMPLE = `*She sets the lantern down.* "You came back. :rose[Mind the tin], :sage[the stair creaks]."
+
+The wind worries at the shutters. :iris[A gull cries.] :mist[The light turns.]`;
+
 const fieldId = (slot: number, role: PaletteRole) => `palette-${slot}-${role}`;
 
 /**
@@ -320,7 +324,7 @@ export function PaletteEditor({
             </Popover>
           </div>
 
-          <div className="tablet:hidden">
+          <div className="desktop:hidden">
             <SampleScene compact />
           </div>
 
@@ -330,9 +334,7 @@ export function PaletteEditor({
                 <span className={FIELD_LABEL}>{group.title}</span>
                 <span className={HELP}>{group.note}</span>
               </legend>
-              <div className="grid gap-3 tablet:grid-cols-2 desktop:grid-cols-1">
-                {group.roles.map(field)}
-              </div>
+              <div className="grid gap-3">{group.roles.map(field)}</div>
             </fieldset>
           ))}
 
@@ -360,9 +362,7 @@ export function PaletteEditor({
                 {MORE_GROUPS.map((group) => (
                   <fieldset key={group.title} className="grid gap-3">
                     <legend className={cn(FIELD_LABEL, "mb-1")}>{group.title}</legend>
-                    <div className="grid gap-3 tablet:grid-cols-2 desktop:grid-cols-1">
-                      {group.roles.map(field)}
-                    </div>
+                    <div className="grid gap-3">{group.roles.map(field)}</div>
                   </fieldset>
                 ))}
               </div>
@@ -457,8 +457,13 @@ function SampleScene({ compact = false }: { compact?: boolean }) {
       <div>
         <Nameplate voice="story" name="Mara" className="static shadow-none" />
         <div className="prose-turn voice-story voice-scene text-story-phone [&_blockquote]:my-0">
-          <CardProse text={compact ? '"You came back."' : SAMPLE} streaming={false} />
+          <CardProse text={compact ? COMPACT_SAMPLE : SAMPLE} streaming={false} />
         </div>
+        {!compact && (
+          <div aria-hidden="true" className="mt-3 text-note text-reed">
+            <span className={buttonVariants({ variant: "quiet", size: "text" })}>New reply</span>
+          </div>
+        )}
       </div>
       <div>
         <Nameplate voice="line" name="You" className="static shadow-none" />
@@ -469,7 +474,6 @@ function SampleScene({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
           <span className={buttonVariants({ variant: "primary" })}>Send</span>
-          <span className={buttonVariants({ variant: "outline" })}>New reply</span>
         </div>
       )}
     </figure>

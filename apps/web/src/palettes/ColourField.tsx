@@ -64,7 +64,7 @@ export function ColourField({
           className="colour-swatch"
         />
         <div className="grid min-w-0 flex-1 gap-0.5">
-          <label htmlFor={hexId} className={cn(FIELD_LABEL, "truncate")}>
+          <label htmlFor={hexId} className={cn(FIELD_LABEL, "break-words")}>
             {label}
           </label>
           {follows && (

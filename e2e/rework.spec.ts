@@ -92,7 +92,9 @@ test("compose, stream and review: the dock counts the changes and the fields are
   await submitRework(page, { request: ownerRequest(base, "kept-flow"), model: "mock-fast" });
 
   const bar = dock(page);
-  await expect(bar).toContainText("3 changes to apply, 1 left out");
+  await expect(bar).toContainText("3 changes to apply");
+  await expect(bar).not.toContainText("left out");
+  await expect(bar.getByText("– / 3", { exact: true })).toBeVisible();
   await expect(bar.getByText("1 could not be placed")).toBeVisible();
   await expect(bar.getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
   // The changed field shows its tracked view; the others stay, read-only.
@@ -136,7 +138,7 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
   await expect(description.locator("del").first()).toContainText(ANCHOR_ONE);
 
   // Measure the actual proposal, including its painted ground, across every built-in theme.
-  const insertion = description.locator("ins").first();
+  const insertion = description.locator("ins").first().locator("..");
   await expect(insertion).toBeVisible();
   const contrasts = await insertion.evaluate((node, palettes) => {
     const root = document.documentElement;
@@ -201,9 +203,20 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
   await page.getByRole("button", { name: "Reject change 2 of 3" }).click();
   await expect(page.getByRole("button", { name: "Restore change 2 of 3" })).toBeFocused();
   await expect(dock(page).getByRole("button", { name: "Apply 2 changes" })).toBeEnabled();
+  const rejected = page.getByRole("group", { name: "Change 2 of 3 in Description", exact: true });
+  await expect(rejected.getByText("Kept", { exact: true })).toBeVisible();
+  await expect(rejected.getByText("Rejected", { exact: true })).toBeVisible();
+  await expect(rejected.locator("del, ins")).toHaveCount(0);
+  await expect(rejected).not.toContainText("deleted:");
+  await expect(rejected).not.toContainText("inserted:");
+  await expect(dock(page)).toContainText("2 changes to apply, 1 rejected");
   await page.getByRole("button", { name: "Restore change 2 of 3" }).click();
   await expect(page.getByRole("button", { name: "Reject change 2 of 3" })).toBeFocused();
   await expect(dock(page).getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
+  await expect(rejected.getByText("Removed", { exact: true })).toBeVisible();
+  await expect(rejected.getByText("Proposed", { exact: true })).toBeVisible();
+  await expect(rejected.locator("del")).toHaveCount(1);
+  await expect(rejected.locator("ins")).toHaveCount(1);
   await page.getByRole("button", { name: "Reject change 2 of 3" }).click();
 
   // The lorebook's entry under review, above its summary; the screen stays closed meanwhile.
@@ -607,7 +620,8 @@ test("the keyboard alone opens, sends, navigates, rejects and reaches Apply", as
   await page.keyboard.press("Enter");
   const first = page.getByRole("group", { name: "Change 1 of 3 in Description" });
   await expect(first).toBeFocused();
-  await expect(bar).toContainText("Change 1 of 3, Description");
+  await expect(bar.getByText("1 / 3", { exact: true })).toBeVisible();
+  await expect(bar.getByRole("status")).toContainText("Change 1 of 3, Description");
   const reject = page.getByRole("button", { name: "Reject change 1 of 3" });
   await tabTo(page, reject, { limit: 3 });
   await page.keyboard.press("Enter");
@@ -711,6 +725,79 @@ const RICH_DESCRIPTION_NEW =
 
 const richBlock = (field: string, why: string, find: string, replace: string) =>
   `<change>\n<field>${field}</field>\n<why>${why}</why>\n<find>${find}</find>\n<replace>${replace}</replace>\n</change>`;
+
+test("replacement, deletion, insertion and keyword decisions agree with their spoken state and counts", async ({
+  page,
+}) => {
+  const id = await createCharacterViaApi(page.request, "Mara Voss", {
+    description: "Old harbour. The archive stays.",
+    firstMessage: "",
+    creatorNotes: "An aside. Keep this.",
+  });
+  await setLorebookViaApi(page.request, id, {
+    entries: [
+      {
+        keys: ["harbour"],
+        content: "The archive.",
+        enabled: true,
+        insertionOrder: 100,
+        useRegex: false,
+        comment: "Archive",
+      },
+    ],
+  });
+  const answer = [
+    richBlock("description", "The harbour changes.", "Old harbour.", "New harbour."),
+    richBlock("creatorNotes", "The aside can go.", "An aside.", ""),
+    richBlock("firstMessage", "The day opens.", "", "Morning lantern."),
+    richBlock("entry_1_keys", "Follow the new place.", "", "customs"),
+    richBlock("description", "Cannot find this passage.", "Missing passage.", "Unplaced proposal."),
+    "<summary>Four decisions.</summary>",
+  ].join("\n");
+  await page.route("**/api/creator/rework", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson; charset=utf-8",
+      body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+    }),
+  );
+  await openSheet(page, id);
+  await openRework(page);
+  await submitRework(page, { request: "Rework the harbour.", model: "mock-fast" });
+  const bar = dock(page);
+  await expect(bar).toContainText("4 changes to apply");
+  await expect(bar.getByText("1 could not be placed", { exact: true })).toBeVisible();
+  await expect(bar.getByText("– / 4", { exact: true })).toBeVisible();
+  const replacement = page.getByRole("group", { name: /^Change \d of 4 in Description$/ });
+  const deletion = page.getByRole("group", { name: /^Change \d of 4 in Creator notes$/ });
+  const insertion = page.getByRole("group", { name: /^Change \d of 4 in First message$/ });
+  const keywords = page.getByRole("group", {
+    name: /^Change \d of 4 in Entry 1: Archive, keywords$/,
+  });
+  for (const group of [replacement, deletion, insertion, keywords]) {
+    await group.getByRole("button", { name: /^Reject change/ }).click();
+    await expect(group.getByRole("button", { name: /^Restore change/ })).toBeFocused();
+    await expect(group.locator("del, ins")).toHaveCount(0);
+    await expect(group).not.toContainText(/deleted:|inserted:|removed:|added:/);
+  }
+  for (const group of [replacement, deletion, keywords]) {
+    await expect(group.getByText("Kept", { exact: true })).toBeVisible();
+  }
+  for (const group of [replacement, keywords]) {
+    await expect(group.getByText("Rejected", { exact: true })).toBeVisible();
+  }
+  await expect(insertion.getByText("Not added", { exact: true })).toBeVisible();
+  await expect(insertion.getByText("Morning lantern.", { exact: true })).toBeHidden();
+  await expect(bar).toContainText("Nothing to apply, 4 rejected");
+  await expect(bar.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
+  await keywords.getByRole("button", { name: /^Restore change/ }).click();
+  await expect(keywords.getByRole("button", { name: /^Reject change/ })).toBeFocused();
+  await expect(keywords.getByText("Removed", { exact: true })).toBeVisible();
+  await expect(keywords.getByText("Proposed", { exact: true })).toBeVisible();
+  await expect(keywords.locator("del")).toHaveCount(1);
+  await expect(keywords.locator("ins")).toHaveCount(1);
+  await expect(bar).toContainText("1 change to apply, 3 rejected");
+});
 
 const RICH_ANSWER = [
   richBlock("name", "The request names her family.", "Mara Voss", "Mara Ilse Voss"),

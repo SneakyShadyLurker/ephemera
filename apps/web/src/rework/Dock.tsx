@@ -175,8 +175,10 @@ function DockPresenter({
       : `Change ${(index ?? 0) + 1} of ${order.length}, ${fieldLabel(currentChange.field, view.base)}`;
   const line = lineOf(view, model, current, saved ? null : save);
   const accepted = acceptedChanges(view).length;
-  const unplaced = view.changes.filter((change) => !change.ok).length;
-  const applyLine = `${changes(accepted)} to apply${unplaced > 0 ? `, ${unplaced} left out` : ""}`;
+  const rejected = view.changes.filter(
+    (change) => change.ok && change.decision === "rejected",
+  ).length;
+  const applyLine = `${accepted === 0 ? "Nothing to apply" : `${changes(accepted)} to apply`}${rejected > 0 ? `, ${rejected} rejected` : ""}`;
   const edited = view.phase === "applied" ? leftByUndo(view, card) : [];
   const writtenFields = Object.keys(view.applied?.written ?? {}).length;
 
@@ -214,6 +216,9 @@ function DockPresenter({
       >
         <PreviousIcon />
       </Button>
+      <span aria-hidden="true" className="min-w-9 text-center text-meta text-reed tabular-nums">
+        {index === null ? "–" : index + 1} / {order.length}
+      </span>
       <Button
         size="icon"
         aria-label="Next change"
@@ -323,7 +328,7 @@ function DockPresenter({
                       onApply();
                     }}
                   >
-                    Apply {changes(accepted)}
+                    {accepted === 0 ? "Apply" : `Apply ${changes(accepted)}`}
                   </Button>
                 )}
               </>
@@ -389,9 +394,6 @@ function DockPresenter({
                       {applyLine}
                     </span>
                   )}
-                {view.phase === "review" && current && (
-                  <span className="mt-0.5 block font-normal text-meta text-reed">{current}</span>
-                )}
               </p>
               {meta && <span className="text-meta text-reed tabular-nums">{meta}</span>}
             </div>
