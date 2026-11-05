@@ -909,16 +909,20 @@ test("Undo holds its deadline for focus and hover, then expires inert at full he
   await events.getByRole("button", { name: "Delete event", exact: true }).click();
   const row = page.locator("[data-removed]");
   await expect(row.getByRole("button", { name: "Undo", exact: true })).toBeFocused();
+  // The outgoing event still occupies height during its fade. Let it leave
+  // before advancing the clock or hovering, so scroll clamping cannot move Undo.
+  await expect(events.locator("[data-event]")).toHaveCount(0);
   await page.clock.runFor(9_000);
   await expect(row).not.toHaveAttribute("inert");
   await row.hover();
   // Moving focus must keep the pointer over Undo, even when the expanded Events
   // section needs scrolling after its cross-link was added.
   await section.evaluate((element) => element.focus({ preventScroll: true }));
-  expect(await row.evaluate((element) => element.matches(":hover"))).toBe(true);
+  await expect.poll(() => row.evaluate((element) => element.matches(":hover"))).toBe(true);
   await page.clock.runFor(9_000);
   await expect(row).not.toHaveAttribute("inert");
   await page.mouse.move(0, 0);
+  await expect.poll(() => row.evaluate((element) => element.matches(":hover"))).toBe(false);
   const height = (await row.boundingBox())?.height ?? 0;
   await page.clock.runFor(7_000);
   await expect(row).not.toHaveAttribute("inert");
