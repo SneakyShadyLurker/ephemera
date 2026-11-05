@@ -6,6 +6,7 @@ import {
   ART_TIMEOUT,
   BRAINSTORM_COPY,
   brainstorm,
+  COPY,
   type ComfyScope,
   comfyScope,
   createCard,
@@ -62,8 +63,10 @@ async function expectCreatorEmpty(page: Page) {
     .evaluateAll((fields) => fields.map((field) => (field as HTMLInputElement).value));
   expect(values.filter((value) => value.includes(CANARY_MARKER))).toEqual([]);
   if (new URL(page.url()).pathname === "/characters/create") {
-    // A new document starts the creator at the choice of kind.
-    await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+    // A new document starts at an empty description with the default Subject kind.
+    await expect(page.getByRole("textbox", { name: COPY.subject.field })).toHaveValue("");
+    await expect(page.getByRole("button", { name: "Change from Subject" })).toBeVisible();
+    await expect(portraits(page)).toHaveCount(0);
   }
 }
 
@@ -287,7 +290,7 @@ matrixRow(
     await page.getByRole("main").getByRole("link", { name: "Characters", exact: true }).click();
     await expect(page).toHaveURL(/\/characters$/);
     await page.getByRole("button", { name: "Create with AI" }).first().click();
-    await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+    await expectCreatorEmpty(page);
     await page.locator('[data-stage="brainstorm"]').click();
     await expect(page.getByRole("textbox", { name: BRAINSTORM_COPY.field })).toHaveValue("");
     await expect(page.getByRole("list", { name: BRAINSTORM_COPY.list })).toHaveCount(0);
@@ -310,7 +313,7 @@ matrixRow(
     await scope.expectClean();
     // The leave guard asks through beforeunload; the profile accepts.
     await page.reload();
-    await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+    await expectCreatorEmpty(page);
     expect(await page.content()).not.toContain(mark(base, "card"));
     await expect(portraits(page)).toHaveCount(0);
   },

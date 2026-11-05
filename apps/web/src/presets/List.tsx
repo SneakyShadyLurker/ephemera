@@ -263,7 +263,7 @@ function PresetList({
                       </span>
                     )}
                   </span>
-                  <span className="truncate text-meta text-reed">
+                  <span className="line-clamp-2 text-note text-reed">
                     {"blocks" in preset
                       ? promptSummary(preset.blocks)
                       : samplerSummary(preset.values)}

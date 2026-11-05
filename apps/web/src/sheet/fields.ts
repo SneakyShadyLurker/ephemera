@@ -112,7 +112,7 @@ export const sheetLabel = (align: keyof typeof LABEL_ALIGN = "field") =>
 /** A sheet's help line, under the field it explains. */
 export const HELP = "text-pretty text-note text-reed";
 /** Explanatory sentences in working panels, one step above a compact help line. */
-export const EXPLANATION = "text-pretty text-ui text-reed";
+export const EXPLANATION = HELP;
 
 /** The sheets' grid: labels hang in a margin beside the fields, like speaker cues. */
 export const SHEET_GRID = "tablet:grid tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6";

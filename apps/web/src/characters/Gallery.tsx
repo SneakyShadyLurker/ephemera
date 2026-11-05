@@ -1,6 +1,6 @@
 import { type CharacterSummary, hasTag } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState, ViewTransition } from "react";
 import { useShallow } from "zustand/shallow";
 import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
@@ -31,7 +31,7 @@ import {
 } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
 import { hasReport, ReportGroups } from "@/components/import-report";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Unfold } from "@/components/ui/disclosure";
 import {
   Drawer,
@@ -116,7 +116,13 @@ export function GalleryScreen() {
         }}
       />
       <ScreenHeader title={<GalleryTitle list={list} />} frame={frame} gutters={SCROLL_GUTTERS}>
-        <HeaderAction label="Import cards" icon={ImportIcon} onClick={openPicker} />
+        <HeaderAction
+          label="Import cards"
+          text="Import"
+          labelledOnPhone
+          icon={ImportIcon}
+          onClick={openPicker}
+        />
         <HeaderAction label="New character" icon={PlusIcon} onClick={newCharacter} />
         {/* Phones name it under the search instead, while the cast shows. */}
         {(!phone || characters.isError) && (
@@ -413,6 +419,24 @@ function ImportReport() {
           Dismiss
         </Button>
       </div>
+      {imported.length > 0 && (
+        <div className="flex flex-wrap gap-2 pb-1">
+          {imported.map((card) => (
+            <Link
+              key={card.id}
+              to="/characters/$id"
+              params={{ id: card.id }}
+              className={buttonVariants({
+                variant: "outline",
+                size: "text",
+                className: "min-w-0 max-w-full",
+              })}
+            >
+              <span className="truncate">Open {card.name}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       <Unfold show={details} id={detailsId}>
         <div className="grid gap-2 pt-2">
           {imported.map(
@@ -530,7 +554,7 @@ function EmptyGallery({
           <>
             <Button variant="primary" onClick={onImport}>
               <ImportIcon size={16} />
-              Import cards
+              Import
             </Button>
             <Button variant="quiet" onClick={onCreate}>
               <LampFlameIcon size={16} />

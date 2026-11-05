@@ -1,11 +1,13 @@
 import { formatLocationLine } from "@ephemera/core";
 import { Component, lazy, type ReactNode, Suspense } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { MODEL_BUSY } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
+import { useSignedIn } from "../signin/hooks.ts";
 import { speakerName, useChatCharacter, usePersona } from "./character.ts";
 import { EditField } from "./EditField.tsx";
 import { loadMarkdown } from "./markdown-chunk.ts";
@@ -13,7 +15,7 @@ import { Presence } from "./Presence.tsx";
 import { HiddenReasoning, Reasoning } from "./Reasoning.tsx";
 import { REFUSAL_NOTE, WINDOW_UNKNOWN } from "./refusal.ts";
 import { SwipeFrame } from "./Swipe.tsx";
-import { useChat } from "./session.ts";
+import { chatStore, useChat } from "./session.ts";
 import { type AssistantMessage, type MessageStatus, type Reply, shownReply } from "./store.ts";
 import { GreetingActions, ReplyActions, TurnActions } from "./TurnActions.tsx";
 
@@ -246,6 +248,8 @@ export function Turn({
 
 /** The reply footer also explains provider-ended partial replies. */
 export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
+  const busy = useChat((state) => state.generating);
+  const writable = useSignedIn();
   const partial =
     reply.status !== "complete"
       ? undefined
@@ -272,15 +276,41 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
           ? failedNote(reply)
           : (STATUS_NOTE[reply.status] ?? partial);
   const ember =
-    reply.status === "failed" || (note === partial && reply.finishReason === "content-filter");
+    reply.failed !== undefined ||
+    reply.status === "failed" ||
+    (note === partial && reply.finishReason === "content-filter");
   const windowRefusal = !reply.failed && reply.refusal === "context_window_unknown";
   // In a slot, so it folds away when a Continue or Replace clears it.
   return (
     <NoticeSlot value={note ? { note, ember, windowRefusal } : null}>
       {(shown) => (
-        <p className={cn("pt-2 font-sans text-meta", shown.ember ? "text-ember" : "text-reed")}>
-          {shown.windowRefusal ? <WindowRefusal /> : shown.note}
-        </p>
+        <InlineStatus
+          tone={shown.ember ? "error" : "status"}
+          className="pt-2 font-sans text-ui"
+          actions={
+            shown.ember && last ? (
+              <Button
+                variant="outline"
+                size="text"
+                disabled={busy || !writable}
+                onClick={() =>
+                  void (reply.failed === "continue"
+                    ? chatStore.getState().continueReply()
+                    : chatStore.getState().regenerate())
+                }
+              >
+                Try again
+              </Button>
+            ) : undefined
+          }
+        >
+          {shown.ember && (
+            <span className="font-medium">
+              {reply.status === "complete" && !reply.failed ? "Reply stopped. " : "Reply failed. "}
+            </span>
+          )}
+          <span>{shown.windowRefusal ? <WindowRefusal /> : shown.note}</span>
+        </InlineStatus>
       )}
     </NoticeSlot>
   );
@@ -372,7 +402,12 @@ function ReplyTurn({
               showHidden && reply.hiddenMs !== undefined && <HiddenReasoning ms={reply.hiddenMs} />
             )}
             <div data-prose="" data-voice="story" className="voice-story voice-scene">
-              <SwipeFrame replyId={reply.id} swipeable={last} streaming={streaming}>
+              <SwipeFrame
+                replyId={reply.id}
+                swipeable={last}
+                streaming={streaming}
+                ready={reply.text !== "" || !streaming}
+              >
                 <Prose text={formatLocationLine(reply.text)} streaming={streaming} />
               </SwipeFrame>
               <ReplyNote reply={reply} last={last} />

@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { isCoarsePointer } from "@/app/form-factor.ts";
+import { IdeasIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -104,6 +105,7 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
   const look = useCreator((state) => state.artLook);
   const setLook = useCreator((state) => state.setArtLook);
   const change = useCreator((state) => state.change);
+  const brainstorm = useCreator((state) => state.openBrainstorm);
   const backToIdeas = useCreator((state) => state.backToIdeas);
   // Opened from a brainstorm's idea: Back to ideas takes Change's place.
   const fromIdea = useCreator((state) => state.brainstorm.picked !== null);
@@ -172,6 +174,17 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
             onClick={() => inTransition(change)}
           >
             Change
+          </Button>
+        )}
+        {!fromIdea && (
+          <Button
+            size="text"
+            className="ml-auto"
+            data-stage="brainstorm"
+            onClick={() => inTransition(brainstorm)}
+          >
+            <IdeasIcon size={16} />
+            Brainstorm
           </Button>
         )}
       </div>

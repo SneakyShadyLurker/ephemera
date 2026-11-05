@@ -85,7 +85,9 @@ for (const [fixture, notice] of [
     await send(page, `${canary("in")} [e2e-finish:${fixture}]`);
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expect(lastReply(page).getByText(notice, { exact: true })).toBeVisible();
-    await expect(lastReply(page).locator("[data-prose]")).toHaveText(notice);
+    await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+      fixture === "blocked" ? `Reply stopped. ${notice}Try again` : notice,
+    );
   });
 }
 
@@ -323,13 +325,14 @@ test("a failed reply says why and Try again replaces it in place", async ({ page
   await send(page, line);
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
   await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-    "No reply: the server couldn't be reached. Check the connection, then try again.",
+    "Reply failed. No reply: the server couldn't be reached. Check the connection, then try again.Try again",
   );
-  // Try again leads the row, in place of New reply, which would keep the empty one.
+  // Try again sits beside the failure, replacing the empty attempt in place.
   const actions = replyActions(page);
   await expect(actions.getByRole("button", { name: "New reply" })).toHaveCount(0);
-  await expect(actions.getByRole("button").first()).toHaveText("Try again");
-  await actions.getByRole("button", { name: "Try again", exact: true }).click();
+  const failure = lastReply(page).getByRole("alert");
+  await expect(failure.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+  await failure.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   await expect(lastReply(page)).toContainText(line.replace("-in-", "-out-"));
   // Replaced in place: one reply, so no pager, and the note is gone.

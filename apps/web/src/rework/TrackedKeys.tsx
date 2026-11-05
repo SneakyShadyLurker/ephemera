@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { cn } from "@/lib/cn";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import { ChangeDecision } from "./ChangeRuns.tsx";
 import type { ReviewItem } from "./ReviewField.tsx";
 import { reworkStore } from "./session.ts";
@@ -23,29 +24,41 @@ export function TrackedChips({
   const had = new Set(before);
   const kept = new Set(after);
   const added = after.filter((item) => !had.has(item));
+  const removed = before.filter((item) => !kept.has(item));
   if (before.length === 0 && added.length === 0) {
     return <span className="text-note text-reed">None</span>;
   }
   return (
     <span className="flex flex-wrap gap-1.5">
-      {before.map((item) =>
-        kept.has(item) ? (
+      {before
+        .filter((item) => kept.has(item))
+        .map((item) => (
           <span key={`k${item}`} className={cn(CHIP, "bg-surface-selected text-ink")}>
             {item}
           </span>
-        ) : (
-          <del key={`d${item}`} className={cn(CHIP, "tracked-chip-del")}>
-            <span className="sr-only">removed: </span>
-            {item}
-          </del>
-        ),
+        ))}
+      {removed.length > 0 && (
+        <span className="flex w-full flex-wrap items-center gap-1.5">
+          <span className={COMPACT_LABEL}>Removed</span>
+          {removed.map((item) => (
+            <del key={`d${item}`} className={cn(CHIP, "tracked-chip-del")}>
+              <span className="sr-only">removed: </span>
+              {item}
+            </del>
+          ))}
+        </span>
       )}
-      {added.map((item) => (
-        <ins key={`i${item}`} className={cn(CHIP, "tracked-chip-ins")}>
-          <span className="sr-only">added: </span>
-          {item}
-        </ins>
-      ))}
+      {added.length > 0 && (
+        <span className="flex w-full flex-wrap items-center gap-1.5">
+          <span className={COMPACT_LABEL}>Proposed</span>
+          {added.map((item) => (
+            <ins key={`i${item}`} className={cn(CHIP, "tracked-chip-ins")}>
+              <span className="sr-only">added: </span>
+              {item}
+            </ins>
+          ))}
+        </span>
+      )}
     </span>
   );
 }

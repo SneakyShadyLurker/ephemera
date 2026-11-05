@@ -181,7 +181,10 @@ export async function createCard(
 ) {
   if (!onGallery) await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator(`[data-kind="${kind}"]`).click();
+  if (kind !== "subject") {
+    await page.getByRole("button", { name: "Change from Subject" }).click();
+    await page.locator(`[data-kind="${kind}"]`).click();
+  }
   const field = page.getByRole("textbox", { name: COPY[kind].field });
   await field.fill(description);
   await expect(field).toHaveValue(description);

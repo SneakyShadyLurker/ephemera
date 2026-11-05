@@ -2,6 +2,7 @@ import { Fragment, type ReactNode, useRef } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import type { Run, Segment } from "./tracked.ts";
 
 /*
@@ -187,11 +188,13 @@ export function ChangeRuns({
     >
       {change.find !== "" && (
         <span className="block">
+          <span className={cn(COMPACT_LABEL, "block font-sans")}>Removed</span>
           <Deleted text={change.find} />
         </span>
       )}
       {change.replace !== "" && (
         <span className="mt-1 block">
+          <span className={cn(COMPACT_LABEL, "block font-sans")}>Proposed</span>
           <Inserted text={change.replace} />
         </span>
       )}

@@ -16,7 +16,7 @@ const TRIGGER =
  * region so its layout reserves the whole target.
  */
 const INLINE_TRIGGER =
-  "press relative inline-flex h-6 min-w-0 items-center gap-2 rounded-md border border-control-edge bg-surface px-2 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover focus-visible:border-dusk-line touch:h-11";
+  "press relative inline-flex h-6 min-w-0 flex-1 items-center gap-1 rounded-md border border-control-edge bg-surface px-2 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover focus-visible:border-dusk-line after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2";
 
 /** The trigger's chevron, turning while the list is open. */
 const TRIGGER_ICON =
@@ -155,7 +155,7 @@ function SelectItem({
     >
       <span className="grid min-w-0 gap-0.5">
         <SelectPrimitive.ItemText className="text-ui">{children}</SelectPrimitive.ItemText>
-        <span id={descriptionId} aria-hidden="true" className="text-pretty text-meta text-reed">
+        <span id={descriptionId} aria-hidden="true" className="text-pretty text-note text-reed">
           {description}
         </span>
       </span>

@@ -228,6 +228,7 @@ test("turning memory off right after a notebook edit saves the edit first", asyn
   const { name, characterId } = await memoryChat(request);
   await page.goto(`/characters/${characterId}/memory`);
   const situation = unique("They wait at the quay.");
+  await page.getByRole("textbox", { name: "Situation" }).click();
   await page.getByRole("textbox", { name: "Situation" }).fill(situation);
   // Off at once, well inside the autosave's pause.
   await page.getByRole("switch", { name: "Remember the story" }).click();
@@ -246,6 +247,7 @@ test("the notebook takes no edits while memory turns off, so none typed meanwhil
   const patches = await hold(page, `**/api/memory/characters/${characterId}`, "PATCH");
   const field = page.getByRole("textbox", { name: "Situation" });
   const situation = unique("They wait at the quay.");
+  await field.click();
   await field.fill(situation);
   await page.getByRole("switch", { name: "Remember the story" }).click();
   await expect.poll(patches.held).toBeGreaterThan(0);
@@ -595,11 +597,15 @@ test("the memory screen edits the next chat's opening, and Forget everything emp
   const opening = async () => (await storedMemory(request, characterId)).state?.opening;
 
   const edited = unique("The ferry is due within the hour.");
+  await field.click();
   await field.fill(edited);
   await expect.poll(opening).toBe(edited);
+  await expect(field).toHaveAttribute("readonly", "");
+  await field.click();
   await field.fill("");
   await expect.poll(opening).toBe("");
   // An opening alone is something remembered, which Forget everything forgets.
+  await field.click();
   await field.fill(edited);
   await expect.poll(opening).toBe(edited);
   await page.getByRole("button", { name: "Memory actions" }).click();
@@ -659,6 +665,7 @@ test("the notebook holds still while Regenerate writes, and takes edits again on
   await expect(addFact).toBeDisabled();
   calls.release();
   await expect(field).toHaveValue(REGENERATED_OPENING);
+  await situation.click();
   await expect(situation).toBeEditable();
   await expect(addFact).toBeEnabled();
 });
@@ -683,12 +690,14 @@ test("Regenerate writes nothing while the notebook's edits cannot be saved, and 
   });
   const situation = page.getByRole("textbox", { name: "Situation" });
   const field = page.getByRole("textbox", { name: "Next chat opens with" });
+  await situation.click();
   await situation.fill(unique("They wait at the quay."));
   await page.getByRole("button", { name: "Regenerate" }).click();
   await expect(
     page.getByText("The opening was not written: the notebook's edits must be saved first."),
   ).toBeVisible();
   await expect(field).toHaveValue(MEMORY_OPENING);
+  await situation.click();
   await expect(situation).toBeEditable();
   expect(calls).toBe(0);
 });
@@ -729,6 +738,7 @@ test("while memory turns off, Regenerate's answer is not applied and Undo waits"
   await remember.click();
   await expect(regenerate).toBeEnabled();
   const typed = unique("> Location: The quay\n\nThey wait.");
+  await field.click();
   await field.fill(typed);
   await expect
     .poll(async () => (await storedMemory(request, characterId)).state?.opening)
@@ -1028,6 +1038,7 @@ test("notebook edits stay, and are saved, when memory is turned off in another t
   const patches = await hold(page, `**/api/memory/characters/${characterId}`, "PATCH");
   const field = page.getByRole("textbox", { name: "Situation" });
   const situation = unique("They wait at the quay.");
+  await field.click();
   await field.fill(situation);
   await expect.poll(patches.held).toBeGreaterThan(0);
   // Another tab turns memory off; this tab hears of it when it is looked at again.
@@ -1507,6 +1518,7 @@ test("leaving with the notebook and a memory both unsaved asks once", async ({ p
   await page.route("**/api/memory/**", (route) =>
     route.request().method() === "PATCH" ? route.abort() : route.fallback(),
   );
+  await page.getByRole("textbox", { name: "Situation" }).click();
   await page.getByRole("textbox", { name: "Situation" }).fill(unique("Rain on the quay."));
   await episodeRows(page).click();
   await episodeEditor(page).getByRole("textbox", { name: "Title" }).fill(unique("The pier"));

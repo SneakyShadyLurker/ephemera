@@ -420,12 +420,11 @@ test("a colour set by hand stays when its key colour changes, and Cancel puts th
   await page.getByRole("menuitem", { name: "Lamplight" }).click();
   const editor = page.getByRole("region", { name: "New palette" });
   await editor.getByRole("button", { name: /^All colours/ }).click();
-  // Preview opens over the editor without changing its scroll position.
-  await editor.getByRole("button", { name: "Preview", exact: true }).click();
+  // The wide editor keeps its preview beside every swatch, including All colours.
+  await expect(editor.getByRole("button", { name: "Preview", exact: true })).toBeHidden();
   await expect(
     page.getByRole("figure", { name: "Sample scene" }).getByRole("emphasis"),
   ).toBeVisible();
-  await page.keyboard.press("Escape");
 
   await hexField(page, "Actions").fill("#6b4a2e");
   await expect(editor.getByText("Set by you", { exact: true })).toBeVisible();
@@ -632,6 +631,7 @@ test("after a reload the app comes back with its selection and an empty chat", a
   const popup = page.getByRole("listbox").locator("xpath=..");
   await expect(popup).toBeVisible();
   await expect(popup).not.toHaveAttribute("data-starting-style");
+  await expect.poll(() => popup.evaluate((element) => element.getAnimations().length)).toBe(0);
   const list = await popup.boundingBox();
   const viewport = page.viewportSize();
   expect(list?.y).toBeGreaterThanOrEqual(11.5);
@@ -1015,6 +1015,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
 
   await page.getByRole("link", { name: "Chat", exact: true }).first().click();
   await openSession(page);
+  await page.locator("summary").filter({ hasText: "Applies to future replies" }).click();
   await expect(
     page.getByText("Context 16,384 of 131,072 tokens, limited in Settings."),
   ).toBeVisible();
@@ -1034,6 +1035,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
   await expect(reset).toHaveCount(0);
   await page.getByRole("link", { name: "Chat", exact: true }).first().click();
   await openSession(page);
+  await page.locator("summary").filter({ hasText: "Applies to future replies" }).click();
   await expect(page.getByText("Context window 131,072 tokens.")).toBeVisible();
   await closeSession(page);
 });
@@ -1041,6 +1043,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
 test("a window above the default limit is fitted to the default, and says so", async ({ page }) => {
   await openChat(page, "mock-wide");
   await openSession(page);
+  await page.locator("summary").filter({ hasText: "Applies to future replies" }).click();
   await expect(
     page.getByText("Context 131,072 of 262,144 tokens, the default limit; Settings can change it."),
   ).toBeVisible();

@@ -156,6 +156,7 @@ test("a World Info file imports with its report, a non-lorebook is refused with 
   await expect(report).toContainText("It is linked to no character yet.");
   await expect(report).toContainText("Some settings changed or were left out.");
   await report.getByRole("button", { name: "Show details" }).click();
+  await report.locator("summary").filter({ hasText: "unsupported or omitted" }).click();
   await expect(report.getByRole("heading", { name: "Left out" })).toBeVisible();
   await expect(report).toContainText("automation");
   await expect(

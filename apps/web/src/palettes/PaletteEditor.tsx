@@ -223,168 +223,177 @@ export function PaletteEditor({
           onClose();
         }
       }}
-      className="grid max-w-xl gap-5 rounded-xl border border-rush bg-surface p-4 transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-y-(--rise) starting:opacity-0 tablet:p-5"
+      className="grid max-w-xl gap-5 rounded-xl border border-rush bg-surface p-4 transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-y-(--rise) starting:opacity-0 tablet:p-5 desktop:max-w-wide"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="grid gap-0.5">
-          <h3
-            ref={heading}
-            id={headingId}
-            tabIndex={-1}
-            className={cn(SECTION_HEADING, "outline-none")}
-          >
-            {draft.saved ? `Edit ${draft.name.trim() || "palette"}` : "New palette"}
-          </h3>
-          <p className={HELP}>
-            Started from {nameOf(draft.base)}. The whole app shows it while you edit.
-          </p>
-        </div>
-        <Menu>
-          <MenuTrigger render={<Button variant="quiet" className="shrink-0" />}>
-            Start over
-          </MenuTrigger>
-          <MenuContent label="Start over from">
-            <p className="px-2.5 pt-1.5 pb-1 text-meta text-reed">Start over from</p>
-            {restartChoices.map((choice, index) => (
-              <Fragment key={choice}>
-                {index === PALETTES.length && <MenuSeparator />}
-                <MenuItem onClick={() => setRestart(choice)}>
-                  {isCustomPalette(choice) ? nameOf(choice) : BUILT_IN_NAMES[choice]}
-                </MenuItem>
-              </Fragment>
-            ))}
-          </MenuContent>
-        </Menu>
-      </div>
+      <div className="grid min-w-0 gap-5 desktop:grid-cols-2 desktop:items-start">
+        <div className="grid min-w-0 gap-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="grid gap-0.5">
+              <h3
+                ref={heading}
+                id={headingId}
+                tabIndex={-1}
+                className={cn(SECTION_HEADING, "outline-none")}
+              >
+                {draft.saved ? `Edit ${draft.name.trim() || "palette"}` : "New palette"}
+              </h3>
+              <p className={HELP}>
+                Started from {nameOf(draft.base)}. The whole app shows it while you edit.
+              </p>
+            </div>
+            <Menu>
+              <MenuTrigger render={<Button variant="quiet" className="shrink-0" />}>
+                Start over
+              </MenuTrigger>
+              <MenuContent label="Start over from">
+                <p className="px-2.5 pt-1.5 pb-1 text-meta text-reed">Start over from</p>
+                {restartChoices.map((choice, index) => (
+                  <Fragment key={choice}>
+                    {index === PALETTES.length && <MenuSeparator />}
+                    <MenuItem onClick={() => setRestart(choice)}>
+                      {isCustomPalette(choice) ? nameOf(choice) : BUILT_IN_NAMES[choice]}
+                    </MenuItem>
+                  </Fragment>
+                ))}
+              </MenuContent>
+            </Menu>
+          </div>
 
-      <div className="grid gap-4 tablet:grid-cols-[minmax(0,1fr)_auto] tablet:items-end">
-        <div className="grid gap-1.5">
-          <label htmlFor={nameId} className={FIELD_LABEL}>
-            Name
-          </label>
-          <input
-            ref={nameRef}
-            id={nameId}
-            value={draft.name}
-            maxLength={PALETTE_NAME_LENGTH}
-            aria-invalid={nameMissing || undefined}
-            onChange={(event) => {
-              setNameMissing(false);
-              renameDraft(event.target.value);
-            }}
-            className={LINE_FIELD}
-          />
-          {nameMissing && (
-            <InlineStatus as="p" tone="error" role="presentation" className="text-meta">
-              Name it before saving.
+          <div className="grid gap-4 tablet:grid-cols-[minmax(0,1fr)_auto] tablet:items-end desktop:grid-cols-1 desktop:justify-items-start">
+            <div className="grid w-full min-w-0 gap-1.5">
+              <label htmlFor={nameId} className={FIELD_LABEL}>
+                Name
+              </label>
+              <input
+                ref={nameRef}
+                id={nameId}
+                value={draft.name}
+                maxLength={PALETTE_NAME_LENGTH}
+                aria-invalid={nameMissing || undefined}
+                onChange={(event) => {
+                  setNameMissing(false);
+                  renameDraft(event.target.value);
+                }}
+                className={LINE_FIELD}
+              />
+              {nameMissing && (
+                <InlineStatus as="p" tone="error" role="presentation" className="text-meta">
+                  Name it before saving.
+                </InlineStatus>
+              )}
+            </div>
+            <div className="grid gap-1.5">
+              <span className={FIELD_LABEL}>Editing scheme</span>
+              <ToggleGroup
+                aria-label="Editing scheme"
+                className="w-fit"
+                value={[scheme]}
+                onValueChange={(value) => {
+                  const next = value[0];
+                  if (next === "light" || next === "dark") showScheme(next);
+                }}
+              >
+                <ToggleGroupItem value="light" labelled>
+                  <SunIcon size={16} />
+                  Day
+                </ToggleGroupItem>
+                <ToggleGroupItem value="dark" labelled>
+                  <MoonIcon size={16} />
+                  Night
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+
+          <div className="sticky top-0 z-(--z-raised) -mx-4 border-rush border-y bg-surface px-4 py-1.5 tablet:-mx-5 tablet:px-5 desktop:hidden">
+            <Popover>
+              <PopoverTrigger render={<Button size="text" variant="outline" />}>
+                Preview
+              </PopoverTrigger>
+              <PopoverContent
+                title="Palette preview"
+                className="w-[min(32rem,calc(100vw-2rem))] overflow-y-auto p-3"
+              >
+                <SampleScene />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {KEY_GROUPS.map((group) => (
+            <fieldset key={group.title} className="grid gap-3">
+              <legend className="mb-1 grid gap-0.5">
+                <span className={FIELD_LABEL}>{group.title}</span>
+                <span className={HELP}>{group.note}</span>
+              </legend>
+              <div className="grid gap-3 tablet:grid-cols-2 desktop:grid-cols-1">
+                {group.roles.map(field)}
+              </div>
+            </fieldset>
+          ))}
+
+          <Collapsible.Root
+            open={allOpen}
+            onOpenChange={setAllOpen}
+            className="border-rush border-t"
+          >
+            <Collapsible.Trigger className="group/all -mx-2 flex min-h-12 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-3 text-left row touch:min-h-14">
+              <span className="grid flex-1 gap-0.5">
+                <span className={FIELD_LABEL}>All colours</span>
+                <span className={HELP}>
+                  {handSetCount === 0
+                    ? "Every other colour follows the ones above."
+                    : `${handSetCount} set by you ${scheme === "light" ? "by day" : "by night"}; the rest follow the ones above.`}
+                </span>
+              </span>
+              <ChevronDownIcon
+                size={16}
+                className="text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/all:rotate-180 motion-reduce:transition-none"
+              />
+            </Collapsible.Trigger>
+            <Collapsible.Panel inert={!allOpen} className="-mx-1.5 unfold">
+              <div className="grid gap-5 px-1.5 pt-1 pb-2">
+                {MORE_GROUPS.map((group) => (
+                  <fieldset key={group.title} className="grid gap-3">
+                    <legend className={cn(FIELD_LABEL, "mb-1")}>{group.title}</legend>
+                    <div className="grid gap-3 tablet:grid-cols-2 desktop:grid-cols-1">
+                      {group.roles.map(field)}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+            </Collapsible.Panel>
+          </Collapsible.Root>
+
+          <Summary shortfalls={shortfalls} onReveal={reveal} />
+
+          {failed && (
+            <InlineStatus tone="error" as="p" role="alert">
+              {failed}
             </InlineStatus>
           )}
-        </div>
-        <div className="grid gap-1.5">
-          <span className={FIELD_LABEL}>Editing scheme</span>
-          <ToggleGroup
-            aria-label="Editing scheme"
-            className="w-fit"
-            value={[scheme]}
-            onValueChange={(value) => {
-              const next = value[0];
-              if (next === "light" || next === "dark") showScheme(next);
-            }}
-          >
-            <ToggleGroupItem value="light" labelled>
-              <SunIcon size={16} />
-              Day
-            </ToggleGroupItem>
-            <ToggleGroupItem value="dark" labelled>
-              <MoonIcon size={16} />
-              Night
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-      </div>
 
-      <div className="sticky top-0 z-(--z-raised) -mx-4 border-rush border-y bg-surface px-4 py-1.5 tablet:-mx-5 tablet:px-5">
-        <Popover>
-          <PopoverTrigger render={<Button size="text" variant="outline" />}>Preview</PopoverTrigger>
-          <PopoverContent
-            title="Palette preview"
-            className="w-[min(32rem,calc(100vw-2rem))] overflow-y-auto p-3"
-          >
-            <figure
-              aria-label="Sample scene"
-              className="grid gap-3 rounded-lg border border-rush bg-canvas px-4 py-3.5"
-            >
-              <p className="slip text-line text-ink">The tide is turning. Are you coming in?</p>
-              <div className="voice-scene [&_blockquote]:my-0">
-                <CardProse text={SAMPLE} streaming={false} />
-              </div>
-              <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-                <span className={buttonVariants({ variant: "primary" })}>Send</span>
-                <span className={buttonVariants({ variant: "outline" })}>New reply</span>
-              </div>
-            </figure>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {KEY_GROUPS.map((group) => (
-        <fieldset key={group.title} className="grid gap-3">
-          <legend className="mb-1 grid gap-0.5">
-            <span className={FIELD_LABEL}>{group.title}</span>
-            <span className={HELP}>{group.note}</span>
-          </legend>
-          <div className="grid gap-3 tablet:grid-cols-2">{group.roles.map(field)}</div>
-        </fieldset>
-      ))}
-
-      <Collapsible.Root open={allOpen} onOpenChange={setAllOpen} className="border-rush border-t">
-        <Collapsible.Trigger className="group/all -mx-2 flex min-h-12 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-3 text-left row touch:min-h-14">
-          <span className="grid flex-1 gap-0.5">
-            <span className={FIELD_LABEL}>All colours</span>
-            <span className={HELP}>
-              {handSetCount === 0
-                ? "Every other colour follows the ones above."
-                : `${handSetCount} set by you ${scheme === "light" ? "by day" : "by night"}; the rest follow the ones above.`}
-            </span>
-          </span>
-          <ChevronDownIcon
-            size={16}
-            className="text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/all:rotate-180 motion-reduce:transition-none"
-          />
-        </Collapsible.Trigger>
-        <Collapsible.Panel inert={!allOpen} className="-mx-1.5 unfold">
-          <div className="grid gap-5 px-1.5 pt-1 pb-2">
-            {MORE_GROUPS.map((group) => (
-              <fieldset key={group.title} className="grid gap-3">
-                <legend className={cn(FIELD_LABEL, "mb-1")}>{group.title}</legend>
-                <div className="grid gap-3 tablet:grid-cols-2">{group.roles.map(field)}</div>
-              </fieldset>
-            ))}
+          <div className={PANEL_FOOTER}>
+            {draft.saved && (
+              <Button
+                variant="danger"
+                disabled={busy !== null}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete
+              </Button>
+            )}
+            <span className="flex-1" />
+            <Button variant="quiet" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="primary" disabled={busy !== null} onClick={() => void save()}>
+              {busy === "saving" ? "Saving" : "Save palette"}
+            </Button>
           </div>
-        </Collapsible.Panel>
-      </Collapsible.Root>
-
-      <Summary shortfalls={shortfalls} onReveal={reveal} />
-
-      {failed && (
-        <InlineStatus tone="error" as="p" role="alert">
-          {failed}
-        </InlineStatus>
-      )}
-
-      <div className={PANEL_FOOTER}>
-        {draft.saved && (
-          <Button variant="danger" disabled={busy !== null} onClick={() => setConfirmDelete(true)}>
-            Delete
-          </Button>
-        )}
-        <span className="flex-1" />
-        <Button variant="quiet" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" disabled={busy !== null} onClick={() => void save()}>
-          {busy === "saving" ? "Saving" : "Save palette"}
-        </Button>
+        </div>
+        <div data-palette-preview="" className="sticky top-0 hidden desktop:block">
+          <SampleScene />
+        </div>
       </div>
 
       <ConfirmDialog
@@ -428,6 +437,24 @@ export function PaletteEditor({
         }}
       />
     </section>
+  );
+}
+
+function SampleScene() {
+  return (
+    <figure
+      aria-label="Sample scene"
+      className="grid gap-3 rounded-lg border border-rush bg-canvas px-4 py-3.5"
+    >
+      <p className="slip text-line text-ink">The tide is turning. Are you coming in?</p>
+      <div className="voice-scene [&_blockquote]:my-0">
+        <CardProse text={SAMPLE} streaming={false} />
+      </div>
+      <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
+        <span className={buttonVariants({ variant: "primary" })}>Send</span>
+        <span className={buttonVariants({ variant: "outline" })}>New reply</span>
+      </div>
+    </figure>
   );
 }
 

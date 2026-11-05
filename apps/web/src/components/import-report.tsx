@@ -2,6 +2,7 @@ import type { ImportReport } from "@ephemera/core";
 import { useState } from "react";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE, Unfold } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { EXPLANATION } from "@/sheet/fields.ts";
 
@@ -56,11 +57,11 @@ export function ImportReportLine({
           Dismiss
         </Button>
       </div>
-      {details && (
+      <Unfold show={details}>
         <div className="grid gap-3 border-rush border-l pl-4 text-ui transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
           <ReportGroups report={report} />
         </div>
-      )}
+      </Unfold>
     </InlineStatus>
   );
 }
@@ -75,7 +76,16 @@ export function ReportGroups({ report }: { report: ImportReport }) {
     <>
       <ReportGroup title="Kept" items={report.kept} />
       <ReportGroup title="Changed" items={report.changed} />
-      <ReportGroup title="Left out" items={report.skipped} />
+      {report.skipped.length > 0 && (
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            <DisclosureChevron />
+            {report.skipped.length} unsupported or omitted{" "}
+            {report.skipped.length === 1 ? "setting" : "settings"}
+          </summary>
+          <ReportGroup title="Left out" items={report.skipped} />
+        </details>
+      )}
     </>
   );
 }

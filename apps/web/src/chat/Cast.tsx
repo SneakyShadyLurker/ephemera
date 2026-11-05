@@ -36,6 +36,7 @@ import { useContextWindow } from "../api.ts";
 import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
 import { COMPACT_LABEL, GROUP_HEADING, PROSE_FACE, PROSE_FIELD } from "../sheet/fields.ts";
+import { InlineSave } from "../sheet/InlineSave.tsx";
 import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
   busyOf,
@@ -1217,11 +1218,7 @@ function EditableValue({
           <span className="sr-only">Correct {label.toLowerCase()}: </span>
           {children}
         </button>
-        {saved && (
-          <InlineStatus as="span" className="font-sans">
-            Saved
-          </InlineStatus>
-        )}
+        {saved && <InlineSave status={{ kind: "saved" }} noun="cast record" />}
       </>
     );
   }
@@ -1277,7 +1274,7 @@ function EditableValue({
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => finish(true, true)}
       >
-        Save
+        Done
       </Button>
       {current !== draft.initial && (
         <InlineStatus as="span" role="status" className="font-sans text-meta">

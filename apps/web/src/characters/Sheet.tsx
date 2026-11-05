@@ -35,6 +35,7 @@ import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { CastSection } from "../cast/CastSection.tsx";
 import { useStartChat } from "../chat/StartChat.tsx";
+import { LinkedBooks } from "../lorebook/LinkedBooks.tsx";
 import { LorebookSection } from "../lorebook/SheetSection.tsx";
 import { MemorySection } from "../memory/MemorySection.tsx";
 import { personasQuery } from "../personas/queries.ts";
@@ -378,7 +379,7 @@ function SheetEditor({
         noun="character"
         frame={wide ? SHEET_FRAME.indexed : SHEET_FRAME.form}
       >
-        {!wide && !phone && <SectionsMenu disabled={id === null || locked} />}
+        {!wide && !phone && <SectionsMenu />}
         <ChatButton id={id} name={fields.name} flush={autosave.flush} locked={locked} />
         <ReworkButton
           id={id}
@@ -422,7 +423,16 @@ function SheetEditor({
         onBlur={() => {
           if (autosave.hasUnsaved()) void autosave.flush();
         }}
-        aside={wide && <SheetIndex count={fields.alternateGreetings.length + 1} />}
+        aside={
+          wide && (
+            <SheetIndex
+              count={fields.alternateGreetings.length + 1}
+              id={id}
+              name={fields.name}
+              locked={locked}
+            />
+          )
+        }
       >
         {notice && <SheetNotice notice={notice} onDismiss={() => setNotice(null)} />}
         <section
@@ -454,11 +464,16 @@ function SheetEditor({
               }
               tags={<TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />}
               details={
-                <div className="flex min-w-0 items-start gap-3">
+                <div className="grid min-w-0 gap-3">
                   <div className="min-w-0 flex-1">
                     <CardDetails fields={fields} edit={edit} locked={locked} />
                   </div>
-                  {phone && <SectionsMenu disabled={id === null || locked} />}
+                  {phone && (
+                    <div className="flex items-center justify-between gap-3">
+                      <SectionsMenu />
+                      <LinkedBooks id={id} name={fields.name} locked={locked} utility />
+                    </div>
+                  )}
                 </div>
               }
               owner="characters"
@@ -756,28 +771,15 @@ function goToSection(key: string): HTMLElement | null {
   return field;
 }
 
-function SectionsMenu({ disabled }: { disabled: boolean }) {
-  const phone = useFormFactor() === "phone";
+function SectionsMenu() {
   // The menu returns focus when it closes: to the chosen section's field, not the trigger.
   const chosen = useRef<HTMLElement | null>(null);
   return (
     <div className="flex shrink-0 items-center gap-1">
-      {phone && (
-        <Button
-          size="text"
-          variant="link"
-          disabled={disabled}
-          onClick={() => {
-            goToSection("lorebook");
-            document.querySelector<HTMLButtonElement>("[data-link-trigger] button")?.click();
-          }}
-        >
-          Link a lorebook
-        </Button>
-      )}
       <Menu>
-        <MenuTrigger render={<Button size="icon" aria-label="Go to section" />}>
-          <SectionsIcon />
+        <MenuTrigger render={<Button aria-label="Go to section" />}>
+          <SectionsIcon size={16} />
+          Sections
         </MenuTrigger>
         <MenuContent
           label="Sections"
@@ -805,7 +807,17 @@ function SectionsMenu({ disabled }: { disabled: boolean }) {
 }
 
 /** Desktop from 1360px: the sheet's contents, with the section in view marked. */
-function SheetIndex({ count }: { count: number }) {
+function SheetIndex({
+  count,
+  id,
+  name,
+  locked,
+}: {
+  count: number;
+  id: string | null;
+  name: string;
+  locked: boolean;
+}) {
   const [current, setCurrent] = useState<string>("identity");
   useEffect(() => {
     // A callback reports only the sections whose state changed, so the band's
@@ -858,17 +870,7 @@ function SheetIndex({ count }: { count: number }) {
     >
       <ul className="grid border-rush border-l">
         <li>
-          <Button
-            variant="quiet"
-            aria-label="Link from library"
-            className="row mb-2 ml-1 flex min-h-9 items-center rounded-md px-3 text-note text-reed touch:min-h-11"
-            onClick={() => {
-              goToSection("lorebook");
-              document.querySelector<HTMLButtonElement>("[data-link-trigger] button")?.click();
-            }}
-          >
-            Link a lorebook
-          </Button>
+          <LinkedBooks id={id} name={name} locked={locked} utility />
         </li>
         {SECTIONS.map(([key, label]) => (
           <li key={key}>

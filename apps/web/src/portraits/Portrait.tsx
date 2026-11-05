@@ -88,6 +88,7 @@ export const PORTRAIT_TRANSITION = "character-portrait";
  */
 export function Portrait({
   owner = "characters",
+  name,
   id,
   version,
   size = "thumb",
@@ -96,6 +97,7 @@ export function Portrait({
   className,
 }: {
   owner?: PortraitOwner;
+  name?: string;
   id: string;
   version: number | null;
   size?: PortraitSize;
@@ -154,10 +156,19 @@ export function Portrait({
       )}
     >
       {/* The mark low in the leaf, 9% of its width in from the corner (the leaf is the container). */}
-      <MarkIcon
-        size={32}
-        className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
-      />
+      {version === null && name ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 grid place-items-center font-semibold font-story text-ink text-title"
+        >
+          {initial(name)}
+        </span>
+      ) : (
+        <MarkIcon
+          size={32}
+          className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
+        />
+      )}
       <KeptImage key={`${owner}:${id}`} src={drawn} arriving={arriving} lazy />
     </div>
   );

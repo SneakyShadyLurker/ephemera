@@ -13,5 +13,5 @@ export const rowLayout = (kind: keyof typeof LAYOUT, interactive = true) =>
 /** A row with a separate action hit area; never nest its actions in its link. */
 export const ROW_FRAME = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1";
 export const ROW_CONTENT = "grid min-w-0 gap-1";
-export const ROW_META = "flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-meta text-reed";
+export const ROW_META = "flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-note text-reed";
 export const ROW_ACTIONS = "flex shrink-0 items-center justify-end gap-1";

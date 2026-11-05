@@ -10,6 +10,7 @@ import { CloseIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import {
   Drawer,
   DrawerCloseIcon,
@@ -83,7 +84,7 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
           inert={!open}
           className="dock-side shrink-0 overflow-clip"
         >
-          <div className="flex h-full w-80 flex-col border-rush border-l">
+          <div className="flex h-full w-entries flex-col border-rush border-l">
             <DrawerHeader>
               <h2 id="session-title" className={PANEL_TITLE}>
                 Session
@@ -133,13 +134,13 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
 function SessionFields() {
   return (
     // One shrinkable column: a long name truncates in its trigger instead of widening the panel.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-7 overflow-y-auto px-5 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-      <CharacterField />
-      <PersonaField />
-      <hr className="border-rush" />
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto px-5 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+      <PromptPresetField />
       <SamplerPresetField />
       <ModelField />
-      <PromptPresetField />
+      <hr className="border-rush" />
+      <CharacterField />
+      <PersonaField />
     </div>
   );
 }
@@ -162,15 +163,19 @@ function Field({
       </span>
       {children(labelId)}
       {note && (
-        <p
-          key={typeof note === "string" ? note : undefined}
-          className={cn(
-            EXPLANATION,
-            "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
-          )}
-        >
-          {note}
-        </p>
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            <DisclosureChevron />
+            {label === "Persona"
+              ? "Keeps this chat"
+              : label === "Model"
+                ? "Applies to future replies"
+                : label === "Prompt preset"
+                  ? "Builds each reply’s prompt"
+                  : "Reply settings"}
+          </summary>
+          <p className={EXPLANATION}>{note}</p>
+        </details>
       )}
     </div>
   );
@@ -296,7 +301,7 @@ function PersonaField() {
             checked={bound === persona.id}
             onCheckedChange={(checked) => void bind(checked)}
           />
-          Always use with {character.name}
+          <span>Always use with {character.name}</span>
         </label>
       )}
       {/* The grid's gap moves inside the slot, so it folds away with the line. */}

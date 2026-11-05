@@ -1,5 +1,5 @@
 import { useBlocker } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
 import { AlertDialog, AlertDialogClose, AlertDialogContent } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,12 @@ import { setCreatorWriting } from "./writing.ts";
  */
 export function CreateScreen() {
   const stage = useCreator((state) => state.stage);
+  const kind = useCreator((state) => state.kind);
+  useLayoutEffect(() => {
+    if (creatorStore.getState().kind === null && creatorStore.getState().stage === "choose") {
+      creatorStore.getState().choose("subject");
+    }
+  }, []);
   const status = useCreator((state) => state.card?.status ?? null);
   // Only a finished card, which no longer changes as text streams in.
   const complete = useCreator((state) => (state.card?.status === "complete" ? state.card : null));
@@ -98,7 +104,7 @@ export function CreateScreen() {
           SCROLL_GUTTERS,
         )}
       >
-        {stage === "choose" ? (
+        {stage === "choose" && kind !== null ? (
           <Choose />
         ) : stage === "brainstorm" ? (
           <Brainstorm scroller={scroller} />

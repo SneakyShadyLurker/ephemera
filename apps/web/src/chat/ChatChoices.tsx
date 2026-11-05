@@ -14,15 +14,15 @@ export function ChatChoices() {
   const personaLabel = useId();
   const samplerLabel = useId();
   return (
-    // Two fixed touch rows on phones: arriving values never move the story.
-    <div className="grid h-25 min-w-0 shrink-0 grid-rows-2 gap-3 pl-1 text-note tablet:flex tablet:h-11 tablet:items-center">
-      <div className="grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 tablet:flex tablet:flex-1">
+    // One fixed row reserves both hit plates before their values arrive.
+    <div className="grid h-11 min-w-0 shrink-0 grid-cols-2 items-center gap-3 pl-1 text-note">
+      <div className="flex min-w-0 items-center gap-1.5">
         <span id={personaLabel} className={`shrink-0 ${COMPACT_LABEL}`}>
           Writing as
         </span>
         <PersonaSelect labelId={personaLabel} size="inline" />
       </div>
-      <div className="grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 tablet:flex tablet:flex-1">
+      <div className="flex min-w-0 items-center gap-1.5">
         <span id={samplerLabel} className={`shrink-0 ${COMPACT_LABEL}`}>
           Sampler
         </span>

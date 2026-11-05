@@ -27,10 +27,12 @@ export function LinkedBooks({
   id,
   name,
   locked,
+  utility = false,
 }: {
   id: string | null;
   name: string;
   locked: boolean;
+  utility?: boolean;
 }) {
   const library = useQuery({ ...libraryQuery, enabled: id !== null });
   const links = useLinks();
@@ -127,6 +129,60 @@ export function LinkedBooks({
       };
     });
 
+  const picker = (
+    <ChoicePicker
+      trigger={
+        <>
+          <PlusIcon size={16} />
+          Link a lorebook
+        </>
+      }
+      disabled={off}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setCreateFailed(null);
+      }}
+      title={`Lorebooks linked to ${name}`}
+      sheetTitle="Linked lorebooks"
+      findLabel="Find a lorebook"
+      empty="No lorebooks in your library yet."
+      noMatch="No lorebook matches."
+      choices={choices}
+      onToggle={(choice, checked) => {
+        if (id === null) return;
+        setDone(null);
+        void links
+          .change({ lorebookId: choice.id, characterId: id, character: name, linked: checked })
+          .then((ok) => {
+            if (!ok) return;
+            setDone(checked ? `Linked ${choice.name}.` : `Unlinked ${choice.name}.`);
+            setOpen(false);
+          });
+      }}
+      notice={
+        (links.error ?? createFailed) !== null && (
+          <InlineStatus tone="error" as="p" role="alert" className="px-2.5 pb-1.5">
+            {links.error ?? createFailed}
+          </InlineStatus>
+        )
+      }
+      footer={
+        <div className="border-rush border-t p-1.5">
+          <Button
+            className="w-full justify-start"
+            disabled={full || creating}
+            onClick={() => void createAndLink()}
+          >
+            <PlusIcon size={16} />
+            {creating ? "Creating…" : "New lorebook"}
+          </Button>
+          {full && <p className="px-2.5 pb-1 text-meta text-reed">{LINKS_FULL_TEXT}</p>}
+        </div>
+      }
+    />
+  );
+  if (utility) return picker;
   return (
     <div ref={list} className="grid gap-3">
       <h3 className={FIELD_LABEL}>Linked from your library</h3>
@@ -169,63 +225,7 @@ export function LinkedBooks({
         </ul>
       )}
       <div className="flex flex-wrap items-center gap-3" data-link-trigger="">
-        <ChoicePicker
-          trigger={
-            <>
-              <PlusIcon size={16} />
-              Link a lorebook
-            </>
-          }
-          disabled={off}
-          open={open}
-          onOpenChange={(next) => {
-            setOpen(next);
-            if (next) setCreateFailed(null);
-          }}
-          title={`Lorebooks linked to ${name}`}
-          sheetTitle="Linked lorebooks"
-          findLabel="Find a lorebook"
-          empty="No lorebooks in your library yet."
-          noMatch="No lorebook matches."
-          choices={choices}
-          onToggle={(choice, checked) => {
-            if (id === null) return;
-            setDone(null);
-            void links
-              .change({
-                lorebookId: choice.id,
-                characterId: id,
-                character: name,
-                linked: checked,
-              })
-              .then((ok) => {
-                if (!ok) return;
-                setDone(checked ? `Linked ${choice.name}.` : `Unlinked ${choice.name}.`);
-                setOpen(false);
-                list.current?.scrollIntoView({ block: "nearest" });
-              });
-          }}
-          notice={
-            (links.error ?? createFailed) !== null && (
-              <InlineStatus tone="error" as="p" role="alert" className="px-2.5 pb-1.5">
-                {links.error ?? createFailed}
-              </InlineStatus>
-            )
-          }
-          footer={
-            <div className="border-rush border-t p-1.5">
-              <Button
-                className="w-full justify-start"
-                disabled={full || creating}
-                onClick={() => void createAndLink()}
-              >
-                <PlusIcon size={16} />
-                {creating ? "Creating…" : "New lorebook"}
-              </Button>
-              {full && <p className="px-2.5 pb-1 text-meta text-reed">{LINKS_FULL_TEXT}</p>}
-            </div>
-          }
-        />
+        {picker}
         {linked.length > 0 && (
           <span className="text-meta text-reed">{linkedCountText(linked.length)}</span>
         )}

@@ -17,6 +17,7 @@ export function HeaderAction({
   label,
   text = label,
   icon: Icon,
+  labelledOnPhone = false,
   ...props
 }: Omit<ComponentProps<typeof Button>, "children" | "size" | "aria-label"> & {
   /** The action's accessible name. */
@@ -24,9 +25,10 @@ export function HeaderAction({
   /** The words beside the icon from tablet up, when shorter than the name. */
   text?: string;
   icon: ComponentType<IconProps>;
+  labelledOnPhone?: boolean;
 }) {
   const phone = useFormFactor() === "phone";
-  return phone ? (
+  return phone && !labelledOnPhone ? (
     <Button {...props} size="icon" aria-label={label}>
       <Icon />
     </Button>
@@ -109,11 +111,15 @@ export function PortraitTile({
   const portrait = (
     <Portrait
       owner={owner}
+      {...(owner === "personas" ? { name } : {})}
       id={id}
       version={version}
       arriving={arriving}
       transition={transition}
-      className={onChat === undefined ? PORTRAIT_HOVER : CHAT_PORTRAIT_HOVER}
+      className={cn(
+        onChat === undefined ? PORTRAIT_HOVER : CHAT_PORTRAIT_HOVER,
+        owner === "personas" && version === null && "h-24 aspect-auto",
+      )}
     />
   );
   if (onChat === undefined) {

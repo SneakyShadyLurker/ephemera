@@ -38,8 +38,8 @@ import { chatStore, useChat } from "./session.ts";
 import { type AssistantMessage, canGenerateAlternate, shownReply } from "./store.ts";
 
 /** Compact icon buttons for message actions; 44px on touch. */
-const ICON = "size-8 touch:size-11";
-const LABELLED = "h-8 gap-1.5 px-2 touch:h-11";
+const ICON = "size-11";
+const LABELLED = "h-11 gap-1.5 px-1.5 text-note touch:px-1.5";
 
 const edit = (id: string) => chatStore.getState().startEdit(id);
 const remove = (id: string) => chatStore.getState().remove(id);
@@ -222,18 +222,7 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
   const canContinue = reply.text !== "" && reply.status !== "failed";
   // A reply that failed before any text is replaced in place: New reply would keep it as an empty alternate.
   const newReply =
-    reply.status === "failed" && reply.text === "" ? (
-      <Tooltip label="Write this reply again" shortcut="Ctrl Enter">
-        <Button
-          variant="quiet"
-          disabled={busy || !canGenerate || !writable}
-          onClick={() => void chatStore.getState().regenerate()}
-          className={LABELLED}
-        >
-          Try again
-        </Button>
-      </Tooltip>
-    ) : (
+    reply.status === "failed" && reply.text === "" ? null : (
       <Tooltip label="Write another reply">
         <Button
           variant="quiet"
@@ -246,9 +235,9 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
       </Tooltip>
     );
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex h-11 items-center gap-1">
       {count > 1 ? (
-        <fieldset className="flex items-center gap-3">
+        <fieldset className="flex shrink-0 items-center gap-0">
           <legend className="sr-only">Replies</legend>
           <IconAction
             label="Previous reply"
@@ -257,7 +246,7 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
           >
             <PreviousIcon size={16} />
           </IconAction>
-          <span className="min-w-11 text-center text-meta text-reed tabular-nums">
+          <span className="min-w-9 text-center text-meta text-reed tabular-nums">
             <span aria-hidden="true">
               {message.shown + 1} / {count}
             </span>
@@ -265,19 +254,14 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
               Reply {message.shown + 1} of {count}
             </span>
           </span>
-          {atLast ? (
-            newReply
-          ) : (
-            <IconAction label="Next reply" onClick={() => void swipe(1)} disabled={busy}>
-              <NextIcon size={16} />
-            </IconAction>
-          )}
+          <IconAction label="Next reply" onClick={() => void swipe(1)} disabled={busy || atLast}>
+            <NextIcon size={16} />
+          </IconAction>
         </fieldset>
-      ) : (
-        newReply
-      )}
+      ) : null}
+      {newReply}
       {continuing ? (
-        <p className="px-2 text-note text-reed">Continuing…</p>
+        <p className="px-1.5 text-note text-reed">Continuing…</p>
       ) : (
         canContinue && (
           <Tooltip label="Continue this reply" shortcut="Alt Enter">

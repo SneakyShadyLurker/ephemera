@@ -149,7 +149,7 @@ test("Session opens and closes its layout slot continuously, including a reverse
     .evaluate((element) => element.getBoundingClientRect().width);
   const opening = await sessionWidths(page, true);
   const after = opening.at(-1) ?? 0;
-  expect(before - after).toBeCloseTo(320, 0);
+  expect(before - after).toBeCloseTo(432, 0);
   expect(opening.some((width) => width < before - 1 && width > after + 1)).toBe(true);
   const closing = await sessionWidths(page, false);
   expect(closing.some((width) => width > after + 1 && width < before - 1)).toBe(true);
@@ -183,7 +183,7 @@ test("Session opens and closes its layout slot continuously, including a reverse
   await expect(session).toBeVisible();
   await expect
     .poll(() => session.evaluate((element) => element.getBoundingClientRect().width))
-    .toBeCloseTo(320, 0);
+    .toBeCloseTo(432, 0);
   await session.getByRole("button", { name: "Close Session" }).click();
   await expect(session).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Session", exact: true })).toBeFocused();
@@ -220,7 +220,7 @@ test("reduced-motion Session keeps its width while its closing fade is visible",
       }),
   );
   expect(frames.some(({ opacity }) => opacity > 0.05 && opacity < 0.95)).toBe(true);
-  for (const { width } of frames) expect(width).toBeCloseTo(320, 0);
+  for (const { width } of frames) expect(width).toBeCloseTo(432, 0);
   await expect(page.getByRole("complementary", { name: "Session" })).toHaveCount(0);
 });
 
@@ -1330,7 +1330,7 @@ test("New reply removes the outgoing alternate under normal motion, including re
   await openChat(page, "mock-fast");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-  const frame = lastReply(page).locator("[data-prose] > div").first();
+  const frame = lastReply(page).locator("[data-swipe]:not([data-leaving])");
   for (const model of ["mock-fast", "mock-fast", "mock-slow"] as const) {
     await chooseModel(page, model);
     const outgoing = await frame.elementHandle();
@@ -1358,7 +1358,7 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
         const start = performance.now();
         const sample = () => {
           const frame = document.querySelector<HTMLElement>(
-            '[data-message][data-role="assistant"]:last-of-type [data-prose] > div',
+            '[data-message][data-role="assistant"]:last-of-type [data-swipe]:not([data-leaving])',
           );
           if (frame) {
             const style = getComputedStyle(frame);
@@ -1404,7 +1404,7 @@ for (const reduced of [false, true]) {
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     const pager = (name: "Previous reply" | "Next reply") =>
       replyCounter(page).getByRole("button", { name });
-    const frame = lastReply(page).locator("[data-prose] > div").first();
+    const frame = lastReply(page).locator("[data-swipe]:not([data-leaving])");
     await pager("Previous reply").click();
     await expect(frame).toContainText("Reply:");
     await expect(frame).toHaveCSS("opacity", "1");
