@@ -20,6 +20,8 @@ const SIZES = {
   field: { trigger: LEAF_TRIGGER.trigger, popup: "" },
   /** A compact row control. */
   row: { trigger: cn(LEAF_TRIGGER.trigger, "w-full max-w-72 tablet:w-64"), popup: "min-w-64" },
+  /** Set in a line of words, beside the composer: the name alone. */
+  inline: { trigger: "", popup: "min-w-64" },
 } as const;
 
 /**
@@ -51,7 +53,14 @@ export function PersonaSelect({
         updateSettings({ personaId: value === NO_PERSONA ? null : value });
       }}
     >
-      <SelectTrigger aria-labelledby={labelId} placeholder="You" className={sizing.trigger}>
+      <SelectTrigger
+        aria-labelledby={labelId}
+        placeholder="You"
+        look={size === "inline" ? "inline" : "field"}
+        caption={size === "inline" ? "Persona" : undefined}
+        captionId={size === "inline" ? labelId : undefined}
+        className={sizing.trigger}
+      >
         <span
           key={persona?.id ?? NO_PERSONA}
           className={cn(
@@ -59,7 +68,7 @@ export function PersonaSelect({
             size === "field" ? "gap-3" : "gap-2",
           )}
         >
-          {persona && (
+          {persona && size !== "inline" && (
             <PortraitLeaf
               owner="personas"
               id={persona.id}

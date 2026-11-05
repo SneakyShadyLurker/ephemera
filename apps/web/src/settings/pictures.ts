@@ -9,12 +9,16 @@ import { countOf } from "@/lib/text";
 
 const UNAVAILABLE: Record<CreatorArtUnavailable, string> = {
   not_allowed:
-    "This server no longer allows this address. Only origins in its COMFYUI_ALLOWED_ORIGINS can be used.",
-  unreachable: "ComfyUI did not answer at this address.",
-  insecure: "A token is set, so the address must use https: the token is only sent over https.",
-  unauthorized: "ComfyUI refused the token. Check COMFYUI_API_KEY in the server's environment.",
-  not_ready: "The private worker answered but is not ready yet.",
-  invalid_response: "Something answered at this address, but not the way ComfyUI does.",
+    "This server no longer allows this address. Use an address its owner allows, or ask them to add it to COMFYUI_ALLOWED_ORIGINS.",
+  unreachable:
+    "The picture server did not answer at this address. Check that it runs and the address is right.",
+  insecure:
+    "This address must start with https, since this server sends its picture server a token. Change the address to https.",
+  unauthorized:
+    "The picture server refused this server's token. Its owner can check COMFYUI_API_KEY.",
+  not_ready: "The picture server answered but is not ready yet. Try again in a moment.",
+  invalid_response:
+    "Something answered at this address, but not as a ComfyUI picture server does. Check the address.",
 };
 
 /** One status line: whether portraits can be made, in plain words, and the names of what is missing. */
@@ -30,7 +34,7 @@ export function portraitStatusLine(status: CreatorArtStatus): PortraitStatusLine
     case "off":
       return {
         tone: "off",
-        text: "Off. Add a ComfyUI address to make portraits for cards written with AI.",
+        text: "Off. Add your picture server's address to make portraits for cards written with AI.",
         missing: null,
       };
     case "ready":
@@ -44,7 +48,7 @@ export function portraitStatusLine(status: CreatorArtStatus): PortraitStatusLine
     case "missing":
       return {
         tone: "problem",
-        text: "Unavailable. ComfyUI lacks parts the chosen workflow needs.",
+        text: "Unavailable. The picture server lacks parts the chosen workflow needs: install them, or choose another workflow.",
         missing: { nodes: status.nodes, models: status.models },
       };
   }

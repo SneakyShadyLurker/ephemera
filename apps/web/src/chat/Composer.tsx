@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useUi } from "@/app/ui.ts";
 import { InspectIcon, StopIcon, WriteForMeIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { useContextWindow } from "../api.ts";
 import { useSettings } from "../settings/settings.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
 import { useSignedIn } from "../signin/hooks.ts";
+import { ChatChoices } from "./ChatChoices.tsx";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { retryGreeting } from "./greetings.ts";
@@ -159,42 +161,45 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
     >
       <div className="grid gap-1.5">
         {status && (
-          <p
+          <InlineStatus
+            as="p"
             key={status}
             role="status"
-            className="flex items-center gap-2 pl-1 text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+            className="flex items-center gap-2 pl-1 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
           >
             <WriteForMeIcon size={16} className="shrink-0" />
             {status}
-          </p>
+          </InlineStatus>
         )}
         {notSent && (
-          <p
+          <InlineStatus
+            as="p"
             key={notSent}
             role="status"
-            className="pl-1 text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+            className="pl-1 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
           >
             {notSent}
-          </p>
+          </InlineStatus>
         )}
         {greetingFailed && !generating && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-1 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
-            <p role="status" className="min-w-0 flex-1 text-note text-reed">
+            <InlineStatus as="p" role="status" className="min-w-0 flex-1">
               The greeting didn't load: the chosen character, persona or presets didn't load.
-            </p>
+            </InlineStatus>
             <Button variant="outline" onClick={retryGreeting}>
               Try again
             </Button>
           </div>
         )}
         {inspectorUnavailable && (
-          <p
+          <InlineStatus
+            as="p"
             role="status"
-            className="flex items-center gap-2 pl-1 text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+            className="flex items-center gap-2 pl-1 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
           >
             <InspectIcon size={16} className="shrink-0" />
             The prompt inspector didn't load; a reload brings it back and ends the chat.
-          </p>
+          </InlineStatus>
         )}
         <div
           className={cn(
@@ -268,6 +273,7 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
             )}
           </div>
         </div>
+        <ChatChoices />
       </div>
     </form>
   );

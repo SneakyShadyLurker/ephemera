@@ -8,7 +8,9 @@ import {
   type ReworkCard,
 } from "@ephemera/core";
 import { useId } from "react";
+import { SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
+import { FIELD_LABEL, GROUP_HEADING } from "@/sheet/fields.ts";
 import { percent } from "../lorebook/copy.ts";
 import { ChangeDecision, Deleted, Inserted } from "./ChangeRuns.tsx";
 import { type ReviewItem, useReview } from "./ReviewField.tsx";
@@ -127,7 +129,7 @@ function EntryRow({
             />
           </div>
         ) : (
-          <h3 className="min-w-0 font-medium text-ink text-ui">{entryTitle(entry, index)}</h3>
+          <h3 className={cn(FIELD_LABEL, "min-w-0")}>{entryTitle(entry, index)}</h3>
         )}
         <Context number={`Entry ${index + 1}`} entry={entry} />
       </div>
@@ -177,7 +179,7 @@ function RemovedRow({
       className={cn(ROW, "change-mark change-arrive group/change")}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-        <h3 className="min-w-0 font-medium text-ui">
+        <h3 className={cn(GROUP_HEADING, "min-w-0 text-inherit")}>
           <Deleted text={title} />
         </h3>
         <Context number={`Entry ${index + 1}`} state="removed" entry={entry} />
@@ -185,9 +187,7 @@ function RemovedRow({
       <TrackedChips before={entry.keys} after={[]} />
       {long ? (
         <details className="disclosure group/removed">
-          <summary className="flex w-fit cursor-pointer list-none items-center rounded-md text-note text-reed hover:text-ink touch:-my-1 touch:min-h-11 [&::-webkit-details-marker]:hidden">
-            Show removed entry
-          </summary>
+          <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>Show removed entry</summary>
           <p className="mt-2 whitespace-pre-wrap break-words text-turn">
             <Deleted text={entry.content} />
           </p>
@@ -271,7 +271,7 @@ function NewRow({
           mark("name"),
         )}
       >
-        <h3 className="min-w-0 font-medium text-ui">
+        <h3 className={cn(GROUP_HEADING, "min-w-0 text-inherit")}>
           <Inserted text={title} />
         </h3>
         <Context number={`New entry ${number}`} entry={entry} />

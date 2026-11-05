@@ -7,6 +7,7 @@ import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
 import {
+  BROWSE_BODY,
   BROWSE_FRAME,
   BROWSE_GRID,
   PAGE_FRAME,
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { andList } from "@/lib/text";
 import { charactersQuery } from "../characters/queries.ts";
-import { useSetting } from "../settings/settings.ts";
+import { useSetting, useUpdateSettings } from "../settings/settings.ts";
 import { personasQuery } from "./queries.ts";
 
 /**
@@ -36,6 +37,8 @@ export function PersonasScreen() {
   const personas = useQuery(personasQuery);
   const list = personas.data ?? [];
   const empty = personas.isSuccess && list.length === 0;
+  const defaultPersonaId = useSetting((settings) => settings.defaultPersonaId);
+  const defaultPersona = list.find((persona) => persona.id === defaultPersonaId);
   // The header sits on what the body shows: the cast and an empty list share one frame.
   const frame = personas.isError ? PAGE_FRAME : BROWSE_FRAME;
   const newPersona = () => void navigate({ to: "/personas/$id", params: { id: "new" } });
@@ -43,6 +46,7 @@ export function PersonasScreen() {
   return (
     <main className="flex min-w-0 flex-1 flex-col [timeline-scope:--thread]">
       <ScreenHeader
+        collection
         frame={frame}
         gutters={SCROLL_GUTTERS}
         title={
@@ -54,7 +58,13 @@ export function PersonasScreen() {
           </span>
         }
       >
-        <HeaderAction label="New persona" icon={PlusIcon} onClick={newPersona} />
+        <HeaderAction
+          label="New persona"
+          text="New"
+          labelledOnPhone
+          icon={PlusIcon}
+          onClick={newPersona}
+        />
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -71,15 +81,10 @@ export function PersonasScreen() {
           <EmptyPersonas onNew={newPersona} />
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
-          <div
-            className={cn(
-              BROWSE_FRAME,
-              "@container grid grid-cols-[minmax(0,1fr)] gap-6 pt-3 pb-10",
-            )}
-          >
+          <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
             <p className="max-w-measure text-pretty text-note text-reed">
-              Who you are in the story. New chats start as the default persona, unless the character
-              goes with another.
+              New chats write as {defaultPersona?.name ?? "You"}, unless the character goes with
+              another persona.
             </p>
             <Cast list={list} />
           </div>
@@ -91,6 +96,7 @@ export function PersonasScreen() {
 
 function Cast({ list }: { list: PersonaSummary[] }) {
   const defaultPersonaId = useSetting((settings) => settings.defaultPersonaId);
+  const updateSettings = useUpdateSettings();
   const opened = useStore(openedPersona);
   const characters = useQuery(charactersQuery);
   const nameOf = (id: string) => characters.data?.find((character) => character.id === id)?.name;
@@ -108,11 +114,30 @@ function Cast({ list }: { list: PersonaSummary[] }) {
               version={persona.portrait}
               transition={opened === persona.id}
               onOpen={() => setOpenedPersona(persona.id)}
+              actionsBelow
+              actions={
+                !isDefault && (
+                  <Button
+                    variant="link"
+                    size="text"
+                    onClick={() => {
+                      updateSettings({ defaultPersonaId: persona.id });
+                      // Becoming the default removes this action; return focus to its card.
+                      requestAnimationFrame(() =>
+                        document
+                          .querySelector<HTMLElement>(`[data-persona="${persona.id}"] a`)
+                          ?.focus(),
+                      );
+                    }}
+                  >
+                    Make default
+                  </Button>
+                )
+              }
               caption={
                 <>
-                  {isDefault && <span className="text-ink">Default</span>}
-                  {isDefault && bound.length > 0 && "; "}
-                  {bound.length > 0 && `${isDefault ? "with" : "With"} ${andList(bound)}`}
+                  {isDefault && <span className="block font-sans text-reed">Default</span>}
+                  {bound.length > 0 && `With ${andList(bound)}`}
                 </>
               }
             />

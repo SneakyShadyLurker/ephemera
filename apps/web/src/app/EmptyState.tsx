@@ -17,6 +17,13 @@ export const ART_WIDTH = {
  * direction in reed and its actions, left-aligned on the screen's own
  * content container (the caller's frame), never centred. An illustration,
  * when one is given, sits above the heading at its role's size.
+ *
+ * `compact` is the same statement inside something that stays on screen (a
+ * search or filter with no results, a pane with nothing chosen yet, a
+ * picker's empty list): its title a line of interface text in reed, no
+ * illustration, a note's direction and the action that undoes the
+ * emptiness, close under the control that caused it. The caller sets its
+ * inset and any rule above it.
  */
 export function EmptyState({
   title,
@@ -26,6 +33,7 @@ export function EmptyState({
   level = 2,
   skipTarget = false,
   alert = false,
+  compact = false,
   className,
 }: {
   title: ReactNode;
@@ -40,8 +48,22 @@ export function EmptyState({
   skipTarget?: boolean;
   /** Announced as it appears (a failure). */
   alert?: boolean;
+  /** Results or a pane, not a whole collection: no heading, no art. */
+  compact?: boolean;
   className?: string;
 }) {
+  if (compact) {
+    return (
+      <div
+        role={alert ? "alert" : undefined}
+        className={cn("grid content-start justify-items-start gap-1 py-5", className)}
+      >
+        <p className="max-w-measure text-pretty text-reed text-ui">{title}</p>
+        {children && <div className="max-w-empty text-pretty text-note text-reed">{children}</div>}
+        {actions && <div className="mt-2 flex flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+    );
+  }
   const Heading = level === 2 ? "h2" : "h3";
   return (
     <section

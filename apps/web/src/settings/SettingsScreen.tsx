@@ -13,7 +13,7 @@ import { NoticeCard, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { PalettePicker } from "@/app/PalettePicker.tsx";
 import { SCROLL_GUTTERS, ScreenHeader, SETTINGS_FRAME } from "@/app/Screen.tsx";
 import { ThemeSwitch } from "@/app/ThemeSwitch.tsx";
-import { BackIcon, NextIcon } from "@/components/icons";
+import { NextIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { Infotip } from "@/components/ui/infotip";
@@ -23,8 +23,10 @@ import { SwitchField } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { cn } from "@/lib/cn";
 import { formatCount, sentence } from "@/lib/text";
+import { FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
 import { useModelOptions } from "../api.ts";
 import { ReasoningSelect, useEffortChoice } from "../creator/ReasoningSelect.tsx";
+import { usePaletteDraft } from "../palettes/draft.ts";
 import { PersonaOptions } from "../personas/PersonaSelect.tsx";
 import { personasQuery } from "../personas/queries.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
@@ -87,20 +89,25 @@ export function SettingsScreen({
     scroller.current?.scrollTo({ top: 0 });
   };
   const category = shown === null ? null : SECTION_TEXT[shown];
+  const paletteDraft = usePaletteDraft();
+  const editingPalette = shown === "appearance" && paletteDraft !== null;
+  const frame = cn(
+    SETTINGS_FRAME,
+    editingPalette &&
+      "desktop:max-w-[calc(var(--container-index)+var(--gap-index)+var(--container-palette))]",
+  );
 
   return (
     <main className="flex min-w-0 flex-1 flex-col [timeline-scope:--thread]">
       <ScreenHeader
         title={phone && category !== null ? category.label : "Settings"}
         storyTitle={false}
-        lead={
-          phone && category !== null ? (
-            <Button size="icon" aria-label="Back to settings" onClick={() => back(fromList)}>
-              <BackIcon />
-            </Button>
-          ) : undefined
+        back={
+          phone && category !== null
+            ? { label: "Settings", onBack: () => back(fromList), iconOnly: true }
+            : undefined
         }
-        frame={SETTINGS_FRAME}
+        frame={frame}
         gutters={SCROLL_GUTTERS}
       />
       <div
@@ -112,7 +119,7 @@ export function SettingsScreen({
           SCROLL_GUTTERS,
         )}
       >
-        <div className={cn(SETTINGS_FRAME, "grid gap-6 pt-4 pb-16 tablet:gap-8 tablet:pt-8")}>
+        <div className={cn(frame, "grid gap-6 pt-4 pb-16 tablet:gap-8 tablet:pt-8")}>
           <SaveAlerts />
           {phone && shown === null && (
             <nav aria-label="Settings categories">
@@ -128,12 +135,8 @@ export function SettingsScreen({
                       className="press grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-3"
                     >
                       <span className="grid gap-0.5">
-                        <span className="font-medium text-ink text-ui">
-                          {SECTION_TEXT[section].label}
-                        </span>
-                        <span className="text-pretty text-note text-reed">
-                          {SECTION_TEXT[section].purpose}
-                        </span>
+                        <span className={FIELD_LABEL}>{SECTION_TEXT[section].label}</span>
+                        <span className={HINT}>{SECTION_TEXT[section].purpose}</span>
                       </span>
                       <NextIcon size={16} className="text-reed" />
                     </SectionLink>
@@ -149,7 +152,11 @@ export function SettingsScreen({
               const section = sectionSchema.safeParse(next);
               if (details.reason === "none" && section.success) open(section.data);
             }}
-            className="tablet:grid tablet:grid-cols-[9rem_minmax(0,1fr)] tablet:items-start tablet:gap-x-8 desktop:grid-cols-[var(--container-index)_minmax(0,var(--container-measure))] desktop:gap-x-(--gap-index)"
+            className={cn(
+              "tablet:grid tablet:grid-cols-[9rem_minmax(0,1fr)] tablet:items-start tablet:gap-x-8 desktop:grid-cols-[var(--container-index)_minmax(0,var(--container-measure))] desktop:gap-x-(--gap-index)",
+              editingPalette &&
+                "desktop:grid-cols-[var(--container-index)_minmax(0,var(--container-palette))]",
+            )}
           >
             <TabsList
               aria-label="Settings categories"
@@ -415,10 +422,7 @@ function ChatSettings() {
             description="A reply's reasoning starts open instead of folded."
             about={
               <Infotip label="Show reasoning open">
-                <p>
-                  Models that reason show their thinking above the reply, folded by default. On,
-                  each reply arrives with its reasoning open; you can still fold any reply's.
-                </p>
+                <p>You can still open or fold the reasoning on each reply.</p>
               </Infotip>
             }
           />
@@ -432,10 +436,7 @@ function ChatSettings() {
             description="When a model keeps its reasoning to itself, say how long it thought."
             about={
               <Infotip label="Time hidden reasoning">
-                <p>
-                  Some models reason but send none of it. On, the reply shows how long the model
-                  thought before answering, so a slow reply is explained. Off, nothing is shown.
-                </p>
+                <p>Only a duration is shown; the model's hidden words are never available.</p>
               </Infotip>
             }
           />
@@ -703,8 +704,8 @@ function KeptSettings() {
       <div className="grid gap-8 tablet:grid-cols-2">
         {KEPT.map(({ title, lines }) => (
           <section key={title} className="grid content-start gap-3">
-            <h3 className="font-semibold text-ink text-lead">{title}</h3>
-            <ul className="grid gap-2 text-pretty text-note text-reed">
+            <h3 className={SECTION_HEADING}>{title}</h3>
+            <ul className={`grid gap-2 ${HINT}`}>
               {lines.map(([lead, rest]) => (
                 <li key={lead}>
                   <span className="text-ink">{lead}</span>
@@ -715,9 +716,7 @@ function KeptSettings() {
           </section>
         ))}
       </div>
-      <p className="text-pretty text-note text-reed">
-        A reload, closing the tab or Clear ends the chat for good.
-      </p>
+      <p className={HINT}>A reload, closing the tab or Clear ends the chat for good.</p>
     </div>
   );
 }

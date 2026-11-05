@@ -1,15 +1,16 @@
 import { Collapsible } from "@base-ui/react/collapsible";
-import { offeredEfforts } from "@ephemera/core";
+import { offeredEfforts, type StoredSamplerPreset } from "@ephemera/core";
 import { type UseQueryResult, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useId, useState } from "react";
 import { canDock, useCanDock, useFocusAcrossLayout, useFormFactor } from "@/app/form-factor.ts";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { setSessionOpen, useUi } from "@/app/ui.ts";
 import { CloseIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import {
   Drawer,
   DrawerCloseIcon,
@@ -46,6 +47,7 @@ import {
 } from "../presets/queries.ts";
 import { useSettings, useUpdateSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
+import { COMPACT_LABEL, EXPLANATION } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { useStartChat } from "./StartChat.tsx";
@@ -82,7 +84,7 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
           inert={!open}
           className="dock-side shrink-0 overflow-clip"
         >
-          <div className="flex h-full w-80 flex-col border-rush border-l">
+          <div className="flex h-full w-entries flex-col border-rush border-l">
             <DrawerHeader>
               <h2 id="session-title" className={PANEL_TITLE}>
                 Session
@@ -132,13 +134,13 @@ export function SessionPanel({ toggle }: { toggle: RefObject<HTMLButtonElement |
 function SessionFields() {
   return (
     // One shrinkable column: a long name truncates in its trigger instead of widening the panel.
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-7 overflow-y-auto px-5 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto px-5 pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
       <CharacterField />
       <PersonaField />
       <hr className="border-rush" />
       <SamplerPresetField />
-      <ModelField />
       <PromptPresetField />
+      <ModelField />
     </div>
   );
 }
@@ -147,26 +149,36 @@ function SessionFields() {
 function Field({
   label,
   note,
+  status,
   children,
 }: {
   label: string;
   note?: ReactNode;
+  status?: ReactNode;
   children: (labelId: string) => ReactNode;
 }) {
   const labelId = useId();
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
-      <span id={labelId} className="font-medium text-ink text-ui">
+      <span id={labelId} className={COMPACT_LABEL}>
         {label}
       </span>
       {children(labelId)}
+      {status && <InlineStatus as="p">{status}</InlineStatus>}
       {note && (
-        <p
-          key={typeof note === "string" ? note : undefined}
-          className="text-pretty text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
-        >
-          {note}
-        </p>
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            <DisclosureChevron />
+            {label === "Persona"
+              ? "Keeps this chat"
+              : label === "Model"
+                ? "Applies to future replies"
+                : label === "Prompt preset"
+                  ? "Builds each reply’s prompt"
+                  : "Reply settings"}
+          </summary>
+          <p className={EXPLANATION}>{note}</p>
+        </details>
       )}
     </div>
   );
@@ -218,14 +230,14 @@ function CharacterField() {
             </span>
           </Link>
           <div className="flex flex-wrap items-center justify-between gap-x-3">
-            <p className="text-pretty text-note text-reed">
+            <p className={EXPLANATION}>
               {empty ? (
                 <>
                   No characters yet. Add one in{" "}
                   <Link
                     to="/characters"
                     onClick={leaveSession}
-                    className="underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
+                    className={buttonVariants({ variant: "link", size: "inline" })}
                   >
                     Characters
                   </Link>
@@ -235,12 +247,15 @@ function CharacterField() {
                 "Switching starts a new chat."
               )}
             </p>
-            {current && (
-              <Button size="text" className="-mr-2" onClick={() => start(null, "")}>
-                No character
-              </Button>
-            )}
           </div>
+          {current && (
+            <div className="flex flex-wrap items-center gap-x-2">
+              <Button size="text" className="-ml-2" onClick={() => start(null, "")}>
+                Remove character
+              </Button>
+              <p className={EXPLANATION}>New chats start without a character</p>
+            </div>
+          )}
           {dialog}
         </>
       )}
@@ -292,7 +307,7 @@ function PersonaField() {
             checked={bound === persona.id}
             onCheckedChange={(checked) => void bind(checked)}
           />
-          Always use with {character.name}
+          <span>Always use with {character.name}</span>
         </label>
       )}
       {/* The grid's gap moves inside the slot, so it folds away with the line. */}
@@ -331,6 +346,7 @@ function PresetField<T extends { id: string; name: string }>({
   kind,
   label,
   note,
+  status,
   presets,
   chosen,
   onChoose,
@@ -338,32 +354,22 @@ function PresetField<T extends { id: string; name: string }>({
   kind: PresetKind;
   label: string;
   note: string | undefined;
+  status?: ReactNode;
   presets: UseQueryResult<T[]>;
   chosen: T | undefined;
   onChoose: (preset: T) => void;
 }) {
-  const list = presets.data ?? [];
   return (
-    <Field label={label} note={note}>
+    <Field label={label} note={note} status={status}>
       {(labelId) => (
         <div className="flex items-center gap-1">
-          <Select
-            value={chosen?.id ?? null}
-            items={Object.fromEntries(list.map((preset) => [preset.id, preset.name]))}
-            onValueChange={(value) => {
-              const preset = list.find((option) => option.id === value);
-              if (preset) onChoose(preset);
-            }}
-          >
-            <SelectTrigger aria-labelledby={labelId} placeholder={presetPlaceholder(presets)} />
-            <SelectContent label={`${label}s`}>
-              {list.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id}>
-                  {preset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PresetSelect
+            labelId={labelId}
+            label={label}
+            presets={presets}
+            chosen={chosen}
+            onChoose={onChoose}
+          />
           {chosen && (
             <Link
               to={kind === "sampler" ? "/presets/sampler/$id" : "/presets/prompt/$id"}
@@ -385,38 +391,117 @@ function PresetField<T extends { id: string; name: string }>({
   );
 }
 
+/** The preset list itself, as a field (Session) or set in a line of words (beside the composer). */
+function PresetSelect<T extends { id: string; name: string }>({
+  labelId,
+  label,
+  presets,
+  chosen,
+  onChoose,
+  look = "field",
+}: {
+  labelId: string;
+  label: string;
+  presets: UseQueryResult<T[]>;
+  chosen: T | undefined;
+  onChoose: (preset: T) => void;
+  look?: "field" | "inline";
+}) {
+  const list = presets.data ?? [];
+  return (
+    <Select
+      value={chosen?.id ?? null}
+      items={Object.fromEntries(list.map((preset) => [preset.id, preset.name]))}
+      onValueChange={(value) => {
+        const preset = list.find((option) => option.id === value);
+        if (preset) onChoose(preset);
+      }}
+    >
+      <SelectTrigger
+        aria-labelledby={labelId}
+        look={look}
+        caption={look === "inline" ? "Sampler" : undefined}
+        captionId={look === "inline" ? labelId : undefined}
+        placeholder={look === "inline" ? "None" : presetPlaceholder(presets)}
+      />
+      <SelectContent label={`${label}s`} {...(look === "inline" && { className: "min-w-64" })}>
+        {list.map((preset) => (
+          <SelectItem key={preset.id} value={preset.id}>
+            {preset.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * The chat's sampler preset and how choosing one is saved: a preset that
+ * names a model switches the chat to it. Session and the composer's line
+ * both choose through it.
+ */
+function useSamplerChoice() {
+  const presets = useQuery(presetsQuery("sampler"));
+  const settings = useSettings();
+  const updateSettings = useUpdateSettings();
+  const chosen = presets.data?.find((preset) => preset.id === settings.samplerPresetId);
+  const choose = (preset: StoredSamplerPreset) =>
+    updateSettings({
+      samplerPresetId: preset.id,
+      ...(preset.values.model === null ? {} : { model: preset.values.model }),
+    });
+  return { presets, chosen, choose };
+}
+
+/** The sampler preset set in a line of words, as the composer shows it; it chooses as Session does. */
+export function SamplerPresetSelect({ labelId }: { labelId: string }) {
+  const { presets, chosen, choose } = useSamplerChoice();
+  return (
+    <PresetSelect
+      labelId={labelId}
+      label="Sampler preset"
+      presets={presets}
+      chosen={chosen}
+      onChoose={choose}
+      look="inline"
+    />
+  );
+}
+
 /**
  * How replies are drawn. A preset that names a model switches the chat to it;
  * an effort the chat's model does not offer is not sent, and this says so.
  */
 function SamplerPresetField() {
-  const presets = useQuery(presetsQuery("sampler"));
+  const { presets, chosen, choose } = useSamplerChoice();
   const settings = useSettings();
-  const updateSettings = useUpdateSettings();
   const model = useModelInfo(settings.model);
-  const chosen = presets.data?.find((preset) => preset.id === settings.samplerPresetId);
   const named = chosen?.values.model ?? null;
   const effort = chosen?.values.reasoning;
-  const note = chosen
-    ? named !== null && settings.model !== null && named !== settings.model
-      ? `${chosen.name} names ${named}; this chat now uses ${settings.model}.`
-      : model !== undefined && effort !== undefined && !offeredEfforts(model).includes(effort)
-        ? `${chosen.name} asks for ${REASONING_LABELS[effort].toLowerCase()} reasoning; ${model.id} doesn't offer it, so none is sent.`
-        : samplerSummary(chosen.values, false)
-    : undefined;
+  const overridden =
+    chosen && named !== null && settings.model !== null && named !== settings.model;
+  const unsupported =
+    chosen &&
+    model !== undefined &&
+    effort !== undefined &&
+    !offeredEfforts(model).includes(effort);
+  const status = (
+    <>
+      {overridden && `${chosen.name} names ${named}; this chat now uses ${settings.model}.`}
+      {overridden && unsupported && " "}
+      {unsupported &&
+        `${chosen.name} asks for ${REASONING_LABELS[effort].toLowerCase()} reasoning; ${model.id} doesn't offer it, so none is sent.`}
+    </>
+  );
   return (
     <PresetField
       kind="sampler"
       label="Sampler preset"
-      note={note}
+      note={chosen ? samplerSummary(chosen.values, false) : undefined}
+      status={overridden || unsupported ? status : undefined}
       presets={presets}
       chosen={chosen}
-      onChoose={(preset) =>
-        updateSettings({
-          samplerPresetId: preset.id,
-          ...(preset.values.model === null ? {} : { model: preset.values.model }),
-        })
-      }
+      onChoose={choose}
     />
   );
 }
@@ -449,16 +534,14 @@ function ModelField() {
   return (
     <Field
       label="Model"
-      note={
+      status={
         window === null && model !== null ? (
           <>
-            Used for every reply from now on, and kept after a reload. No known context window:{" "}
-            <WindowLink model={model}>set one</WindowLink> to send.
+            No known context window: <WindowLink model={model}>set one</WindowLink> to send.
           </>
-        ) : (
-          `Used for every reply from now on, and kept after a reload.${windowNote}`
-        )
+        ) : undefined
       }
+      note={`Used for every reply from now on, and kept after a reload.${windowNote}`}
     >
       {(labelId) => (
         <ModelSelect

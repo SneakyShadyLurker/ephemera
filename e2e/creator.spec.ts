@@ -46,6 +46,8 @@ test("the three kinds sit on aligned tracks, each label on one line, Brainstorm 
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/characters/create");
+  await expect(page.getByRole("textbox", { name: COPY.subject.field })).toBeVisible();
+  await page.getByRole("button", { name: "Change from Subject" }).click();
   const kinds = ["subject", "group", "scenario"].map((kind) =>
     page.locator(`[data-kind="${kind}"]`),
   );
@@ -91,7 +93,10 @@ test("Describe's field starts empty with a one-line cue, its example under it, a
   await page.setViewportSize({ width: 360, height: 780 });
   for (const kind of ["subject", "scenario"] as const) {
     await page.goto("/characters/create");
-    await page.locator(`[data-kind="${kind}"]`).click();
+    if (kind !== "subject") {
+      await page.getByRole("button", { name: "Change from Subject" }).click();
+      await page.locator(`[data-kind="${kind}"]`).click();
+    }
     const field = page.getByRole("textbox", { name: COPY[kind].field });
     await expect(field).toHaveValue("");
     await expect(field).toHaveAttribute("placeholder", cues[kind]);
@@ -265,7 +270,7 @@ test("without a ComfyUI address the card is kept without art", async ({ page, re
     model: "mock-fast",
   });
   await expect(heading(page, name)).toBeVisible();
-  await expect(page.getByText("Portraits off", { exact: true })).toBeVisible();
+  await expect(page.getByText("No portrait", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT }).click();
   await expect(keptNote(page, name)).toBeVisible({ timeout: ART_TIMEOUT });
   const kept = (await listCharacters(request)).filter((character) => character.name === name);
@@ -384,7 +389,7 @@ test("a finished card's frame closes its light before the showcase, with portrai
   await expect(page.getByRole("button", { name: KEEP_WITHOUT_PORTRAIT })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByText("Portraits off", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("No portrait", { exact: true })).toBeVisible({ timeout: 20_000 });
   expect(await rimEndings(page)).toEqual([CLOSED]);
   await expect(page.locator(".lamplight-rim")).toHaveCount(0);
 });
@@ -538,7 +543,6 @@ test("Subject composition is chosen before its first batch and changed with the 
   const art = await recordArt(page);
   await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator('[data-kind="subject"]').click();
   await page.getByRole("textbox", { name: COPY.subject.field }).fill(ownerDescription(base));
   await choose(page, "Model", "mock-fast");
   await choose(page, "Reasoning", "Extra high");
@@ -629,7 +633,6 @@ test("Look is chosen before the first batch, rides as a look tag, and Auto sends
   const art = await recordArt(page);
   await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator('[data-kind="subject"]').click();
   await page.getByRole("textbox", { name: COPY.subject.field }).fill(ownerDescription(base));
   await choose(page, "Model", "mock-fast");
   await expect(page.getByRole("combobox", { name: "Look", exact: true })).toHaveText("Auto");
@@ -783,7 +786,6 @@ test("a typed model ID the provider does not list is kept and written with", asy
   const typed = "vendor/typed-writer";
   await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator('[data-kind="subject"]').click();
   await page.getByRole("textbox", { name: COPY.subject.field }).fill(ownerDescription(keptBase()));
   const model = page.getByRole("combobox", { name: "Model", exact: true });
   await model.click();
@@ -805,7 +807,6 @@ test("the reasoning effort narrows to the model's levels and goes with the card 
   const base = keptBase();
   await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator('[data-kind="subject"]').click();
   await page.getByRole("textbox", { name: COPY.subject.field }).fill(ownerDescription(base));
   const reasoning = page.getByRole("combobox", { name: "Reasoning", exact: true });
 
@@ -852,7 +853,6 @@ test("the portrait workflow is chosen beside the model, checked against ComfyUI 
   const openDescribe = async () => {
     await page.goto("/characters");
     await page.getByRole("button", { name: "Create with AI" }).first().click();
-    await page.locator('[data-kind="subject"]').click();
   };
   const workflow = page.getByRole("combobox", { name: "Workflow", exact: true });
   const portraitsStatus = (state: string) =>
@@ -1366,7 +1366,7 @@ test("Brainstorm: leaving the screen mid-round drops the session", async ({ page
     .poll(async () => (await upstreamRecords(mark(base, "ask"))).map((record) => record.aborted))
     .toEqual([false, true]);
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await expect(page.locator('[data-kind="subject"]')).toBeVisible();
+  await expect(page.getByRole("textbox", { name: COPY.subject.field })).toBeVisible();
   await page.locator('[data-stage="brainstorm"]').click();
   await expect(page.getByRole("textbox", { name: BRAINSTORM_COPY.field })).toHaveValue("");
   await expect(page.getByRole("list", { name: BRAINSTORM_COPY.list })).toHaveCount(0);

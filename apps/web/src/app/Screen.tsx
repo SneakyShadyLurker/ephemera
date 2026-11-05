@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { MarkIcon } from "@/components/icons";
+import { MarkIcon, MenuIcon } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
 import { MoreButton } from "@/components/more-button.tsx";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -10,6 +10,13 @@ import { useCreatorWriting } from "../creator/writing.ts";
 import { ChunkLoadError } from "./chunk-error.ts";
 import { EmptyState } from "./EmptyState.tsx";
 import { useFormFactor } from "./form-factor.ts";
+import {
+  BackControl,
+  type BackTarget,
+  HeaderActions,
+  HeaderFrame,
+  HeaderTitle,
+} from "./Header.tsx";
 import { setNavOpen } from "./ui.ts";
 
 /** Whether anything is being written now (a chat reply, a card or its art): the mark's drip quickens then. */
@@ -35,6 +42,7 @@ export const SCROLL_GUTTERS = "tablet:[scrollbar-gutter:stable_both-edges]";
 export const SCROLL_GUTTER_END = "tablet:[scrollbar-gutter:stable]";
 
 /** Galleries: the window filled up to a generous cap, with gutters that grow with it. */
+export const BROWSE_BODY = "@container grid grid-cols-[minmax(0,1fr)] gap-5 pt-2 pb-10 tablet:pt-3";
 export const BROWSE_FRAME = "mx-auto w-full max-w-browse px-4 tablet:px-[clamp(1rem,3vw,4rem)]";
 /**
  * A gallery's cards inside `BROWSE_FRAME` as an `@container`: as many columns
@@ -64,10 +72,12 @@ export function ScreenHeader({
   children,
   edge,
   lead,
+  back,
   storyTitle,
   frame,
   gutters,
   yieldsTitle = false,
+  collection = false,
 }: {
   title: ReactNode;
   children?: ReactNode;
@@ -75,6 +85,7 @@ export function ScreenHeader({
   edge?: ReactNode;
   /** Before the title, after the phone's navigation button (the chat's small portrait); the title then takes the story face. */
   lead?: ReactNode;
+  back?: BackTarget | undefined;
   /** The story face for a title after a `lead`, or for a character's name; false keeps the interface sans (a back control is not a character). */
   storyTitle?: boolean;
   /** The body's frame (a frame constant), which the contents take from tablet up; the hairline stays full width. */
@@ -82,51 +93,60 @@ export function ScreenHeader({
   /** The gutter class the body's scroller keeps (`SCROLL_GUTTERS`, the chat thread's own alike), so the header keeps the same room. */
   gutters?: string;
   /**
-   * The title fades while an ancestor carries `data-name-stuck` (a nameplate with the same
-   * name stuck under the header), so the name never shows twice; it stays the heading.
+   * The title fades while an ancestor carries `data-name-shown` (a nameplate with the same
+   * name in view below, stuck or not), so the name never shows twice; it stays the heading.
    */
   yieldsTitle?: boolean;
+  /** Collection actions have one labelled row below the title on phones. */
+  collection?: boolean;
 }) {
   const phone = useFormFactor() === "phone";
   const writing = useInFlight();
   const story = storyTitle ?? lead !== undefined;
   return (
-    <header className="header-hairline relative box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
-      <div className={cn("flex min-w-0 flex-1", gutters && cn("overflow-hidden", gutters))}>
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-1",
-            frame ?? "tablet:px-6",
-            // Phone headers keep their own padding, whatever the body's.
-            "max-tablet:px-2",
-          )}
-        >
-          {phone && (
-            // The mark on a plate, so it reads as the control that opens the navigation.
-            <MoreButton
-              aria-label="Open navigation"
-              onClick={() => setNavOpen(true)}
-              mark={<MarkIcon dripping writing={writing} size={20} />}
-            />
-          )}
-          {lead}
-          <h1
-            className={cn(
-              "min-w-0 flex-1 truncate text-ink tablet:px-0",
-              lead ? "pr-2 pl-1" : "px-2",
-              // A display step above the navigation's labels, one size on every screen.
-              story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
-              yieldsTitle &&
-                "transition-opacity duration-(--duration-quick) ease-fade [[data-name-stuck]_&]:opacity-0",
-            )}
+    <HeaderFrame
+      frame={frame}
+      gutters={gutters}
+      edge={edge}
+      toolbar={
+        phone && collection ? (
+          <HeaderActions
+            role="toolbar"
+            aria-label="Collection actions"
+            className="gap-1 px-4 pb-2 [&>button]:px-2.5"
           >
-            {title}
-          </h1>
-          {children}
-        </div>
-      </div>
-      {edge}
-    </header>
+            {children}
+          </HeaderActions>
+        ) : undefined
+      }
+    >
+      {phone && (
+        // The mark on a plate, so it reads as the control that opens the navigation.
+        <MoreButton
+          aria-label="Open navigation"
+          className="h-11"
+          onClick={() => setNavOpen(true)}
+          mark={<MarkIcon dripping writing={writing} size={20} />}
+          cue={<MenuIcon />}
+        />
+      )}
+      {back && <BackControl back={back} />}
+      {lead}
+      <HeaderTitle
+        className={cn(
+          "min-w-0 flex-1 truncate text-ink tablet:px-0",
+          phone && collection && "overflow-visible text-clip",
+          lead || back ? "pr-2 pl-1" : "px-2",
+          // A display step above the navigation's labels, one size on every screen.
+          story ? "font-[450] font-story text-heading" : "font-semibold text-heading",
+          yieldsTitle &&
+            "transition-opacity duration-(--duration-quick) ease-fade [[data-name-shown]_&]:opacity-0",
+        )}
+      >
+        {title}
+      </HeaderTitle>
+      {!(phone && collection) && <HeaderActions>{children}</HeaderActions>}
+    </HeaderFrame>
   );
 }
 

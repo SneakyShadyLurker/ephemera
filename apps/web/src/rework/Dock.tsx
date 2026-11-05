@@ -7,7 +7,7 @@ import { motionPx } from "@/app/motion-tokens.ts";
 import { scrollBehavior, useReducedMotion } from "@/app/reduced-motion.ts";
 import { LampFlameIcon, NextIcon, PreviousIcon, StopIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { useModelChoice } from "../creator/Describe.tsx";
 import type { SaveStatus } from "../sheet/autosave.ts";
@@ -47,13 +47,10 @@ const UNPLACED: Record<Unplaced, string> = {
 function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: ReworkCard | null }) {
   const unplaced = all.flatMap((change) => (change.ok ? [] : [change]));
   if (unplaced.length === 0) return null;
-  const one = unplaced.length === 1;
   return (
     <details className="disclosure">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed hover:text-ink touch:-my-1 touch:min-h-11 [&::-webkit-details-marker]:hidden">
-        {one
-          ? "1 change could not be matched. It won't be applied."
-          : `${unplaced.length} changes could not be matched. They won't be applied.`}
+      <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>
+        {unplaced.length} could not be placed
         <DisclosureChevron />
       </summary>
       <ul className="mt-2 grid max-h-[30dvh] gap-3 overflow-y-auto border-rush border-l pl-3">
@@ -178,6 +175,8 @@ function DockPresenter({
       : `Change ${(index ?? 0) + 1} of ${order.length}, ${fieldLabel(currentChange.field, view.base)}`;
   const line = lineOf(view, model, current, saved ? null : save);
   const accepted = acceptedChanges(view).length;
+  const unplaced = view.changes.filter((change) => !change.ok).length;
+  const applyLine = `${changes(accepted)} to apply${unplaced > 0 ? `, ${unplaced} left out` : ""}`;
   const edited = view.phase === "applied" ? leftByUndo(view, card) : [];
   const writtenFields = Object.keys(view.applied?.written ?? {}).length;
 
@@ -278,7 +277,7 @@ function DockPresenter({
       );
       break;
     case "review": {
-      const nothing = view.ended === "complete" && order.length === 0;
+      const nothing = view.ended === "complete" && view.changes.length === 0;
       below = (
         <>
           {nothing && view.summary !== null && (
@@ -377,7 +376,22 @@ function DockPresenter({
                   line.failure ? "text-ember" : "text-ink",
                 )}
               >
-                {line.text}
+                {view.phase === "review" &&
+                view.ended === "complete" &&
+                !line.failure &&
+                view.changes.length > 0
+                  ? applyLine
+                  : line.text}
+                {view.phase === "review" &&
+                  (view.ended !== "complete" || line.failure) &&
+                  order.length > 0 && (
+                    <span className="mt-0.5 block font-normal text-meta text-reed">
+                      {applyLine}
+                    </span>
+                  )}
+                {view.phase === "review" && current && (
+                  <span className="mt-0.5 block font-normal text-meta text-reed">{current}</span>
+                )}
               </p>
               {meta && <span className="text-meta text-reed tabular-nums">{meta}</span>}
             </div>
@@ -386,7 +400,11 @@ function DockPresenter({
           </div>
           {below}
           <p role="status" className="sr-only">
-            {!present || line.failure ? "" : line.announce}
+            {!present || line.failure
+              ? ""
+              : view.phase === "review" && order.length > 0
+                ? `${applyLine}. ${current ?? ""}`
+                : line.announce}
           </p>
           <p role="alert" className="sr-only">
             {present && line.failure ? line.announce : ""}

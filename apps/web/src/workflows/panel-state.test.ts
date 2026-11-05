@@ -212,9 +212,10 @@ describe("the draft", () => {
       place: "latent",
       node: "9",
     });
-    expect(choiceProblem(draftIn(state))).toBe(
-      "That node cannot take this place: node 9. Choose another node.",
-    );
+    expect(choiceProblem(draftIn(state))).toEqual({
+      text: "That node cannot take this place. Choose another node.",
+      nodes: ["node 9"],
+    });
     expect(saveCheck(state, NAMES).enabled).toBe(false);
   });
 
@@ -489,7 +490,7 @@ describe("places settled by finalization", () => {
     expect(saveCheck(state, NAMES).enabled).toBe(false);
     expect(mappingRows(draftIn(state))[1]?.choice).toMatchObject({
       value: "4",
-      problem: expect.stringContaining("No empty latent image sets the picture's size."),
+      problem: { text: expect.stringContaining("No empty latent image sets the picture's size.") },
     });
   });
 });

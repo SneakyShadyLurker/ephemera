@@ -1,11 +1,12 @@
 import { formatLocationLine } from "@ephemera/core";
-import { Component, lazy, type ReactNode, Suspense } from "react";
+import { Component, lazy, type ReactNode, Suspense, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { MODEL_BUSY } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
+import { useSignedIn } from "../signin/hooks.ts";
 import { speakerName, useChatCharacter, usePersona } from "./character.ts";
 import { EditField } from "./EditField.tsx";
 import { loadMarkdown } from "./markdown-chunk.ts";
@@ -13,9 +14,9 @@ import { Presence } from "./Presence.tsx";
 import { HiddenReasoning, Reasoning } from "./Reasoning.tsx";
 import { REFUSAL_NOTE, WINDOW_UNKNOWN } from "./refusal.ts";
 import { SwipeFrame } from "./Swipe.tsx";
-import { useChat } from "./session.ts";
+import { chatStore, useChat } from "./session.ts";
 import { type AssistantMessage, type MessageStatus, type Reply, shownReply } from "./store.ts";
-import { TurnActions } from "./TurnActions.tsx";
+import { GreetingActions, REPLY_ACTION_ROW, ReplyActions, TurnActions } from "./TurnActions.tsx";
 
 // The Markdown renderer loads apart from the page; the thread preloads it on mount.
 const Markdown = lazy(() => loadMarkdown().then((module) => ({ default: module.Markdown })));
@@ -64,14 +65,14 @@ const failedNote = (reply: Reply) =>
   reply.text !== ""
     ? cutNote(reply)
     : reply.failure === "unreachable"
-      ? "No reply: the server couldn't be reached. Check the connection, then try again."
+      ? "No reply: the server couldn't be reached."
       : reply.failure === "stream"
-        ? "No reply: the connection dropped. Try again."
+        ? "No reply: the connection dropped."
         : reply.failure === "unreadable"
-          ? "No reply: the reply could not be read. Try again."
+          ? "No reply: the reply could not be read."
           : reply.failure === undefined
             ? "No reply."
-            : "No reply: the model's provider answered with an error. Try again.";
+            : "No reply: the model's provider answered with an error.";
 
 /**
  * Who speaks, named at the start of each turn in the voice that follows: the
@@ -80,12 +81,13 @@ const failedNote = (reply: Reply) =>
  * the top of the view while its turn scrolls past. Assistive technology and
  * find-in-page hear the name once, with the qualifier and the colon.
  */
-function Nameplate({
+export function Nameplate({
   voice,
   name,
   qualifier = "",
   writing = false,
   actions,
+  className,
 }: {
   voice: "story" | "line";
   name: string;
@@ -94,9 +96,10 @@ function Nameplate({
   writing?: boolean;
   /** On phones, the turn's More: at the hairline's end, or beside the owner's name. */
   actions?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div data-speaker="" data-voice={voice} className="nameplate">
+    <div data-speaker="" data-voice={voice} className={cn("nameplate", className)}>
       <p className="nameplate-name">
         {name}
         <span className="sr-only">{`${qualifier}: `}</span>
@@ -142,7 +145,7 @@ const GREET =
 
 /**
  * Prose, rendered inert; plain paragraphs until the renderer arrives or if it
- * fails. A reply with no text yet shows the breathing caret, and after six
+ * fails. A reply with no text yet shows the still caret, and after six
  * seconds that it is still awaited; the nameplate above says whose.
  */
 function Prose({ text, streaming }: { text: string; streaming: boolean }) {
@@ -168,7 +171,7 @@ function Prose({ text, streaming }: { text: string; streaming: boolean }) {
 /**
  * One turn. It subscribes to its own message, read at its place in the
  * thread, so streaming re-renders only this turn and each change costs a
- * turn one lookup; the last reply's actions row is the thread's, below it.
+ * turn one lookup; the last reply's actions follow its prose inside the turn.
  */
 export function Turn({
   id,
@@ -188,7 +191,7 @@ export function Turn({
   folded?: boolean;
   /** Remembered or being remembered: read-only, so its actions are hidden. */
   locked?: boolean;
-  /** The latest reply shown, from tablet up: the portrait floats at its head. */
+  /** The latest reply shown: its portrait, above the prose on phones or floated beside it. */
   presence?: boolean;
 }) {
   // A place a deletion or Undo has just shifted holds another message until the thread
@@ -244,8 +247,10 @@ export function Turn({
   );
 }
 
-/** The existing reply footer also explains provider-ended partial replies. */
+/** The reply footer also explains provider-ended partial replies. */
 export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
+  const busy = useChat((state) => state.generating);
+  const writable = useSignedIn();
   const partial =
     reply.status !== "complete"
       ? undefined
@@ -267,20 +272,41 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
     : reply.refusal !== undefined
       ? REFUSAL_NOTE[reply.refusal]
       : reply.busy && reply.status === "failed"
-        ? MODEL_BUSY
+        ? "The model is busy."
         : reply.status === "failed"
           ? failedNote(reply)
           : (STATUS_NOTE[reply.status] ?? partial);
   const ember =
-    reply.status === "failed" || (note === partial && reply.finishReason === "content-filter");
+    reply.failed !== undefined ||
+    reply.status === "failed" ||
+    (note === partial && reply.finishReason === "content-filter");
   const windowRefusal = !reply.failed && reply.refusal === "context_window_unknown";
   // In a slot, so it folds away when a Continue or Replace clears it.
   return (
     <NoticeSlot value={note ? { note, ember, windowRefusal } : null}>
       {(shown) => (
-        <p className={cn("pt-2 font-sans text-meta", shown.ember ? "text-ember" : "text-reed")}>
-          {shown.windowRefusal ? <WindowRefusal /> : shown.note}
-        </p>
+        <InlineStatus
+          tone={shown.ember ? "error" : "status"}
+          className="pt-2 font-sans text-ui"
+          actions={
+            shown.ember && last ? (
+              <Button
+                variant="outline"
+                size="text"
+                disabled={busy || !writable}
+                onClick={() =>
+                  void (reply.failed === "continue"
+                    ? chatStore.getState().continueReply()
+                    : chatStore.getState().regenerate())
+                }
+              >
+                Try again
+              </Button>
+            ) : undefined
+          }
+        >
+          <span>{shown.windowRefusal ? <WindowRefusal /> : shown.note}</span>
+        </InlineStatus>
       )}
     </NoticeSlot>
   );
@@ -319,6 +345,9 @@ function ReplyTurn({
   presence: boolean;
   phone: boolean;
 }) {
+  // Entrance belongs to this turn's arrival, not to later portrait handoffs.
+  // Retiring the previous reply must never change its rendered prose or attributes.
+  const [arriving] = useState(enter && !presence);
   const chosen = useChatCharacter();
   const character = chosen?.name ?? "Model";
   // One light for the reply: the portrait's rim where the float shows one (Presence), else the hairline.
@@ -339,7 +368,9 @@ function ReplyTurn({
       data-folded={folded ? "" : undefined}
       className={cn(
         "group relative",
-        enter && (message.greeting ? GREET : "arrive"),
+        // The pending turn owns the portrait immediately, without an entrance
+        // hiding the portrait and Cast again before the first streamed words.
+        arriving && (message.greeting ? GREET : "arrive"),
         folded && FOLDED,
       )}
     >
@@ -350,7 +381,7 @@ function ReplyTurn({
         actions={phone ? actions : undefined}
       />
       {/* Under the nameplate, so it sticks clear of the portrait; the reply's text wraps around it. */}
-      {presence && <Presence placement="float" />}
+      {presence && <Presence placement={phone ? "band" : "float"} inReply />}
       {/*
        * The prose never runs past the story measure. Beside the portrait, once the story is
        * wider than that measure, it keeps a column of its own instead of running on under the
@@ -361,22 +392,50 @@ function ReplyTurn({
           <EditField id={message.id} label={`Edit ${character}'s ${kind}`} story />
         ) : (
           <>
-            {reply.reasoning !== "" ? (
-              <Reasoning
-                key={reply.id}
-                reply={reply}
-                messageId={message.id}
-                editable={!locked && !folded}
-              />
-            ) : (
-              showHidden && reply.hiddenMs !== undefined && <HiddenReasoning ms={reply.hiddenMs} />
-            )}
-            <div data-prose="" data-voice="story" className="voice-story voice-scene">
-              <SwipeFrame replyId={reply.id} swipeable={last} streaming={streaming}>
+            <SwipeFrame
+              replyId={reply.id}
+              swipeable={last}
+              streaming={streaming}
+              ready={reply.text !== "" || !streaming}
+            >
+              {reply.reasoning !== "" ? (
+                <Reasoning
+                  key={reply.id}
+                  reply={reply}
+                  messageId={message.id}
+                  editable={!locked && !folded}
+                />
+              ) : (
+                showHidden &&
+                reply.hiddenMs !== undefined && <HiddenReasoning ms={reply.hiddenMs} />
+              )}
+              <div data-prose="" data-voice="story" className="voice-story voice-scene">
                 <Prose text={formatLocationLine(reply.text)} streaming={streaming} />
-              </SwipeFrame>
-              <ReplyNote reply={reply} last={last} />
-            </div>
+                <ReplyNote reply={reply} last={last} />
+              </div>
+            </SwipeFrame>
+            {last &&
+              !locked &&
+              reply.status !== "waiting" &&
+              (!message.greeting || message.replies.length > 1) && (
+                // Below the prose end: the portrait and cast never push this row away.
+                <div
+                  data-reply-actions={streaming ? undefined : ""}
+                  aria-hidden={streaming || undefined}
+                  className={cn(
+                    "-ml-2 pt-1 font-sans transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
+                    streaming && "invisible",
+                  )}
+                >
+                  {streaming ? (
+                    <div data-reply-actions-reserved="" className={REPLY_ACTION_ROW} />
+                  ) : message.greeting ? (
+                    <GreetingActions message={message} />
+                  ) : (
+                    <ReplyActions message={message} />
+                  )}
+                </div>
+              )}
           </>
         )}
       </div>

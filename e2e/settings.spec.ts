@@ -420,9 +420,10 @@ test("a colour set by hand stays when its key colour changes, and Cancel puts th
   await page.getByRole("menuitem", { name: "Lamplight" }).click();
   const editor = page.getByRole("region", { name: "New palette" });
   await editor.getByRole("button", { name: /^All colours/ }).click();
-  // The sample scene reveals its Markdown through a view transition; typing waits for it.
+  // The wide editor keeps its preview beside every swatch, including All colours.
+  await expect(editor.getByRole("button", { name: "Preview", exact: true })).toBeHidden();
   await expect(
-    editor.getByRole("figure", { name: "Sample scene" }).getByRole("emphasis"),
+    page.getByRole("figure", { name: "Sample scene" }).getByRole("emphasis"),
   ).toBeVisible();
 
   await hexField(page, "Actions").fill("#6b4a2e");
@@ -613,7 +614,11 @@ test("after a reload the app comes back with its selection and an empty chat", a
   await openSession(page);
   await expect(page.getByRole("combobox", { name: "Model", exact: true })).toHaveText("mock-slow");
   await expect(characterRow(page)).toContainText(character);
-  await expect(page.getByRole("combobox", { name: "Persona" })).toContainText(persona);
+  await expect(
+    page
+      .locator("[data-session-dock], [data-session-sheet]")
+      .getByRole("combobox", { name: "Persona" }),
+  ).toContainText(persona);
   await expect(page.getByRole("combobox", { name: "Sampler preset" })).toContainText(sampler);
   await expect(page.getByRole("combobox", { name: "Prompt preset" })).toContainText(prompt);
   // The character's row and the four pickers share one trigger: a portrait beside a name does
@@ -630,6 +635,7 @@ test("after a reload the app comes back with its selection and an empty chat", a
   const popup = page.getByRole("listbox").locator("xpath=..");
   await expect(popup).toBeVisible();
   await expect(popup).not.toHaveAttribute("data-starting-style");
+  await expect.poll(() => popup.evaluate((element) => element.getAnimations().length)).toBe(0);
   const list = await popup.boundingBox();
   const viewport = page.viewportSize();
   expect(list?.y).toBeGreaterThanOrEqual(11.5);
@@ -1013,6 +1019,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
 
   await page.getByRole("link", { name: "Chat", exact: true }).first().click();
   await openSession(page);
+  await page.locator("summary").filter({ hasText: "Applies to future replies" }).click();
   await expect(
     page.getByText("Context 16,384 of 131,072 tokens, limited in Settings."),
   ).toBeVisible();
@@ -1032,6 +1039,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
   await expect(reset).toHaveCount(0);
   await page.getByRole("link", { name: "Chat", exact: true }).first().click();
   await openSession(page);
+  await page.locator("summary").filter({ hasText: "Applies to future replies" }).click();
   await expect(page.getByText("Context window 131,072 tokens.")).toBeVisible();
   await closeSession(page);
 });
@@ -1039,6 +1047,7 @@ test("the context limit caps a model's window, clamps to its maximum and is kept
 test("a window above the default limit is fitted to the default, and says so", async ({ page }) => {
   await openChat(page, "mock-wide");
   await openSession(page);
+  await page.locator("summary").filter({ hasText: "Applies to future replies" }).click();
   await expect(
     page.getByText("Context 131,072 of 262,144 tokens, the default limit; Settings can change it."),
   ).toBeVisible();
@@ -1236,7 +1245,9 @@ test("a lorebook source template wraps the entries sent together", async ({ page
     .locator('[data-block="lorebookBefore"]')
     .getByRole("textbox", { name: "Template" });
   await template.fill("[The world: {{content}}]");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
   await openChat(page, "mock-fast");
   await chooseCharacter(page, character);
@@ -1337,7 +1348,7 @@ test("a category opens from the address, an unknown one falls back to Appearance
   // A category is chosen in the index: the address follows it, and Back returns.
   await settingsTab(page, "Pictures").click();
   await expect(page).toHaveURL(/\/settings\?section=pictures$/);
-  await expect(page.getByRole("textbox", { name: "ComfyUI address" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Picture server address" })).toBeVisible();
   await page.goBack();
   await expect(settingsTab(page, "Memory & cast")).toHaveAttribute("aria-selected", "true");
 

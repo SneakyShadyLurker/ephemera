@@ -156,6 +156,7 @@ test("a World Info file imports with its report, a non-lorebook is refused with 
   await expect(report).toContainText("It is linked to no character yet.");
   await expect(report).toContainText("Some settings changed or were left out.");
   await report.getByRole("button", { name: "Show details" }).click();
+  await report.locator("summary").filter({ hasText: "unsupported or omitted" }).click();
   await expect(report.getByRole("heading", { name: "Left out" })).toBeVisible();
   await expect(report).toContainText("automation");
   await expect(
@@ -308,7 +309,9 @@ test("a book linked to two characters from its editor shows on both sheets; unli
   );
   await expect(linkedBooks(page)).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Link a lorebook" })).toBeEnabled();
+  await expect(
+    page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }),
+  ).toBeEnabled();
   await expect(linkedBooks(page)).toHaveCount(0);
   await page.goto("/lorebooks");
   await expect(bookRow(page, name)).toContainText("Linked to 1 character");
@@ -359,11 +362,11 @@ test("a character takes at most eight books: the ninth link is refused with 8 of
   await page.goto(`/characters/${characterId}`);
   await expect(linkedBooks(page).getByRole("listitem")).toHaveCount(8);
   await expect(page.locator("#s-lorebook")).toContainText("8 of 8 linked");
-  await page.getByRole("button", { name: "Link a lorebook" }).click();
+  await page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }).click();
   const books8 = page.getByRole("dialog", { name: `Lorebooks linked to ${character}` });
   await books8.getByRole("searchbox", { name: "Find a lorebook" }).fill(ninth);
-  await expect(books8.getByRole("checkbox", { name: ninth })).toBeDisabled();
-  await expect(books8.getByRole("checkbox", { name: ninth })).not.toBeChecked();
+  await expect(books8.getByRole("button", { name: `Link ${ninth}`, exact: true })).toBeDisabled();
+  await expect(books8.getByText("Linked", { exact: true })).toHaveCount(0);
   await expect(books8.getByRole("button", { name: "New lorebook" })).toBeDisabled();
   await expect(books8).toContainText("8 of 8 lorebooks linked");
   // The server refuses it too.
@@ -605,7 +608,9 @@ test("deleting a book names the characters that lose it and takes it off their s
 
   for (const character of [adaId, boId]) {
     await page.goto(`/characters/${character}`);
-    await expect(page.getByRole("button", { name: "Link a lorebook" })).toBeEnabled();
+    await expect(
+      page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }),
+    ).toBeEnabled();
     await expect(page.getByRole("link", { name })).toHaveCount(0);
   }
 });
@@ -680,7 +685,9 @@ test("Copy to library makes an independent copy of a card's book, linked to no o
   };
   expect(card.card.lorebook?.entries[0]?.content).toBe("The lamp burns whale oil.");
   await page.goto(`/characters/${characterId}`);
-  await expect(page.getByRole("button", { name: "Link a lorebook" })).toBeEnabled();
+  await expect(
+    page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }),
+  ).toBeEnabled();
   await expect(linkedBooks(page)).toHaveCount(0);
 });
 
@@ -755,11 +762,11 @@ test("a sheet's New lorebook whose answer was lost is sent again under its id, m
   const bodies = await loseFirstCreate(page);
   const before = await bookIds(page);
   await page.goto(`/characters/${characterId}`);
-  const link = page.getByRole("button", { name: "Link a lorebook" });
+  const link = page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" });
   await expect(link).toBeEnabled();
   await link.click();
   const picker = page.getByRole("dialog", { name: `Lorebooks linked to ${character}` });
-  const create = picker.getByRole("button", { name: "New lorebook" });
+  const create = picker.getByRole("button", { name: "New lorebook", exact: true });
   await create.click();
   await expect(picker.getByRole("alert").filter({ hasText: "Not created:" })).toBeVisible();
   // The server stored it; the tab never heard, and nothing is linked yet.
@@ -839,19 +846,21 @@ test("a sheet's New whose link failed, then linked from the picker, makes anothe
   );
   const before = await bookIds(page);
   await page.goto(`/characters/${characterId}`);
-  const link = page.getByRole("button", { name: "Link a lorebook" });
+  const link = page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" });
   await expect(link).toBeEnabled();
   await link.click();
   const picker = page.getByRole("dialog", { name: `Lorebooks linked to ${character}` });
-  const create = picker.getByRole("button", { name: "New lorebook" });
+  const create = picker.getByRole("button", { name: "New lorebook", exact: true });
   await create.click();
   await expect(picker.getByRole("alert").filter({ hasText: "Not linked:" })).toBeVisible();
 
   // The book was made; the owner links it by hand.
-  const orphan = picker.getByRole("checkbox", { name: "New lorebook" });
+  const orphan = picker.getByRole("button", { name: "Link New lorebook", exact: true });
   await orphan.click();
-  await expect(orphan).toBeChecked();
+  await expect(picker).not.toBeVisible();
   await expect(page.locator("#s-lorebook")).toContainText("1 of 8 linked");
+  // Linking returns to the summary; reopen the picker for the next New.
+  await link.click();
   await create.click();
   await expect(page.locator("#s-lorebook").getByRole("status")).toHaveText(
     `Created a lorebook and linked it to ${character}.`,
@@ -975,7 +984,7 @@ test.describe("by keyboard", () => {
     await dismiss(page, menu, actions);
 
     await page.goto(`/characters/${characterId}`);
-    const link = page.getByRole("button", { name: "Link a lorebook" });
+    const link = page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" });
     // It waits for the library to load.
     await expect(link).toBeEnabled();
     await link.focus();

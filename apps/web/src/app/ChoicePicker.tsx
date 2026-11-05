@@ -1,10 +1,12 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Drawer,
   DrawerClose,
+  DrawerCloseIcon,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
@@ -29,13 +31,19 @@ export interface Choice {
   checked: boolean;
   /** A quiet second line: who holds it now, or why it cannot be chosen. */
   note?: string;
+  /** At the row's end, in reed: how many it applies to. */
+  count?: number;
   /** Unavailable to check; one already checked stays free to uncheck unless `pending`. */
   disabled?: boolean;
   /** A change on its way to the server: shown as asked, not yet answered. */
   pending?: boolean;
 }
 
-function ChoiceList({
+/**
+ * The checklist itself, with its Find. `compact` rows are a filter's (a
+ * gallery's tags): one line each, no leaf, 36px, 44px on touch.
+ */
+export function ChoiceList({
   choices,
   findLabel,
   empty,
@@ -43,6 +51,8 @@ function ChoiceList({
   onToggle,
   notice,
   footer,
+  compact = false,
+  actions,
 }: {
   choices: readonly Choice[];
   findLabel: string;
@@ -51,6 +61,9 @@ function ChoiceList({
   onToggle: (choice: Choice, checked: boolean) => void;
   notice?: ReactNode;
   footer?: ReactNode;
+  compact?: boolean;
+  /** Explicit single-add actions, used by the character's lorebook picker. */
+  actions?: { add: string; linked: string; remove: string };
 }) {
   const [find, setFind] = useState("");
   const shown = choices.filter((choice) => matches(find, choice.name));
@@ -66,39 +79,71 @@ function ChoiceList({
       </div>
       {notice}
       {shown.length === 0 ? (
-        <p className="px-2.5 py-2 text-note text-reed">{choices.length === 0 ? empty : noMatch}</p>
+        <EmptyState
+          compact
+          title={choices.length === 0 ? empty : noMatch}
+          className="px-2.5 py-2"
+        />
       ) : (
         <ul className="min-h-0 overflow-y-auto overscroll-contain">
           {shown.map((choice) => (
             <li key={choice.id}>
-              <label
-                aria-busy={choice.pending || undefined}
-                className={cn(
-                  "flex min-h-11 items-center gap-2.5 rounded-sm px-2.5 py-1 touch:min-h-12",
-                  choice.disabled ? "cursor-default" : "row cursor-pointer",
-                )}
-              >
-                <Checkbox
-                  checked={choice.checked}
-                  disabled={choice.disabled === true || choice.pending === true}
-                  onCheckedChange={(next) => onToggle(choice, next)}
-                />
-                {choice.leaf ?? <span aria-hidden="true" className="w-5" />}
-                <span className="grid min-w-0 flex-1">
-                  <span
-                    title={choice.name}
-                    className={cn(
-                      "truncate text-ui",
-                      choice.disabled && !choice.checked ? "text-reed" : "text-ink",
+              {actions ? (
+                <div
+                  aria-busy={choice.pending || undefined}
+                  className="flex min-h-14 items-center gap-3 px-2.5 py-1"
+                >
+                  {choice.leaf}
+                  <span className="grid min-w-0 flex-1">
+                    <span className="truncate text-ink text-ui">{choice.name}</span>
+                    {choice.note && <span className="text-meta text-reed">{choice.note}</span>}
+                    {choice.checked && (
+                      <span className="text-meta text-reed">{actions.linked}</span>
                     )}
-                  >
-                    {choice.name}
                   </span>
-                  {choice.note && (
-                    <span className="truncate text-meta text-reed">{choice.note}</span>
+                  <Button
+                    variant="outline"
+                    aria-label={`${choice.checked ? actions.remove : actions.add} ${choice.name}`}
+                    disabled={choice.pending || choice.disabled}
+                    onClick={() => onToggle(choice, !choice.checked)}
+                  >
+                    {choice.checked ? actions.remove : actions.add}
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  aria-busy={choice.pending || undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-sm px-2.5",
+                    compact ? "min-h-9 touch:min-h-11" : "min-h-11 py-1 touch:min-h-12",
+                    choice.disabled ? "cursor-default" : "row cursor-pointer",
                   )}
-                </span>
-              </label>
+                >
+                  <Checkbox
+                    checked={choice.checked}
+                    disabled={choice.disabled === true || choice.pending === true}
+                    onCheckedChange={(next) => onToggle(choice, next)}
+                  />
+                  {!compact && (choice.leaf ?? <span aria-hidden="true" className="w-5" />)}
+                  <span className="grid min-w-0 flex-1">
+                    <span
+                      title={choice.name}
+                      className={cn(
+                        "truncate text-ui",
+                        choice.disabled && !choice.checked ? "text-reed" : "text-ink",
+                      )}
+                    >
+                      {choice.name}
+                    </span>
+                    {choice.note && (
+                      <span className="truncate text-meta text-reed">{choice.note}</span>
+                    )}
+                  </span>
+                  {choice.count !== undefined && (
+                    <span className="text-meta text-reed tabular-nums">{choice.count}</span>
+                  )}
+                </label>
+              )}
             </li>
           ))}
         </ul>
@@ -132,6 +177,7 @@ export function ChoicePicker({
   onOpenChange?: (open: boolean) => void;
 } & Parameters<typeof ChoiceList>[0]) {
   const phone = useFormFactor() === "phone";
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [own, setOwn] = useState(false);
   const open = controlled ?? own;
   const setOpen = (next: boolean) => {
@@ -142,6 +188,7 @@ export function ChoicePicker({
     return (
       <>
         <Button
+          ref={triggerRef}
           variant="outline"
           disabled={disabled}
           aria-label={triggerLabel}
@@ -150,10 +197,14 @@ export function ChoicePicker({
           {trigger}
         </Button>
         <Drawer open={open} onOpenChange={setOpen} showSwipeHandle>
-          <DrawerContent>
+          <DrawerContent finalFocus={triggerRef}>
             <DrawerHeader>
               <DrawerTitle>{sheetTitle}</DrawerTitle>
-              <DrawerClose render={<Button variant="outline" />}>Done</DrawerClose>
+              {list.actions ? (
+                <DrawerCloseIcon label={`Close ${sheetTitle.toLowerCase()}`} />
+              ) : (
+                <DrawerClose render={<Button variant="outline" />}>Done</DrawerClose>
+              )}
             </DrawerHeader>
             <div className="flex min-h-0 flex-col px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
               <ChoiceList {...list} />
@@ -168,11 +219,11 @@ export function ChoicePicker({
       <PopoverTrigger
         disabled={disabled}
         aria-label={triggerLabel}
-        render={<Button variant="outline" />}
+        render={<Button ref={triggerRef} variant="outline" />}
       >
         {trigger}
       </PopoverTrigger>
-      <PopoverContent title={title}>
+      <PopoverContent title={title} finalFocus={triggerRef}>
         <ChoiceList {...list} />
       </PopoverContent>
     </Popover>

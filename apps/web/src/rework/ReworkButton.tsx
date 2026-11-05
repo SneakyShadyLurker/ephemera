@@ -1,7 +1,7 @@
 import type { ReworkCard } from "@ephemera/core";
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { CloseIcon, LampFlameIcon } from "@/components/icons";
+import { CloseIcon, EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -102,20 +102,19 @@ export function ReworkButton({
             <Button
               ref={trigger}
               variant="outline"
-              size="icon"
               aria-label="AI Rework"
+              className="px-2"
               disabled={disabled}
             />
           }
         >
-          <LampFlameIcon />
+          <EditIcon size={16} />
+          AI Rework
         </DrawerTrigger>
         <DrawerContent initialFocus={field} finalFocus={finalFocus}>
           <DrawerTitle className="sr-only">AI Rework</DrawerTitle>
           {composer(
-            <DrawerClose
-              render={<Button size="icon" aria-label="Close AI Rework" className="-mr-2" />}
-            >
+            <DrawerClose render={<Button size="icon" aria-label="Close AI Rework" />}>
               <CloseIcon />
             </DrawerClose>,
           )}
@@ -126,7 +125,7 @@ export function ReworkButton({
   return (
     <Popover open={open} onOpenChange={change}>
       <PopoverTrigger render={<Button ref={trigger} variant="outline" disabled={disabled} />}>
-        <LampFlameIcon size={16} />
+        <EditIcon size={16} />
         AI Rework
       </PopoverTrigger>
       <PopoverContent
@@ -136,7 +135,11 @@ export function ReworkButton({
         finalFocus={finalFocus}
         className="max-h-[min(40rem,80dvh,var(--available-height))] w-[32rem] max-w-[calc(100vw-2rem)] p-0"
       >
-        {composer()}
+        {composer(
+          <Button size="icon" aria-label="Close AI Rework" onClick={() => change(false)}>
+            <CloseIcon />
+          </Button>,
+        )}
       </PopoverContent>
     </Popover>
   );

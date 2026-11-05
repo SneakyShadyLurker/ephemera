@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useRef, useState } from "react";
 import { HeaderAction } from "@/app/Browse.tsx";
+import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress, JSON_FILE_TYPES } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
@@ -10,7 +11,9 @@ import { DropOverlay, useFileDrop } from "@/components/file-drop";
 import { CheckIcon, ImportIcon, PlusIcon, PresetsIcon, SamplerIcon } from "@/components/icons";
 import { ImportReportLine } from "@/components/import-report";
 import { Button } from "@/components/ui/button";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
+import { GROUP_HEADING, SECTION_HEADING } from "@/sheet/fields.ts";
 import { useSettings } from "../settings/settings.ts";
 import { creations } from "../sheet/creation.ts";
 import {
@@ -29,6 +32,9 @@ import {
 const FRAME = "mx-auto w-full max-w-wide px-5 tablet:px-8";
 
 export function PresetsScreen() {
+  const phone = useFormFactor() === "phone";
+  const samplerCreation = usePresetCreation("sampler");
+  const promptCreation = usePresetCreation("prompt");
   const queryClient = useQueryClient();
   const picker = useRef<HTMLInputElement>(null);
   const reports = presetImports.use((state) => state.report);
@@ -71,12 +77,20 @@ export function PresetsScreen() {
           event.currentTarget.value = "";
         }}
       />
-      <ScreenHeader title="Presets" frame={FRAME} gutters={SCROLL_GUTTERS}>
+      <ScreenHeader collection title="Presets" frame={FRAME} gutters={SCROLL_GUTTERS}>
         <HeaderAction
           label="Import preset"
+          text="Import"
+          labelledOnPhone
           icon={ImportIcon}
           onClick={() => picker.current?.click()}
         />
+        {phone && (
+          <>
+            <NewPresetButton kind="sampler" creation={samplerCreation} labelled />
+            <NewPresetButton kind="prompt" creation={promptCreation} labelled />
+          </>
+        )}
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -112,6 +126,7 @@ export function PresetsScreen() {
           <div className="grid gap-12 desktop:grid-cols-2 desktop:gap-16">
             <PresetList
               kind="sampler"
+              creation={samplerCreation}
               title="Sampler presets"
               icon={<SamplerIcon />}
               chosenLabel="In use"
@@ -120,6 +135,7 @@ export function PresetsScreen() {
             />
             <PresetList
               kind="prompt"
+              creation={promptCreation}
               title="Prompt presets"
               icon={<PresetsIcon />}
               chosenLabel="In use"
@@ -140,6 +156,7 @@ export function PresetsScreen() {
 
 function PresetList({
   kind,
+  creation,
   title,
   icon,
   chosenLabel,
@@ -147,22 +164,104 @@ function PresetList({
   note,
 }: {
   kind: PresetKind;
+  creation: ReturnType<typeof usePresetCreation>;
   title: string;
   icon: ReactNode;
   chosenLabel: string;
   arrived: string[];
   note: string;
 }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const phone = useFormFactor() === "phone";
   const presets = useQuery(presetsQuery(kind));
   const settings = useSettings();
   const chosen = kind === "prompt" ? settings.promptPresetId : settings.samplerPresetId;
+  const headingId = `presets-${kind}`;
+
+  return (
+    <section aria-labelledby={headingId} className="grid content-start gap-3">
+      <div className="flex h-9 items-center gap-2">
+        <span className="text-reed">{icon}</span>
+        <h2 id={headingId} className={cn(SECTION_HEADING, "flex-1")}>
+          {title}
+        </h2>
+        {!phone && <NewPresetButton kind={kind} creation={creation} />}
+      </div>
+      <p className="max-w-help text-pretty text-note text-reed">{note}</p>
+      {creation.failed !== null && (
+        <p role="alert" className="text-ember text-note">
+          Not created: {creation.failed}.
+        </p>
+      )}
+      {presets.isError ? (
+        <div role="alert" className="grid justify-items-start gap-2">
+          <p className="text-ember text-note">These presets could not be loaded.</p>
+          <Button variant="outline" onClick={() => void presets.refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : (
+        <ul className="grid border-rush border-t">
+          {(presets.data ?? []).map((preset) => (
+            <li key={preset.id} className="border-rush border-b">
+              <Link
+                to={kind === "prompt" ? "/presets/prompt/$id" : "/presets/sampler/$id"}
+                params={{ id: preset.id }}
+                className={cn(rowLayout("collection"), "group grid-cols-[minmax(0,1fr)_auto]")}
+              >
+                <span className={ROW_CONTENT}>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        GROUP_HEADING,
+                        "truncate  decoration-control-edge underline-offset-4 group-hover:underline",
+                      )}
+                    >
+                      {preset.name}
+                    </span>
+                    {arrived.includes(preset.id) && (
+                      <span className="shrink-0 rounded-sm bg-surface-selected px-1.5 text-ink text-meta transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
+                        Imported
+                      </span>
+                    )}
+                  </span>
+                  <span className="line-clamp-2 text-note text-reed">
+                    {"blocks" in preset
+                      ? promptSummary(preset.blocks)
+                      : samplerSummary(preset.values)}
+                  </span>
+                </span>
+                <span className="grid shrink-0 text-meta">
+                  <span
+                    aria-hidden="true"
+                    className="invisible flex items-center gap-1 [grid-area:1/1]"
+                  >
+                    <CheckIcon size={16} />
+                    {chosenLabel}
+                  </span>
+                  {preset.id === chosen && (
+                    <span className="flex items-center gap-1 text-ink [grid-area:1/1]">
+                      <CheckIcon size={16} />
+                      <span>{chosenLabel}</span>
+                    </span>
+                  )}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** One creation owner per kind, shared by its header or section action. */
+function usePresetCreation(kind: PresetKind) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [failed, setFailed] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   // This kind's New: one id and preset until the server acknowledges it.
   const [creates] = useState(() => creations<NewPreset>());
-  const headingId = `presets-${kind}`;
 
   /**
    * After the server acknowledged a new preset: the list reloads and the
@@ -206,73 +305,27 @@ function PresetList({
     });
   };
 
+  return { failed, creating, create };
+}
+
+function NewPresetButton({
+  kind,
+  creation,
+  labelled = false,
+}: {
+  kind: PresetKind;
+  creation: ReturnType<typeof usePresetCreation>;
+  labelled?: boolean;
+}) {
   return (
-    <section aria-labelledby={headingId} className="grid content-start gap-3">
-      <div className="flex h-9 items-center gap-2">
-        <span className="text-reed">{icon}</span>
-        <h2 id={headingId} className="flex-1 font-semibold text-ink text-lead">
-          {title}
-        </h2>
-        <Button
-          aria-label={`New ${kind} preset`}
-          disabled={creating}
-          focusableWhenDisabled
-          onClick={() => void create()}
-        >
-          <PlusIcon size={16} />
-          New
-        </Button>
-      </div>
-      <p className="max-w-help text-pretty text-note text-reed">{note}</p>
-      {failed !== null && (
-        <p role="alert" className="text-ember text-note">
-          Not created: {failed}.
-        </p>
-      )}
-      {presets.isError ? (
-        <div role="alert" className="grid justify-items-start gap-2">
-          <p className="text-ember text-note">These presets could not be loaded.</p>
-          <Button variant="outline" onClick={() => void presets.refetch()}>
-            Try again
-          </Button>
-        </div>
-      ) : (
-        <ul className="grid border-rush border-t">
-          {(presets.data ?? []).map((preset) => (
-            <li key={preset.id} className="border-rush border-b">
-              <Link
-                to={kind === "prompt" ? "/presets/prompt/$id" : "/presets/sampler/$id"}
-                params={{ id: preset.id }}
-                className="group row flex min-h-16 items-center gap-4 px-1 py-2.5"
-              >
-                <span className="grid min-w-0 flex-1 gap-0.5">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-semibold text-ink text-ui decoration-control-edge underline-offset-4 group-hover:underline">
-                      {preset.name}
-                    </span>
-                    {arrived.includes(preset.id) && (
-                      <span className="shrink-0 rounded-sm bg-surface-selected px-1.5 text-ink text-meta transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
-                        Imported
-                      </span>
-                    )}
-                  </span>
-                  <span className="truncate text-meta text-reed">
-                    {"blocks" in preset
-                      ? promptSummary(preset.blocks)
-                      : samplerSummary(preset.values)}
-                  </span>
-                </span>
-                {preset.id === chosen && (
-                  <span className="flex shrink-0 items-center gap-1 text-ink text-meta">
-                    <CheckIcon size={16} />
-                    <span className="max-tablet:sr-only">{chosenLabel}</span>
-                  </span>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <Button
+      aria-label={`New ${kind} preset`}
+      disabled={creation.creating}
+      focusableWhenDisabled
+      onClick={() => void creation.create()}
+    >
+      {!labelled && <PlusIcon size={16} />}
+      {labelled ? `New ${kind}` : "New"}
+    </Button>
   );
 }

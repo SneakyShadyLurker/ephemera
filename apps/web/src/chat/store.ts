@@ -543,6 +543,8 @@ export interface ChatState extends SceneSliceState, CastSliceState {
   pickGreeting: (index: number) => void;
   /** Steps through the last reply's alternates; past the last one, generates another. */
   swipe: (direction: -1 | 1) => Promise<void>;
+  /** Appends a new alternate regardless of which reply is shown. */
+  appendAlternate: () => Promise<void>;
   /** Replaces the shown alternate of the last reply with a new one. */
   regenerate: () => Promise<void>;
   continueReply: () => Promise<void>;
@@ -2522,7 +2524,14 @@ export function createChatStore(
           showAlternate(reply, next);
           return;
         }
-        // Past the last alternate: greetings stop; replies generate another.
+        await get().appendAlternate();
+      },
+
+      appendAlternate: async () => {
+        const state = get();
+        const reply = lastReply(state);
+        if (reply === undefined || locked(state.messages.length - 1)) return;
+        // Greetings stop; replies generate another, always past the final alternate.
         if (!canGenerateAlternate(state) || !idle()) return;
         const subject = deps.subject === undefined ? null : await prepare();
         if (subject === undefined || !idle() || !stillTarget(reply)) return;

@@ -1,12 +1,10 @@
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { type CreatorKind, imagePromptModelOf } from "@ephemera/core";
 import { type Ref, type RefObject, useId, useRef } from "react";
 import { useStore } from "zustand";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { CloseIcon } from "@/components/icons";
-import { DIALOG_SURFACE, SCRIM } from "@/components/ui/alert-dialog";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
+import { ResponsiveEditor } from "@/components/ui/editor-shell";
 import { SwitchField } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
@@ -51,7 +49,7 @@ import type { UseRun } from "./store.ts";
 
 /** The sheet's words where the art is off, stopped or unavailable: the portrait stays. */
 const SHEET_ART_COPY: ArtSessionHost["copy"] = {
-  off: "Add a ComfyUI address in Settings to paint portraits. The portrait stays as it is.",
+  off: "Pictures are off. Add your picture server's address in Settings > Pictures to paint portraits; the portrait stays as it is.",
   stopped: "Art stopped.",
   unavailable: "Portraits unavailable.",
 };
@@ -188,17 +186,17 @@ export function StudioPrimary({
 function UseStatus({ useRun }: { useRun: UseRun | null }) {
   return (
     <>
-      <p role="status" className="text-pretty text-note text-reed empty:sr-only">
+      <InlineStatus as="p" role="status" className="empty:sr-only">
         {useRun?.status === "saving"
           ? "Saving the portrait."
           : useRun?.status === "waiting"
             ? "Waiting for you to sign in"
             : ""}
-      </p>
+      </InlineStatus>
       {useRun?.status === "failed" && (
-        <p role="alert" className="text-pretty text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert">
           {useRun.reason}
-        </p>
+        </InlineStatus>
       )}
     </>
   );
@@ -225,7 +223,9 @@ function PortraitsOff() {
     <div className="grid justify-items-start gap-3 text-note">
       <div className="grid gap-1">
         <p className="font-medium text-ink">Portraits off</p>
-        <p className="text-pretty text-reed">{SHEET_ART_COPY.off}</p>
+        <InlineStatus as="p" role="presentation">
+          {SHEET_ART_COPY.off}
+        </InlineStatus>
       </div>
       <WindowLink
         model={null}
@@ -313,10 +313,8 @@ function StudioBody({
   return (
     <div
       className={cn(
-        "grid min-h-0 overflow-y-auto overscroll-contain",
-        phone
-          ? "flex-1 content-start gap-6 px-5 pt-1 pb-4"
-          : "grid-cols-[auto_minmax(0,1fr)] gap-10 px-6 pt-2 pb-6 desktop:gap-14",
+        "grid min-w-0",
+        phone ? "content-start gap-6" : "grid-cols-[auto_minmax(0,1fr)] gap-10 desktop:gap-14",
       )}
     >
       {art}
@@ -375,7 +373,7 @@ export function ArtStudio({
     focusAfter: () => primaryRef.current,
   };
 
-  // Escape, the scrim, a swipe and both Close buttons ask here; a save answers first.
+  // Escape, the scrim, a swipe and Close ask here; a save answers first.
   const change = (next: boolean, details: { cancel: () => void }) => {
     if (next) return;
     if (sheetArtStore.getState().useRun?.status === "saving") {
@@ -413,77 +411,23 @@ export function ArtStudio({
   );
   const writing = painting ? "" : undefined;
 
-  if (phone) {
-    return (
-      <Drawer open={open} onOpenChange={change} swipeDirection="down" showSwipeHandle keyboardAware>
-        <DrawerContent
-          ref={popupRef}
-          data-writing={writing}
-          initialFocus={initialFocus}
-          finalFocus={trigger}
-          className="data-[swipe-axis=y]:[--drawer-content-max-height:calc(100dvh-1rem-env(safe-area-inset-top))]"
-        >
-          <ArtSessionProvider host={host}>
-            <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-1 pb-3">
-              <DrawerTitle className="text-balance text-heading">{title}</DrawerTitle>
-              <DrawerClose
-                render={
-                  <Button size="icon" aria-label="Close" disabled={saving} className="-mr-2" />
-                }
-              >
-                <CloseIcon />
-              </DrawerClose>
-            </div>
-            {body}
-            <div className="flex shrink-0 items-center gap-3 px-5 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-              <DrawerClose render={<Button ref={closeRef} disabled={saving} className="px-3" />}>
-                Close
-              </DrawerClose>
-              {primary}
-            </div>
-          </ArtSessionProvider>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={change}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className={SCRIM} />
-        <DialogPrimitive.Popup
-          render={(props, state) => <div {...props} inert={!state.open} />}
-          ref={popupRef}
-          data-writing={writing}
-          initialFocus={initialFocus}
-          finalFocus={trigger}
-          className={cn(
-            DIALOG_SURFACE,
-            "grid grid-rows-[auto_minmax(0,1fr)_auto] [--dialog-width:44rem] desktop:[--dialog-width:58rem]",
-          )}
-        >
-          <ArtSessionProvider host={host}>
-            <div className="flex items-center justify-between gap-4 px-6 pt-5 pb-4">
-              <DialogPrimitive.Title className="text-balance font-semibold text-heading text-ink">
-                {title}
-              </DialogPrimitive.Title>
-              <DialogPrimitive.Close
-                render={
-                  <Button size="icon" aria-label="Close" disabled={saving} className="-mr-2" />
-                }
-              >
-                <CloseIcon size={20} />
-              </DialogPrimitive.Close>
-            </div>
-            {body}
-            <div className="flex items-center justify-end gap-2 px-6 pt-3 pb-5">
-              <DialogPrimitive.Close render={<Button ref={closeRef} disabled={saving} />}>
-                Close
-              </DialogPrimitive.Close>
-              {primary}
-            </div>
-          </ArtSessionProvider>
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    <ResponsiveEditor
+      open={open}
+      onOpenChange={change}
+      wrap={(content) => <ArtSessionProvider host={host}>{content}</ArtSessionProvider>}
+      title={title}
+      closeLabel="Close"
+      closeDisabled={saving}
+      closeRef={closeRef}
+      popupRef={popupRef}
+      initialFocus={initialFocus}
+      finalFocus={trigger}
+      data-writing={writing}
+      className="tablet:[--dialog-width:44rem] desktop:[--dialog-width:58rem]"
+      footer={primary && <div className="flex justify-end">{primary}</div>}
+    >
+      {body}
+    </ResponsiveEditor>
   );
 }

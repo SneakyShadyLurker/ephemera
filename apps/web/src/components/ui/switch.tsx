@@ -1,6 +1,7 @@
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { type ReactNode, useId } from "react";
 import { cn } from "@/lib/cn";
+import { EXPLANATION } from "@/sheet/fields.ts";
 
 /**
  * On or off. On is Ink, never Dusk (Dusk is the screen's one primary action);
@@ -70,7 +71,7 @@ function SwitchField({
             </label>
             {about}
           </span>
-          <span id={descriptionId} className="text-pretty text-note text-reed">
+          <span id={descriptionId} className={EXPLANATION}>
             {description}
           </span>
         </div>
@@ -96,7 +97,7 @@ function SwitchField({
         <span id={labelId} className="font-medium text-ink text-ui">
           {label}
         </span>
-        <span id={descriptionId} className="text-pretty text-note text-reed">
+        <span id={descriptionId} className={EXPLANATION}>
           {description}
         </span>
       </span>

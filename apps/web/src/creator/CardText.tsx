@@ -11,6 +11,7 @@ import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
+import { FIELD_LABEL } from "@/sheet/fields.ts";
 import { CardProse } from "./CardLayout.tsx";
 import { blockTitle, SUBJECT_PARTS } from "./sections.ts";
 
@@ -37,7 +38,7 @@ function Opening({ text }: { text: string }) {
   const headingId = useId();
   return (
     <section aria-labelledby={headingId} className="grid max-w-measure gap-3">
-      <h3 id={headingId} className="flex min-h-8 items-center font-medium text-ink text-ui">
+      <h3 id={headingId} className={cn(FIELD_LABEL, "flex min-h-8 items-center")}>
         Opening
       </h3>
       <CardProse text={text} streaming={false} />
@@ -49,7 +50,12 @@ function Opening({ text }: { text: string }) {
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <details className="disclosure border-rush border-t">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 font-medium text-ink text-ui touch:min-h-13 [&::-webkit-details-marker]:hidden">
+      <summary
+        className={cn(
+          FIELD_LABEL,
+          "flex min-h-12 cursor-pointer list-none items-center justify-between gap-3  touch:min-h-13 [&::-webkit-details-marker]:hidden",
+        )}
+      >
         {label}
         <DisclosureChevron className="text-reed" />
       </summary>
@@ -90,7 +96,7 @@ function SubjectPicker({
   );
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span id={labelId} className="font-medium text-ink text-ui">
+      <span id={labelId} className={FIELD_LABEL}>
         Subject
       </span>
       <Select

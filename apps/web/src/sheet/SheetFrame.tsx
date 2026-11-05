@@ -1,8 +1,15 @@
-import { Link, linkOptions, useBlocker, useRouterState } from "@tanstack/react-router";
+import { Link, useBlocker, useRouterState } from "@tanstack/react-router";
 import { createContext, type ReactNode, use, useEffect, useId, useRef, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
+import {
+  BackControl,
+  type BackTarget,
+  HeaderActions,
+  HeaderFrame,
+  HeaderTitle,
+} from "@/app/Header.tsx";
 import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
-import { BackIcon, CheckIcon, SavingIcon } from "@/components/icons";
+import { CheckIcon, SavingIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -10,6 +17,7 @@ import { useSignedIn } from "../signin/hooks.ts";
 import { identity } from "../signin/identity.ts";
 import { SignInSheetRow } from "../signin/SignInSlots.tsx";
 import { isFailure, type SaveStatus, saveStatusText } from "./autosave.ts";
+import { AuthoringField, FieldSaving } from "./FieldFeedback.tsx";
 import { TITLE_FIELD } from "./fields.ts";
 
 /*
@@ -18,54 +26,7 @@ import { TITLE_FIELD } from "./fields.ts";
  * sheet's actions, and one scrolling form on the sheet grid (`SHEET_GRID`).
  */
 
-export type BackTarget =
-  | { to: "/characters" | "/personas" | "/lorebooks" | "/presets"; label: string }
-  /** A character's sheet, from a screen inside it (its lorebook); the label is its name. */
-  | { to: "/characters/$id"; id: string; label: string }
-  /** The open chat, from a screen it opened (memory, from its mark), labelled on every width. */
-  | { to: "/"; label: "Chat" }
-  /** A step back within the screen (a lorebook entry to its list), labelled on every width. */
-  | { label: string; onBack: () => void };
-
-function BackControl({ back }: { back: BackTarget }) {
-  const phone = useFormFactor() === "phone";
-  if ("onBack" in back) {
-    return (
-      <Button className="pl-2 max-tablet:-ml-1" onClick={back.onBack}>
-        <BackIcon size={16} />
-        {back.label}
-      </Button>
-    );
-  }
-  if (back.to === "/") {
-    // Named apart from the navigation's own Chat link; the visible word stays in the name.
-    return (
-      <Link
-        to="/"
-        aria-label={`Back to ${back.label.toLowerCase()}`}
-        className={cn(buttonVariants(), "pl-2 max-tablet:-ml-1")}
-      >
-        <BackIcon size={16} />
-        {back.label}
-      </Link>
-    );
-  }
-  const spoken = back.to === "/characters/$id" ? back.label : back.label.toLowerCase();
-  const link =
-    back.to === "/characters/$id"
-      ? linkOptions({ to: back.to, params: { id: back.id } })
-      : linkOptions({ to: back.to });
-  return phone ? (
-    <Link {...link} aria-label={`Back to ${spoken}`} className={buttonVariants({ size: "icon" })}>
-      <BackIcon />
-    </Link>
-  ) : (
-    <Link {...link} className={cn(buttonVariants(), "max-w-56 pl-2")}>
-      <BackIcon size={16} />
-      <span className="truncate">{back.label}</span>
-    </Link>
-  );
-}
+export type { BackTarget } from "@/app/Header.tsx";
 
 /**
  * The sheet's occupied frame: the form, or the form, the gap and an aside
@@ -107,33 +68,45 @@ export function SheetHeaderFrame({
   back,
   frame,
   gutters,
+  title,
+  titleProps,
+  titleClassName,
+  subtitle,
+  titleReplacement,
   children,
 }: {
   back: BackTarget;
-  /** The body's frame, which the contents take from tablet up (ScreenHeader's `frame`). */
   frame?: string;
-  /** The gutter class the body's scroller keeps, so the header keeps the same room (ScreenHeader's `gutters`). */
   gutters?: string | undefined;
-  children: ReactNode;
+  title?: ReactNode;
+  titleProps?: { id?: string; tabIndex?: number; "aria-label"?: string };
+  titleClassName?: string;
+  subtitle?: ReactNode;
+  titleReplacement?: ReactNode;
+  children?: ReactNode;
 }) {
   const leaving = useLeavingSheet();
   return (
-    <header className="header-hairline box-content flex h-14 shrink-0 border-b pt-[env(safe-area-inset-top)]">
-      <div className={cn("flex min-w-0 flex-1", gutters && cn("overflow-hidden", gutters))}>
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-1",
-            frame ?? "tablet:px-4",
-            "max-tablet:px-2",
-          )}
-        >
-          <BackControl back={back} />
-          <div className="contents" inert={leaving}>
-            {children}
-          </div>
-        </div>
+    <HeaderFrame frame={frame} gutters={gutters}>
+      <BackControl back={back} />
+      <div className="contents" inert={leaving}>
+        {title !== undefined ? (
+          <>
+            <div className="min-w-0 flex-1 px-2">
+              {titleReplacement ?? (
+                <HeaderTitle {...titleProps} className={cn("px-0", titleClassName)}>
+                  {title}
+                </HeaderTitle>
+              )}
+              {subtitle && <p className="truncate text-meta text-reed">{subtitle}</p>}
+            </div>
+            <HeaderActions>{children}</HeaderActions>
+          </>
+        ) : (
+          children
+        )}
       </div>
-    </header>
+    </HeaderFrame>
   );
 }
 
@@ -215,22 +188,22 @@ export function SheetHeader({
   const phone = useFormFactor() === "phone";
   const failing = phone && isFailure(status, creating);
   return (
-    <SheetHeaderFrame back={back} frame={frame} gutters={gutters}>
-      <div className="min-w-0 flex-1 px-2">
-        {failing ? (
-          <SaveState status={status} creating={creating} noun={noun} short />
-        ) : (
-          <h1 className="title-in truncate font-semibold text-ink text-lead">{title}</h1>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {!failing && (
-          <span className="px-2 max-tablet:sr-only">
-            <SaveState status={status} creating={creating} noun={noun} />
-          </span>
-        )}
-        {children}
-      </div>
+    <SheetHeaderFrame
+      back={back}
+      frame={frame}
+      gutters={gutters}
+      title={title}
+      titleClassName="title-in"
+      titleReplacement={
+        failing ? <SaveState status={status} creating={creating} noun={noun} short /> : undefined
+      }
+    >
+      {!failing && (
+        <span className="px-2 max-tablet:sr-only">
+          <SaveState status={status} creating={creating} noun={noun} />
+        </span>
+      )}
+      {children}
     </SheetHeaderFrame>
   );
 }
@@ -409,6 +382,8 @@ export function SheetBody({
   asideFrame = "indexed",
   children,
   after,
+  saving,
+  compactOnPhone = false,
 }: {
   label: string;
   onBlur: () => void;
@@ -418,6 +393,8 @@ export function SheetBody({
   children: ReactNode;
   /** A notice kept at the end of the fields, sticky above the bottom (a save conflict). */
   after?: ReactNode;
+  saving?: { status: SaveStatus; noun: string };
+  compactOnPhone?: boolean;
 }) {
   // While the sign-in notice floats at the end, a focused field scrolls clear of it.
   const signedIn = useSignedIn();
@@ -435,25 +412,68 @@ export function SheetBody({
     >
       <div
         className={cn(
-          "pt-4 pb-16 tablet:pt-8",
+          "relative pt-4 pb-16 tablet:pt-8",
           aside
             ? cn(SHEET_FRAME[asideFrame], "grid gap-index", ASIDE_COLUMNS[asideFrame])
             : SHEET_FRAME.form,
         )}
       >
+        <SheetTitleBoundary />
         <form
           aria-label={label}
-          className="grid grid-cols-[minmax(0,1fr)] gap-10"
+          className={cn(
+            "grid grid-cols-[minmax(0,1fr)] gap-10",
+            compactOnPhone && "max-tablet:gap-6",
+          )}
           onSubmit={(event) => event.preventDefault()}
           onBlur={onBlur}
         >
-          {children}
+          <FieldSaving value={saving ?? null}>{children}</FieldSaving>
           <SignInSheetRow />
           {after}
         </form>
         {aside}
       </div>
     </div>
+  );
+}
+
+/** Every sheet uses the same interruptible title threshold, at its actual in-page title. */
+export function SheetTitleBoundary({ alwaysVisible = false }: { alwaysVisible?: boolean }) {
+  const titleBoundary = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const boundary = titleBoundary.current;
+    const scroller = boundary?.closest<HTMLElement>("[data-sheet-scroller], [data-skip-target]");
+    const sheet = scroller?.closest("main");
+    if (!boundary || !scroller || !sheet) return;
+    const title = scroller.querySelector("[data-sheet-heading]") ?? boundary;
+    // Observe the threshold without a compositor timeline trigger: a block expanding
+    // while focus scrolls the sheet can interrupt that trigger's animation.
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        sheet.toggleAttribute(
+          "data-sheet-title",
+          alwaysVisible ||
+            (entry !== undefined &&
+              !entry.isIntersecting &&
+              entry.rootBounds !== null &&
+              entry.boundingClientRect.bottom <= entry.rootBounds.top),
+        );
+      },
+      { root: scroller },
+    );
+    observer.observe(title);
+    return () => {
+      observer.disconnect();
+      sheet.removeAttribute("data-sheet-title");
+    };
+  }, [alwaysVisible]);
+  return (
+    <span
+      ref={titleBoundary}
+      aria-hidden="true"
+      className="pointer-events-none absolute top-0 h-px w-px"
+    />
   );
 }
 
@@ -480,8 +500,9 @@ export function NameField({
     if (autoSelect) field.current?.select();
   }, [autoSelect]);
   return (
-    <textarea
+    <AuthoringField
       ref={field}
+      data-sheet-heading=""
       aria-label="Name"
       rows={1}
       value={value}
@@ -493,7 +514,8 @@ export function NameField({
       onChange={(event) => onChange(event.target.value.replace(/[\r\n]+/g, " "))}
       className={cn(
         TITLE_FIELD,
-        "w-full resize-none text-title-phone tracking-[-0.015em] [field-sizing:content] tablet:text-title",
+        // On touch its 36px line sits near the middle of the 44px target.
+        "w-full resize-none text-title-phone tracking-[-0.015em] [field-sizing:content] touch:py-0.5 tablet:text-title",
       )}
     />
   );

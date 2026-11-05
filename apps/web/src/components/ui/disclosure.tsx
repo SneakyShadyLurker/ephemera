@@ -22,6 +22,16 @@ export function DisclosureChevron({ className }: { className?: string }) {
 }
 
 /**
+ * A native disclosure's summary set as a quiet line (a count that opens its
+ * list, a note that opens its detail): reed, ink under the pointer, its
+ * target at least 24px tall on fine pointers and 44px on touch however
+ * short its line. The caller adds what differs: its gap, its type, a
+ * wrapped line's alignment.
+ */
+export const SUMMARY_LINE =
+  "flex min-h-6 w-fit cursor-pointer list-none items-center gap-1 rounded-md text-note text-reed transition-colors duration-(--duration-tint) ease-fade hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden";
+
+/**
  * Its children while `show`, growing in from no height and folding away
  * again; a fade only under reduced motion. For what a state reveals rather
  * than a trigger beside it; a control that toggles it says so with

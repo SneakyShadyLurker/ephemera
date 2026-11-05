@@ -16,7 +16,7 @@ describe("the portrait status in Settings", () => {
   it("says plainly when portraits are off or ready", () => {
     expect(portraitStatusLine({ state: "off" })).toEqual({
       tone: "off",
-      text: "Off. Add a ComfyUI address to make portraits for cards written with AI.",
+      text: "Off. Add your picture server's address to make portraits for cards written with AI.",
       missing: null,
     });
     expect(portraitStatusLine({ state: "ready" })).toEqual({
@@ -27,19 +27,25 @@ describe("the portrait status in Settings", () => {
   });
 
   it.each([
-    ["unreachable", "Unavailable. ComfyUI did not answer at this address."],
+    [
+      "unreachable",
+      "Unavailable. The picture server did not answer at this address. Check that it runs and the address is right.",
+    ],
     [
       "insecure",
-      "Unavailable. A token is set, so the address must use https: the token is only sent over https.",
+      "Unavailable. This address must start with https, since this server sends its picture server a token. Change the address to https.",
     ],
     [
       "unauthorized",
-      "Unavailable. ComfyUI refused the token. Check COMFYUI_API_KEY in the server's environment.",
+      "Unavailable. The picture server refused this server's token. Its owner can check COMFYUI_API_KEY.",
     ],
-    ["not_ready", "Unavailable. The private worker answered but is not ready yet."],
+    [
+      "not_ready",
+      "Unavailable. The picture server answered but is not ready yet. Try again in a moment.",
+    ],
     [
       "invalid_response",
-      "Unavailable. Something answered at this address, but not the way ComfyUI does.",
+      "Unavailable. Something answered at this address, but not as a ComfyUI picture server does. Check the address.",
     ],
   ] as const)("names why ComfyUI is unavailable: %s", (reason, text) => {
     expect(portraitStatusLine({ state: "unavailable", reason })).toEqual({
@@ -58,7 +64,7 @@ describe("the portrait status in Settings", () => {
       }),
     ).toEqual({
       tone: "problem",
-      text: "Unavailable. ComfyUI lacks parts the chosen workflow needs.",
+      text: "Unavailable. The picture server lacks parts the chosen workflow needs: install them, or choose another workflow.",
       missing: { nodes: ["ModelAttentionBackend"], models: ["qwen_image_vae.safetensors"] },
     });
   });
@@ -96,7 +102,8 @@ describe("the workflows list in Settings", () => {
         tone: "problem",
         words: "Unavailable",
         missing: null,
-        reason: "ComfyUI did not answer at this address.",
+        reason:
+          "The picture server did not answer at this address. Check that it runs and the address is right.",
       },
     ],
   ])("puts words beside every dot: %j", (status, row) => {

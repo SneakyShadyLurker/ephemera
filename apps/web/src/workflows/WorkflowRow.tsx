@@ -9,15 +9,19 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { m } from "motion/react";
 import { useId, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { queryClient } from "@/app/query.ts";
 import { DeleteIcon, EditIcon, ImportIcon, MoreIcon, TagIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { ROW_CONTENT, ROW_FRAME, rowLayout } from "@/components/ui/row-layout";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { artStatusQuery } from "../creator/queries.ts";
+import { WorkflowSelect } from "../creator/WorkflowSelect.tsx";
 import {
   FAMILY_NAMES,
   nameTakenLine,
@@ -27,29 +31,39 @@ import {
   workflowStatus,
 } from "../settings/pictures.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { FOCUS_WITHIN } from "../sheet/fields.ts";
+import { LINE_FIELD } from "../sheet/fields.ts";
 import { useGlide } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { deleteWorkflow, refreshWorkflows, updateWorkflow, workflowsQuery } from "./queries.ts";
 
 /** A small state dot beside the status words: lit dusk when ready, ember on a problem. */
-/** The node classes and model files a workflow lacks on the user's ComfyUI. */
+/**
+ * The node classes and model files a workflow lacks on the user's ComfyUI,
+ * closed under the words that say so and what to do, since their raw names
+ * are for whoever installs them.
+ */
 export function MissingList({ nodes, models }: { nodes: string[]; models: string[] }) {
   return (
-    <dl className="grid gap-1.5 border-rush border-l pl-4 text-note">
-      {nodes.length > 0 && (
-        <div className="grid gap-0.5">
-          <dt className="text-reed">Nodes</dt>
-          <dd className="break-words text-ink">{nodes.join(", ")}</dd>
-        </div>
-      )}
-      {models.length > 0 && (
-        <div className="grid gap-0.5">
-          <dt className="text-reed">Model files</dt>
-          <dd className="break-words text-ink">{models.join(", ")}</dd>
-        </div>
-      )}
-    </dl>
+    <details className="disclosure">
+      <summary className={cn(SUMMARY_LINE, "gap-2")}>
+        <DisclosureChevron />
+        What is missing
+      </summary>
+      <dl className="mt-1 grid gap-1.5 border-rush border-l pl-4 text-note">
+        {nodes.length > 0 && (
+          <div className="grid gap-0.5">
+            <dt className="text-reed">Nodes</dt>
+            <dd className="break-words text-ink">{nodes.join(", ")}</dd>
+          </div>
+        )}
+        {models.length > 0 && (
+          <div className="grid gap-0.5">
+            <dt className="text-reed">Model files</dt>
+            <dd className="break-words text-ink">{models.join(", ")}</dd>
+          </div>
+        )}
+      </dl>
+    </details>
   );
 }
 
@@ -84,7 +98,7 @@ type Row =
 type Change = { name: string } | { family: ArtFamily };
 
 /** The row's hairline, the content beside its trailing actions. */
-const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 border-rush border-b py-2";
+const ROW = cn(rowLayout("collection", false), ROW_FRAME, "border-rush border-b");
 
 /**
  * One workflow: its dot, name and family on the first line, its node count
@@ -110,6 +124,13 @@ export function WorkflowRow({
     status.isPending ? "checking" : status.isError ? "failed" : status.data,
   );
   const problemId = useId();
+  const chooseId = useId();
+  const cannotRun = status.data !== undefined && status.data.state !== "ready";
+  const reason =
+    shown.reason ??
+    (shown.missing !== null
+      ? "The picture server lacks this workflow's requirements."
+      : "Add a picture server address to run this workflow.");
   const actionsRef = useRef<HTMLButtonElement>(null);
   // Rename and Family take focus themselves; the menu then leaves it alone.
   const handoff = useRef(false);
@@ -202,55 +223,58 @@ export function WorkflowRow({
   const words = (
     <span className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-note">
       {row.scope === "user" && <span className="text-reed">{nodeCount(row.workflow.nodes)}</span>}
-      <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>{shown.words}</span>
-      {inUse && <span className="text-reed">In use</span>}
+      {inUse ? (
+        <>
+          <span className="text-reed">Selected</span>
+          {cannotRun && <span className="text-ink">Cannot run</span>}
+        </>
+      ) : (
+        <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>{shown.words}</span>
+      )}
     </span>
   );
 
   return (
     <m.li data-workflow={workflow.id} className={ROW} {...glide}>
-      <div className="grid min-w-0 gap-1 tablet:flex tablet:flex-wrap tablet:items-baseline tablet:gap-x-4">
+      <div
+        className={cn(
+          ROW_CONTENT,
+          "tablet:flex tablet:flex-wrap tablet:items-baseline tablet:gap-x-4",
+        )}
+      >
         <span className="flex min-w-0 items-baseline gap-x-2.5 gap-y-0.5 max-tablet:flex-wrap tablet:gap-x-4">
           <span className="flex min-w-0 items-baseline gap-2.5">
             <StatusDot tone={shown.tone} />
             {editing === "name" ? (
-              <span
-                className={cn(
-                  "flex h-8 min-w-0 items-center rounded-md border border-control-edge bg-surface px-2 touch:h-11",
-                  FOCUS_WITHIN,
-                  problem !== null && "border-ember",
-                )}
-              >
-                <input
-                  // Rename moved focus here from the menu.
-                  // biome-ignore lint/a11y/noAutofocus: opened by the owner's choice of Rename
-                  autoFocus
-                  aria-label={`Name of ${workflow.name}`}
-                  aria-invalid={problem !== null}
-                  aria-describedby={problem !== null ? problemId : undefined}
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={WORKFLOW_LIMITS.nameLength}
-                  value={draft}
-                  onChange={(event) => {
-                    setDraft(event.target.value);
-                    setProblem(null);
-                  }}
-                  onBlur={() => commitName(false)}
-                  onKeyDown={(event) => {
-                    if (isComposing(event)) return;
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commitName(true);
-                    } else if (event.key === "Escape") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      closeEditor(true);
-                    }
-                  }}
-                  className="w-56 min-w-0 max-w-full bg-transparent text-ink text-ui outline-none"
-                />
-              </span>
+              <input
+                // Rename moved focus here from the menu.
+                // biome-ignore lint/a11y/noAutofocus: opened by the owner's choice of Rename
+                autoFocus
+                aria-label={`Name of ${workflow.name}`}
+                aria-invalid={problem !== null}
+                aria-describedby={problem !== null ? problemId : undefined}
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={WORKFLOW_LIMITS.nameLength}
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  setProblem(null);
+                }}
+                onBlur={() => commitName(false)}
+                onKeyDown={(event) => {
+                  if (isComposing(event)) return;
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitName(true);
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeEditor(true);
+                  }
+                }}
+                className={cn(LINE_FIELD, "w-56 min-w-0 max-w-full px-2 aria-invalid:border-ember")}
+              />
             ) : (
               <span
                 data-workflow-name=""
@@ -355,18 +379,38 @@ export function WorkflowRow({
       ) : (
         <span />
       )}
-      {(problem !== null || shown.missing !== null || (inUse && shown.reason !== null)) && (
+      {(problem !== null ||
+        shown.missing !== null ||
+        shown.reason !== null ||
+        (inUse && cannotRun)) && (
         <div className="col-span-2 grid gap-2 pt-1 pb-1 pl-4">
           {problem !== null && (
-            <p id={problemId} role="alert" className="text-pretty text-ember text-note">
+            <InlineStatus tone="error" as="p" id={problemId} role="alert">
               {problem}
-            </p>
+            </InlineStatus>
           )}
-          {inUse && shown.reason !== null && (
-            <p className="text-pretty text-note text-reed">{shown.reason}</p>
+          {inUse && cannotRun ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="min-w-0 flex-1 basis-64 text-note text-reed">{reason}</p>
+              <span id={chooseId} className="sr-only">
+                Choose another
+              </span>
+              <WorkflowSelect
+                labelId={chooseId}
+                actionLabel="Choose another"
+                className="w-auto tablet:w-auto"
+              />
+            </div>
+          ) : (
+            shown.reason !== null && <p className="text-pretty text-reed text-ui">{shown.reason}</p>
           )}
           {shown.missing !== null && (
-            <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
+            <>
+              {!inUse && (
+                <p className="text-note text-reed">Install requirements or change workflow.</p>
+              )}
+              <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
+            </>
           )}
         </div>
       )}

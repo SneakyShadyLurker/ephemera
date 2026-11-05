@@ -1,6 +1,7 @@
 import { type ReactNode, useId } from "react";
 import { Infotip } from "@/components/ui/infotip";
 import { cn } from "@/lib/cn";
+import { EXPLANATION, FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
 
 /*
  * The one row grammar of Settings: the label on the leading edge with its
@@ -13,7 +14,7 @@ import { cn } from "@/lib/cn";
  * label, so a narrow tablet panel and a phone share one rule.
  */
 
-export const HINT = "text-pretty text-note text-reed";
+export const HINT = EXPLANATION;
 
 /**
  * A Settings panel's actions (Save, Cancel), stuck to the bottom of the
@@ -90,7 +91,7 @@ export function SettingRow({
   below?: ReactNode;
   children: ReactNode;
 }) {
-  const text = "font-medium text-ink text-ui";
+  const text = FIELD_LABEL;
   return (
     <div className="@container grid gap-2 py-3.5">
       <div className={cn("grid gap-x-6 gap-y-2", ROW_GRID[control])}>
@@ -165,7 +166,7 @@ export function SettingGroup({
         <div className="grid gap-1">
           {title !== undefined && (
             <LabelLine label={title} about={about}>
-              <h3 id={headingId} className="inline font-semibold text-ink text-lead">
+              <h3 id={headingId} className={cn(SECTION_HEADING, "inline")}>
                 {title}
               </h3>
             </LabelLine>

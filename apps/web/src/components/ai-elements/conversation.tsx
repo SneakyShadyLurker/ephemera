@@ -23,10 +23,27 @@ type ConversationProps = ComponentProps<typeof StickToBottom>;
  * it also holds a little way up, near the bottom.
  */
 function KeepTail() {
-  const { scrollRef, state, scrollToBottom } = useStickToBottomContext();
+  const { scrollRef, state, scrollToBottom, stopScroll } = useStickToBottomContext();
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller === null) return;
+    // The library defers scroll escapes until after resize observers. Release the lock before
+    // a pending follow frame or a simultaneous viewport shrink can overwrite an upward scroll.
+    const onScroll = (event: Event) => {
+      if (event.target !== scroller) return;
+      const top = scroller.scrollTop;
+      const previous = Math.max(state.lastScrollTop ?? top, state.ignoreScrollToTop ?? top);
+      if (
+        top < previous &&
+        top !== state.ignoreScrollToTop &&
+        // A shorter story or taller viewport may clamp the scroll position to its new end.
+        top < state.targetScrollTop &&
+        !state.animation?.ignoreEscapes
+      ) {
+        stopScroll();
+      }
+    };
+    scroller.addEventListener("scroll", onScroll, { capture: true, passive: true });
     let height = scroller.clientHeight;
     const observer = new ResizeObserver(() => {
       const next = scroller.clientHeight;
@@ -34,15 +51,18 @@ function KeepTail() {
       height = next;
     });
     observer.observe(scroller);
-    return () => observer.disconnect();
-  }, [scrollRef, state, scrollToBottom]);
+    return () => {
+      observer.disconnect();
+      scroller.removeEventListener("scroll", onScroll, true);
+    };
+  }, [scrollRef, state, scrollToBottom, stopScroll]);
   return null;
 }
 
 /** The one scroll owner for the thread: follows the bottom until the owner scrolls away. */
 export const Conversation = ({ className, children, ...props }: ConversationProps) => (
   <StickToBottom
-    className={cn("relative min-h-0 flex-1", className)}
+    className={cn("relative flex min-h-0 flex-1 flex-col", className)}
     initial="instant"
     resize="instant"
     role="log"
@@ -59,9 +79,14 @@ export const Conversation = ({ className, children, ...props }: ConversationProp
 
 export const ConversationContent = ({
   className,
+  scrollClassName,
   ...props
 }: ComponentProps<typeof StickToBottom.Content>) => (
-  <StickToBottom.Content className={cn("flex flex-col", className)} {...props} />
+  <StickToBottom.Content
+    scrollClassName={cn("min-h-0 flex-1", scrollClassName)}
+    className={cn("flex flex-col", className)}
+    {...props}
+  />
 );
 
 /** Shown only when the owner has scrolled away from the newest text. */
@@ -76,27 +101,29 @@ export const ConversationScrollButton = ({
   const { isAtBottom, scrollToBottom } = useStickToBottomContext();
   // Always rendered, so at the bottom it leaves on `arrive`'s hidden state and returns from its start.
   return (
-    <div
-      hidden={isAtBottom}
-      inert={isAtBottom}
-      className={cn(
-        // Above the turns' sticky nameplates, which pass behind it while the story scrolls.
-        "absolute bottom-3 left-1/2 z-(--z-raised) -translate-x-1/2 arrive",
-        className,
-      )}
-    >
-      <Button
-        variant="outline"
-        className="bg-surface shadow-overlay"
-        onClick={(event) => {
-          const byKeyboard = event.currentTarget.matches(":focus-visible");
-          void scrollToBottom(scrollBehavior());
-          if (byKeyboard) onKeyboardUse?.();
-        }}
+    <div className="max-tablet:h-11 max-tablet:shrink-0 tablet:contents">
+      <div
+        hidden={isAtBottom}
+        inert={isAtBottom}
+        className={cn(
+          // Above the turns' sticky nameplates, which pass behind it while the story scrolls.
+          "relative grid h-11 place-items-center arrive tablet:absolute tablet:bottom-3 tablet:left-1/2 tablet:-translate-x-1/2 tablet:z-(--z-raised)",
+          className,
+        )}
       >
-        <LatestIcon />
-        Latest
-      </Button>
+        <Button
+          variant="outline"
+          className="bg-surface shadow-overlay"
+          onClick={(event) => {
+            const byKeyboard = event.currentTarget.matches(":focus-visible");
+            void scrollToBottom(scrollBehavior());
+            if (byKeyboard) onKeyboardUse?.();
+          }}
+        >
+          <LatestIcon />
+          Latest
+        </Button>
+      </div>
     </div>
   );
 };

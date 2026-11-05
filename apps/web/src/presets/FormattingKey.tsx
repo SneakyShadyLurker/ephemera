@@ -1,7 +1,7 @@
 import { HIGHLIGHT_TONES, THOUGHT_MARK } from "@ephemera/core";
 import { cn } from "@/lib/cn";
 import { CardProse } from "../creator/CardLayout.tsx";
-import { HELP } from "../sheet/fields.ts";
+import { GROUP_HEADING, HELP } from "../sheet/fields.ts";
 
 /*
  * The formatting key: each mark the chat draws in a character's reply,
@@ -63,7 +63,7 @@ export function FormattingKey({ placement }: { placement: "aside" | "section" })
         aria-labelledby="formatting-key"
         className="sticky top-8 grid h-fit max-h-[calc(100dvh-7rem)] gap-4 self-start overflow-y-auto border-rush border-l pl-5"
       >
-        <h2 id="formatting-key" className="font-semibold text-ink text-ui">
+        <h2 id="formatting-key" className={GROUP_HEADING}>
           Formatting
         </h2>
         {help}

@@ -1,3 +1,4 @@
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { ChatIcon, CheckIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useStartChat } from "../chat/StartChat.tsx";
@@ -12,7 +13,11 @@ export function KeptNote() {
   const { start, dialog } = useStartChat();
   if (kept === null) return null;
   return (
-    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-note arrive">
+    <InlineStatus
+      as="div"
+      role="status"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 arrive"
+    >
       {/* Text first; the actions wrap as one to the next line when the row is narrow. */}
       <div className="flex min-w-0 items-center gap-x-3">
         <CheckIcon size={16} className="shrink-0 text-reed" />
@@ -28,6 +33,6 @@ export function KeptNote() {
         </Button>
       </div>
       {dialog}
-    </div>
+    </InlineStatus>
   );
 }

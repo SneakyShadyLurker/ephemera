@@ -6,12 +6,17 @@ import {
   eventFieldsSchema,
   type StoredEvent,
 } from "@ephemera/core";
+import { useIsPresent } from "motion/react";
+import * as m from "motion/react-m";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { fade, spring } from "@/app/motion.tsx";
+import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { ChevronDownIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { ROW_META, rowLayout } from "@/components/ui/row-layout";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
-import { NoticeCard } from "../app/NoticeCard.tsx";
+import { InlineStatus, NoticeCard } from "../app/NoticeCard.tsx";
 import { isFailure, type SaveStatus, saveStatusText, useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
 import { type EventSaveFields, eventSaving, fromSaveFields, toSaveFields } from "./autosave.ts";
@@ -141,6 +146,8 @@ function EventRowBody({
   onDiscard,
   onReload,
 }: EventRowProps & { onReload: () => Promise<void> }) {
+  const present = useIsPresent();
+  const reduced = useReducedMotion();
   const [fields, setFields] = useState<EventSaveFields>(() =>
     toSaveFields(stored === null ? NEW_EVENT : fieldsOf(stored)),
   );
@@ -260,7 +267,16 @@ function EventRowBody({
   useEffect(() => () => onSaving(rowKey, null), [onSaving, rowKey]);
 
   return (
-    <li data-event={rowKey} className={cn("border-rush border-b", arrived && "arrive")}>
+    <m.li
+      data-event={rowKey}
+      inert={!present}
+      aria-hidden={!present || undefined}
+      initial={false}
+      animate={{ height: "auto", opacity: 1 }}
+      exit={{ height: reduced ? "auto" : 0, opacity: 0 }}
+      transition={{ height: spring("--duration-panel-out"), opacity: fade("--duration-quick") }}
+      className={cn("border-rush border-b", !present && "overflow-clip", arrived && "arrive")}
+    >
       <Collapsible.Root
         open={open}
         onOpenChange={(next) => {
@@ -269,19 +285,26 @@ function EventRowBody({
           else onOpenChange(next);
         }}
       >
-        {/* The switch sits over the trigger's middle column: a sibling with its own touch area. */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-x-3">
+        {/*
+         * Two hit areas side by side: the disclosure (its words and chevron)
+         * and, in its own column, the switch with its own touch area.
+         */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
           <Collapsible.Trigger
             data-disclosure=""
             aria-labelledby={instructionId}
             aria-describedby={`${ruleId} ${scopeId}`}
-            className="group/row col-span-3 col-start-1 row-start-1 grid min-h-16 grid-cols-subgrid items-start gap-y-1 rounded-sm px-1 py-3 text-left row touch:py-3.5"
+            className={cn(
+              rowLayout("collection"),
+              "group/row grid-cols-[minmax(0,1fr)_auto] items-start",
+            )}
           >
             <span
               id={instructionId}
               title={blank ? undefined : fields.name}
               className={cn(
-                "col-start-1 row-start-1 truncate font-medium text-ui",
+                // Phones give a long instruction a second line; wider rows keep it to one.
+                "line-clamp-2 break-words font-medium text-ui tablet:line-clamp-none tablet:truncate",
                 fields.enabled && !blank ? "text-ink" : "text-reed",
               )}
             >
@@ -289,23 +312,20 @@ function EventRowBody({
             </span>
             <ChevronDownIcon
               size={16}
-              className="col-start-3 row-start-1 mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
+              className="mt-0.5 text-reed transition-[rotate] duration-(--duration-arrive) ease-spring group-data-panel-open/row:rotate-180 motion-reduce:transition-none"
             />
-            <span
-              id={ruleId}
-              className="col-span-3 col-start-1 row-start-2 text-pretty text-note text-reed tablet:col-span-1"
-            >
-              <RuleText rule={rule} lively={lively} />
-            </span>
-            <span
-              id={scopeId}
-              className="col-span-3 col-start-1 row-start-3 text-pretty text-note text-reed tablet:col-span-1"
-            >
-              {scope}
+            {/* Chance and scope share one metadata line, wrapping only when it runs out. */}
+            <span className={open ? "sr-only" : cn(ROW_META, "col-span-2")}>
+              <span id={ruleId} className="text-pretty">
+                <RuleText rule={rule} lively={lively} />
+              </span>
+              <span id={scopeId} className="text-pretty">
+                {scope}
+              </span>
             </span>
           </Collapsible.Trigger>
           {/* Its own grid item: the switch renders an input beside itself, which must not take a cell. */}
-          <div className="col-start-2 row-start-1 mt-3 flex touch:mt-3.5">
+          <div className="mt-3 flex px-1 touch:mt-3.5">
             <Switch
               aria-label={`Enable ${instruction}`}
               checked={fields.enabled}
@@ -338,13 +358,15 @@ function EventRowBody({
           </div>
         )}
         {!orphaned && status.kind === "needs-name" && (
-          <p className="px-1 pb-3 text-note text-reed">Write the instruction to save this event.</p>
+          <InlineStatus as="p" role="presentation" className="px-1 pb-3">
+            Write the instruction to save this event.
+          </InlineStatus>
         )}
         {failure !== null && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-3">
-            <p role="alert" className="text-pretty text-ember text-note">
+            <InlineStatus tone="error" as="p" role="alert">
               {failure}
-            </p>
+            </InlineStatus>
             <Button
               variant="outline"
               onClick={() => {
@@ -382,7 +404,7 @@ function EventRowBody({
           </div>
         </Collapsible.Panel>
       </Collapsible.Root>
-    </li>
+    </m.li>
   );
 }
 

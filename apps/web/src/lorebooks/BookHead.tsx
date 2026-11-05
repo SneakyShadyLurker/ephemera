@@ -1,12 +1,13 @@
 import { CARD_LIMITS } from "@ephemera/core";
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { GLIDE } from "@/app/glide.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { LIST_X } from "../lorebook/EntryList.tsx";
 import type { BookContext } from "../lorebook/LorebookEditor.tsx";
-import { FIELD, HELP, TITLE_FIELD } from "../sheet/fields.ts";
+import { FIELD, FIELD_LABEL, HELP, TITLE_FIELD } from "../sheet/fields.ts";
 import { BookLinks } from "./BookLinks.tsx";
 import { NAME_TRANSITION } from "./BookRow.tsx";
 import { useLibrary } from "./library-state.ts";
@@ -44,7 +45,9 @@ export function BookHead({
     : undefined;
   return (
     <div className={cn(LIST_X, "grid gap-4 border-rush border-b pt-5 pb-5")}>
-      <p
+      <InlineStatus
+        tone="error"
+        as="p"
         role="status"
         className={cn(
           "flex min-h-0 items-center gap-2 text-note empty:hidden",
@@ -59,7 +62,7 @@ export function BookHead({
             </Button>
           </>
         )}
-      </p>
+      </InlineStatus>
       <div className="grid gap-1">
         <span style={style} className={cn("grid", GLIDE)}>
           <input
@@ -72,13 +75,14 @@ export function BookHead({
             aria-invalid={blank || undefined}
             aria-describedby={blank ? problemId : undefined}
             onChange={(event) => context.onName(event.target.value)}
+            data-sheet-heading=""
             className={cn(TITLE_FIELD, "min-w-0 py-0.5 text-heading aria-invalid:border-ember")}
           />
         </span>
         {blank && (
-          <p id={problemId} className="text-ember text-note">
+          <InlineStatus tone="error" as="p" id={problemId}>
             Add a name to save the lorebook.
-          </p>
+          </InlineStatus>
         )}
       </div>
       <Description
@@ -143,7 +147,7 @@ function Description({ value, onChange }: { value: string; onChange: (value: str
   }
   return (
     <div className="grid gap-1.5 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
-      <label htmlFor={fieldId} className="font-medium text-ink text-ui">
+      <label htmlFor={fieldId} className={FIELD_LABEL}>
         Description
       </label>
       <textarea

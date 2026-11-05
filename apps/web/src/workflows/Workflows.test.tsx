@@ -113,12 +113,14 @@ describe("the workflows list in Settings > Pictures", () => {
   it("puts words beside every dot and marks the workflow in use", () => {
     const markup = render();
     for (const row of rows(markup)) {
-      expect(row).toMatch(/Ready|Checking|Missing requirements|Unavailable|Unchecked/);
+      expect(row).toMatch(/Selected|Ready|Checking|Missing requirements|Unavailable|Unchecked/);
     }
-    expect(rowOf(markup, "Flux Dev Portrait")).toContain("In use");
-    expect(rowOf(markup, "Krea 2 Gonzalomo")).not.toContain("In use");
+    expect(rowOf(markup, "Flux Dev Portrait")).toContain("Selected");
+    expect(rowOf(markup, "Flux Dev Portrait")).not.toContain("Ready");
+    expect(rowOf(markup, "Krea 2 Gonzalomo")).not.toContain("Selected");
     const moss = rowOf(markup, "Moss Studio");
     expect(moss).toContain("Missing requirements");
+    expect(moss).toContain("Install requirements or change workflow.");
     expect(moss).toContain("TextEncodeMOSSImageEdit");
     expect(moss).toContain("moss_v2.safetensors");
     expect(rowOf(markup, "Flux Dev Portrait")).not.toContain("Model files");
@@ -133,9 +135,15 @@ describe("the workflows list in Settings > Pictures", () => {
         [SERVER]: { state: "off" },
       },
     });
-    for (const row of rows(off)) expect(row).toContain("Unchecked");
+    expect(rowOf(off, "Flux Dev Portrait")).toContain("Selected");
+    expect(rowOf(off, "Flux Dev Portrait")).toContain("Cannot run");
+    expect(rowOf(off, "Flux Dev Portrait")).toContain("Choose another");
+    expect(rowOf(off, "Moss Studio")).toContain("Unchecked");
+    expect(rowOf(off, "Krea 2 Gonzalomo")).toContain("Unchecked");
     const asking = render({ statuses: {} });
-    for (const row of rows(asking)) expect(row).toContain("Checking");
+    expect(rowOf(asking, "Flux Dev Portrait")).toContain("Selected");
+    expect(rowOf(asking, "Moss Studio")).toContain("Checking");
+    expect(rowOf(asking, "Krea 2 Gonzalomo")).toContain("Checking");
   });
 
   it("names each user row's actions button, and server rows have none", () => {

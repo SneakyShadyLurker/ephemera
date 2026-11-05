@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { countOf, formatCount } from "@/lib/text";
 import { useSettled } from "../rework/ReviewField.tsx";
 import { useReworkLocked } from "../rework/session.ts";
-import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { FIELD_LABEL, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { bookSettings } from "./book.ts";
 import { LinkedBooks } from "./LinkedBooks.tsx";
 
@@ -46,7 +46,7 @@ export function LorebookSection({
       <div className="grid gap-8">
         <div className="grid gap-3">
           {review}
-          <h3 className="font-medium text-ink text-ui">In this card</h3>
+          <h3 className={FIELD_LABEL}>In this card</h3>
           {counts !== null && counts.entries > 0 && depth !== null ? (
             <div
               data-settle={settled ? "" : undefined}

@@ -10,6 +10,7 @@ import { type ReactNode, useId, useState } from "react";
 import { type Choice, ChoicePicker } from "@/app/ChoicePicker.tsx";
 import { CharactersIcon, TagIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { NumberField } from "@/components/ui/number-field";
 import { Radio, RadioGroup } from "@/components/ui/radio-group";
 import { cn } from "@/lib/cn";
@@ -18,11 +19,11 @@ import { isComposing } from "@/lib/keys.ts";
 import { countOf, formatCount } from "@/lib/text";
 import { tagCounts } from "../characters/filter.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
-import { FIELD, HELP } from "../sheet/fields.ts";
+import { FIELD, FIELD_LABEL, HELP } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import type { EventSaveFields } from "./autosave.ts";
 
-const LABEL = "font-medium text-ink text-ui";
+const LABEL = FIELD_LABEL;
 /** The count of the instruction's characters shows from here. */
 const COUNT_FROM = 450;
 /** Line breaks of any kind: the instruction is one line. */
@@ -90,67 +91,79 @@ export function EventEditor({
         </p>
       </div>
 
-      <div className="grid gap-2">
-        <div className="grid gap-3 tablet:grid-cols-[auto_auto] tablet:justify-start tablet:gap-x-8">
-          <Labelled label="Chance per reply">
-            {() => (
-              <span className="flex items-center gap-1.5">
-                <NumberField
-                  label="Chance per reply in percent"
-                  describedBy={ruleId}
-                  value={fields.chance}
-                  min={0}
-                  max={100}
-                  smallStep={0.1}
-                  format={{ maximumFractionDigits: 1 }}
-                  inputMode="decimal"
-                  className="w-32 touch:w-40"
-                  onValueChange={(value) => {
-                    // Out of range waits for the blur, which clamps it.
-                    if (value === null || value < 0 || value > 100) return;
-                    onChange({ chance: Math.round(value * 10) / 10 });
-                  }}
-                />
-                <span aria-hidden="true" className="text-ink text-ui">
-                  %
-                </span>
-              </span>
-            )}
-          </Labelled>
-          <Labelled label="Quiet afterwards">
-            {() => (
-              <span className="flex items-center gap-1.5">
-                <NumberField
-                  label="Quiet afterwards in replies"
-                  describedBy={ruleId}
-                  value={fields.cooldown}
-                  min={0}
-                  max={EVENT_LIMITS.cooldown}
-                  format={{ maximumFractionDigits: 0 }}
-                  inputMode="numeric"
-                  className="w-32 touch:w-40"
-                  onValueChange={(value) => {
-                    if (value === null || value < 0 || value > EVENT_LIMITS.cooldown) return;
-                    onChange({ cooldown: Math.round(value) });
-                  }}
-                />
-                <span aria-hidden="true" className="text-ink text-ui">
-                  replies
-                </span>
-              </span>
-            )}
-          </Labelled>
-        </div>
-        <p id={ruleId} className="text-pretty text-ink text-note">
-          {rule}
-        </p>
-      </div>
+      <p className="text-note text-reed">
+        {formatCount(fields.chance)}% chance · {fields.cooldown} quiet replies ·{" "}
+        {fields.scope.kind === "all" ? "All characters" : "Chosen characters and tags"}
+      </p>
+      <details className="disclosure">
+        <summary className={SUMMARY_LINE}>
+          Advanced
+          <DisclosureChevron />
+        </summary>
+        <div className="grid gap-5 pt-3">
+          <div className="grid gap-2">
+            <div className="grid gap-3 tablet:grid-cols-[auto_auto] tablet:justify-start tablet:gap-x-8">
+              <Labelled label="Chance per reply">
+                {() => (
+                  <span className="flex items-center gap-1.5">
+                    <NumberField
+                      label="Chance per reply in percent"
+                      describedBy={ruleId}
+                      value={fields.chance}
+                      min={0}
+                      max={100}
+                      smallStep={0.1}
+                      format={{ maximumFractionDigits: 1 }}
+                      inputMode="decimal"
+                      className="w-32 touch:w-40"
+                      onValueChange={(value) => {
+                        // Out of range waits for the blur, which clamps it.
+                        if (value === null || value < 0 || value > 100) return;
+                        onChange({ chance: Math.round(value * 10) / 10 });
+                      }}
+                    />
+                    <span aria-hidden="true" className="text-ink text-ui">
+                      %
+                    </span>
+                  </span>
+                )}
+              </Labelled>
+              <Labelled label="Quiet afterwards">
+                {() => (
+                  <span className="flex items-center gap-1.5">
+                    <NumberField
+                      label="Quiet afterwards in replies"
+                      describedBy={ruleId}
+                      value={fields.cooldown}
+                      min={0}
+                      max={EVENT_LIMITS.cooldown}
+                      format={{ maximumFractionDigits: 0 }}
+                      inputMode="numeric"
+                      className="w-32 touch:w-40"
+                      onValueChange={(value) => {
+                        if (value === null || value < 0 || value > EVENT_LIMITS.cooldown) return;
+                        onChange({ cooldown: Math.round(value) });
+                      }}
+                    />
+                    <span aria-hidden="true" className="text-ink text-ui">
+                      replies
+                    </span>
+                  </span>
+                )}
+              </Labelled>
+            </div>
+            <p id={ruleId} className="text-pretty text-ink text-note">
+              {rule}
+            </p>
+          </div>
 
-      <AppliesTo
-        scope={fields.scope}
-        characters={characters}
-        onChange={(scope) => onChange({ scope })}
-      />
+          <AppliesTo
+            scope={fields.scope}
+            characters={characters}
+            onChange={(scope) => onChange({ scope })}
+          />
+        </div>
+      </details>
 
       <Button
         variant="quiet"

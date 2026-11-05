@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { forgetScroll } from "@/app/KeptScroll.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { ChevronDownIcon, DeleteIcon, EditIcon, RegenerateIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
@@ -62,7 +63,6 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
   const keepRun = useCreator((s) => s.keepRun);
   const rewrite = useCreator((s) => s.rewrite);
   const discard = useCreator((s) => s.discard);
-  const portraitless = useCreator((s) => s.images.length === 0);
   // Which confirmation, kept apart from whether it is open so its words hold while it closes.
   const [confirm, setConfirm] = useState<"rewrite" | "discard">("discard");
   const [asking, setAsking] = useState(false);
@@ -110,9 +110,7 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
         ? "Try the portrait again"
         : failure !== null
           ? "Try again"
-          : portraitless
-            ? "Keep without portrait"
-            : `Keep ${noun}`;
+          : `Keep ${noun}`;
 
   return (
     // The scroller's gutters above it, so the bar's frame keeps the content's edges. Its own
@@ -130,9 +128,9 @@ export function KeepBar({ kind }: { kind: CreatorKind }) {
         )}
       >
         {failure !== null && keepRun !== null && (
-          <p role="alert" className="mr-auto min-w-0 text-pretty text-ember text-note">
+          <InlineStatus tone="error" as="p" role="alert" className="mr-auto min-w-0">
             {failureText(failure, keepRun.snapshot.name)}
-          </p>
+          </InlineStatus>
         )}
         <p role="status" className="sr-only">
           {keepRun?.status === "saving" ? "Keeping." : ""}

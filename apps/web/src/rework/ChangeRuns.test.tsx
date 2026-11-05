@@ -72,12 +72,11 @@ describe("one change in a tracked view", () => {
     expect(out).toContain('data-change-at="4"');
     expect(out).toContain('tabindex="-1"');
     expect(out).toMatch(
-      /<del class="tracked-del"><span class="sr-only">deleted: <\/span>24<\/del>/,
+      /<del class="tracked-del"><span class="sr-only">deleted: <\/span>Mara is 24 and tall\.<\/del>/,
     );
     expect(out).toMatch(
-      /<ins class="tracked-ins"><span class="sr-only">inserted: <\/span>34<\/ins>/,
+      /<ins class="tracked-ins"><span class="sr-only">inserted: <\/span>Mara is 34 and tall\.<\/ins>/,
     );
-    expect(out).toContain('aria-label="Accept change 2 of 6"');
     expect(out).toContain('aria-label="Reject change 2 of 6"');
     // The reason, in its row apart from the change, describes the group.
     expect(out).toContain('aria-describedby="why-4"');
@@ -105,12 +104,12 @@ describe("one change in a tracked view", () => {
     expect(out).toContain("**bold**");
   });
 
-  it("shows a large rewrite as one passage, the original behind a disclosure", () => {
+  it("shows the old and new passages together in every proposal", () => {
     const out = render({ ...change("old words here", "new passage"), mode: "passage" });
     expect(out).toMatch(
       /<ins class="tracked-ins"><span class="sr-only">inserted: <\/span>new passage<\/ins>/,
     );
-    expect(out).toContain("Show original (3 words)");
+    expect(out).not.toContain("<details");
     expect(out).toMatch(
       /<del class="tracked-del"><span class="sr-only">deleted: <\/span>old words here<\/del>/,
     );

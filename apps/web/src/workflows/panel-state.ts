@@ -413,25 +413,25 @@ export function choosable(draft: Draft, place: ChoicePlace): boolean {
   return draft.choices[place] !== undefined || refusedAt(draft, place);
 }
 
-/** Why the user's own choice for `place` leaves it unfilled, in words; null otherwise. */
-export function placeProblem(draft: Draft, place: ChoicePlace): string | null {
+/** A refusal in words, and the nodes it concerns as the panel names them, listed apart. */
+export type Problem = { text: string; nodes: string[] };
+
+/** Why the user's own choice for `place` leaves it unfilled; null otherwise. */
+export function placeProblem(draft: Draft, place: ChoicePlace): Problem | null {
   if (draft.choices[place] === undefined || draft.final.ok || !refusedAt(draft, place)) return null;
   const { error, nodes = [] } = draft.final.refusal;
-  return refusalText(
-    error,
-    nodes.map((id) => nodeName(draft.titles, id)),
-  );
+  return { text: refusalText(error), nodes: nodes.map((id) => nodeName(draft.titles, id)) };
 }
 
-/** A choice finalization refuses for another reason than a place left open, in words. */
-export function choiceProblem(draft: Draft): string | null {
+/** A choice finalization refuses for another reason than a place left open. */
+export function choiceProblem(draft: Draft): Problem | null {
   if (draft.final.ok || isPlaceCode(draft.final.refusal.error)) return null;
   const { error, nodes = [] } = draft.final.refusal;
   const named =
     error === "unknown_node" || error === "dynamic_inputs"
       ? nodes
       : nodes.map((id) => nodeName(draft.titles, id));
-  return refusalText(error, named);
+  return { text: refusalText(error), nodes: named };
 }
 
 /** The Changed and Left out lines as the choices stand: finalization's, else the file's own. */

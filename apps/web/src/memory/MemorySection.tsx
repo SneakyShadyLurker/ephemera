@@ -2,14 +2,18 @@ import { type MemoryState, memoryIsOn } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { MemoryIcon } from "@/components/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SwitchField } from "@/components/ui/switch";
+import { cn } from "@/lib/cn";
 import { useReworkLocked } from "../rework/session.ts";
-import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { SHEET_GRID, HELP as SHEET_HELP, sheetLabel } from "../sheet/fields.ts";
 import { notReached } from "../signin/signin.ts";
 import { countsText, setMemoryOn } from "./memory.ts";
 import { memoryOnIn, memoryQuery } from "./queries.ts";
+
+const HELP = cn(SHEET_HELP, "text-turn");
 
 /** Said wherever memory is offered: what it keeps, and what it never does. */
 export const MEMORY_KEPT =
@@ -76,22 +80,24 @@ export function MemorySwitch({
       <SwitchField
         label="Remember the story"
         description={
-          description ??
-          `On for every character. ${name} remembers what happens across chats, scene by scene, as each chat grows; turned off, each chat is forgotten when it ends. ${MEMORY_KEPT}`
+          <span className="text-turn">
+            {description ??
+              `${name} remembers each chat as it grows. Turned off, new chats are forgotten. ${MEMORY_KEPT}`}
+          </span>
         }
         checked={on}
         disabled={state === undefined || busy}
         onCheckedChange={(enabled) => void toggle(enabled)}
       />
       {unchanged !== null && (
-        <p role="alert" className="text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert">
           Memory is still {unchanged ? "on" : "off"}: {notReached()}.
-        </p>
+        </InlineStatus>
       )}
       {held && (
-        <p role="alert" className="text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert">
           Memory is still on: the notebook's edits are not saved yet.
-        </p>
+        </InlineStatus>
       )}
     </div>
   );
@@ -133,12 +139,14 @@ function MemoryControls({ id, name }: { id: string; name: string }) {
   const [now] = useState(Date.now);
   if (data === undefined) {
     return memory.isError ? (
-      <div role="alert" className="grid justify-items-start gap-2">
-        <p className="text-ember text-note">Memory could not be loaded.</p>
+      <InlineStatus as="div" role="alert" className="grid justify-items-start gap-2">
+        <InlineStatus tone="error" as="p">
+          Memory could not be loaded.
+        </InlineStatus>
         <Button variant="outline" onClick={() => void memory.refetch()}>
           Load memory again
         </Button>
-      </div>
+      </InlineStatus>
     ) : (
       <div aria-busy="true" className="min-h-16" />
     );

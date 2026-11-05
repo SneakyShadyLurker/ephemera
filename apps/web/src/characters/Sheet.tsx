@@ -16,10 +16,18 @@ import {
 } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { useCanDock } from "@/app/form-factor.ts";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { ChatIcon, SectionsIcon } from "@/components/icons";
+import { ChatIcon, EditIcon, SectionsIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
@@ -28,6 +36,7 @@ import { depthText, ROLE_NAMES } from "@/lib/roles";
 import { isNotFound } from "../api.ts";
 import { CastSection } from "../cast/CastSection.tsx";
 import { useStartChat } from "../chat/StartChat.tsx";
+import { LinkedBooks } from "../lorebook/LinkedBooks.tsx";
 import { LorebookSection } from "../lorebook/SheetSection.tsx";
 import { MemorySection } from "../memory/MemorySection.tsx";
 import { personasQuery } from "../personas/queries.ts";
@@ -42,7 +51,8 @@ import { isLocked } from "../rework/store.ts";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
+import { AuthoringField, AuthoringInput } from "../sheet/FieldFeedback.tsx";
+import { COMPACT_LABEL, FIELD, HELP, LINE_FIELD, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
@@ -197,6 +207,7 @@ function SheetEditor({
   onReload: () => Promise<void>;
 }) {
   const wide = useCanDock();
+  const phone = useFormFactor() === "phone";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [id, setId] = useState(initialId);
@@ -344,7 +355,7 @@ function SheetEditor({
       </label>
       <div className="grid gap-2">
         <ReviewField field={{ kind: "text", key }} label={CARD_FIELD_LABELS[key]}>
-          <textarea
+          <AuthoringField
             id={`field-${key}`}
             value={String(fields[key])}
             maxLength={CARD_LIMITS.textLength}
@@ -370,7 +381,7 @@ function SheetEditor({
         noun="character"
         frame={wide ? SHEET_FRAME.indexed : SHEET_FRAME.form}
       >
-        {!wide && <SectionsMenu />}
+        {!wide && !phone && <SectionsMenu />}
         <ChatButton id={id} name={fields.name} flush={autosave.flush} locked={locked} />
         <ReworkButton
           id={id}
@@ -389,11 +400,19 @@ function SheetEditor({
             discard={autosave.discard}
             onError={setNotice}
             locked={locked}
+            rework={{
+              label: "AI Rework",
+              icon: EditIcon,
+              disabled: locked || portraitChanging,
+              onSelect: () => setComposing(true),
+            }}
           />
         )}
       </SheetHeader>
 
       <SheetBody
+        compactOnPhone
+        saving={{ status: autosave.status, noun: "character" }}
         label="Character sheet"
         after={
           autosave.status.kind === "conflict" && (
@@ -408,17 +427,62 @@ function SheetEditor({
         onBlur={() => {
           if (autosave.hasUnsaved()) void autosave.flush();
         }}
-        aside={wide && <SheetIndex count={fields.alternateGreetings.length + 1} />}
+        aside={
+          wide && (
+            <SheetIndex
+              count={fields.alternateGreetings.length + 1}
+              id={id}
+              name={fields.name}
+              locked={locked}
+            />
+          )
+        }
       >
         {notice && <SheetNotice notice={notice} onDismiss={() => setNotice(null)} />}
         <section
           id="s-identity"
           aria-label="Identity"
-          className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
+          className="grid grid-cols-1 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
-          {/* From tablet the portrait spans the identity and its details beside it. */}
-          <div className="tablet:row-span-2">
+          {/*
+           * From tablet the portrait spans the identity and its details beside it. Phones
+           * give it a compact row, its actions beside it, and the name and tags the width.
+           */}
+          <div className="col-span-full">
             <PortraitField
+              name={fields.name}
+              compactOnPhone
+              identity={
+                <ReviewField
+                  field={{ kind: "text", key: "name" }}
+                  label={CARD_FIELD_LABELS.name}
+                  face="title"
+                  framed={false}
+                >
+                  <NameField
+                    value={fields.name}
+                    maxLength={CARD_LIMITS.nameLength}
+                    readOnly={locked}
+                    onChange={(name) => edit({ name })}
+                  />
+                </ReviewField>
+              }
+              tags={<TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />}
+              details={
+                <CardDetails
+                  fields={fields}
+                  edit={edit}
+                  locked={locked}
+                  toolbar={
+                    phone ? (
+                      <>
+                        <SectionsMenu />
+                        <LinkedBooks id={id} name={fields.name} locked={locked} utility />
+                      </>
+                    ) : undefined
+                  }
+                />
+              }
               owner="characters"
               noun="character"
               id={id}
@@ -448,23 +512,6 @@ function SheetEditor({
               }
             />
           </div>
-          <div className="grid content-start gap-4">
-            <ReviewField
-              field={{ kind: "text", key: "name" }}
-              label={CARD_FIELD_LABELS.name}
-              face="title"
-              framed={false}
-            >
-              <NameField
-                value={fields.name}
-                maxLength={CARD_LIMITS.nameLength}
-                readOnly={locked}
-                onChange={(name) => edit({ name })}
-              />
-            </ReviewField>
-            <TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />
-          </div>
-          <CardDetails fields={fields} edit={edit} locked={locked} />
         </section>
 
         {text(
@@ -534,10 +581,14 @@ function SmallField({
   locked: boolean;
   onChange: (value: string) => void;
 }) {
+  const fieldId = useId();
   return (
-    <label className="grid gap-1.5">
-      <span className="text-note text-reed">{label}</span>
-      <input
+    <div className="grid gap-1.5">
+      <label htmlFor={fieldId} className={COMPACT_LABEL}>
+        {label}
+      </label>
+      <AuthoringInput
+        id={fieldId}
         value={value}
         placeholder={placeholder}
         autoComplete="off"
@@ -545,9 +596,9 @@ function SmallField({
         readOnly={locked}
         aria-readonly={locked || undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={cn(FIELD, "h-9 py-0 text-ui touch:h-11")}
+        className={LINE_FIELD}
       />
-    </label>
+    </div>
   );
 }
 
@@ -594,25 +645,39 @@ function CardDetails({
   fields,
   edit,
   locked,
+  toolbar,
 }: {
   fields: EditableFields;
   edit: Edit;
   locked: boolean;
+  toolbar?: ReactNode;
 }) {
   const set = [fields.creator, fields.characterVersion && `version ${fields.characterVersion}`]
     .filter(Boolean)
     .join(", ");
   return (
-    <details className="disclosure col-span-2 border-rush border-y tablet:col-start-2 tablet:col-span-1">
-      <summary className="flex h-12 cursor-pointer list-none items-center gap-2 text-ink text-ui">
-        <span>Card details</span>
-        <DisclosureChevron className="text-reed" />
-        <span className="min-w-0 flex-1 truncate pl-1 text-meta text-reed">{set}</span>
-      </summary>
-      <div className="grid gap-3 pb-4 tablet:grid-cols-3">
-        <SmallFields fields={fields} edit={edit} locked={locked} />
-      </div>
-    </details>
+    <div
+      className={cn(
+        "grid min-w-0 items-center gap-x-1 border-rush border-y",
+        toolbar && "grid-cols-[auto_minmax(0,1fr)_auto]",
+      )}
+    >
+      {toolbar}
+      <details
+        className={cn("disclosure", toolbar && "contents [&::details-content]:col-span-full")}
+      >
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 px-2 text-ink text-ui">
+          <span>{toolbar ? "Details" : "Card details"}</span>
+          <DisclosureChevron className="text-reed" />
+          {!toolbar && (
+            <span className="min-w-0 flex-1 truncate pl-1 text-meta text-reed">{set}</span>
+          )}
+        </summary>
+        <div className="grid gap-3 pb-4 tablet:grid-cols-3">
+          <SmallFields fields={fields} edit={edit} locked={locked} />
+        </div>
+      </details>
+    </div>
   );
 }
 
@@ -633,6 +698,7 @@ function ChatButton({
     <>
       <Button
         variant="outline"
+        aria-label="Chat"
         disabled={id === null || locked}
         onClick={async () => {
           if (id === null) return;
@@ -656,6 +722,7 @@ function MoreActions({
   discard,
   onError,
   locked,
+  rework,
 }: {
   id: string;
   name: string;
@@ -664,6 +731,8 @@ function MoreActions({
   onError: (message: string) => void;
   /** Duplicate and Delete wait while an AI Rework holds the sheet; Export stays. */
   locked: boolean;
+  /** AI Rework again, under its name, in the phone's sheet of actions. */
+  rework: NonNullable<ComponentProps<typeof SheetActions>["phoneLead"]>;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -708,6 +777,7 @@ function MoreActions({
       deleteDescription="The card and its portrait are removed from Ephemera. Export first to keep a copy."
       onDelete={remove}
       locked={locked}
+      phoneLead={rework}
     />
   );
 }
@@ -730,36 +800,49 @@ function SectionsMenu() {
   // The menu returns focus when it closes: to the chosen section's field, not the trigger.
   const chosen = useRef<HTMLElement | null>(null);
   return (
-    <Menu>
-      <MenuTrigger render={<Button size="icon" aria-label="Go to section" />}>
-        <SectionsIcon />
-      </MenuTrigger>
-      <MenuContent
-        label="Sections"
-        finalFocus={() => {
-          const field = chosen.current;
-          chosen.current = null;
-          field?.focus({ preventScroll: true });
-          return field === null;
-        }}
-      >
-        {SECTIONS.map(([key, label]) => (
-          <MenuItem
-            key={key}
-            onClick={() => {
-              chosen.current = goToSection(key);
-            }}
-          >
-            {label}
-          </MenuItem>
-        ))}
-      </MenuContent>
-    </Menu>
+    <div className="flex shrink-0 items-center gap-1">
+      <Menu>
+        <MenuTrigger render={<Button aria-label="Go to section" className="px-2 touch:px-2" />}>
+          <SectionsIcon size={16} />
+          Sections
+        </MenuTrigger>
+        <MenuContent
+          label="Sections"
+          finalFocus={() => {
+            const field = chosen.current;
+            chosen.current = null;
+            field?.focus({ preventScroll: true });
+            return field === null;
+          }}
+        >
+          {SECTIONS.map(([key, label]) => (
+            <MenuItem
+              key={key}
+              onClick={() => {
+                chosen.current = goToSection(key);
+              }}
+            >
+              {label}
+            </MenuItem>
+          ))}
+        </MenuContent>
+      </Menu>
+    </div>
   );
 }
 
 /** Desktop from 1360px: the sheet's contents, with the section in view marked. */
-function SheetIndex({ count }: { count: number }) {
+function SheetIndex({
+  count,
+  id,
+  name,
+  locked,
+}: {
+  count: number;
+  id: string | null;
+  name: string;
+  locked: boolean;
+}) {
   const [current, setCurrent] = useState<string>("identity");
   useEffect(() => {
     // A callback reports only the sections whose state changed, so the band's
@@ -811,6 +894,9 @@ function SheetIndex({ count }: { count: number }) {
       className="sticky top-8 hidden h-fit w-index shrink-0 desktop:block"
     >
       <ul className="grid border-rush border-l">
+        <li>
+          <LinkedBooks id={id} name={name} locked={locked} utility />
+        </li>
         {SECTIONS.map(([key, label]) => (
           <li key={key}>
             <a
@@ -870,7 +956,7 @@ function CharactersNote({
             field={{ kind: "text", key: "characterNote" }}
             label={CARD_FIELD_LABELS.characterNote}
           >
-            <textarea
+            <AuthoringField
               id={textId}
               value={value.prompt}
               rows={2}

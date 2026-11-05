@@ -1,9 +1,12 @@
 import { entryOrigin, type LorebookStatus, type LorebookReport as Report } from "@ephemera/core";
 import { useId, useState } from "react";
 import { LorebookIcon } from "@/components/icons";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DisclosureChevron, Unfold } from "@/components/ui/disclosure";
+import { ROW_CONTENT, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
 import { andList, countOf, formatCount, orList } from "@/lib/text";
+import { COMPACT_LABEL, FIELD_LABEL } from "@/sheet/fields.ts";
 import {
   CHAIN_ONLY_TEXT,
   chanceMissedText,
@@ -217,8 +220,13 @@ function Row({
   characterId: string | null;
 }) {
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 border-rush border-b py-2 last:border-b-0">
-      <span className="grid min-w-0">
+    <li
+      className={cn(
+        rowLayout("diagnostic", false),
+        "grid-cols-[minmax(0,1fr)_auto] items-baseline border-rush border-b last:border-b-0",
+      )}
+    >
+      <span className={ROW_CONTENT}>
         <span className="flex min-w-0 items-baseline gap-x-2">
           <span className={cn("min-w-0 truncate text-ui", muted ? "text-reed" : "text-ink")}>
             {entry.title}
@@ -236,7 +244,10 @@ function Row({
                 title={entry.title}
                 // The visible words lead the name, so speech input finds the link by them.
                 label={`${origin.name}: edit ${entry.title}`}
-                className="min-w-0 max-w-[60%] shrink truncate rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-3 hover:text-ink touch:relative touch:-my-3.5 touch:py-3.5"
+                className={cn(
+                  buttonVariants({ variant: "link", size: "inline" }),
+                  "min-w-0 max-w-[60%] shrink truncate text-meta",
+                )}
               >
                 {origin.name}
               </EntryLink>
@@ -319,11 +330,14 @@ export function LorebookReport({
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="row flex min-h-14 w-full items-center gap-3 px-5 text-left"
+        className={cn(
+          rowLayout("diagnostic"),
+          "w-full grid-cols-[auto_minmax(0,1fr)_auto_auto] px-5",
+        )}
       >
         <LorebookIcon size={16} className="shrink-0 text-reed" />
-        <span className="grid min-w-0 flex-1">
-          <span className="font-medium text-ink text-ui">Lorebook</span>
+        <span className={ROW_CONTENT}>
+          <span className={FIELD_LABEL}>Lorebook</span>
           <span className="truncate text-meta text-reed">
             {countOf(counts.sent, "entry", "entries")} went in
             {overCount > 0 && `, ${formatCount(overCount)} over the budget`}
@@ -359,18 +373,19 @@ export function LorebookReport({
             </ol>
           )}
           {sent.length > FIRST && !all && (
-            <button
-              type="button"
+            <Button
+              variant="link"
+              size="inline"
               onClick={() => setAll(true)}
-              className="justify-self-start rounded-sm text-meta text-reed underline decoration-control-edge underline-offset-4 hover:text-ink touch:min-h-11"
+              className="justify-self-start text-meta"
             >
               Show all {formatCount(sent.length)}
-            </button>
+            </Button>
           )}
           {(all || sent.length <= FIRST) && <Unlisted count={counts.sent - sent.length} />}
           {over.length > 0 && (
             <div className="grid gap-1">
-              <h4 className="text-ember text-note">Left out: over the budget</h4>
+              <h4 className={cn(COMPACT_LABEL, "text-ember")}>Left out: over the budget</h4>
               <ol aria-label="Lorebook entries over the budget" className="grid">
                 {over.map((entry) => (
                   <Row
@@ -401,20 +416,20 @@ export function LorebookReport({
           )}
           {others.length > 0 && (
             <div className="grid">
-              <button
-                type="button"
+              <Button
+                variant="quiet"
                 aria-expanded={rest}
                 // The label and its counts stack visually; the name reads them as one line.
                 aria-label={`Other entries: ${otherCounts}`}
                 onClick={() => setRest(!rest)}
-                className="flex min-h-9 items-center justify-between gap-2 rounded-sm py-1 text-left text-note text-reed hover:text-ink touch:min-h-11"
+                className="-mx-2 h-auto min-h-9 justify-between whitespace-normal px-2 py-1 text-left font-normal text-note touch:h-auto touch:min-h-11"
               >
-                <span className="grid min-w-0">
+                <span className={ROW_CONTENT}>
                   <span className="text-ink">Other entries</span>
                   <span className="text-pretty text-meta">{otherCounts}</span>
                 </span>
                 <DisclosureChevron />
-              </button>
+              </Button>
               <Unfold show={rest}>
                 <dl className="grid gap-2 pt-1">
                   {others.map(([status, , label, detail]) => {

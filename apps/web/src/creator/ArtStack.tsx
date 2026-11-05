@@ -13,6 +13,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { GLIDE } from "@/app/glide.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { RegenerateIcon, StopIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import { useModelOptions } from "../api.ts";
 import { LEAF_EDGE, PORTRAIT_TRANSITION } from "../portraits/Portrait.tsx";
 import { PortraitViewer } from "../portraits/PortraitViewer.tsx";
 import { useSetting } from "../settings/settings.ts";
-import { REQUEST_FIELD } from "../sheet/fields.ts";
+import { COMPACT_LABEL, REQUEST_FIELD } from "../sheet/fields.ts";
 import { ArtCanvas } from "./ArtCanvas.tsx";
 import { ART_TRANSITION, batchKey } from "./art.ts";
 import {
@@ -310,7 +311,7 @@ const CHOICE = "h-8 text-note tablet:w-full touch:h-11";
  * sharing one label column. A host's own rows (`before`) take the same.
  */
 export const CHOICE_ROW = "grid gap-y-1 @3xs:col-span-2 @3xs:grid-cols-subgrid @3xs:items-center";
-export const CHOICE_LABEL = "text-note text-reed";
+export const CHOICE_LABEL = COMPACT_LABEL;
 
 /**
  * The model that writes the next image prompt and how hard it reasons:
@@ -515,13 +516,13 @@ function ArtProgressNote({ art, captioned }: { art: ArtRun | null; captioned: bo
                 {progress.detail}
               </p>
             )}
-            <p role="status" className="text-pretty text-reed">
+            <InlineStatus as="p" role="status">
               {quiet && progress.quiet && (
                 <span className="block pt-1 transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
                   {progress.quiet.text} You can keep waiting or stop.
                 </span>
               )}
-            </p>
+            </InlineStatus>
           </div>
           {(art?.status === "running" || art?.status === "waiting") && <StopArt />}
         </div>
@@ -538,7 +539,7 @@ function NewArtFailure({ art, retry }: { art: ArtRun | null; retry: boolean }) {
   const requestArt = useArtSession((state) => state.requestArt);
   if (art?.status !== "failed" && art?.status !== "skipped") return null;
   return (
-    <div role="status" className="grid justify-items-start gap-1 text-note">
+    <InlineStatus as="div" role="status" className="grid justify-items-start gap-1">
       <p className="text-ember">New art failed. The current portraits are kept.</p>
       <Reason text={artReason(art, false)} />
       {retry && (
@@ -546,7 +547,7 @@ function NewArtFailure({ art, retry }: { art: ArtRun | null; retry: boolean }) {
           Try again
         </Button>
       )}
-    </div>
+    </InlineStatus>
   );
 }
 
@@ -816,7 +817,7 @@ export function ArtStatus({
   }
   return (
     <>
-      <div role="status" className="grid justify-items-start gap-2 text-note">
+      <InlineStatus as="div" role="status" className="grid justify-items-start gap-2">
         {showing === "stopped" ? (
           <p className="text-pretty text-ink">{copy.stopped}</p>
         ) : (
@@ -831,7 +832,7 @@ export function ArtStatus({
             Try the art again
           </Button>
         )}
-      </div>
+      </InlineStatus>
       {children}
     </>
   );
@@ -849,11 +850,13 @@ export function ArtStack({
   phone,
   newArt,
   again,
+  compactEmpty = false,
 }: {
   name: string;
   phone: boolean;
   newArt: RefObject<HTMLButtonElement | null>;
   again: RefObject<HTMLButtonElement | null>;
+  compactEmpty?: boolean;
 }) {
   const showing = useArtShowing();
 
@@ -873,18 +876,20 @@ export function ArtStack({
       <div
         className={cn(
           "grid content-start justify-items-start gap-3",
-          phone && "grid-cols-[6rem_minmax(0,1fr)] items-end gap-4",
+          phone && !compactEmpty && "grid-cols-[6rem_minmax(0,1fr)] items-end gap-4",
         )}
       >
-        <div
-          className={cn(
-            "@container relative grid aspect-[2/3] w-24 overflow-hidden rounded-lg bg-surface",
-            !phone && "@card:w-40",
-            FRAME_GLIDE,
-          )}
-        >
-          <NameLeaf name={name} />
-        </div>
+        {!compactEmpty && (
+          <div
+            className={cn(
+              "@container relative grid aspect-[2/3] w-24 overflow-hidden rounded-lg bg-surface",
+              !phone && "@card:w-40",
+              FRAME_GLIDE,
+            )}
+          >
+            <NameLeaf name={name} />
+          </div>
+        )}
         {showing === "off" ? (
           <ArtStatus />
         ) : (

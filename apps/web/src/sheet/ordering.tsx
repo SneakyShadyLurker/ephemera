@@ -5,6 +5,7 @@ import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { ChevronDownIcon, ChevronUpIcon, MoveDownIcon, MoveUpIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { COMPACT_FIELD } from "./fields.ts";
 
 /*
  * Ordered rows that open one at a time (alternate greetings, prompt
@@ -160,7 +161,7 @@ export function MoveToPosition({
               onCancel();
             }
           }}
-          className="h-9 w-16 rounded-md border border-control-edge bg-surface px-2 text-ink tabular-nums touch:h-11"
+          className={cn(COMPACT_FIELD, "w-16")}
         />
       </label>
       <span className="text-meta text-reed">of {count}</span>

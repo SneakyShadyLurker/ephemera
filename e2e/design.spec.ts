@@ -16,6 +16,8 @@ import {
   messages,
   moreAction,
   openChat,
+  replyActions,
+  replyCounter,
   send,
   turns,
 } from "./support/chat.ts";
@@ -58,6 +60,72 @@ async function expectComposerAndActionsFit(page: Page, width: number) {
       ).length;
   });
   expect(strays).toBe(0);
+  const layout = await page.locator("[data-reply-actions]").evaluate((bar) => {
+    const bounds = bar.getBoundingClientRect();
+    const buttons = [...bar.querySelectorAll("button")].map((button) => {
+      const rect = button.getBoundingClientRect();
+      return {
+        label: button.getAttribute("aria-label") ?? button.textContent,
+        x: rect.x,
+        right: rect.right,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    return { left: bounds.left, right: bounds.right, buttons };
+  });
+  for (const button of layout.buttons) {
+    expect(button.x, `${button.label} left edge`).toBeGreaterThanOrEqual(layout.left);
+    expect(button.right, `${button.label} right edge`).toBeLessThanOrEqual(layout.right);
+    expect(button.height).toBeGreaterThanOrEqual(44);
+    expect(button.width).toBeGreaterThanOrEqual(44);
+    expect(button.y).toBe(layout.buttons[0]?.y);
+  }
+}
+
+for (const width of [320, 360]) {
+  test(`the reply pager and actions fit one row at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await openChat(page, "mock-fast");
+    await send(page, canary("in"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await replyActions(page).getByRole("button", { name: "New reply" }).click();
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await expectComposerAndActionsFit(page, width);
+    const continueButton = replyActions(page).getByRole("button", {
+      name: "Continue",
+      exact: true,
+    });
+    const nextIcon = await replyActions(page)
+      .getByRole("button", { name: "Next reply", exact: true })
+      .locator("svg")
+      .innerHTML();
+    expect(await continueButton.locator("svg").innerHTML()).not.toBe(nextIcon);
+    await chooseModel(page, "mock-slow");
+    await replyActions(page).getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    const reserved = await lastReply(page)
+      .locator("[data-reply-actions-reserved]")
+      .evaluate((row) => {
+        const rect = row.getBoundingClientRect();
+        return {
+          status: row.closest("[data-message]")?.getAttribute("data-status"),
+          left: rect.left,
+          right: rect.right,
+          height: rect.height,
+          buttons: row.querySelectorAll("button").length,
+        };
+      });
+    expect(reserved.status).toBe("streaming");
+    expect(reserved.height).toBeGreaterThanOrEqual(44);
+    expect(reserved.left).toBeGreaterThanOrEqual(0);
+    expect(reserved.right).toBeLessThanOrEqual(width);
+    expect(reserved.buttons).toBe(0);
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expectComposerAndActionsFit(page, width);
+  });
 }
 
 for (const { name, width, height } of FORM_FACTORS) {
@@ -150,12 +218,51 @@ test("focus in the Session sheet stays in Session when it docks on a wider windo
 test.describe("on a touch phone", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
+  test("reduced-motion sheets declare only fades while opening and closing", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openChat(page, "mock-fast");
+    await openSession(page);
+    const sheet = page.getByRole("dialog", { name: "Session", exact: true });
+    const opening = await sheet.evaluate((node) => getComputedStyle(node).transitionProperty);
+    const closing = sheet.evaluate(
+      (node) =>
+        new Promise<string[]>((resolve) => {
+          const properties: string[] = [];
+          const sample = () => {
+            if (!node.isConnected) return resolve(properties);
+            properties.push(getComputedStyle(node).transitionProperty);
+            requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    await sheet.getByRole("button", { name: "Close Session" }).click();
+    expect({ opening, closing: [...new Set(await closing)] }).toEqual({
+      opening: "opacity",
+      closing: ["opacity"],
+    });
+  });
+
   test("the composer and reply actions fit with touch-sized controls", async ({ page }) => {
     await openChat(page, "mock-fast");
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expectComposerAndActionsFit(page, 390);
+    await page.setViewportSize({ width: 480, height: 844 });
+    await expectComposerAndActionsFit(page, 480);
+    for (const name of ["New reply", "Continue"]) {
+      const padding = await replyActions(page)
+        .getByRole("button", { name, exact: true })
+        .evaluate((button) => {
+          const style = getComputedStyle(button);
+          return [Number.parseFloat(style.paddingLeft), Number.parseFloat(style.paddingRight)];
+        });
+      expect(
+        padding.every((side) => side > 0),
+        `${name} label has side padding`,
+      ).toBe(true);
+    }
   });
 
   test("the story's tail stays in view when the viewport shrinks", async ({ page }) => {
@@ -269,7 +376,9 @@ test.describe("on a touch phone", () => {
     await expect.poll(() => hitBox(link)).toEqual({ tall: true, misses: [] });
   });
 
-  test("the sheet's portrait has New art and its More on one row under it", async ({ page }) => {
+  test("the sheet's compact portrait groups its name and art actions, with full-width tags below", async ({
+    page,
+  }) => {
     const id = await createCharacterViaApi(page.request, uniqueName("Plate"));
     await setPortraitViaApi(page.request, id, solidPng([90, 110, 130]));
     await page.goto(`/characters/${id}`);
@@ -288,15 +397,29 @@ test.describe("on a touch phone", () => {
     );
     if (frame === undefined || art === undefined || actions === undefined)
       throw new Error("no box");
-    expect(frame.width).toBeCloseTo(120, 0);
+    // A compact portrait row, so the name, the tags and Description start sooner.
+    expect(frame.width).toBeCloseTo(88, 0);
     const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
     expect(Math.abs(middle(art) - middle(actions))).toBeLessThanOrEqual(2);
     expect(actions.height).toBeGreaterThanOrEqual(44);
-    // Both under the portrait, inside its column.
-    expect(art.y).toBeGreaterThan(frame.y + frame.height - 1);
-    expect(actions.x + actions.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
+    // Both beside the portrait, level with its foot.
+    expect(art.x).toBeGreaterThan(frame.x + frame.width);
+    expect(art.y + art.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
+    expect(art.y + art.height).toBeGreaterThan(frame.y + frame.height - 12);
+    // The name shares the portrait's row, above the art actions.
+    const name = await identity.getByRole("textbox", { name: "Name", exact: true }).boundingBox();
+    expect(name?.x ?? 0).toBeGreaterThan(frame.x + frame.width);
+    expect(name?.y ?? 999).toBeLessThan(art.y);
+    expect(Math.abs((name?.y ?? 999) - frame.y)).toBeLessThanOrEqual(8);
     // The tags read as the nameplate's chips: no visible word, the field still named.
-    await expect(identity.getByRole("textbox", { name: "Tags" })).toBeVisible();
+    const tags = identity.getByRole("textbox", { name: "Tags" });
+    await expect(tags).toBeVisible();
+    const tagBox = await tags.locator("..").boundingBox();
+    expect(tagBox?.y ?? 0).toBeGreaterThan(frame.y + frame.height);
+    expect(tagBox?.x ?? 999).toBeLessThanOrEqual(frame.x + 12);
+    expect((tagBox?.x ?? 0) + (tagBox?.width ?? 0)).toBeGreaterThanOrEqual(
+      (name?.x ?? 0) + (name?.width ?? 0),
+    );
   });
 });
 
@@ -838,7 +961,9 @@ test("returning to a story mid-reply lands on the newest text without sliding th
   ).toBeLessThan(4);
 });
 
-test("streaming leaves earlier turns untouched and shifts no layout", async ({ page }) => {
+test("streaming removes the previous reply's actions once, leaves its prose untouched and shifts no layout", async ({
+  page,
+}) => {
   await openChat(page, "mock-fast");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
@@ -847,15 +972,32 @@ test("streaming leaves earlier turns untouched and shifts no layout", async ({ p
   await page.evaluate(() => {
     const record = window as unknown as {
       __mutations: number;
+      __actionsRemoved: number;
       __shift: number;
       __shifted: string[];
     };
     record.__mutations = 0;
+    record.__actionsRemoved = 0;
     record.__shift = 0;
     record.__shifted = [];
     for (const turn of document.querySelectorAll("[data-message]")) {
       new MutationObserver((changes) => {
-        record.__mutations += changes.length;
+        for (const change of changes) {
+          const removed = change.removedNodes[0];
+          // The actions now follow their reply inside the turn. Sending retires
+          // exactly that row; no prose, name, attribute or other child may change.
+          if (
+            change.type === "childList" &&
+            change.addedNodes.length === 0 &&
+            change.removedNodes.length === 1 &&
+            removed instanceof HTMLElement &&
+            removed.hasAttribute("data-reply-actions")
+          ) {
+            record.__actionsRemoved += 1;
+          } else {
+            record.__mutations += 1;
+          }
+        }
       }).observe(turn, { subtree: true, childList: true, characterData: true, attributes: true });
     }
     new PerformanceObserver((list) => {
@@ -900,15 +1042,25 @@ test("streaming leaves earlier turns untouched and shifts no layout", async ({ p
   const measured = await page.evaluate(() => {
     const record = window as unknown as {
       __mutations: number;
+      __actionsRemoved: number;
       __shift: number;
       __shifted: string[];
     };
-    return { mutations: record.__mutations, shift: record.__shift, shifted: record.__shifted };
+    return {
+      mutations: record.__mutations,
+      actionsRemoved: record.__actionsRemoved,
+      shift: record.__shift,
+      shifted: record.__shifted,
+    };
   });
   expect(
-    { mutations: measured.mutations, shift: measured.shift },
+    {
+      mutations: measured.mutations,
+      actionsRemoved: measured.actionsRemoved,
+      shift: measured.shift,
+    },
     measured.shifted.join("\n"),
-  ).toEqual({ mutations: 0, shift: 0 });
+  ).toEqual({ mutations: 0, actionsRemoved: 1, shift: 0 });
 });
 
 test("turns moved by a deletion and its Undo keep their own text, and the next reply streams into its own", async ({
@@ -968,21 +1120,17 @@ for (const { name, width, height, portrait } of [
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
 
-    // One portrait on the page: above the story on phones, its name beside it; from tablet up
-    // at the head of the latest reply, the header naming the character.
+    // One portrait at the latest reply: above its prose on phones, floated beside it elsewhere.
     const presence = page.locator("[data-presence]");
     await expect(presence).toHaveCount(1);
     const image = presence.locator("img");
     await expect(image).toHaveJSProperty("complete", true);
     expect((await image.boundingBox())?.width).toBe(portrait);
-    if (name === "phone") {
-      await expect(presence).toContainText(character);
-      await expect(messages(page).locator("img")).toHaveCount(0);
-    } else {
-      await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
-      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
+    if (name !== "phone") {
+      // The header names the character, giving way while the reply's nameplate shows it.
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(character);
     }
-
     const thread = scroller(page);
     expect(await thread.evaluate((node) => node.scrollHeight > node.clientHeight + 1_200)).toBe(
       true,
@@ -1069,6 +1217,17 @@ for (const { name, width, height, portrait } of [
       if (!column || !turn) throw new Error("the story is not laid out");
       expect(turn.width).toBeGreaterThan(column.width - 180);
     }
+    // A new pending reply takes the same-sized slot before its first streamed words.
+    await chooseModel(page, "mock-stall");
+    const previousWidth = (await image.boundingBox())?.width;
+    await send(page, canary("next"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    await expect(lastReply(page).locator("[data-presence] img")).toHaveCount(1);
+    expect((await image.boundingBox())?.width).toBe(previousWidth);
+    await expect(presence).toHaveCSS("opacity", "1");
+    await expect(lastReply(page)).toHaveCSS("opacity", "1");
+    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "stopped");
   });
 }
 
@@ -1900,7 +2059,7 @@ test("on a wide window the character's prose keeps to its measure, and the portr
   expect(laid.leafHeight).toBeLessThanOrEqual(0.46 * laid.window + 1);
 });
 
-test("while a character's nameplate is stuck under the header, the header's title gives way and stays the heading", async ({
+test("while a character's nameplate shows in the story, stuck or not, the header's title gives way and stays the heading", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
@@ -1908,15 +2067,18 @@ test("while a character's nameplate is stuck under the header, the header's titl
   await createCharacterViaApi(page.request, name);
   await openChat(page, "mock-long");
   await chooseCharacter(page, name);
+  const title = page.getByRole("heading", { level: 1, name });
+  // No greeting: nothing in the story names her yet, so the header does.
+  await expect(title).toHaveCSS("opacity", "1");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
-  const title = page.getByRole("heading", { level: 1, name });
   const thread = scroller(page);
   // Wheel input cancels the scroll owner's in-flight follow before reading from the top.
   await thread.hover();
   await page.mouse.wheel(0, -100_000);
   await expect.poll(() => thread.evaluate((node) => node.scrollTop)).toBe(0);
-  await expect(title).toHaveCSS("opacity", "1");
+  // Her reply's nameplate in view, not stuck: the title still gives way.
+  await expect(title).toHaveCSS("opacity", "0");
   // The reply 80px past the top: its nameplate sticks under the header.
   await thread.evaluate((node) => {
     const reply = node.querySelector('[data-role="assistant"]');
@@ -1925,10 +2087,6 @@ test("while a character's nameplate is stuck under the header, the header's titl
   });
   await expect(title).toHaveCSS("opacity", "0");
   await expect(title).toHaveAccessibleName(name);
-  await thread.evaluate((node) => {
-    node.scrollTop = 0;
-  });
-  await expect(title).toHaveCSS("opacity", "1");
 });
 
 test("on a phone a turn's More sits in its nameplate's row and opens the same menu", async ({
@@ -1981,6 +2139,7 @@ test("on a phone the chat menu holds Prompt and Clear chat, and both work", asyn
   await menuButton.click();
   const menu = page.getByRole("menu", { name: "Chat actions" });
   // Nothing written yet: Clear is there, disabled, as the header's is.
+  await expect(menu.getByRole("menuitem", { name: "Session", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("menuitem", { name: "Clear chat" })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(menuButton).toBeFocused();
@@ -2403,9 +2562,9 @@ test("hovered rows ease their ground on the tint timing, and a palette tile pres
   await greeting.hover();
   expect(await transitionOf(greeting, "background-color")).toMatchObject({ duration: tint });
 
-  // A checklist label in the link picker.
-  await page.getByRole("button", { name: "Link a lorebook" }).click();
-  const label = page.locator("label").filter({ hasText: book });
+  // The explicit Link action in the character's single-add picker.
+  await page.locator("#s-lorebook").getByRole("button", { name: "Link a lorebook" }).click();
+  const label = page.getByRole("button", { name: `Link ${book}`, exact: true });
   await label.hover();
   expect(await transitionOf(label, "background-color")).toMatchObject({ duration: tint });
   await page.keyboard.press("Escape");
@@ -2806,7 +2965,6 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
   for (const control of [
     gallery.getByRole("searchbox", { name: "Search characters" }),
     gallery.getByRole("button", { name: "Filter and order" }),
-    gallery.getByRole("button", { name: "Create with AI" }),
   ]) {
     await expect(control).toBeVisible();
     const box = await control.boundingBox();
@@ -2815,6 +2973,9 @@ test("on a phone nothing in the gallery reaches past the screen's edge", async (
       (frame?.x ?? 0) + (frame?.width ?? 0),
     );
   }
+  const collection = page.getByRole("toolbar", { name: "Collection actions" });
+  await expectContained(collection);
+  await expect(collection.getByRole("button", { name: "Create with AI" })).toBeVisible();
   // Its sheet closes like every sheet: an X in the header, named for what it closes.
   await gallery.getByRole("button", { name: "Filter and order" }).click();
   const sheet = page.getByRole("dialog", { name: "Filter and order" });
@@ -2889,39 +3050,43 @@ test("an address that leads nowhere says so and leads back to the story", async 
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });
 
-test("a sheet's header title rises in once the name scrolls away and never rests half faded", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  const name = uniqueName("Title");
-  const id = await createCharacterViaApi(page.request, name, {
-    description: Array.from(
-      { length: 80 },
-      (_, line) => `Line ${line} of a long description.`,
-    ).join("\n"),
+for (const width of [390, 1280]) {
+  test(`at ${width}px a sheet's header title rises in once the name scrolls away and never rests half faded`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const name = uniqueName("Title");
+    const id = await createCharacterViaApi(page.request, name, {
+      description: Array.from(
+        { length: 80 },
+        (_, line) => `Line ${line} of a long description.`,
+      ).join("\n"),
+    });
+    await page.goto(`/characters/${id}`);
+    await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
+    const title = page.locator("header h1", { hasText: name });
+    const opacity = () => title.evaluate((node) => Number(getComputedStyle(node).opacity));
+    const scrollTo = (top: number) =>
+      page.evaluate((y) => {
+        const scroller = [...document.querySelectorAll<HTMLElement>("main *")].find((node) =>
+          getComputedStyle(node).scrollTimelineName.includes("--thread"),
+        );
+        if (scroller === undefined) throw new Error("No sheet scroller");
+        scroller.scrollTo({ top: y, behavior: "instant" });
+        // Two frames, so scroll-linked styles reflect the new position before a read.
+        return new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve)),
+        );
+      }, top);
+    expect(await opacity()).toBe(0);
+    // Resting anywhere around the threshold, where a scroll-linked fade would sit part way.
+    for (let top = 40; top <= 120; top += 2) {
+      await scrollTo(top);
+      await expect.poll(async () => [0, 1].includes(await opacity())).toBe(true);
+    }
+    await scrollTo(400);
+    await expect.poll(opacity).toBe(1);
+    await scrollTo(0);
+    await expect.poll(opacity).toBe(0);
   });
-  await page.goto(`/characters/${id}`);
-  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
-  const title = page.locator("header h1", { hasText: name });
-  const opacity = () => title.evaluate((node) => Number(getComputedStyle(node).opacity));
-  const scrollTo = (top: number) =>
-    page.evaluate((y) => {
-      const scroller = [...document.querySelectorAll<HTMLElement>("main *")].find((node) =>
-        getComputedStyle(node).scrollTimelineName.includes("--thread"),
-      );
-      if (scroller === undefined) throw new Error("No sheet scroller");
-      scroller.scrollTo({ top: y, behavior: "instant" });
-      // Two frames, so scroll-linked styles reflect the new position before a read.
-      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    }, top);
-  expect(await opacity()).toBe(0);
-  // Resting anywhere around the threshold, where a scroll-linked fade would sit part way.
-  for (let top = 40; top <= 120; top += 2) {
-    await scrollTo(top);
-    await expect.poll(async () => [0, 1].includes(await opacity())).toBe(true);
-  }
-  await scrollTo(400);
-  await expect.poll(opacity).toBe(1);
-  await scrollTo(0);
-  await expect.poll(opacity).toBe(0);
-});
+}

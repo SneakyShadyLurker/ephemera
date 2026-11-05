@@ -17,6 +17,7 @@ export function HeaderAction({
   label,
   text = label,
   icon: Icon,
+  labelledOnPhone = false,
   ...props
 }: Omit<ComponentProps<typeof Button>, "children" | "size" | "aria-label"> & {
   /** The action's accessible name. */
@@ -24,9 +25,10 @@ export function HeaderAction({
   /** The words beside the icon from tablet up, when shorter than the name. */
   text?: string;
   icon: ComponentType<IconProps>;
+  labelledOnPhone?: boolean;
 }) {
   const phone = useFormFactor() === "phone";
-  return phone ? (
+  return phone && !labelledOnPhone ? (
     <Button {...props} size="icon" aria-label={label}>
       <Icon />
     </Button>
@@ -38,39 +40,27 @@ export function HeaderAction({
   );
 }
 
-/** The tile's name and caption under the portrait, inside whichever control opens it. */
-function TileText({
-  name,
-  caption,
-  captionId,
-}: {
-  name: string;
-  caption: ReactNode;
-  captionId?: string;
-}) {
+/** The name always takes the tile's full width, above metadata and its separate action. */
+function TileName({ name }: { name: string }) {
   return (
-    <>
-      <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
-        {name}
-      </span>
-      <span id={captionId} className="min-h-4 truncate px-0.5 pt-0.5 text-meta text-reed">
-        {caption}
-      </span>
-    </>
+    <span className="line-clamp-2 text-pretty break-words px-0.5 pt-2.5 font-semibold text-ink text-lead decoration-control-edge underline-offset-4 group-hover:underline">
+      {name}
+    </span>
   );
 }
 
 /** The portrait's own hover: a touch brighter, a touch darker while pressed. */
-const PORTRAIT_HOVER =
-  "transition-[filter] duration-(--duration-tint) ease-fade group-hover:brightness-[1.04] group-active:brightness-95";
+const PORTRAIT_FILTER = "transition-[filter] duration-(--duration-tint) ease-fade";
+const PORTRAIT_HOVER = `${PORTRAIT_FILTER} group-hover:brightness-[1.04] group-active:brightness-95`;
+/** The same, answering the chat's button, whose plate lies over the portrait. */
+const CHAT_PORTRAIT_HOVER = `${PORTRAIT_FILTER} group-has-[>button:hover]/tile:brightness-[1.04] group-has-[>button:active]/tile:brightness-95`;
 
 /**
  * A gallery's tile: the portrait, the name and one quiet caption line.
  * Without `onChat` the whole tile opens the sheet. With it (a character),
- * the tile starts the chat, and Edit opens the sheet from the portrait's
- * corner: shown on hover or keyboard focus where there is a hover, always
- * shown, as its icon, on touch. Edit sits outside the tile's button, so
- * the portrait's hover and press stay the chat's own.
+ * the tile starts the chat, and Edit opens the sheet from its own place
+ * trailing the metadata, always shown, quiet. The portrait and name form
+ * the chat target; the metadata row and Edit sit wholly below it.
  */
 export function PortraitTile({
   owner,
@@ -82,6 +72,8 @@ export function PortraitTile({
   arriving = false,
   transition,
   onOpen,
+  actions,
+  actionsBelow = false,
 }: {
   owner: PortraitOwner;
   id: string;
@@ -94,6 +86,9 @@ export function PortraitTile({
   /** Carries the portrait morph to and from the sheet. */
   transition: boolean;
   onOpen: () => void;
+  /** A persona's More menu, outside the link that opens its sheet. */
+  actions?: ReactNode;
+  actionsBelow?: boolean;
 }) {
   const captionId = useId();
   const sheet = {
@@ -104,47 +99,60 @@ export function PortraitTile({
   const portrait = (
     <Portrait
       owner={owner}
+      {...(owner === "personas" || version !== null ? { name } : {})}
       id={id}
       version={version}
       arriving={arriving}
       transition={transition}
-      className={PORTRAIT_HOVER}
+      className={cn(
+        onChat === undefined ? PORTRAIT_HOVER : CHAT_PORTRAIT_HOVER,
+        owner === "personas" && version === null && "h-24 aspect-auto",
+      )}
     />
   );
   if (onChat === undefined) {
     return (
-      <Link {...sheet} className="group grid rounded-lg outline-offset-4">
-        {portrait}
-        <TileText name={name} caption={caption} />
-      </Link>
+      <div className="grid min-w-0">
+        <Link {...sheet} aria-describedby={captionId} className="group grid min-w-0 rounded-lg">
+          {portrait}
+          <TileName name={name} />
+        </Link>
+        <div className="flex min-w-0 items-center gap-1">
+          <span id={captionId} className="min-w-0 flex-1 truncate px-0.5 text-meta text-reed">
+            {caption}
+          </span>
+          {!actionsBelow && actions}
+        </div>
+        {actionsBelow && <div className="justify-self-start">{actions}</div>}
+      </div>
     );
   }
   return (
-    <div className="group/tile grid">
+    <div className="group/tile grid min-w-0">
       <button
         type="button"
         aria-label={`Chat with ${name}`}
         aria-describedby={captionId}
         onClick={onChat}
-        className="group col-start-1 row-start-1 grid cursor-pointer rounded-lg text-start outline-offset-4"
+        className="group grid min-w-0 cursor-pointer rounded-lg text-start"
       >
         {portrait}
-        <TileText name={name} caption={caption} captionId={captionId} />
+        <TileName name={name} />
       </button>
-      {/* Over the portrait's top corner; it drops in on hover and keyboard focus, and stays on touch. */}
-      <div className="relative col-start-1 row-start-1 m-2 self-start justify-self-end opacity-0 transition-[opacity,translate] duration-(--duration-arrive) ease-fade -translate-y-1 group-hover/tile:translate-y-0 group-hover/tile:opacity-100 group-has-[:focus-visible]/tile:translate-y-0 group-has-[:focus-visible]/tile:opacity-100 motion-reduce:translate-y-0 touch:translate-y-0 touch:opacity-100">
+      {/* Always there, quiet in reed, so the way to the sheet is found without hovering. */}
+      <div className="flex min-w-0 items-center gap-1">
+        <span id={captionId} className="min-w-0 flex-1 truncate px-0.5 text-meta text-reed">
+          {caption}
+        </span>
         <Link
           {...sheet}
           aria-label={`Edit ${name}`}
           className={cn(
-            buttonVariants({ variant: "outline", size: "text" }),
-            "gap-1.5 border-rush bg-surface shadow-[0_1px_3px_var(--shadow-overlay)]",
-            // Touch: the pen alone on a 36px plate, its target grown past the border to 44px.
-            "touch:size-9 touch:px-0 touch:after:absolute touch:after:-inset-[calc(--spacing(1)+1px)]",
+            buttonVariants({ variant: "outline", size: "icon" }),
+            "size-8 text-reed touch:size-11",
           )}
         >
           <EditIcon size={16} />
-          <span className="touch:sr-only">Edit</span>
         </Link>
       </div>
     </div>

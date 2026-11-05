@@ -1,17 +1,19 @@
 import { EVENT_LIMITS, type EventFields, type StoredEvent } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { AnimatePresence, useIsPresent } from "motion/react";
 import * as m from "motion/react-m";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { fade, MotionScope, spring } from "@/app/motion.tsx";
-import { useReducedMotion } from "@/app/reduced-motion.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
+import { scrollBehavior, useReducedMotion } from "@/app/reduced-motion.ts";
+import { setEventsOpen, setLibraryEventsOpen, useUi } from "@/app/ui.ts";
 import { PlusIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { countOf } from "@/lib/text";
 import { charactersQuery } from "../characters/queries.ts";
 import { SettingsRow } from "../lorebook/SettingsRow.tsx";
-import { isFailure } from "../sheet/autosave.ts";
-import { useLeaveGuard } from "../sheet/SheetFrame.tsx";
+import { unsavedPart, useLeaveGuard } from "../sheet/SheetFrame.tsx";
 import { EventRow, type RowSaving } from "./EventRow.tsx";
 import {
   createEvent,
@@ -136,7 +138,7 @@ const SAVED = { kind: "saved" } as const;
  * only when one could not be, saying why in the words of the first that failed.
  */
 export function leaveGuardOf(rows: readonly RowSaving[]) {
-  const stuck = rows.find((row) => isFailure(row.status, row.creating));
+  const stuck = unsavedPart(rows);
   return {
     status: stuck?.status ?? SAVED,
     creating: stuck?.creating ?? false,
@@ -150,12 +152,33 @@ export function leaveGuardOf(rows: readonly RowSaving[]) {
   };
 }
 
-export function EventsSection() {
+/**
+ * The events: a compact row on the Lorebooks screen, closed on arrival, or,
+ * `inSheet`, the open list in the chat's Events sheet, whose title names it.
+ */
+export function EventsSection({
+  inSheet = false,
+  onSavingChange,
+}: {
+  inSheet?: boolean;
+  onSavingChange?: (saving: ReturnType<typeof leaveGuardOf>) => void;
+}) {
   const queryClient = useQueryClient();
   const events = useQuery(eventsQuery);
   const characters = useQuery(charactersQuery);
   /** Closed on arrival: one row above the lorebooks, however many events it holds. */
-  const [shown, setShown] = useState(false);
+  const [shown, setShown] = useState(inSheet);
+  const libraryEventsOpen = useUi((state) => state.libraryEventsOpen);
+  useEffect(() => {
+    if (inSheet || !libraryEventsOpen) return;
+    setShown(true);
+    setLibraryEventsOpen(false);
+    requestAnimationFrame(() => {
+      const section = document.getElementById("events");
+      section?.scrollIntoView({ block: "start", behavior: scrollBehavior() });
+      section?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    });
+  }, [inSheet, libraryEventsOpen]);
   const newButton = useRef<HTMLButtonElement>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
@@ -206,6 +229,9 @@ export function EventsSection() {
       return next;
     });
   const guard = leaveGuardOf(rowsSaving);
+  useEffect(() => {
+    onSavingChange?.(guard);
+  }, [onSavingChange, guard]);
   const leaveGuard = useLeaveGuard(guard, () => {}, guard.creating, "event");
 
   useEffect(() => {
@@ -390,65 +416,110 @@ export function EventsSection() {
     </MotionScope>,
   );
 
-  return (
-    <section aria-label="Events">
-      <SettingsRow
-        label="Events"
-        answer={
-          failed
-            ? "Could not be loaded"
-            : events.data === undefined
-              ? ""
-              : eventsSummary(stored, unsaved)
-        }
-        open={shown}
-        onOpenChange={showSection}
-        compact
-      >
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <div className="grid min-w-0 flex-1 basis-64 gap-1">
-            <p className="max-w-help text-pretty text-note text-reed">
-              One line the story is given now and then, by chance.
-            </p>
-            {atLimit && <p className="max-w-help text-pretty text-note text-reed">{LIMIT_NOTE}</p>}
-          </div>
-          {!empty && !failed && newEvent}
+  const body = (
+    <>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="grid min-w-0 flex-1 basis-64 gap-1">
+          <p className="max-w-help text-pretty text-note text-reed">
+            One line the story is given now and then, by chance. Events apply across your chats.
+          </p>
+          {inSheet ? (
+            <Link
+              to="/lorebooks"
+              className={buttonVariants({
+                variant: "link",
+                size: "text",
+                className: "justify-self-start",
+              })}
+              onClick={() => {
+                setLibraryEventsOpen(true);
+              }}
+            >
+              Events in Lorebooks
+            </Link>
+          ) : (
+            <Link
+              to="/"
+              className={buttonVariants({
+                variant: "link",
+                size: "text",
+                className: "justify-self-start",
+              })}
+              onClick={() => setEventsOpen(true)}
+            >
+              Events in chat
+            </Link>
+          )}
+          {atLimit && <p className="max-w-help text-pretty text-note text-reed">{LIMIT_NOTE}</p>}
         </div>
-        {events.isError && !failed && (
-          <p className="text-note text-reed">The events could not be refreshed.</p>
-        )}
-        {failed ? (
-          <div role="alert" className="grid justify-items-start gap-2">
-            <p className="text-ember text-note">The events could not be loaded.</p>
-            <Button variant="outline" onClick={() => void events.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : events.data === undefined ? (
-          <div aria-busy="true" className="min-h-16" />
-        ) : (
-          <>
-            {empty && (
-              <div className="grid justify-items-start gap-3">
-                <p className="max-w-empty text-pretty text-reed text-ui">
-                  No events yet. An event is one line the story is given now and then, such as
-                  'Introduce a new character'.
-                </p>
-                {newEvent}
-              </div>
-            )}
-            <ul aria-label="Events" className="grid border-rush border-t empty:hidden">
-              {items}
-            </ul>
-          </>
-        )}
-      </SettingsRow>
+        {!empty && !failed && newEvent}
+      </div>
+      {events.isError && !failed && (
+        <p className="text-note text-reed">The events could not be refreshed.</p>
+      )}
+      {failed ? (
+        <InlineStatus as="div" role="alert" className="grid justify-items-start gap-2">
+          <InlineStatus tone="error" as="p">
+            The events could not be loaded.
+          </InlineStatus>
+          <Button variant="outline" onClick={() => void events.refetch()}>
+            Try again
+          </Button>
+        </InlineStatus>
+      ) : events.data === undefined ? (
+        <div aria-busy="true" className="min-h-16" />
+      ) : (
+        <>
+          {empty && (
+            <div className="grid justify-items-start gap-3">
+              <p className="max-w-empty text-pretty text-reed text-ui">
+                No events yet. An event is one line the story is given now and then, such as
+                'Introduce a new character'.
+              </p>
+              {newEvent}
+            </div>
+          )}
+          <ul aria-label="Events" className="grid border-rush border-t empty:hidden">
+            <MotionScope>
+              <AnimatePresence initial={false}>{items}</AnimatePresence>
+            </MotionScope>
+          </ul>
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <section
+      id={inSheet ? undefined : "events"}
+      aria-label="Events"
+      className={inSheet ? "grid gap-4" : undefined}
+    >
+      {inSheet ? (
+        body
+      ) : (
+        <SettingsRow
+          label="Events"
+          answer={
+            failed
+              ? "Could not be loaded"
+              : events.data === undefined
+                ? ""
+                : eventsSummary(stored, unsaved)
+          }
+          open={shown}
+          onOpenChange={showSection}
+          compact
+        >
+          {body}
+        </SettingsRow>
+      )}
       {/* Hidden in the closed row, a failed save is said here, where it can be seen. */}
       {!shown && unsaved > 0 && (
-        <p role="alert" className="pb-3 text-pretty text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert" className="pb-3">
           {countOf(unsaved, "event")} {unsaved === 1 ? "is" : "are"} not saved. Open Events to
           retry.
-        </p>
+        </InlineStatus>
       )}
       {leaveGuard}
     </section>
@@ -508,9 +579,9 @@ function RemovedRow({
       className="overflow-clip border-rush border-b"
     >
       <div className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 px-1 py-2.5">
-        <p role="status" className="min-w-0 flex-1 basis-48 truncate text-reed text-ui">
+        <InlineStatus as="p" role="status" className="min-w-0 flex-1 basis-48 truncate text-ui">
           Deleted {text}.
-        </p>
+        </InlineStatus>
         <Button
           ref={undoButton}
           variant="outline"
@@ -521,9 +592,9 @@ function RemovedRow({
           Undo
         </Button>
         {failure !== null && (
-          <p role="alert" className="basis-full text-pretty text-ember text-note">
+          <InlineStatus tone="error" as="p" role="alert" className="basis-full">
             {failure}
-          </p>
+          </InlineStatus>
         )}
       </div>
     </m.li>

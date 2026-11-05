@@ -1,4 +1,3 @@
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   type CharacterMemory,
   episodeFieldsSchema,
@@ -16,28 +15,20 @@ import {
   useState,
 } from "react";
 import { z } from "zod";
-import { useCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
-import { CloseIcon } from "@/components/icons";
-import { ConfirmDialog, DIALOG_SURFACE, SCRIM } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { ResponsiveEditor } from "@/components/ui/editor-shell";
 import { SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { countOf } from "@/lib/text";
-import { NoticeCard } from "../app/NoticeCard.tsx";
+import { InlineStatus, NoticeCard } from "../app/NoticeCard.tsx";
 import { chatStore, useChat } from "../chat/session.ts";
 import { latestMemory } from "../chat/store.ts";
 import { KeywordsField } from "../lorebook/KeywordsField.tsx";
 import { isFailure, saveStatusText, useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
-import { FIELD } from "../sheet/fields.ts";
+import { FIELD, FIELD_LABEL } from "../sheet/fields.ts";
 import { useLeaveGuard } from "../sheet/SheetFrame.tsx";
 import { notReached } from "../signin/signin.ts";
 import { cueProblem, episodeOverLimit } from "./memory.ts";
@@ -80,7 +71,7 @@ const splitCues = (text: string) =>
     .map((cue) => cue.trim())
     .filter((cue) => cue !== "");
 
-const LABEL = "font-medium text-ink text-ui";
+const LABEL = FIELD_LABEL;
 
 /**
  * A conflict's Reload: the character's memory fetched again, now. Failed
@@ -337,7 +328,9 @@ function EpisodeDialog({
   const footer = (
     <>
       <div className="grid gap-2">
-        <p
+        <InlineStatus
+          tone="error"
+          as="p"
           role="status"
           className={cn(
             "min-h-4.5 text-pretty text-note empty:hidden",
@@ -349,9 +342,9 @@ function EpisodeDialog({
             : saveText === null
               ? ""
               : `${saveText}.${warned ? " Close again to leave without saving." : ""}`}
-        </p>
+        </InlineStatus>
         {held && (
-          <p id={heldId} className="text-pretty text-note text-reed">
+          <p id={heldId} className="text-pretty text-reed text-ui">
             A memory is being written; delete this one after it lands.
           </p>
         )}
@@ -434,9 +427,9 @@ function EpisodeDialog({
               onChange={(cues) => edit({ cues })}
             />
             {cuesWrong !== null && (
-              <p className="text-pretty text-ember text-note [overflow-wrap:anywhere] arrive">
+              <InlineStatus tone="error" as="p" className="[overflow-wrap:anywhere] arrive">
                 {cuesWrong}
-              </p>
+              </InlineStatus>
             )}
           </div>
           <SwitchField
@@ -518,112 +511,27 @@ function EditorPanel({
   footer: ReactNode;
   children: ReactNode;
 }) {
-  const phone = useFormFactor() === "phone";
-  // On touch, the panel itself takes focus, so opening it never raises the keyboard.
-  const coarse = useCoarsePointer();
   const popup = useRef<HTMLDivElement>(null);
-  const change = (next: boolean) => {
-    if (!next) onClose();
-  };
-  const complete = (next: boolean) => {
-    if (!next) onClosed();
-  };
-  const focus = {
-    initialFocus: coarse ? popup : initialFocus,
-    finalFocus: () => restoreFocus(),
-  };
-  const TITLE = "text-balance font-semibold text-heading text-ink";
-  const DESCRIPTION = "text-pretty text-reed text-ui";
-  const closeButton = <Button size="icon" aria-label={closeLabel} className="-mt-1 -mr-2" />;
-  /** The header, in the frame's own title, description and close: the sheet's on phones, the dialog's otherwise. */
-  const header = (heading: ReactNode, close: ReactNode) => (
-    <header
-      className={cn(
-        "header-hairline flex shrink-0 items-start gap-3 border-b",
-        phone ? "px-5 pt-1 pb-3" : "px-6 pt-5 pb-4",
-      )}
-    >
-      <div className="grid min-w-0 flex-1 gap-1">{heading}</div>
-      {close}
-    </header>
-  );
-  const body = (
-    <>
-      <div
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto overscroll-contain [scroll-timeline:--thread]",
-          phone ? "px-5 py-4" : "px-6 py-5",
-        )}
-      >
-        {children}
-      </div>
-      <footer
-        className={cn(
-          "grid shrink-0 gap-2 border-rush border-t pt-3",
-          phone ? "px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))]" : "px-6 pb-4",
-        )}
-      >
-        {footer}
-      </footer>
-    </>
-  );
-
-  if (phone) {
-    return (
-      <Drawer
-        open={open}
-        onOpenChange={change}
-        onOpenChangeComplete={complete}
-        swipeDirection="down"
-        showSwipeHandle
-        keyboardAware
-      >
-        <DrawerContent
-          ref={popup}
-          {...focus}
-          className="[timeline-scope:--thread] data-[swipe-axis=y]:[--drawer-content-max-height:calc(100dvh-0.75rem-env(safe-area-inset-top))]"
-        >
-          {header(
-            <>
-              <DrawerTitle className={TITLE}>{title}</DrawerTitle>
-              <DrawerDescription className={DESCRIPTION}>{description}</DrawerDescription>
-            </>,
-            <DrawerClose render={closeButton}>
-              <CloseIcon />
-            </DrawerClose>,
-          )}
-          {body}
-        </DrawerContent>
-      </Drawer>
-    );
-  }
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={change} onOpenChangeComplete={complete}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className={cn(SCRIM, "starting:opacity-0")} />
-        <DialogPrimitive.Popup
-          render={(props, state) => <div {...props} inert={!state.open} />}
-          ref={popup}
-          {...focus}
-          className={cn(
-            DIALOG_SURFACE,
-            "flex flex-col [--dialog-width:36rem] [timeline-scope:--thread] starting:translate-y-(--rise) starting:opacity-0",
-          )}
-        >
-          {header(
-            <>
-              <DialogPrimitive.Title className={TITLE}>{title}</DialogPrimitive.Title>
-              <DialogPrimitive.Description className={DESCRIPTION}>
-                {description}
-              </DialogPrimitive.Description>
-            </>,
-            <DialogPrimitive.Close render={closeButton}>
-              <CloseIcon />
-            </DialogPrimitive.Close>,
-          )}
-          {body}
-        </DialogPrimitive.Popup>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    <ResponsiveEditor
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      onOpenChangeComplete={(next) => {
+        if (!next) onClosed();
+      }}
+      title={title}
+      description={description}
+      closeLabel={closeLabel}
+      popupRef={popup}
+      initialFocus={initialFocus}
+      finalFocus={() => restoreFocus()}
+      focusOnTouch
+      bodyClassName="[scroll-timeline:--thread]"
+      footer={footer}
+    >
+      {children}
+    </ResponsiveEditor>
   );
 }

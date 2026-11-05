@@ -5,6 +5,7 @@ import { type MouseEvent, use, useState } from "react";
 import { flushSync } from "react-dom";
 import { fade, spring } from "@/app/motion.tsx";
 import { motionPx } from "@/app/motion-tokens.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -162,7 +163,7 @@ export function MemorySeam() {
           Forget, which hover reveals, are seen or not. */}
       <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center text-note text-reed">
         <div className="col-start-2 flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5">
-          <p role="status" className="px-1">
+          <InlineStatus as="p" role="status" className="px-1">
             {status === "remembering"
               ? "Remembering…"
               : status === "failed"
@@ -170,7 +171,7 @@ export function MemorySeam() {
                 : forgetFailed
                   ? `Not forgotten: ${notReached()}.`
                   : rememberedLine(folded, held)}
-          </p>
+          </InlineStatus>
           {status === "failed" && characterId !== null && (
             <MemoryFailureAction
               action={failureNote(memory.failure).action}

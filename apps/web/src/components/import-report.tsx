@@ -1,6 +1,10 @@
 import type { ImportReport } from "@ephemera/core";
 import { useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE, Unfold } from "@/components/ui/disclosure";
+import { cn } from "@/lib/cn";
+import { EXPLANATION } from "@/sheet/fields.ts";
 
 /*
  * An imported file's report: what became of it and, on request, what was
@@ -21,21 +25,25 @@ export function ImportReportLine({
   const [details, setDetails] = useState(false);
   if (!outcome.ok) {
     return (
-      <div role="status" className="grid justify-items-start gap-1 text-note arrive">
+      <InlineStatus
+        as="div"
+        role="status"
+        className="grid justify-items-start gap-1 text-ui arrive"
+      >
         <p className="text-pretty text-ember">
           {outcome.file} was not imported: {outcome.reason}.
         </p>
         <Button size="text" className="-ml-2" onClick={onDismiss}>
           Dismiss
         </Button>
-      </div>
+      </InlineStatus>
     );
   }
   const { report } = outcome;
   const quiet = report.changed.length === 0 && report.skipped.length === 0;
   return (
-    <div role="status" className="grid max-w-column gap-2 arrive">
-      <p className="text-pretty text-ink text-note">
+    <InlineStatus as="div" role="status" className="grid max-w-column gap-2 arrive">
+      <p className="text-pretty text-reed text-ui">
         {summary}
         {!quiet && <span className="text-reed"> Some settings changed or were left out.</span>}
       </p>
@@ -49,12 +57,12 @@ export function ImportReportLine({
           Dismiss
         </Button>
       </div>
-      {details && (
-        <div className="grid gap-3 border-rush border-l pl-4 text-note transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
+      <Unfold show={details}>
+        <div className="grid gap-3 border-rush border-l pl-4 text-ui transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0">
           <ReportGroups report={report} />
         </div>
-      )}
-    </div>
+      </Unfold>
+    </InlineStatus>
   );
 }
 
@@ -68,7 +76,16 @@ export function ReportGroups({ report }: { report: ImportReport }) {
     <>
       <ReportGroup title="Kept" items={report.kept} />
       <ReportGroup title="Changed" items={report.changed} />
-      <ReportGroup title="Left out" items={report.skipped} />
+      {report.skipped.length > 0 && (
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            <DisclosureChevron />
+            {report.skipped.length} unsupported or omitted{" "}
+            {report.skipped.length === 1 ? "setting" : "settings"}
+          </summary>
+          <ReportGroup title="Left out" items={report.skipped} />
+        </details>
+      )}
     </>
   );
 }
@@ -87,7 +104,7 @@ export function ReportGroup({
   return (
     <div className="grid gap-1">
       <Heading className="font-medium text-ink">{title}</Heading>
-      <ul className="grid gap-1 text-pretty text-reed">
+      <ul className={cn("grid gap-1", EXPLANATION, "text-turn")}>
         {items.map((item, index) => (
           // Lines can repeat (two prompts with one name); their order is fixed.
           // biome-ignore lint/suspicious/noArrayIndexKey: a static list rendered once per report.

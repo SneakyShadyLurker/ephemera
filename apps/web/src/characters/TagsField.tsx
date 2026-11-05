@@ -3,6 +3,7 @@ import { useId } from "react";
 import { useFieldReview, useSettled } from "../rework/ReviewField.tsx";
 import { useReworkLocked } from "../rework/session.ts";
 import { TrackedTags } from "../rework/TrackedTags.tsx";
+import { FieldFeedback } from "../sheet/FieldFeedback.tsx";
 import { TokenField } from "../sheet/TokenField.tsx";
 
 /**
@@ -32,20 +33,22 @@ export function TagsField({
       <span id={labelId} className="sr-only">
         Tags
       </span>
-      <TokenField
-        tokens={tags}
-        add={addTags}
-        item="tag"
-        locked={locked}
-        settle={settled}
-        className="settle-glow"
-        input={{
-          "aria-labelledby": labelId,
-          placeholder: "Add a tag",
-          maxLength: CARD_LIMITS.tagLength,
-        }}
-        onChange={onChange}
-      />
+      <FieldFeedback value={tags}>
+        <TokenField
+          tokens={tags}
+          add={addTags}
+          item="tag"
+          locked={locked}
+          settle={settled}
+          className="settle-glow"
+          input={{
+            "aria-labelledby": labelId,
+            placeholder: "Add a tag",
+            maxLength: CARD_LIMITS.tagLength,
+          }}
+          onChange={onChange}
+        />
+      </FieldFeedback>
     </div>
   );
 }

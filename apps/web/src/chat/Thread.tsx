@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Fragment, type RefObject, useEffect, useRef, useState } from "react";
+import { Fragment, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { useShallow } from "zustand/shallow";
 import { ART_WIDTH } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { MotionScope } from "@/app/motion.tsx";
-import { scrollBehavior } from "@/app/reduced-motion.ts";
 import {
   Conversation,
   ConversationContent,
@@ -27,19 +26,16 @@ import { SceneItems } from "./Scene.tsx";
 import { useChat } from "./session.ts";
 import {
   type ChatState,
-  lastReply,
   lockedBefore,
   messageIds,
   nextPrompt,
   nthSentId,
   promptFoldedTurns,
   rememberedEnd,
-  shownReply,
   storyEmpty,
 } from "./store.ts";
 import { FoldLine, Tombstone, TrimMarker } from "./ThreadMarks.tsx";
 import { Turn } from "./Turn.tsx";
-import { GreetingActions, ReplyActions } from "./TurnActions.tsx";
 
 /**
  * Where the next prompt starts once the window is full: the first sent turn,
@@ -83,7 +79,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
       : null,
   );
   const seam = useChat((state) => seamIndex(state.memory));
-  // From tablet up the portrait floats at the head of the latest reply shown; -1 while none is.
+  // The portrait belongs to the latest reply on every screen; -1 while none is.
   const latestReply = useChat((state) =>
     state.messages.findLastIndex(
       (message, index) =>
@@ -115,11 +111,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
          * story's container: its prose measure and the portrait's column follow its width.
          */}
         <div className="@container/story flow-root">
-          {phone ? (
-            <Presence placement="band" />
-          ) : (
-            presenceAt === -1 && <Presence placement="float" />
-          )}
+          {presenceAt === -1 && <Presence placement={phone ? "band" : "float"} />}
           {ids.length === 0 ? (
             deletedAt === null && <EmptyStory composer={composer} />
           ) : (
@@ -141,7 +133,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
                           last={index === ids.length - 1}
                           folded={index < horizon}
                           locked={index < locked}
-                          presence={!phone && index === presenceAt}
+                          presence={index === presenceAt}
                         />
                         {/* The newest message's pictures follow its actions, below. */}
                         {index < ids.length - 1 && <SceneItems anchorId={id} enter={settled} />}
@@ -150,7 +142,6 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
                   </Fragment>
                 ))}
                 <SeamSlot here={seam !== null && seam >= ids.length} />
-                <LastReplyActions key={ids.at(-1)} />
                 {(ids.length - 1 >= horizon || shown) && (
                   <SceneItems anchorId={ids.at(-1) ?? ""} enter={settled} />
                 )}
@@ -171,7 +162,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
       </ConversationContent>
       <ConversationScrollButton onKeyboardUse={() => composer.current?.focus()} />
       <FollowWriting />
-      <NameStuck ids={ids} horizon={horizon} shown={shown} />
+      <NameShown ids={ids} horizon={horizon} shown={shown} />
     </Conversation>
   );
 }
@@ -188,30 +179,30 @@ function FollowWriting() {
     (state) => state.generationMode === "reply" || state.generationMode === "continue",
   );
   const wasWriting = useRef(writing);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const started = writing && !wasWriting.current;
     wasWriting.current = writing;
     if (!started) return;
-    void scrollToBottom(scrollBehavior());
+    // Submission and the following resize use the same instant anchor. A spring
+    // toward the old bottom would still be moving when the first words arrive.
+    void scrollToBottom("instant");
   }, [writing, scrollToBottom]);
   return null;
 }
 
-/** Where a nameplate sticks: its `top` in styles.css (`nameplate`), and a pixel below it. */
-const STUCK_LINE = 13;
-
 /**
- * Marks the chat (`data-name-stuck` on its <main>) while a character's
- * nameplate is stuck under the header, so the header's title, the same
- * name, gives way (ScreenHeader `yieldsTitle`). A nameplate sticks while its
- * turn crosses the line it sticks at, so one observer watches the
- * character's turns against a band one pixel high there, renewed when the
- * turns change (`ids`, or folded turns shown or hidden by `horizon` and
- * `shown`, which leave `ids` as they are) or the scroller's height does.
- * A renewal keeps the mark until the new observer answers, so the title
- * does not blink; only leaving the chat, or no turn to watch, clears it.
+ * Marks the chat (`data-name-shown` on its <main>) while a character's
+ * nameplate shows in the story, stuck under the header or anywhere in view,
+ * so the header's title, the same name, gives way (ScreenHeader
+ * `yieldsTitle`). A stuck nameplate stays in view while its turn does, so
+ * one observer watches the character's nameplates against the scroller,
+ * renewed when the turns change (`ids`, or folded turns shown or hidden by
+ * `horizon` and `shown`, which leave `ids` as they are) or the scroller's
+ * height does. A renewal keeps the mark until the new observer answers, so
+ * the title does not blink; only leaving the chat, or no nameplate to
+ * watch, clears it.
  */
-function NameStuck({
+function NameShown({
   ids,
   horizon,
   shown,
@@ -223,7 +214,7 @@ function NameStuck({
   const { scrollRef, contentRef } = useStickToBottomContext();
   useEffect(() => {
     const chat = scrollRef.current?.closest("main");
-    return () => chat?.removeAttribute("data-name-stuck");
+    return () => chat?.removeAttribute("data-name-shown");
   }, [scrollRef]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `ids`, `horizon` and `shown` change the turns to watch.
   useEffect(() => {
@@ -231,26 +222,27 @@ function NameStuck({
     const content = contentRef.current;
     const chat = scroller?.closest("main");
     if (!scroller || !content || !chat) return;
-    const crossing = new Set<Element>();
+    const inView = new Set<Element>();
     let observer: IntersectionObserver | undefined;
     const watch = () => {
       observer?.disconnect();
-      crossing.clear();
-      const below = Math.max(0, scroller.clientHeight - STUCK_LINE - 1);
+      inView.clear();
       observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (entry.isIntersecting) crossing.add(entry.target);
-            else crossing.delete(entry.target);
+            if (entry.isIntersecting) inView.add(entry.target);
+            else inView.delete(entry.target);
           }
-          chat.toggleAttribute("data-name-stuck", crossing.size > 0);
+          chat.toggleAttribute("data-name-shown", inView.size > 0);
         },
-        { root: scroller, rootMargin: `-${STUCK_LINE}px 0px -${below}px 0px` },
+        { root: scroller },
       );
-      const turns = content.querySelectorAll('[data-message][data-role="assistant"]');
-      // With no turn to watch the observer never answers, so nothing is stuck.
-      if (turns.length === 0) chat.removeAttribute("data-name-stuck");
-      for (const turn of turns) observer.observe(turn);
+      const names = content.querySelectorAll(
+        '[data-message][data-role="assistant"] [data-speaker][data-voice="story"]',
+      );
+      // With nothing to watch the observer never answers, so no name shows.
+      if (names.length === 0) chat.removeAttribute("data-name-shown");
+      for (const name of names) observer.observe(name);
     };
     const resized = new ResizeObserver(watch);
     resized.observe(scroller);
@@ -332,6 +324,7 @@ export function RetentionNote() {
 function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | null> }) {
   const character = useChatCharacter();
   const chosen = useSetting((settings) => settings.characterId) !== null;
+  useEmptyStoryEdge(chosen);
   const characters = useQuery(charactersQuery);
   return (
     <div className="grid content-start justify-items-start transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
@@ -359,39 +352,30 @@ function EmptyStory({ composer }: { composer: RefObject<HTMLTextAreaElement | nu
 }
 
 /**
- * The last reply's actions, as their own row below it: shown once the reply
- * settles, so nothing below a streaming reply moves, and keyed by the reply,
- * so a new last reply brings a new row instead of moving the old one. A
- * greeting without alternates has no row: its own More carries Edit and Delete.
+ * The scroll library stops one pixel before the physical bottom. A browser's
+ * scroll-into-view of the first model picker rounds to the physical edge even
+ * when it is already visible. Align the empty welcome to that same edge after
+ * a resize, through the scroll owner's setter, so its first interaction is still.
  */
-function LastReplyActions() {
-  const message = useChat((state) => lastReply(state));
-  const editing = useChat((state) => state.editing !== null && state.editing.id === message?.id);
-  // Remembered, or being remembered: read-only.
-  const locked = useChat(
-    (state) =>
-      message !== undefined &&
-      (state.messages.at(-1) !== message || state.messages.length - 1 < lockedBefore(state)),
-  );
-  if (
-    message === undefined ||
-    locked ||
-    (message.greeting && message.replies.length === 1) ||
-    editing ||
-    shownReply(message).status === "streaming" ||
-    shownReply(message).status === "waiting"
-  )
-    return null;
-  return (
-    <li
-      data-reply-actions=""
-      className="-mt-6 -ml-2 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0 tablet:-mt-8"
-    >
-      {message.greeting ? (
-        <GreetingActions message={message} />
-      ) : (
-        <ReplyActions message={message} />
-      )}
-    </li>
-  );
+function useEmptyStoryEdge(chosen: boolean) {
+  const { scrollRef, contentRef, state } = useStickToBottomContext();
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    const content = contentRef.current;
+    if (chosen || !scroll || !content) return;
+    let frame = 0;
+    const align = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (state.isAtBottom) state.scrollTop = scroll.scrollHeight - scroll.clientHeight;
+      });
+    };
+    const observer = new ResizeObserver(align);
+    observer.observe(scroll);
+    observer.observe(content);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [chosen, scrollRef, contentRef, state]);
 }

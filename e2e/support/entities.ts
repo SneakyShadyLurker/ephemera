@@ -148,7 +148,9 @@ export async function closeSession(page: Page) {
  */
 export async function choose(scope: Page | Locator, label: string, option: string, shown = option) {
   const page = "page" in scope ? scope.page() : scope;
-  const combobox = scope.getByRole("combobox", { name: label, exact: true });
+  // Composer and Session share Persona; an open Session follows the main chat in the DOM.
+  const choices = scope.getByRole("combobox", { name: label, exact: true });
+  const combobox = label === "Persona" ? choices.last() : choices;
   await combobox.click();
   await page.getByRole("option", { name: option, exact: true }).click();
   await expect(combobox).toContainText(shown);
@@ -165,7 +167,9 @@ export const FORM_FACTORS = [
 
 /** An autosave landed. Saves wait out a 600 ms pause and queue behind each other, so a loaded machine gets time. */
 export const saved = (page: Page) =>
-  expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
 /**
  * Moves focus with Tab (Shift+Tab with `backward`) until `target` has it, at

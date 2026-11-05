@@ -268,7 +268,7 @@ export function PalettePicker({ labelId }: { labelId: string }) {
                       editing={editing}
                       action={
                         editing ? (
-                          <span className="pointer-events-none absolute right-3 bottom-3 text-dusk-line text-meta">
+                          <span className="pointer-events-none absolute right-3 bottom-3 text-meta text-reed">
                             Editing
                           </span>
                         ) : (
@@ -341,7 +341,7 @@ function DraftTile({ draft }: { draft: PaletteDraft }) {
       <Swatch palette={customPaletteId(draft.slot)} />
       <span className="flex min-w-0 items-center gap-2 px-1 text-ink text-ui">
         <span className="truncate">{draft.name.trim() || "New palette"}</span>
-        <span className="ml-auto shrink-0 text-dusk-line text-meta">Editing</span>
+        <span className="ml-auto shrink-0 text-meta text-reed">Editing</span>
       </span>
     </div>
   );

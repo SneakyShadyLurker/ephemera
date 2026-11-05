@@ -1,10 +1,11 @@
 import { type ReactNode, useId, useRef, useState } from "react";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { DeleteIcon, ImportIcon, PlusIcon } from "@/components/icons";
 import { MoreButton } from "@/components/more-button";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
+import { cn } from "@/lib/cn";
 import { Portrait } from "./Portrait.tsx";
 import { type PortraitOwner, removePortrait, setPortrait } from "./queries.ts";
 
@@ -21,17 +22,23 @@ export function PortraitField({
   id,
   version,
   noun,
+  name,
   locked = false,
   arrived: arrivedVersion = null,
   primary,
   onBusyChange,
   onChange,
+  compactOnPhone = false,
+  identity,
+  tags,
+  details,
 }: {
   owner: PortraitOwner;
   id: string | null;
   version: number | null;
   /** What the sheet edits, for the hint on a new sheet ("character", "persona"). */
   noun: string;
+  name: string;
   /**
    * Add, Replace and Remove are off while an AI Rework works or is under
    * review: a changed portrait would make changes made to match it stale.
@@ -43,6 +50,11 @@ export function PortraitField({
   /** An upload or removal starts or ends: the sheet holds an AI Rework meanwhile. */
   onBusyChange?: (busy: boolean) => void;
   onChange: (version: number | null) => void;
+  /** Phones set the portrait small with its actions beside it, so the sheet's text starts sooner. */
+  compactOnPhone?: boolean;
+  identity?: ReactNode;
+  tags?: ReactNode;
+  details?: ReactNode;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +91,14 @@ export function PortraitField({
   };
 
   return (
-    <div className="grid content-start gap-1">
+    <div
+      className={cn(
+        "grid content-start gap-1",
+        // Phones: the portrait small at the row's start, its actions beside its foot.
+        compactOnPhone &&
+          "grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:grid-rows-[auto_auto_1fr_auto] tablet:gap-x-6 tablet:gap-y-4",
+      )}
+    >
       <input
         ref={picker}
         type="file"
@@ -92,32 +111,46 @@ export function PortraitField({
           event.currentTarget.value = "";
         }}
       />
-      {version === null ? (
-        <button
-          type="button"
-          disabled={id === null || busy || locked}
-          aria-describedby={id === null ? `${errorId}-hint` : undefined}
-          onClick={() => picker.current?.click()}
-          className="press grid aspect-[2/3] w-full place-items-center content-center gap-1 rounded-lg border border-control-edge border-dashed text-reed hover:bg-surface-hover hover:text-ink disabled:cursor-default disabled:border-rush disabled:text-text-disabled disabled:hover:bg-transparent"
-        >
-          <PlusIcon size={20} />
-          <span className="text-note">{busy ? "Adding" : "Add portrait"}</span>
-        </button>
-      ) : (
-        <Portrait
-          owner={owner}
-          id={id ?? ""}
-          version={version}
-          size="full"
-          arriving={arrived || (arrivedVersion !== null && arrivedVersion === version)}
-          transition
-        />
+      <div className={cn(compactOnPhone && "row-span-2 tablet:row-span-3")}>
+        {version === null ? (
+          <button
+            type="button"
+            disabled={id === null || busy || locked}
+            aria-describedby={id === null ? `${errorId}-hint` : undefined}
+            onClick={() => picker.current?.click()}
+            className="press grid aspect-[2/3] w-full place-items-center content-center gap-1 rounded-lg border border-control-edge border-dashed text-reed hover:bg-surface-hover hover:text-ink disabled:cursor-default disabled:border-rush disabled:text-text-disabled disabled:hover:bg-transparent"
+          >
+            <PlusIcon size={20} />
+            <span className="text-note">{busy ? "Adding" : "Add portrait"}</span>
+          </button>
+        ) : (
+          <Portrait
+            name={name}
+            owner={owner}
+            id={id ?? ""}
+            version={version}
+            size="full"
+            arriving={arrived || (arrivedVersion !== null && arrivedVersion === version)}
+            transition
+          />
+        )}
+      </div>
+      {identity && (
+        <div data-sheet-heading="" className="col-start-2 row-start-1 min-w-0 self-start">
+          {identity}
+        </div>
       )}
       {/*
        * One row, its primary action first in one place whether or not a
        * portrait is stored, so a first portrait keeps what it holds mounted.
        */}
-      <div className="flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap",
+          compactOnPhone &&
+            "col-start-2 row-start-2 self-end pt-0 tablet:col-start-1 tablet:row-start-4 tablet:pt-1",
+        )}
+      >
         {primary?.({ busy })}
         {version !== null &&
           (primary ? (
@@ -155,7 +188,18 @@ export function PortraitField({
             </>
           ))}
       </div>
+      {tags && (
+        <div className="col-span-full min-w-0 tablet:col-start-2 tablet:col-span-1 tablet:row-start-2 tablet:self-start">
+          {tags}
+        </div>
+      )}
+      {details && (
+        <div className="col-span-full min-w-0 self-start tablet:col-start-2 tablet:col-span-1 tablet:row-start-3">
+          {details}
+        </div>
+      )}
       <NoticeSlot
+        {...(compactOnPhone && { className: "max-tablet:col-span-full" })}
         value={
           busy && version !== null
             ? { kind: "status" as const, text: "Saving the portrait" }
@@ -166,13 +210,13 @@ export function PortraitField({
       >
         {(notice) =>
           notice.kind === "status" ? (
-            <p role="status" className="px-2 text-meta text-reed">
+            <InlineStatus as="p" role="status" className="px-2 text-meta">
               {notice.text}
-            </p>
+            </InlineStatus>
           ) : (
-            <p role="alert" className="text-pretty text-ember text-meta">
+            <InlineStatus as="p" role="alert" className="text-ember text-meta">
               {notice.text}
-            </p>
+            </InlineStatus>
           )
         }
       </NoticeSlot>

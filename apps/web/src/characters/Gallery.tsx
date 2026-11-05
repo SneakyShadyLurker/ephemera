@@ -1,14 +1,17 @@
 import { type CharacterSummary, hasTag } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState, ViewTransition } from "react";
 import { useShallow } from "zustand/shallow";
 import { HeaderAction, ListLoadFailed, PortraitTile } from "@/app/Browse.tsx";
+import { ChoiceList } from "@/app/ChoicePicker.tsx";
 import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { importProgress } from "@/app/importing";
 import { KeptScroll } from "@/app/KeptScroll.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import {
+  BROWSE_BODY,
   BROWSE_FRAME,
   BROWSE_GRID,
   PAGE_FRAME,
@@ -28,8 +31,7 @@ import {
 } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
 import { hasReport, ReportGroups } from "@/components/import-report";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Unfold } from "@/components/ui/disclosure";
 import {
   Drawer,
@@ -49,7 +51,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioSegment, RadioSegments } from "@/components/ui/radio-group";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
-import { fold, matches } from "@/lib/find";
+import { fold } from "@/lib/find";
 import { useStartChat } from "../chat/StartChat.tsx";
 import { KeptNote } from "../creator/KeptNote.tsx";
 import { filterCharacters, type Order, repeatedNames, tagCounts } from "./filter.ts";
@@ -113,13 +115,32 @@ export function GalleryScreen() {
           event.currentTarget.value = "";
         }}
       />
-      <ScreenHeader title={<GalleryTitle list={list} />} frame={frame} gutters={SCROLL_GUTTERS}>
-        <HeaderAction label="Import cards" icon={ImportIcon} onClick={openPicker} />
-        <HeaderAction label="New character" icon={PlusIcon} onClick={newCharacter} />
-        {/* Phones name it under the search instead, while the cast shows. */}
-        {(!phone || characters.isError || empty) && (
-          <HeaderAction label="Create with AI" icon={LampFlameIcon} onClick={createWithAi} />
-        )}
+      <ScreenHeader
+        collection
+        title={<GalleryTitle list={list} />}
+        frame={frame}
+        gutters={SCROLL_GUTTERS}
+      >
+        <HeaderAction
+          label="Import cards"
+          text="Import"
+          labelledOnPhone
+          icon={ImportIcon}
+          onClick={openPicker}
+        />
+        <HeaderAction
+          label="New character"
+          text="New"
+          labelledOnPhone
+          icon={PlusIcon}
+          onClick={newCharacter}
+        />
+        <HeaderAction
+          label="Create with AI"
+          labelledOnPhone
+          icon={LampFlameIcon}
+          onClick={createWithAi}
+        />
       </ScreenHeader>
       <div
         data-skip-target=""
@@ -133,16 +154,11 @@ export function GalleryScreen() {
         {characters.isError ? (
           <ListLoadFailed what="Characters" onRetry={() => void characters.refetch()} />
         ) : empty ? (
-          <EmptyGallery phone={phone} onImport={openPicker} />
+          <EmptyGallery phone={phone} onImport={openPicker} onCreate={createWithAi} />
         ) : (
           // A container, so the cards' minimum grows with the space (`cqi`).
-          <div
-            className={cn(
-              BROWSE_FRAME,
-              "@container grid grid-cols-[minmax(0,1fr)] gap-5 pt-2 pb-10 tablet:pt-3",
-            )}
-          >
-            <Toolbar list={list} phone={phone} onCreate={createWithAi} />
+          <div className={cn(BROWSE_BODY, BROWSE_FRAME, BROWSE_BODY)}>
+            <Toolbar list={list} phone={phone} />
             <KeptNote />
             <ImportReport />
             <Cast list={list} pending={characters.isPending} onChat={start} />
@@ -178,16 +194,7 @@ function GalleryTitle({ list }: { list: CharacterSummary[] }) {
   );
 }
 
-function Toolbar({
-  list,
-  phone,
-  onCreate,
-}: {
-  list: CharacterSummary[];
-  phone: boolean;
-  /** Phones: the header's flame alone does not explain itself, so the first row names it. */
-  onCreate: () => void;
-}) {
+function Toolbar({ list, phone }: { list: CharacterSummary[]; phone: boolean }) {
   const query = useGallery((state) => state.query);
   const tags = useGallery((state) => state.tags);
   return (
@@ -202,13 +209,7 @@ function Toolbar({
           className="flex-1 basis-full tablet:max-w-sm tablet:basis-0"
         />
         {phone ? (
-          <>
-            <FilterSheet list={list} />
-            <Button variant="outline" onClick={onCreate}>
-              <LampFlameIcon size={16} />
-              Create with AI
-            </Button>
-          </>
+          <FilterSheet list={list} />
         ) : (
           <>
             <TagPopover list={list} />
@@ -247,36 +248,20 @@ function Toolbar({
 
 function TagList({ list }: { list: CharacterSummary[] }) {
   const selected = useGallery((state) => state.tags);
-  const [find, setFind] = useState("");
-  const counts = tagCounts(list).filter(([tag]) => matches(find, tag));
   return (
-    <>
-      <div className="p-1.5">
-        <SearchField
-          label="Find a tag"
-          placeholder="Find a tag"
-          value={find}
-          onChange={(event) => setFind(event.target.value)}
-        />
-      </div>
-      {counts.length === 0 ? (
-        <p className="px-2.5 py-2 text-note text-reed">
-          {find.trim() === "" ? "No tags yet." : "No tag matches."}
-        </p>
-      ) : (
-        <ul className="min-h-0 overflow-y-auto overscroll-contain">
-          {counts.map(([tag, count]) => (
-            <li key={tag}>
-              <label className="flex h-9 cursor-pointer items-center gap-2.5 rounded-sm px-2.5 text-ink text-ui hover:bg-surface-hover touch:h-11">
-                <Checkbox checked={hasTag(selected, tag)} onCheckedChange={() => toggleTag(tag)} />
-                <span className="min-w-0 flex-1 truncate">{tag}</span>
-                <span className="text-meta text-reed tabular-nums">{count}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+    <ChoiceList
+      compact
+      findLabel="Find a tag"
+      empty="No tags yet."
+      noMatch="No tag matches."
+      choices={tagCounts(list).map(([tag, count]) => ({
+        id: tag,
+        name: tag,
+        count,
+        checked: hasTag(selected, tag),
+      }))}
+      onToggle={(choice) => toggleTag(choice.id)}
+    />
   );
 }
 
@@ -386,9 +371,9 @@ function ImportReport() {
   const detailsId = useId();
   if (importing !== null) {
     return (
-      <p role="status" className="text-note text-reed">
+      <InlineStatus as="p" role="status">
         {importProgress(importing)}
-      </p>
+      </InlineStatus>
     );
   }
   if (report.length === 0) return null;
@@ -410,10 +395,10 @@ function ImportReport() {
         ? `${failed[0]?.file} was not imported: ${failed[0]?.reason}.`
         : `${failed.length} were not imported.`;
   return (
-    <div role="status" className="grid arrive">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-note">
+    <InlineStatus as="div" role="status" className="grid text-ui arrive">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui">
         {imported.length > 0 && <CheckIcon size={16} className="text-reed" />}
-        <p className="text-ink">
+        <p className="text-reed">
           {summary}
           {changed && <span className="text-reed"> Some settings changed or were left out.</span>}{" "}
           {failures && <span className="text-ember">{failures}</span>}
@@ -432,19 +417,37 @@ function ImportReport() {
           Dismiss
         </Button>
       </div>
+      {imported.length > 0 && (
+        <div className="flex flex-wrap gap-2 pb-1">
+          {imported.map((card) => (
+            <Link
+              key={card.id}
+              to="/characters/$id"
+              params={{ id: card.id }}
+              className={buttonVariants({
+                variant: "outline",
+                size: "text",
+                className: "min-w-0 max-w-full",
+              })}
+            >
+              <span className="truncate">Open {card.name}</span>
+            </Link>
+          ))}
+        </div>
+      )}
       <Unfold show={details} id={detailsId}>
         <div className="grid gap-2 pt-2">
           {imported.map(
             (outcome) =>
               hasReport(outcome.report) && (
-                <div key={outcome.id} className="grid gap-3 border-rush border-l pl-4 text-note">
+                <div key={outcome.id} className="grid gap-3 border-rush border-l pl-4 text-ui">
                   <p className="font-medium text-ink">{outcome.name}</p>
                   <ReportGroups report={outcome.report} />
                 </div>
               ),
           )}
           {failed.length > 0 && (
-            <ul className="grid max-h-48 gap-1 overflow-y-auto border-rush border-l pl-4 text-note">
+            <ul className="grid max-h-48 gap-1 overflow-y-auto border-rush border-l pl-4 text-ui">
               {failed.map((outcome) => (
                 <li key={outcome.key} className="text-reed">
                   <span className="text-ink">{outcome.file}</span>: {outcome.reason}.
@@ -454,7 +457,7 @@ function ImportReport() {
           )}
         </div>
       </Unfold>
-    </div>
+    </InlineStatus>
   );
 }
 
@@ -476,12 +479,15 @@ function Cast({
   if (pending) return null;
   if (shown.length === 0) {
     return (
-      <div className="grid justify-items-start gap-3 pt-10">
-        <h2 className="font-semibold text-heading text-ink">No characters match</h2>
-        <Button variant="outline" onClick={clearFilters}>
-          Clear filters
-        </Button>
-      </div>
+      <EmptyState
+        compact
+        title="No characters match."
+        actions={
+          <Button variant="outline" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        }
+      />
     );
   }
   return (
@@ -524,7 +530,15 @@ function Cast({
  * already made), with the drop hint where dropping works; New character and
  * Create with AI stay in the header.
  */
-function EmptyGallery({ phone, onImport }: { phone: boolean; onImport: () => void }) {
+function EmptyGallery({
+  phone,
+  onImport,
+  onCreate,
+}: {
+  phone: boolean;
+  onImport: () => void;
+  onCreate: () => void;
+}) {
   return (
     <div className={BROWSE_FRAME}>
       {/* A failed import into an empty library still reports why. */}
@@ -535,10 +549,16 @@ function EmptyGallery({ phone, onImport }: { phone: boolean; onImport: () => voi
         title="No characters yet"
         art={{ role: "hero", image: <Illustration name="empty-characters" /> }}
         actions={
-          <Button variant="primary" onClick={onImport}>
-            <ImportIcon size={16} />
-            Import cards
-          </Button>
+          <>
+            <Button variant="primary" onClick={onImport}>
+              <ImportIcon size={16} />
+              Import
+            </Button>
+            <Button variant="quiet" onClick={onCreate}>
+              <LampFlameIcon size={16} />
+              Create with AI
+            </Button>
+          </>
         }
       >
         Import a character card as PNG or JSON{phone ? "" : ", or drop cards on this page"}.

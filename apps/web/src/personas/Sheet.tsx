@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +25,7 @@ import {
 } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
+import { AuthoringField } from "../sheet/FieldFeedback.tsx";
 import { FIELD, HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import { SheetActions } from "../sheet/SheetActions.tsx";
 import {
@@ -201,6 +203,7 @@ function PersonaEditor({
       </SheetHeader>
 
       <SheetBody
+        saving={{ status: autosave.status, noun: "persona" }}
         label="Persona sheet"
         after={
           autosave.status.kind === "conflict" && (
@@ -217,6 +220,7 @@ function PersonaEditor({
           className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-4 gap-y-5 tablet:grid-cols-[7rem_minmax(0,40rem)] tablet:gap-x-6"
         >
           <PortraitField
+            name={fields.name}
             owner="personas"
             noun="persona"
             id={id}
@@ -241,7 +245,7 @@ function PersonaEditor({
             Description
           </label>
           <div className="grid gap-2">
-            <textarea
+            <AuthoringField
               id="persona-description"
               value={fields.description}
               maxLength={CARD_LIMITS.textLength}
@@ -265,12 +269,18 @@ function PersonaEditor({
 /** A status line with Undo, as the sheet's removal notes are. */
 function UndoLine({ children, onUndo }: { children: ReactNode; onUndo: () => void }) {
   return (
-    <p role="status" className="flex flex-wrap items-center gap-x-2 text-note text-reed arrive">
+    <InlineStatus
+      as="p"
+      role="status"
+      className="arrive"
+      actions={
+        <Button size="text" className="text-ink" onClick={onUndo}>
+          Undo
+        </Button>
+      }
+    >
       {children}
-      <Button size="text" className="text-ink" onClick={onUndo}>
-        Undo
-      </Button>
-    </p>
+    </InlineStatus>
   );
 }
 
@@ -399,9 +409,9 @@ function GoesWith({ id }: { id: string }) {
           </UndoLine>
         )}
         {failed && (
-          <p role="alert" className="text-ember text-note">
+          <InlineStatus tone="error" as="p" role="alert">
             Not changed: {notReachedText}.
-          </p>
+          </InlineStatus>
         )}
         <p className={HELP}>
           Starting a chat with these characters switches to this persona. A character goes with one

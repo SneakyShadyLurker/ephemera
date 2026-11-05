@@ -2,10 +2,11 @@ import { userWorkflowId, WORKFLOW_LIMITS, type WorkflowSummary } from "@ephemera
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, type RefObject, useId, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
-import { NoticeSlot } from "@/app/NoticeCard.tsx";
+import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { ImportIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Infotip } from "@/components/ui/infotip";
+import { cn } from "@/lib/cn";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import {
   deletedLine,
@@ -14,13 +15,14 @@ import {
   WORKFLOWS_FULL,
 } from "../settings/pictures.ts";
 import { useSetting } from "../settings/settings.ts";
-import { HELP } from "../sheet/fields.ts";
+import { COMPACT_LABEL, FIELD_LABEL, HELP as SHEET_HELP } from "../sheet/fields.ts";
 import { Glides } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { refreshWorkflows, workflowsQuery } from "./queries.ts";
 import { WorkflowRow } from "./WorkflowRow.tsx";
 
-const GROUP = "font-medium text-note text-reed";
+const GROUP = COMPACT_LABEL;
+const HELP = cn(SHEET_HELP, "text-ui");
 
 /**
  * The workflows portraits can be painted with: the user's own, which they
@@ -73,7 +75,7 @@ export function Workflows({
     <section aria-labelledby={headingId} className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <span className="block">
-          <h3 id={headingId} className="inline font-medium text-ink text-ui">
+          <h3 id={headingId} className={cn(FIELD_LABEL, "inline")}>
             Workflows
           </h3>
           {about !== undefined && <Infotip label="Workflows">{about}</Infotip>}
@@ -98,9 +100,9 @@ export function Workflows({
       <NoticeSlot value={failed ? "failed" : null}>
         {() => (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <p role="status" className={HELP}>
+            <InlineStatus as="p" role="status" className={HELP}>
               {listFailedLine(notReached)}
-            </p>
+            </InlineStatus>
             <Button
               size="text"
               variant="outline"
@@ -113,14 +115,14 @@ export function Workflows({
         )}
       </NoticeSlot>
       {notice !== null && (
-        <p role="status" className={HELP}>
+        <InlineStatus as="p" role="status" className={HELP}>
           {notice}
-        </p>
+        </InlineStatus>
       )}
       {deleted !== null && fallback !== undefined && (
-        <p role="status" className={HELP}>
+        <InlineStatus as="p" role="status" className={HELP}>
           {deletedLine(deleted, fallback)}
-        </p>
+        </InlineStatus>
       )}
       <Glides>
         <div className="grid gap-1">
@@ -128,9 +130,11 @@ export function Workflows({
             Yours
           </h4>
           {yours.isPending ? (
-            <p className={HELP}>Listing workflows…</p>
+            <InlineStatus as="p" role="presentation">
+              Listing workflows…
+            </InlineStatus>
           ) : rows.length === 0 && !yours.isError ? (
-            <p className="flex items-baseline gap-2 text-pretty text-note text-reed">
+            <p className="flex items-baseline gap-2 text-pretty text-reed text-ui">
               <ImportIcon size={16} className="shrink-0 translate-y-[0.2em]" />
               {EMPTY_WORKFLOWS}
             </p>

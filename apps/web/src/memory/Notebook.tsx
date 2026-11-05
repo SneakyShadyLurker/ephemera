@@ -12,17 +12,27 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useId, useReducer, useRef, useState } from "react";
 import { z } from "zod";
 import { useCoarsePointer } from "@/app/form-factor.ts";
-import { CloseIcon, PlusIcon, RegenerateIcon, UndoIcon } from "@/components/icons";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
+import { CloseIcon, EditIcon, PlusIcon, RegenerateIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import { CAST_FIELD_LABELS } from "../chat/cast-ui.ts";
 import { chatStore } from "../chat/session.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
-import { useAutosave } from "../sheet/autosave.ts";
-import { FIELD, HELP, NOTEBOOK_GRID, sheetLabel } from "../sheet/fields.ts";
+import { type SaveStatus, useAutosave } from "../sheet/autosave.ts";
+import {
+  LINE_FIELD,
+  NOTEBOOK_GRID,
+  PROSE_FIELD as OPEN_PROSE,
+  HELP as SHEET_HELP,
+  sheetLabel,
+} from "../sheet/fields.ts";
+import { InlineSave } from "../sheet/InlineSave.tsx";
+import { ProseField } from "../sheet/ProseField.tsx";
 import {
   CAST_GENDERS,
   type CastLinePerson,
@@ -158,15 +168,14 @@ export function useNotebook(characterId: string, state: MemoryState, onSeen: (n:
 }
 
 /**
- * Memory prose, open on the page: muted as it reads, in ink while written.
- * A pointer over it brings up the field's edge and a faint wash, and the
- * text darkens, so it reads as editable before it is clicked; focus makes
- * it a field outright.
+ * Memory prose, open on the page, in ink as every editable value is. A
+ * pointer over it brings up the field's edge and a faint wash, so it reads
+ * as editable before it is clicked; focus makes it a field outright.
  */
-const PROSE_FIELD =
-  "w-full cursor-text resize-none rounded-md border border-transparent bg-transparent px-2 py-1 font-story text-reed text-turn [field-sizing:content] outline-none transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade placeholder:text-reed hover:border-rush hover:bg-surface-hover hover:text-ink focus:border-dusk-line focus:bg-surface focus:text-ink focus:shadow-focus read-only:cursor-default read-only:hover:border-transparent read-only:hover:bg-transparent read-only:hover:text-reed";
+const PROSE_FIELD = cn(OPEN_PROSE, "font-story text-ink text-turn");
 
 const MARGIN_LABEL = sheetLabel("line");
+const HELP = cn(SHEET_HELP, "text-turn");
 
 /** Line breaks of any kind: a relationship, a fact, a thread or a cast line is one line. */
 const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;
@@ -195,24 +204,33 @@ export function NotebookEditor({
   readOnly = false,
   source,
   onChange,
+  onCommit,
+  saveStatus,
 }: {
   fields: NotebookFields;
   readOnly?: boolean;
   /** Regenerate's source; without one the opening is edited by hand alone. */
   source?: OpeningSource;
   onChange: (patch: Partial<NotebookFields>) => void;
+  onCommit?: () => Promise<boolean>;
+  saveStatus?: SaveStatus;
 }) {
   const situationId = useId();
   const [write, dispatch] = useReducer(openingWriteAfter, { kind: "idle" });
   const writing = write.kind === "writing";
   const held = readOnly || writing;
   return (
-    <>
+    <div
+      className="group/notebook grid gap-6"
+      onBlurCapture={() => {
+        void onCommit?.();
+      }}
+    >
       <div className={NOTEBOOK_GRID}>
         <label htmlFor={situationId} className={MARGIN_LABEL}>
           Situation
         </label>
-        <textarea
+        <ProseField
           id={situationId}
           value={fields.name}
           readOnly={held}
@@ -221,7 +239,7 @@ export function NotebookEditor({
           placeholder="Where the story stands now, in a few sentences."
           onChange={(event) => onChange({ name: event.target.value })}
           // On touch, with no pointer to bring up its edge, the field keeps its lower rule at rest.
-          className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush")}
+          className={cn(PROSE_FIELD, "-mx-2 min-h-13")}
         />
       </div>
       <OpeningField
@@ -240,6 +258,8 @@ export function NotebookEditor({
         readOnly={held}
         pending={writing}
         onChange={(relationships) => onChange({ relationships })}
+        onCommit={onCommit}
+        saveStatus={saveStatus}
       />
       <Lines
         label="Facts"
@@ -249,6 +269,8 @@ export function NotebookEditor({
         readOnly={held}
         pending={writing}
         onChange={(facts) => onChange({ facts })}
+        onCommit={onCommit}
+        saveStatus={saveStatus}
       />
       <Lines
         label="Open threads"
@@ -258,6 +280,8 @@ export function NotebookEditor({
         readOnly={held}
         pending={writing}
         onChange={(threads) => onChange({ threads })}
+        onCommit={onCommit}
+        saveStatus={saveStatus}
       />
       <CastLines
         lines={fields.cast}
@@ -265,7 +289,14 @@ export function NotebookEditor({
         pending={writing}
         onChange={(cast) => onChange({ cast })}
       />
-    </>
+      {saveStatus && (
+        <div className={NOTEBOOK_GRID}>
+          <div className="flex min-h-11 items-center gap-3 tablet:col-start-2">
+            <InlineSave status={saveStatus} noun="notebook" />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -402,7 +433,7 @@ function OpeningField({
       <div className="grid gap-1">
         {/* While it is written, one light passes along the field's lower edge; the others hold still. */}
         <div className="relative grid">
-          <textarea
+          <ProseField
             id={fieldId}
             value={opening}
             readOnly={readOnly || writing}
@@ -414,14 +445,15 @@ function OpeningField({
               dispatch({ type: "edited" });
               onChange(event.target.value);
             }}
-            className={cn(PROSE_FIELD, "-mx-2 min-h-13 touch:border-b-rush")}
+            className={cn(PROSE_FIELD, "-mx-2 min-h-13")}
           />
           {writing && <span aria-hidden="true" className="lamplight-edge" />}
         </div>
         {/* One region for what Regenerate did, so each change is announced; empty, it takes no room. */}
-        <div
+        <InlineStatus
+          as="div"
           role="status"
-          className="flex flex-wrap items-center gap-x-1 text-note text-reed empty:hidden [&>p]:py-1.5"
+          className="flex flex-wrap items-center gap-x-1 empty:hidden [&>p]:py-1.5"
         >
           {writing && (
             <p className="sr-only">Writing a new opening from what {source?.name} remembers…</p>
@@ -466,7 +498,7 @@ function OpeningField({
               Regenerate waits. {reason}
             </p>
           )}
-        </div>
+        </InlineStatus>
         <p id={helpId} className={HELP}>
           Where the next chat begins. Empty, the card's own greeting opens it.
         </p>
@@ -499,6 +531,8 @@ function Lines({
   readOnly,
   pending,
   onChange,
+  onCommit,
+  saveStatus,
 }: {
   label: string;
   item: string;
@@ -508,6 +542,8 @@ function Lines({
   /** Held while the opening is written. */
   pending: boolean;
   onChange: (lines: string[]) => void;
+  onCommit?: (() => Promise<boolean>) | undefined;
+  saveStatus?: SaveStatus | undefined;
 }) {
   const fields = useRef<(HTMLTextAreaElement | null)[]>([]);
   const add = useRef<HTMLButtonElement>(null);
@@ -519,6 +555,7 @@ function Lines({
     setFocusAt(null);
   }, [focusAt]);
   const full = list.length >= max;
+  const [edited, setEdited] = useState<number | null>(null);
   const insert = (at: number) => {
     if (full) return;
     onChange([...list.slice(0, at), "", ...list.slice(at)]);
@@ -543,9 +580,10 @@ function Lines({
               <li
                 // biome-ignore lint/suspicious/noArrayIndexKey: a line is its position in the list.
                 key={at}
-                className="group/line flex min-w-0 items-start gap-1 border-rush border-b py-1"
+                className="group/line grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-1 border-rush border-b py-1"
               >
-                <textarea
+                <ProseField
+                  onBlur={() => void onCommit?.()}
                   ref={(element) => {
                     fields.current[at] = element;
                   }}
@@ -565,6 +603,7 @@ function Lines({
                     }
                   }}
                   onChange={(event) => {
+                    setEdited(at);
                     const next = [...list];
                     next[at] = event.target.value.replace(BREAKS, " ");
                     onChange(next);
@@ -580,6 +619,11 @@ function Lines({
                 >
                   <CloseIcon size={16} />
                 </Button>
+                {edited === at && saveStatus && (
+                  <span className="col-span-full">
+                    <InlineSave status={saveStatus} noun="notebook" />
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -603,9 +647,6 @@ function Lines({
 /** A cast detail's words after its label, in the line under a person's name. */
 const detailText = (person: CastLinePerson, field: CastAnchorField) =>
   `${CAST_FIELD_LABELS[field].toLowerCase()} ${person[field]?.trim()}`;
-
-/** A small labelled field of a person's form, as the sheet's small fields are. */
-const SMALL_FIELD = cn(FIELD, "h-9 py-0 text-ui touch:h-11");
 
 /**
  * The cast: people the story invented and keeps meeting, each a row that
@@ -694,7 +735,7 @@ function CastLines({
                 <li key={at} className="group/line border-rush border-b py-1">
                   {person === null ? (
                     <div className="flex min-w-0 items-start gap-1">
-                      <textarea
+                      <ProseField
                         ref={(element) => {
                           rows.current[at] = element;
                         }}
@@ -748,8 +789,12 @@ function CastLines({
                           keep(at, person);
                           setFocusAt(at);
                         }}
-                        className="-ml-2 grid min-w-0 flex-1 gap-0.5 rounded-md px-2 py-1 text-left row"
+                        className="relative -ml-2 grid min-w-0 flex-1 gap-0.5 rounded-md py-1 pr-8 pl-2 text-left row"
                       >
+                        <EditIcon
+                          size={16}
+                          className="pointer-events-none absolute top-2 right-2 text-reed"
+                        />
                         <span className="font-story text-ink text-turn">
                           {person.name?.trim() || "Unnamed"}
                         </span>
@@ -789,9 +834,9 @@ function CastLines({
           {full ? `${MEMORY_LIMITS.cast} people is the most a notebook keeps` : "Add a person"}
         </Button>
         <p id={helpId} className={HELP}>
-          People the story invented and keeps meeting: a name, a gender and only details that stay
-          fixed, never what they are doing. A person without a name is not kept. A line that does
-          not read as a person stays as written and brings no one into a new chat.
+          Recurring people: a name, gender and fixed details. Current activity belongs in the scene.
+          Unnamed people are not kept; unrecognized lines stay as written and bring no one into a
+          new chat.
         </p>
       </div>
     </fieldset>
@@ -828,7 +873,7 @@ function CastPersonForm({
   };
   const field = (key: string, label: string, maxLength: number, ref?: typeof first) => (
     <label key={key} className="grid gap-1.5">
-      <span className="text-note text-reed">{label}</span>
+      <span className={COMPACT_LABEL}>{label}</span>
       <input
         ref={ref}
         value={person[key] ?? ""}
@@ -837,7 +882,7 @@ function CastPersonForm({
         readOnly={readOnly}
         aria-readonly={readOnly || undefined}
         onChange={(event) => change({ ...person, [key]: event.target.value })}
-        className={SMALL_FIELD}
+        className={LINE_FIELD}
       />
     </label>
   );
@@ -846,7 +891,7 @@ function CastPersonForm({
       <div className="grid gap-3 tablet:grid-cols-[minmax(0,1fr)_9rem]">
         {field("name", "Name", CAST_LIMITS.name, first)}
         <div className="grid gap-1.5">
-          <span id={genderId} className="text-note text-reed">
+          <span id={genderId} className={COMPACT_LABEL}>
             Gender
           </span>
           <Select
@@ -871,10 +916,10 @@ function CastPersonForm({
       <div className="grid gap-3 tablet:grid-cols-2">
         {CAST_ANCHOR_FIELDS.map((key) => field(key, CAST_FIELD_LABELS[key], CAST_LIMITS.field))}
       </div>
-      <p role="status" className="text-note text-ember empty:sr-only">
+      <InlineStatus tone="error" as="p" role="status" className="empty:sr-only">
         {full &&
           `This person's details are at the ${MEMORY_LIMITS.castLine.toLocaleString("en")} characters a cast line holds. Shorten one to add more.`}
-      </p>
+      </InlineStatus>
       <div className="flex items-center justify-between gap-2">
         <Button variant="outline" onClick={onDone}>
           Done

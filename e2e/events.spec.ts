@@ -58,6 +58,78 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 
+test("closing Events saves edits made while its close save is waiting", async ({
+  page,
+  request,
+}) => {
+  await freshChat(request);
+  const original = "The lamp flickers.";
+  const edited = "The lamp flickers twice.";
+  const other = "The door opens.";
+  const later = "The door opens slowly.";
+  const id = await createEventViaApi(request, original);
+  const otherId = await createEventViaApi(request, other);
+  const held = await holdAnswer(page, id, "PATCH");
+  try {
+    const now = Date.now();
+    await page.clock.install({ time: now });
+    await page.goto("/lorebooks");
+    await openEvents(page);
+    await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+    await sheet.getByRole("button", { name: original }).click();
+    await sheet.getByRole("button", { name: other }).click();
+    const instruction = sheet.locator(`[data-event="${id}"]`).getByRole("textbox", {
+      name: "Instruction",
+    });
+    const otherInstruction = sheet.locator(`[data-event="${otherId}"]`).getByRole("textbox", {
+      name: "Instruction",
+    });
+    // Only close can save A; B stays clean until that flush is already waiting.
+    await page.clock.pauseAt(now + 60_000);
+    await instruction.fill(edited);
+    await page.keyboard.press("Escape");
+    await held.committed;
+    await expect(sheet).toBeVisible();
+    await otherInstruction.fill(later);
+    await expect(otherInstruction).toHaveValue(later);
+    held.release();
+    // Keep B's debounce paused: the close loop must find and flush this newly dirty row.
+    await expect
+      .poll(async () => (await storedEvents(request)).find((event) => event.id === otherId)?.text)
+      .toBe(later);
+    await page.clock.resume();
+    await expect(sheet).toHaveCount(0);
+    expect((await storedEvents(request)).find((event) => event.id === id)?.text).toBe(edited);
+    await page.getByRole("button", { name: "Events", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: edited })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: later })).toBeVisible();
+  } finally {
+    held.release();
+  }
+});
+
+test("a failed save keeps Events and its draft open when dismissed", async ({ page, request }) => {
+  await freshChat(request);
+  await createEventViaApi(request, "The door opens.");
+  await page.goto("/lorebooks");
+  await openEvents(page);
+  await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+  await sheet.getByRole("button", { name: "The door opens." }).click();
+  await page.route("**/api/events/*", (route) =>
+    route.request().method() === "PATCH" ? route.abort() : route.fallback(),
+  );
+  const instruction = sheet.getByRole("textbox", { name: "Instruction" });
+  await instruction.fill("The door opens slowly.");
+  await page.keyboard.press("Escape");
+  const warning = page.getByRole("alertdialog", { name: "Leave without saving?" });
+  await expect(warning).toContainText("Not saved");
+  await warning.getByRole("button", { name: "Stay" }).click();
+  await expect(instruction).toHaveValue("The door opens slowly.");
+  await expect(sheet).toBeVisible();
+});
+
 /** A link of the main navigation. */
 const mainLink = (page: Page, name: string) =>
   page.getByRole("navigation", { name: "Main" }).getByRole("link", { name });
@@ -82,6 +154,7 @@ test("an event made on the Lorebooks screen survives a reload and shows in the i
   const instruction = page.getByRole("textbox", { name: "Instruction" });
   await expect(instruction).toBeFocused();
   await instruction.fill(text);
+  await page.getByText("Advanced", { exact: true }).click();
   const chance = page.getByRole("textbox", { name: "Chance per reply in percent" });
   await chance.fill("100");
   await chance.press("Tab");
@@ -107,7 +180,21 @@ test("an event made on the Lorebooks screen survives a reload and shows in the i
   await expect(events.getByRole("button", { name: text })).toContainText("All characters");
   await expect(page.getByRole("switch", { name: `Enable ${text}` })).toBeChecked();
 
-  await page.goto("/");
+  await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Events", exact: true });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText("Events apply across your chats.");
+  await expect(sheet.getByRole("list", { name: "Events" })).toContainText(text);
+  await sheet.getByRole("link", { name: "Events in Lorebooks", exact: true }).click();
+  await expect(page).toHaveURL(/\/lorebooks$/);
+  await expect(page.getByRole("button", { name: "Events", exact: true })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(page.getByRole("region", { name: "Events", exact: true })).toContainText(
+    "Events apply across your chats.",
+  );
+  await mainLink(page, "Chat").click();
   const line = canary("in");
   const direction = `${LEAD}${text}.${CLOSE}`;
   expect(await exchange(page, line)).toEqual([direction]);
@@ -161,6 +248,7 @@ test("an event chosen for a tag fires for a character with it, not for one witho
   await openEvents(page);
   const events = page.getByRole("list", { name: "Events" });
   await events.getByRole("button", { name: text }).click();
+  await page.getByText("Advanced", { exact: true }).click();
   await page.getByRole("radio", { name: "Chosen characters and tags" }).click();
   await expect(events.getByRole("button", { name: text })).toContainText("Applies to no one yet.");
   await page.getByRole("button", { name: "Tags", exact: true }).click();
@@ -262,6 +350,7 @@ test("a blank new event never holds leaving; a cleared instruction stays not sav
   // A new event with its numbers changed and no instruction: nothing to keep.
   await page.getByRole("button", { name: "New event" }).click();
   const fresh = page.locator("li[data-event]").first();
+  await fresh.getByText("Advanced", { exact: true }).click();
   const chance = fresh.getByRole("textbox", { name: "Chance per reply in percent" });
   await chance.fill("70");
   await chance.press("Tab");
@@ -277,6 +366,7 @@ test("a blank new event never holds leaving; a cleared instruction stays not sav
   expect(dialogs).toBe(0);
   await openEvents(page);
   await page.getByRole("button", { name: "New event" }).click();
+  await page.locator("li[data-event]").first().getByText("Advanced", { exact: true }).click();
   const again = page
     .locator("li[data-event]")
     .first()
@@ -572,6 +662,18 @@ test("a deletion here whose answer is lost after its event went keeps the edits,
     expect(sent("PATCH")).toBe(patches);
 
     await rows.getByRole("button", { name: "Discard edits" }).click();
+    // The discarded row leaves inert; the held retry clock must advance its exit frames.
+    await expect(rows).toHaveAttribute("inert", "");
+    await expect(rows).toHaveAttribute("aria-hidden", "true");
+    await page.clock.runFor(1_000);
+    await page.clock.resume();
+    // Motion starts native opacity on performance.now(), which the retry clock jumped.
+    // Let that fade run on the browser's document timeline once the clock is resumed.
+    await rows.evaluate((element) => {
+      const now = document.timeline.currentTime;
+      if (typeof now !== "number") throw new Error("No document animation timeline");
+      for (const animation of element.getAnimations()) animation.startTime = now;
+    });
     await expect(rows).toHaveCount(0);
     expect(sent("DELETE")).toBe(1);
     expect(await storedEvents(request)).toEqual([]);

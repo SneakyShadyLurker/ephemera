@@ -3,15 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { ChoicePicker } from "@/app/ChoicePicker.tsx";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { LorebookIcon, PlusIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { byName } from "@/lib/find";
 import { booksOf, LINKS_FULL_TEXT, linksFull } from "../lorebooks/library.ts";
 import { createLorebook, libraryQuery, type NewLorebook } from "../lorebooks/queries.ts";
 import { useLinks } from "../lorebooks/useLinks.ts";
 import { creations } from "../sheet/creation.ts";
-import { HELP } from "../sheet/fields.ts";
+import { FIELD_LABEL, HELP } from "../sheet/fields.ts";
 import { entriesText } from "./marks.tsx";
 
 const NEW_NAME = "New lorebook";
@@ -26,10 +27,12 @@ export function LinkedBooks({
   id,
   name,
   locked,
+  utility = false,
 }: {
   id: string | null;
   name: string;
   locked: boolean;
+  utility?: boolean;
 }) {
   const library = useQuery({ ...libraryQuery, enabled: id !== null });
   const links = useLinks();
@@ -126,9 +129,76 @@ export function LinkedBooks({
       };
     });
 
+  const picker = (
+    <ChoicePicker
+      trigger={
+        <>
+          <PlusIcon size={16} />
+          Link a lorebook
+        </>
+      }
+      disabled={off}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setCreateFailed(null);
+      }}
+      title={`Lorebooks linked to ${name}`}
+      sheetTitle="Linked lorebooks"
+      findLabel="Find a lorebook"
+      empty="No lorebooks in your library yet."
+      noMatch="No lorebook matches."
+      choices={choices}
+      actions={{ add: "Link", linked: "Linked", remove: "Unlink" }}
+      onToggle={(choice, checked) => {
+        if (id === null) return;
+        setDone(null);
+        void links
+          .change({ lorebookId: choice.id, characterId: id, character: name, linked: checked })
+          .then((ok) => {
+            if (!ok) return;
+            setDone(checked ? `Linked ${choice.name}.` : `Unlinked ${choice.name}.`);
+            setOpen(false);
+          });
+      }}
+      notice={
+        (links.error ?? createFailed) !== null && (
+          <InlineStatus tone="error" as="p" role="alert" className="px-2.5 pb-1.5">
+            {links.error ?? createFailed}
+          </InlineStatus>
+        )
+      }
+      footer={
+        <div className="border-rush border-t p-1.5">
+          <Button
+            className="w-full justify-start"
+            disabled={full || creating}
+            onClick={() => void createAndLink()}
+          >
+            <PlusIcon size={16} />
+            {creating ? "Creating…" : "New lorebook"}
+          </Button>
+          {full && <p className="px-2.5 pb-1 text-meta text-reed">{LINKS_FULL_TEXT}</p>}
+        </div>
+      }
+    />
+  );
+  if (utility)
+    return (
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2" data-link-trigger="">
+        {picker}
+        <InlineStatus
+          as="span"
+          role="status"
+          className="min-w-0 break-words text-meta empty:hidden"
+        >
+          {done}
+        </InlineStatus>
+      </div>
+    );
   return (
     <div ref={list} className="grid gap-3">
-      <h3 className="font-medium text-ink text-ui">Linked from your library</h3>
+      <h3 className={FIELD_LABEL}>Linked from your library</h3>
       {linked.length > 0 && (
         <ul aria-label="Linked lorebooks" className="grid border-rush border-t">
           {linked.map((book) => (
@@ -148,9 +218,13 @@ export function LinkedBooks({
                     to="/lorebooks/$id"
                     params={{ id: book.id }}
                     title={book.name}
-                    className="truncate text-ink text-ui underline decoration-control-edge underline-offset-4 hover:decoration-ink touch:relative touch:-my-3 touch:py-3"
+                    // Reserve the whole target in the row; only the words may clip.
+                    className={cn(
+                      buttonVariants({ variant: "link", size: "text" }),
+                      "h-6 min-w-0 justify-start px-0 text-ui",
+                    )}
                   >
-                    {book.name}
+                    <span className="truncate">{book.name}</span>
                   </Link>
                 )}
                 <span className="text-meta text-reed">{entriesText(book)}</span>
@@ -167,67 +241,18 @@ export function LinkedBooks({
         </ul>
       )}
       <div className="flex flex-wrap items-center gap-3" data-link-trigger="">
-        <ChoicePicker
-          trigger={
-            <>
-              <PlusIcon size={16} />
-              Link a lorebook
-            </>
-          }
-          disabled={off}
-          open={open}
-          onOpenChange={(next) => {
-            setOpen(next);
-            if (next) setCreateFailed(null);
-          }}
-          title={`Lorebooks linked to ${name}`}
-          sheetTitle="Linked lorebooks"
-          findLabel="Find a lorebook"
-          empty="No lorebooks in your library yet."
-          noMatch="No lorebook matches."
-          choices={choices}
-          onToggle={(choice, checked) => {
-            if (id === null) return;
-            setDone(null);
-            void links.change({
-              lorebookId: choice.id,
-              characterId: id,
-              character: name,
-              linked: checked,
-            });
-          }}
-          notice={
-            (links.error ?? createFailed) !== null && (
-              <p role="alert" className="px-2.5 pb-1.5 text-ember text-note">
-                {links.error ?? createFailed}
-              </p>
-            )
-          }
-          footer={
-            <div className="border-rush border-t p-1.5">
-              <Button
-                className="w-full justify-start"
-                disabled={full || creating}
-                onClick={() => void createAndLink()}
-              >
-                <PlusIcon size={16} />
-                {creating ? "Creating…" : "New lorebook"}
-              </Button>
-              {full && <p className="px-2.5 pb-1 text-meta text-reed">{LINKS_FULL_TEXT}</p>}
-            </div>
-          }
-        />
+        {picker}
         {linked.length > 0 && (
           <span className="text-meta text-reed">{linkedCountText(linked.length)}</span>
         )}
       </div>
-      <p role="status" className={cn(HELP, "empty:hidden")}>
+      <InlineStatus as="p" role="status" className={cn(HELP, "empty:hidden")}>
         {done}
-      </p>
+      </InlineStatus>
       {links.error !== null && !open && (
-        <p role="alert" className="text-ember text-note">
+        <InlineStatus tone="error" as="p" role="alert">
           {links.error}
-        </p>
+        </InlineStatus>
       )}
       <p className={HELP}>
         Read with every chat with {name}, after the book in the card. Unlinking keeps the book in

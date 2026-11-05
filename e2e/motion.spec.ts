@@ -149,7 +149,7 @@ test("Session opens and closes its layout slot continuously, including a reverse
     .evaluate((element) => element.getBoundingClientRect().width);
   const opening = await sessionWidths(page, true);
   const after = opening.at(-1) ?? 0;
-  expect(before - after).toBeCloseTo(320, 0);
+  expect(before - after).toBeCloseTo(432, 0);
   expect(opening.some((width) => width < before - 1 && width > after + 1)).toBe(true);
   const closing = await sessionWidths(page, false);
   expect(closing.some((width) => width > after + 1 && width < before - 1)).toBe(true);
@@ -183,7 +183,7 @@ test("Session opens and closes its layout slot continuously, including a reverse
   await expect(session).toBeVisible();
   await expect
     .poll(() => session.evaluate((element) => element.getBoundingClientRect().width))
-    .toBeCloseTo(320, 0);
+    .toBeCloseTo(432, 0);
   await session.getByRole("button", { name: "Close Session" }).click();
   await expect(session).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Session", exact: true })).toBeFocused();
@@ -220,7 +220,7 @@ test("reduced-motion Session keeps its width while its closing fade is visible",
       }),
   );
   expect(frames.some(({ opacity }) => opacity > 0.05 && opacity < 0.95)).toBe(true);
-  for (const { width } of frames) expect(width).toBeCloseTo(320, 0);
+  for (const { width } of frames) expect(width).toBeCloseTo(432, 0);
   await expect(page.getByRole("complementary", { name: "Session" })).toHaveCount(0);
 });
 
@@ -392,13 +392,15 @@ test("creator completion transitions the scrolled writing into the top of the sh
   expect(layers["creator-header"]).toMatch(/^\d+$/);
   for (const name of ["creator-frame", "creator-heading", "root"])
     expect(layer("creator-header")).toBeGreaterThan(layer(name));
-  // The frame and the name each glide as one shared element: a group that moves, holding
-  // the old and the new image, so neither is drawn twice in two places.
-  for (const name of ["creator-frame", "creator-heading"]) {
+  // The name glides as one shared element. With portraits off, the absent asset
+  // has no arriving frame; the small caption takes its place in the showcase.
+  for (const name of ["creator-heading"]) {
     expect(parts).toContain(`::view-transition-group(${name})`);
     expect(parts).toContain(`::view-transition-old(${name})`);
     expect(parts).toContain(`::view-transition-new(${name})`);
   }
+  expect(parts).not.toContain("::view-transition-new(creator-frame)");
+  await expect(page.getByText("No portrait", { exact: true })).toBeVisible();
   // The Keep bar is new: it fades in as its own part, not inside the text's crossfade.
   expect(parts).toContain("::view-transition-new(creator-keep)");
   expect(parts).not.toContain("::view-transition-old(creator-keep)");
@@ -593,7 +595,7 @@ for (const kind of ["characters", "personas"] as const) {
     }
     await expect(page).toHaveURL(new RegExp(`/${kind}/[0-9a-f-]{36}$`));
     await expect(name).toBeFocused();
-    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
       "First save keeps typing",
@@ -907,13 +909,20 @@ test("Undo holds its deadline for focus and hover, then expires inert at full he
   await events.getByRole("button", { name: "Delete event", exact: true }).click();
   const row = page.locator("[data-removed]");
   await expect(row.getByRole("button", { name: "Undo", exact: true })).toBeFocused();
+  // The outgoing event still occupies height during its fade. Let it leave
+  // before advancing the clock or hovering, so scroll clamping cannot move Undo.
+  await expect(events.locator("[data-event]")).toHaveCount(0);
   await page.clock.runFor(9_000);
   await expect(row).not.toHaveAttribute("inert");
   await row.hover();
-  await section.focus();
+  // Moving focus must keep the pointer over Undo, even when the expanded Events
+  // section needs scrolling after its cross-link was added.
+  await section.evaluate((element) => element.focus({ preventScroll: true }));
+  await expect.poll(() => row.evaluate((element) => element.matches(":hover"))).toBe(true);
   await page.clock.runFor(9_000);
   await expect(row).not.toHaveAttribute("inert");
   await page.mouse.move(0, 0);
+  await expect.poll(() => row.evaluate((element) => element.matches(":hover"))).toBe(false);
   const height = (await row.boundingBox())?.height ?? 0;
   await page.clock.runFor(7_000);
   await expect(row).not.toHaveAttribute("inert");
@@ -967,7 +976,7 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-exit"), model: "mock-fast" });
   const bar = page.locator('[role="region"][aria-label="AI Rework"]');
-  await expect(bar).toContainText("3 changes in 2 fields");
+  await expect(bar).toContainText("3 changes to apply");
   await expect(bar).toHaveCSS("opacity", "1");
   const cleared = bar.evaluate(
     (element) =>
@@ -992,8 +1001,8 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   );
   await bar.getByRole("button", { name: "Discard", exact: true }).click();
   const after = await cleared;
-  expect(after.outgoing).toContain("3 changes in 2 fields");
-  expect(after.outgoing).toContain("1 change could not be matched");
+  expect(after.outgoing).toContain("3 changes to apply");
+  expect(after.outgoing).toContain("1 could not be placed");
   expect(after.inert).toBe(true);
   expect(after.remains).toBe(false);
   expect(after.html).not.toContain(`${base}-rej`);
@@ -1066,7 +1075,7 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-fade"), model: "mock-fast" });
   const bar = page.locator('[role="region"][aria-label="AI Rework"]');
-  await expect(bar).toContainText("3 changes in 2 fields");
+  await expect(bar).toContainText("3 changes to apply");
   await expect(bar).toHaveCSS("opacity", "1");
   const height = (await bar.boundingBox())?.height ?? 0;
   const closing = exitFrames(bar);
@@ -1077,7 +1086,7 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
     expect(frame.height).toBeCloseTo(height, 0);
     expect(frame.inert).toBe(true);
     expect(frame.hidden).toBe(true);
-    expect(frame.text).toContain("3 changes in 2 fields");
+    expect(frame.text).toContain("3 changes to apply");
   }
   await expect(bar).toHaveCount(0);
 });
@@ -1297,21 +1306,21 @@ test("the palette editor leaves inert and folded, with its last contents", async
 });
 
 /**
- * The last reply's actions row, as its distance below the top of the reply's prose, each frame
+ * The last reply's actions row, as its distance below the top of the turn, each frame
  * from now until it has moved and then held still for a while.
  */
 function rowOffsets(page: Page) {
   return page.evaluate(
     () =>
       new Promise<number[]>((resolve) => {
-        const prose = [...document.querySelectorAll('[data-role="assistant"] [data-prose]')].at(-1);
+        const turn = [...document.querySelectorAll('[data-message][data-role="assistant"]')].at(-1);
         const row = document.querySelector("[data-reply-actions]");
-        if (prose === undefined || row === null) return resolve([]);
+        if (turn === undefined || row === null) return resolve([]);
         const offsets: number[] = [];
         let held = 0;
         const sample = () => {
           const offset = Math.round(
-            row.getBoundingClientRect().top - prose.getBoundingClientRect().top,
+            row.getBoundingClientRect().top - turn.getBoundingClientRect().top,
           );
           held = offset === offsets.at(-1) ? held + 1 : 0;
           offsets.push(offset);
@@ -1330,7 +1339,7 @@ test("New reply removes the outgoing alternate under normal motion, including re
   await openChat(page, "mock-fast");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-  const frame = lastReply(page).locator("[data-prose] > div").first();
+  const frame = lastReply(page).locator("[data-swipe]:not([data-leaving])");
   for (const model of ["mock-fast", "mock-fast", "mock-slow"] as const) {
     await chooseModel(page, model);
     const outgoing = await frame.elementHandle();
@@ -1353,19 +1362,19 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
   await chooseModel(page, "mock-long");
   const sampling = page.evaluate(
     () =>
-      new Promise<{ text: string; opacity: number; x: string; clipped: number }[]>((resolve) => {
-        const frames: { text: string; opacity: number; x: string; clipped: number }[] = [];
+      new Promise<{ text: string; opacity: number; x: number; clipped: number }[]>((resolve) => {
+        const frames: { text: string; opacity: number; x: number; clipped: number }[] = [];
         const start = performance.now();
         const sample = () => {
           const frame = document.querySelector<HTMLElement>(
-            '[data-message][data-role="assistant"]:last-of-type [data-prose] > div',
+            '[data-message][data-role="assistant"]:last-of-type [data-swipe]:not([data-leaving])',
           );
           if (frame) {
             const style = getComputedStyle(frame);
             frames.push({
               text: frame.textContent ?? "",
               opacity: Number.parseFloat(style.opacity),
-              x: style.transform,
+              x: new DOMMatrixReadOnly(style.transform).m41,
               clipped: frame.scrollHeight - frame.clientHeight,
             });
           }
@@ -1379,6 +1388,7 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
   const frames = await sampling;
   const arriving = frames.filter(({ text, opacity }) => text.includes("Line 1") && opacity > 0);
   expect(arriving, JSON.stringify(frames.slice(-5))).not.toHaveLength(0);
+  expect(arriving.some(({ x }) => Math.abs(x) > 0.5)).toBe(true);
   expect(
     arriving
       .filter(({ clipped }) => clipped > 1)
@@ -1388,40 +1398,46 @@ test("New reply shows growing streaming prose without clipping", async ({ page }
   await page.getByRole("button", { name: "Stop", exact: true }).click();
 });
 
-for (const reduced of [false, true]) {
-  test(`an alternate of another length ${reduced ? "moves the row below it in one step under reduced motion" : "eases the row below it"}`, async ({
-    page,
-  }) => {
-    if (reduced) await page.emulateMedia({ reducedMotion: "reduce" });
-    await openChat(page, "mock-fast");
-    await send(page, canary("in"));
-    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-    // A second alternate of several paragraphs, against the first's one line.
-    await chooseModel(page, "mock-hostile");
-    await replyActions(page).getByRole("button", { name: "New reply" }).click();
-    await expect(replyCounter(page)).toContainText("2 / 2");
-    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-    const pager = (name: "Previous reply" | "Next reply") =>
-      replyCounter(page).getByRole("button", { name });
-    const frame = lastReply(page).locator("[data-prose] > div").first();
-    await pager("Previous reply").click();
-    await expect(frame).toContainText("Reply:");
-    await expect(frame).toHaveCSS("opacity", "1");
-    // Back to the long one, and settled there before stepping to the short one.
-    const growing = rowOffsets(page);
-    await pager("Next reply").click();
-    await growing;
-    await expect(frame).toContainText("She smiles.");
-    const moving = rowOffsets(page);
-    await pager("Previous reply").click();
-    const offsets = await moving;
-    await expect(replyCounter(page)).toContainText("1 / 2");
-    const distinct = new Set(offsets);
-    // The row ends higher, as the shorter alternate is.
-    expect(offsets.at(-1)).toBeLessThan(offsets[0] ?? Number.NaN);
-    if (reduced) expect(distinct.size).toBe(2);
-    else expect(distinct.size).toBeGreaterThan(2);
-  });
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  for (const reduced of [false, true]) {
+    test(`at ${viewport.width}px an alternate of another length ${reduced ? "moves the row below it in one step under reduced motion" : "eases the row below it"}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      if (reduced) await page.emulateMedia({ reducedMotion: "reduce" });
+      await openChat(page, "mock-fast");
+      await send(page, canary("in"));
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      // A second alternate of several paragraphs, against the first's one line.
+      await chooseModel(page, "mock-hostile");
+      await replyActions(page).getByRole("button", { name: "New reply" }).click();
+      await expect(replyCounter(page)).toContainText("2 / 2");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      const pager = (name: "Previous reply" | "Next reply") =>
+        replyCounter(page).getByRole("button", { name });
+      const frame = lastReply(page).locator("[data-swipe]:not([data-leaving])");
+      await pager("Previous reply").click();
+      await expect(frame).toContainText("Reply:");
+      await expect(frame).toHaveCSS("opacity", "1");
+      // Back to the long one, and settled there before stepping to the short one.
+      const growing = rowOffsets(page);
+      await pager("Next reply").click();
+      await growing;
+      await expect(frame).toContainText("She smiles.");
+      const moving = rowOffsets(page);
+      await pager("Previous reply").click();
+      const offsets = await moving;
+      await expect(replyCounter(page)).toContainText("1 / 2");
+      const distinct = new Set(offsets);
+      // The row ends higher, as the shorter alternate is.
+      expect(offsets.at(-1)).toBeLessThan(offsets[0] ?? Number.NaN);
+      if (reduced) expect(distinct.size).toBe(2);
+      else expect(distinct.size).toBeGreaterThan(2);
+    });
+  }
 }
 
 /** Latest's wrapper each frame from now until it no longer shows. */

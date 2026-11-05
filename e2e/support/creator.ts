@@ -110,8 +110,8 @@ export function kindControl(page: Page) {
   };
 }
 
-/** Keep's label while no portrait is on show, for either kind. */
-export const KEEP_WITHOUT_PORTRAIT = "Keep without portrait";
+/** The primary Keep action names the card's kind, with or without art. */
+export const KEEP_WITHOUT_PORTRAIT = /^Keep (character|scenario)$/;
 
 export const IMAGES = ["img0", "img1", "img2", "img3"] as const satisfies Mark[];
 
@@ -181,7 +181,10 @@ export async function createCard(
 ) {
   if (!onGallery) await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator(`[data-kind="${kind}"]`).click();
+  if (kind !== "subject") {
+    await page.getByRole("button", { name: "Change from Subject" }).click();
+    await page.locator(`[data-kind="${kind}"]`).click();
+  }
   const field = page.getByRole("textbox", { name: COPY[kind].field });
   await field.fill(description);
   await expect(field).toHaveValue(description);

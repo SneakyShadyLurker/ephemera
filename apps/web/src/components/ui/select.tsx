@@ -1,14 +1,30 @@
 import { Select as SelectPrimitive } from "@base-ui/react/select";
-import { type ReactNode, useId } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import { CheckIcon, ChevronDownIcon } from "@/components/icons";
 import { POPUP_EDGE } from "@/components/ui/positioner";
 import { cn } from "@/lib/cn";
+import { FieldFeedback } from "@/sheet/FieldFeedback.tsx";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 
-const Select = SelectPrimitive.Root;
+function Select<Value>(props: ComponentProps<typeof SelectPrimitive.Root<Value>>) {
+  return (
+    <SelectPrimitive.Root {...props}>
+      <FieldFeedback value={props.value}>{props.children}</FieldFeedback>
+    </SelectPrimitive.Root>
+  );
+}
 
 /** A closed list's look, shared by the searchable model picker's trigger. */
 const TRIGGER =
   "press flex h-9 w-full items-center justify-between gap-2 rounded-md border border-control-edge bg-surface pr-2 pl-3 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover data-disabled:cursor-default data-disabled:border-rush data-disabled:bg-surface data-disabled:text-text-disabled touch:h-11";
+
+/**
+ * A choice set in a line of words (the composer's persona and sampler): its
+ * value in the field select's type and boundary, with a real 44px touch
+ * region so its layout reserves the whole target.
+ */
+const INLINE_TRIGGER =
+  "press relative inline-flex h-11 min-w-0 w-full items-center gap-2 rounded-md border border-control-edge bg-surface px-2 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover focus-visible:border-dusk-line";
 
 /** The trigger's chevron, turning while the list is open. */
 const TRIGGER_ICON =
@@ -22,17 +38,38 @@ const TRIGGER_ICON =
 function SelectTrigger({
   className,
   placeholder,
+  look = "field",
+  leading,
+  caption,
+  captionId,
   children,
   ...props
-}: SelectPrimitive.Trigger.Props & { placeholder: string }) {
+}: SelectPrimitive.Trigger.Props & {
+  placeholder: string;
+  look?: "field" | "inline";
+  leading?: ReactNode;
+  caption?: string | undefined;
+  captionId?: string | undefined;
+}) {
   return (
-    <SelectPrimitive.Trigger className={cn(TRIGGER, className)} {...props}>
-      {children ?? (
-        <SelectPrimitive.Value
-          placeholder={placeholder}
-          className="min-w-0 flex-1 truncate data-placeholder:text-reed"
-        />
-      )}
+    <SelectPrimitive.Trigger
+      className={cn(look === "inline" ? INLINE_TRIGGER : TRIGGER, className)}
+      {...props}
+    >
+      {leading}
+      <span className="grid min-w-0 flex-1 content-center">
+        {caption && (
+          <span id={captionId} className={COMPACT_LABEL}>
+            {caption}
+          </span>
+        )}
+        {children ?? (
+          <SelectPrimitive.Value
+            placeholder={placeholder}
+            className="min-w-0 flex-1 truncate data-placeholder:text-reed"
+          />
+        )}
+      </span>
       <SelectPrimitive.Icon className={TRIGGER_ICON}>
         <ChevronDownIcon size={16} />
       </SelectPrimitive.Icon>
@@ -143,7 +180,7 @@ function SelectItem({
     >
       <span className="grid min-w-0 gap-0.5">
         <SelectPrimitive.ItemText className="text-ui">{children}</SelectPrimitive.ItemText>
-        <span id={descriptionId} aria-hidden="true" className="text-pretty text-meta text-reed">
+        <span id={descriptionId} aria-hidden="true" className="text-pretty text-note text-reed">
           {description}
         </span>
       </span>

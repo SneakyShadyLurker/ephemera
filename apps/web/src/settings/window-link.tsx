@@ -1,5 +1,6 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import type { ReactNode, Ref } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { type Section, WINDOW_SECTION } from "./sections.ts";
 
@@ -21,8 +22,7 @@ declare module "@tanstack/react-router" {
 }
 
 /** In a line of text: underlined ink. */
-const INLINE =
-  "text-ink underline decoration-rush underline-offset-4 transition-[text-decoration-color] duration-(--duration-quick) ease-fade hover:decoration-ink";
+const INLINE = buttonVariants({ variant: "link", size: "inline" });
 
 /**
  * A link to Context on `model`'s window field; without a model, to the
@@ -34,6 +34,7 @@ export function WindowLink({
   section = WINDOW_SECTION,
   label,
   className,
+  onClick,
   children,
 }: {
   model: string | null;
@@ -41,6 +42,7 @@ export function WindowLink({
   /** The accessible name, when the visible words alone would repeat on the page. */
   label?: string;
   className?: string;
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -49,6 +51,7 @@ export function WindowLink({
       search={model === null ? { section } : { window: model }}
       {...(label === undefined ? {} : { "aria-label": label })}
       className={cn(className ?? INLINE)}
+      onClick={onClick}
     >
       {children}
     </Link>

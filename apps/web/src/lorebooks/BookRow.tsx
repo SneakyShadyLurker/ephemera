@@ -15,6 +15,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu";
+import { ROW_CONTENT, ROW_FRAME, ROW_META, rowLayout } from "@/components/ui/row-layout";
 import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
 import { ActivationCounts } from "../lorebook/marks.tsx";
@@ -28,8 +29,8 @@ import { setOpened, useLibrary } from "./library-state.ts";
 export const NAME_TRANSITION = "lorebook-name";
 
 /** A row's hairline and its trailing actions beside the link, never inside it. */
-const ROW = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 border-rush border-b";
-const LINK = "group grid min-h-16 min-w-0 items-center gap-x-6 gap-y-1 rounded-sm px-1 py-2.5 row";
+const ROW = cn(ROW_FRAME, "border-rush border-b");
+const LINK = cn(rowLayout("collection"), "group");
 const NAME =
   "truncate font-semibold text-ink text-ui decoration-control-edge underline-offset-4 group-hover:underline";
 
@@ -85,7 +86,7 @@ export function BookRow({
         onClick={() => setOpened(book.id)}
         className={LINK}
       >
-        <span className="grid min-w-0 gap-1">
+        <span className={ROW_CONTENT}>
           <span className="flex min-w-0 items-center gap-2">
             <span ref={nameRef} style={style} title={book.name} className={cn(NAME, GLIDE)}>
               {name}
@@ -96,10 +97,7 @@ export function BookRow({
               </span>
             )}
           </span>
-          <span
-            id={metaId}
-            className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 text-meta text-reed"
-          >
+          <span id={metaId} className={ROW_META}>
             <ActivationCounts counts={book} />
             <Linked characters={characters} className="max-tablet:basis-full" />
           </span>
@@ -202,7 +200,7 @@ export function EmbeddedRow({
         className={cn(LINK, "grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3")}
       >
         <PortraitLeaf id={book.characterId} name={book.name} version={portrait} className="w-5" />
-        <span className="grid min-w-0 gap-1">
+        <span className={ROW_CONTENT}>
           <span title={title} className={NAME}>
             {title}
           </span>

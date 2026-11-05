@@ -1,10 +1,8 @@
-import { Link, useBlocker } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { useFormFactor } from "@/app/form-factor.ts";
+import { useBlocker } from "@tanstack/react-router";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SCROLL_GUTTERS, ScreenHeader } from "@/app/Screen.tsx";
-import { BackIcon } from "@/components/icons";
 import { AlertDialog, AlertDialogClose, AlertDialogContent } from "@/components/ui/alert-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { identity } from "../signin/identity.ts";
 import { Brainstorm } from "./Brainstorm.tsx";
@@ -29,6 +27,12 @@ import { setCreatorWriting } from "./writing.ts";
  */
 export function CreateScreen() {
   const stage = useCreator((state) => state.stage);
+  const kind = useCreator((state) => state.kind);
+  useLayoutEffect(() => {
+    if (creatorStore.getState().kind === null && creatorStore.getState().stage === "choose") {
+      creatorStore.getState().choose("subject");
+    }
+  }, []);
   const status = useCreator((state) => state.card?.status ?? null);
   // Only a finished card, which no longer changes as text streams in.
   const complete = useCreator((state) => (state.card?.status === "complete" ? state.card : null));
@@ -81,7 +85,7 @@ export function CreateScreen() {
       className="relative flex min-w-0 flex-1 flex-col [timeline-scope:--thread]"
     >
       <ScreenHeader
-        lead={<BackToGallery />}
+        back={{ to: "/characters", label: "Characters" }}
         storyTitle={false}
         title="Create with AI"
         gutters={SCROLL_GUTTERS}
@@ -100,7 +104,7 @@ export function CreateScreen() {
           SCROLL_GUTTERS,
         )}
       >
-        {stage === "choose" ? (
+        {stage === "choose" && kind !== null ? (
           <Choose />
         ) : stage === "brainstorm" ? (
           <Brainstorm scroller={scroller} />
@@ -116,24 +120,6 @@ export function CreateScreen() {
       {shown !== null && <KeepBar kind={shown.kind} />}
       <LeaveGuard />
     </main>
-  );
-}
-
-function BackToGallery() {
-  const phone = useFormFactor() === "phone";
-  return phone ? (
-    <Link
-      to="/characters"
-      aria-label="Back to characters"
-      className={buttonVariants({ size: "icon" })}
-    >
-      <BackIcon />
-    </Link>
-  ) : (
-    <Link to="/characters" className={cn(buttonVariants(), "pl-2")}>
-      <BackIcon size={16} />
-      Characters
-    </Link>
   );
 }
 

@@ -1,5 +1,12 @@
 import { type Candidate, CREATOR_ART, type NodeTitles, type SlotTarget } from "@ephemera/core";
-import { type ChoicePlace, choosable, type Draft, nodeName, placeProblem } from "./panel-state.ts";
+import {
+  type ChoicePlace,
+  choosable,
+  type Draft,
+  nodeName,
+  type Problem,
+  placeProblem,
+} from "./panel-state.ts";
 
 /*
  * The four places Ephemera fills, as the import panel lists them: derived
@@ -23,7 +30,7 @@ export interface MappingChoice {
   value: string | null;
   options: { value: string; title: string; description: string }[];
   /** Why the chosen node leaves the place unfilled, as finalization refuses it. */
-  problem: string | null;
+  problem: Problem | null;
 }
 
 export interface MappingRow {

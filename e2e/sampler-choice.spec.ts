@@ -29,7 +29,7 @@ test("a sampler preset's set values reach the model, and choosing it switches th
   await choose(page, "Reasoning", "Low");
   // Top-p stays at the model default, so it is never sent.
   await expect(page.getByRole("button", { name: "Set Top-p" })).toBeVisible();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 
   await page.goto("/");
   await chooseModel(page, "mock-slow");
@@ -122,7 +122,7 @@ test("unknown reasoning support offers every level and explains why", async ({ p
     "Maximum",
   ]);
   await page.getByRole("option", { name: "Maximum", exact: true }).click();
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 
   await page.goto("/");
   await openSession(page);

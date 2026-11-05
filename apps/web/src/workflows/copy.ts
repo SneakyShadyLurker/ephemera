@@ -4,21 +4,18 @@ import {
   WORKFLOW_LIMITS,
   type WorkflowRefusalCode,
 } from "@ephemera/core";
-import { andList } from "@/lib/text";
 
 /*
  * What the import panel says. Every refusal is a plain sentence on what is
- * wrong, then its way out; a node is "title (node id)". Only the refusals an
- * API export fixes suggest it.
+ * wrong, then its way out; the nodes it concerns ("title (node id)") follow
+ * apart, behind a disclosure (NodesInvolved). Only the refusals an API
+ * export fixes suggest it.
  */
 
 const AGAIN = "import again.";
 
-/** What is wrong, with the listed nodes after a colon when there are any, then the way out. */
-const naming =
-  (wrong: string, way: string) =>
-  (nodes: readonly string[]): string =>
-    `${wrong}${nodes.length > 0 ? `: ${andList(nodes)}` : ""}. ${way}`;
+/** What is wrong, then the way out; the nodes it names are listed apart. */
+const naming = (wrong: string, way: string) => (): string => `${wrong}. ${way}`;
 
 const fixed = (text: string) => (): string => text;
 
@@ -84,17 +81,16 @@ const REFUSAL_COPY = {
     "Some values already hold text like {{prompt}}, which Ephemera writes itself",
     `Change that text in ComfyUI and ${AGAIN}`,
   ),
-} satisfies Record<WorkflowRefusalCode, (nodes: readonly string[]) => string>;
+} satisfies Record<WorkflowRefusalCode, () => string>;
 
-/** A refusal in words; `nodes` are as the panel names them ("title (node id)", or a class). */
-export const refusalText = (code: WorkflowRefusalCode, nodes: readonly string[]): string =>
-  REFUSAL_COPY[code](nodes);
+/** A refusal in words: the problem, then what to do. */
+export const refusalText = (code: WorkflowRefusalCode): string => REFUSAL_COPY[code]();
 
 /** A file the tab refuses before sending it. */
 export type TabRefusal = { kind: "not_json" } | { kind: "too_large" };
 
 export const fileRefusalText = (fileName: string, refusal: TabRefusal): string =>
-  refusal.kind === "not_json" ? `${fileName} is not a JSON file.` : refusalText("too_large", []);
+  refusal.kind === "not_json" ? `${fileName} is not a JSON file.` : refusalText("too_large");
 
 /** Why a blocked node cannot run, before its name. */
 export const BLOCKED_COPY: Record<BlockedReason, string> = {
@@ -129,8 +125,8 @@ export const DELETED_ELSEWHERE = "This workflow was deleted in another tab.";
 /** A UI file needs the live ComfyUI to place its values. */
 export const uiNotReached = (address: string): string =>
   address === ""
-    ? "No ComfyUI address is saved. Reading a saved workflow needs it."
-    : `Not reached at ${address}. Reading a saved workflow needs it.`;
+    ? "Reading a saved workflow needs your picture server. Add its address above, then try again."
+    : `Your picture server was not reached at ${address}. Check that it runs, then try again.`;
 
 /** An API file reads without ComfyUI. */
 export const API_NOT_REACHED = "Not reached. You can save without a check.";

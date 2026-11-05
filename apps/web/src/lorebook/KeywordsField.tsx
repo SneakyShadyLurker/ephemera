@@ -1,6 +1,7 @@
 import { addKeywords, type KeyProblem, splitKeywords } from "@ephemera/core";
 import { type ReactNode, useId, useState } from "react";
 import { cn } from "@/lib/cn";
+import { FIELD_LABEL } from "@/sheet/fields.ts";
 import { TokenField } from "../sheet/TokenField.tsx";
 import { KEY_PROBLEM_TEXT } from "./copy.ts";
 
@@ -66,7 +67,7 @@ export function KeywordsField({
     // One column at the field's width: a token too long for it truncates instead of widening it.
     <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
       <div className="flex min-h-5 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <label htmlFor={inputId} className="font-medium text-ink text-ui">
+        <label htmlFor={inputId} className={FIELD_LABEL}>
           {label}
         </label>
         {labelEnd}

@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { isCoarsePointer } from "@/app/form-factor.ts";
+import { IdeasIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,7 +21,13 @@ import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import { portraitStatusLabel, portraitStatusLine } from "../settings/pictures.ts";
 import { useSetting, useSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
-import { HELP, REQUEST_FIELD } from "../sheet/fields.ts";
+import {
+  DISPLAY_HEADING,
+  FIELD_LABEL,
+  GROUP_HEADING,
+  HELP,
+  REQUEST_FIELD,
+} from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { StatusDot } from "../workflows/WorkflowRow.tsx";
 import { COLUMN, KINDS } from "./Choose.tsx";
@@ -98,6 +105,7 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
   const look = useCreator((state) => state.artLook);
   const setLook = useCreator((state) => state.setArtLook);
   const change = useCreator((state) => state.change);
+  const brainstorm = useCreator((state) => state.openBrainstorm);
   const backToIdeas = useCreator((state) => state.backToIdeas);
   // Opened from a brainstorm's idea: Back to ideas takes Change's place.
   const fromIdea = useCreator((state) => state.brainstorm.picked !== null);
@@ -149,7 +157,7 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
     >
       <div className="flex items-center gap-1">
         <span
-          className="flex w-fit items-center gap-2 font-semibold text-ink text-ui"
+          className={cn(GROUP_HEADING, "flex w-fit items-center gap-2")}
           style={{ viewTransitionName: kindTransition(kind) }}
         >
           <Icon size={20} className="text-narration" />
@@ -168,11 +176,19 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
             Change
           </Button>
         )}
+        {!fromIdea && (
+          <Button
+            size="text"
+            className="ml-auto"
+            data-stage="brainstorm"
+            onClick={() => inTransition(brainstorm)}
+          >
+            <IdeasIcon size={16} />
+            Brainstorm
+          </Button>
+        )}
       </div>
-      <h2
-        id={`${fieldId}-heading`}
-        className="font-semibold text-ink text-title-phone tablet:text-title"
-      >
+      <h2 id={`${fieldId}-heading`} className={DISPLAY_HEADING}>
         <label htmlFor={fieldId}>{copy.heading}</label>
       </h2>
       <div className="grid gap-2">
@@ -196,11 +212,11 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
       </div>
       <div className="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5">
-          <span id={modelLabel} className="font-medium text-ink text-ui">
+          <span id={modelLabel} className={FIELD_LABEL}>
             Model
           </span>
           <ModelSelect labelId={modelLabel} options={options} value={model} onChange={setModel} />
-          <span id={reasoningLabel} className="font-medium text-ink text-ui">
+          <span id={reasoningLabel} className={FIELD_LABEL}>
             Reasoning
           </span>
           <ReasoningSelect
@@ -209,13 +225,13 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
             effort={effort}
             onChange={setReasoning}
           />
-          <span id={personaLabel} className="font-medium text-ink text-ui">
+          <span id={personaLabel} className={FIELD_LABEL}>
             Persona
           </span>
           <PersonaSelect labelId={personaLabel} size="row" />
           {portraits && (
             <>
-              <span id={workflowLabel} className="font-medium text-ink text-ui">
+              <span id={workflowLabel} className={FIELD_LABEL}>
                 Workflow
               </span>
               <WorkflowSelect labelId={workflowLabel} />
@@ -223,14 +239,14 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
                 <CompositionChoice
                   value={composition}
                   onChange={setComposition}
-                  labelClassName="font-medium text-ink text-ui"
+                  labelClassName={FIELD_LABEL}
                 />
               )}
               {kind !== "scenario" && (
                 <LookChoice
                   value={look}
                   onChange={setLook}
-                  labelClassName="font-medium text-ink text-ui"
+                  labelClassName={FIELD_LABEL}
                   className="w-full max-w-72 tablet:w-64"
                 />
               )}

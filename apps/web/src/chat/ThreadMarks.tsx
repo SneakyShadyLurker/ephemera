@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useChatCharacter } from "./character.ts";
@@ -35,9 +36,10 @@ export function Tombstone() {
   const what = deletedText(deleted, character);
   return (
     <li className="transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
-      <div
+      <InlineStatus
+        as="div"
         role="status"
-        className="flex min-h-9 items-center gap-2 rounded-lg border border-control-edge border-dashed py-1 pr-1 pl-3.5 text-note text-reed"
+        className="flex min-h-9 items-center gap-2 rounded-lg border border-control-edge border-dashed py-1 pr-1 pl-3.5"
       >
         <span className="flex-1">{what}</span>
         <Button
@@ -49,7 +51,7 @@ export function Tombstone() {
           <UndoIcon size={16} />
           Undo
         </Button>
-      </div>
+      </InlineStatus>
     </li>
   );
 }
@@ -58,7 +60,10 @@ export function Tombstone() {
 export function TrimMarker({ count }: { count: number }) {
   return (
     <li data-trim-marker="">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-reed">
+      <InlineStatus
+        role="presentation"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta"
+      >
         <span className="h-px min-w-8 flex-1 bg-control-edge" />
         <span>
           The {count === 1 ? "message" : `${count} messages`} above {count === 1 ? "is" : "are"}{" "}
@@ -71,7 +76,7 @@ export function TrimMarker({ count }: { count: number }) {
         >
           Open prompt
         </Button>
-      </div>
+      </InlineStatus>
     </li>
   );
 }
@@ -86,11 +91,11 @@ export function FoldLine() {
       data-fold-line=""
       className="transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0"
     >
-      <div className="flex items-center gap-3 text-meta text-reed">
+      <InlineStatus role="presentation" className="flex items-center gap-3 text-meta">
         <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-control-edge" />
         <span>Folded above. Remembered, and still sent, below.</span>
         <span aria-hidden="true" className="h-px min-w-8 flex-1 bg-control-edge" />
-      </div>
+      </InlineStatus>
     </li>
   );
 }

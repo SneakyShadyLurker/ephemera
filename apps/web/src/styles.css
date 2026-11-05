@@ -289,8 +289,6 @@
   --stagger-step: 30ms;
   /* The least time between rows revealed one by one, so a burst still reads as a fill. */
   --reveal-gap: 80ms;
-  /* The caret's breath while nothing has been written yet. */
-  --duration-caret: 1.2s;
   --duration-press: 80ms;
   --duration-release: 140ms;
   /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
@@ -313,8 +311,10 @@
   --rise: 4px;
   --panel-shift: 12px;
   /* How far a dragged alternate travels; the keyed nudge is `--panel-shift`. */
-  --swipe-shift: 64px;
+  --swipe-shift: 12px;
   --press-scale: 0.98;
+  /* A held control's grip grows this much while it is dragged (a slider's thumb). */
+  --grip-scale: 1.1;
   /* A badge's starting scale as it arrives. */
   --arrive-scale: 0.75;
 }
@@ -403,6 +403,7 @@
     --panel-shift: 0px;
     --swipe-shift: 0px;
     --press-scale: 1;
+    --grip-scale: 1;
     --arrive-scale: 1;
   }
 }
@@ -425,9 +426,14 @@
   --container-page: 50.5rem;
   --container-column: 44rem;
   --container-creator: 66rem;
+  /* Palette form and its live scene, beside the Settings index. */
+  --container-palette: 66rem;
   --container-browse: 160rem;
   /* The lorebook's entry list beside its editor. */
   --container-entries: 27rem;
+  --container-rail: 13rem;
+  --inset-story-start: 3rem;
+  --inset-story-end: 5.75rem;
   /* The character sheet's index beside its form, and the gap between them. */
   --container-index: 11rem;
   --gap-index: 3rem;
@@ -513,8 +519,8 @@
   --text-tag--line-height: 1rem;
   --text-meta: 0.75rem;
   --text-meta--line-height: 1rem;
-  --text-note: 0.8125rem;
-  --text-note--line-height: 1.125rem;
+  --text-note: 0.875rem;
+  --text-note--line-height: 1.25rem;
   --text-ui: 0.875rem;
   --text-ui--line-height: 1.25rem;
   --text-lead: 1rem;
@@ -901,7 +907,7 @@
     padding-inline-end: 0.375rem;
     color: var(--reed);
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
+    font-size: var(--text-note);
     font-weight: 500;
     line-height: 1.5rem;
     text-align: end;
@@ -943,13 +949,7 @@
   }
 }
 
-/* The streaming caret: a 2px lamp-colored bar that breathes; still under reduced motion. */
-@keyframes breathe {
-  to {
-    opacity: 0.35;
-  }
-}
-
+/* The streaming caret holds still; the operation's rim or hairline carries its light. */
 @utility stream-caret {
   display: inline-block;
   width: 2px;
@@ -961,16 +961,11 @@
 
 @utility caret {
   @apply stream-caret;
-  animation: breathe var(--duration-caret) ease-in-out infinite alternate;
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
 }
 
 /*
  * Streamdown's last block carries the caret while text streams. It holds
- * steady: the words arriving are the motion, and the caret breathes only
- * while nothing has come yet.
+ * steady: the words arriving are the motion.
  */
 @utility caret-after {
   & > :last-child::after {
@@ -1389,7 +1384,7 @@ details[open] > summary .disclosure-chevron {
  * The engraved illustrations (components/illustration.tsx): each piece is a
  * grayscale luminance mask, white where it is drawn, filled with the
  * palette's roles, so every palette recolours it in both schemes. By day
- * the print's ink is reed; by night the lamplit lines are reed and the
+ * the print's ink is reed; by night the lamplit lines use ink and the
  * lamp's light, dusk, falls softly around `--art-lamp`. A piece whose lamp
  * is out sets no `--art-lamp`, which leaves its glow invalid, so unpainted.
  * The component sets only `--art-day`, `--art-night`, `--art-ratio` and
@@ -1405,6 +1400,7 @@ details[open] > summary .disclosure-chevron {
   mask-repeat: no-repeat;
   @variant dark {
     mask-image: var(--art-night);
+    background-color: var(--ink);
     background-image: radial-gradient(
       ellipse 24% calc(24% * var(--art-ratio)) at var(--art-lamp),
       var(--dusk),
@@ -1472,15 +1468,21 @@ details[open] > summary .disclosure-chevron {
 
 /*
  * The sheet's name joins its header once the name field has scrolled beneath
- * it: scrolling past the threshold triggers a timed rise, and scrolling back
- * reverses it, so the title never rests half faded. A sheet too short to
- * scroll keeps its name in the field.
+ * it: SheetBody observes the first 4rem and changes one attribute. The timed
+ * transition reverses on scrolling back and never rests half faded. Avoid a
+ * compositor timeline trigger while expanding blocks also move the scroll.
+ * A sheet too short to scroll keeps its name in the field.
  */
 @utility title-in {
   opacity: 0;
-  timeline-trigger: --title-in --thread 4rem normal;
-  animation: title-in var(--duration-arrive) var(--ease-spring) both;
-  animation-trigger: --title-in play-forwards play-backwards;
+  translate: 0 var(--rise);
+  transition:
+    opacity var(--duration-arrive) var(--ease-fade),
+    translate var(--duration-arrive) var(--ease-spring);
+  [data-sheet-title] & {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 
 /*
@@ -1708,7 +1710,7 @@ details[open] > summary .disclosure-chevron {
 }
 
 @utility tracked-del {
-  color: var(--ember);
+  color: var(--reed);
   text-decoration-line: line-through;
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;
@@ -1719,8 +1721,8 @@ details[open] > summary .disclosure-chevron {
 
 /* A keyword or tag the change removes: struck ember on the error surface. */
 @utility tracked-chip-del {
-  color: var(--ember);
-  background-color: var(--error-surface);
+  color: var(--reed);
+  background-color: var(--surface-selected);
   text-decoration-line: line-through;
   text-decoration-thickness: 1px;
   transition:
@@ -1865,22 +1867,6 @@ details[open] > summary .disclosure-chevron {
   background-image: linear-gradient(var(--cast-wash), var(--cast-wash));
   box-decoration-break: clone;
   animation: cast-settle var(--duration-wash) var(--ease-fade) both;
-}
-
-/*
- * An edit mode field: a quiet hairline under the value at rest, so it reads
- * as editable, turning to the focus colour, thicker, while it is edited.
- */
-@utility cast-field {
-  border-bottom: 1px solid var(--control-edge);
-  transition:
-    border-color var(--duration-quick) var(--ease-fade),
-    box-shadow var(--duration-quick) var(--ease-fade);
-  &:focus-visible {
-    outline: none;
-    border-bottom-color: var(--dusk-line);
-    box-shadow: 0 1px 0 var(--dusk-line);
-  }
 }
 
 [data-cast-corrected] {

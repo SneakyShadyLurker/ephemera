@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
 import { formatCount } from "../apps/web/src/lib/text.ts";
+import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
@@ -269,12 +270,18 @@ for (const factor of FACTORS) {
       await expect(roster).toBeVisible();
       await expect(roster.getByRole("region", { name: "Away" })).toContainText(SHEET_WOMAN);
       await expect(roster).not.toContainText(KEEPER_MAN);
-      // A name opens her record in the drawer; Back returns to the roster.
-      await roster.getByRole("list", { name: "Present" }).getByText(SEEDED).click();
-      const record = castRecord(page, SEEDED);
+      // Present records use the individual record's groups and stay editable directly.
+      const record = roster.getByRole("group", { name: `${SEEDED} record`, exact: true });
       await expect(record).toContainText(KEEPER_WOMAN_OUTFIT);
-      await record.getByRole("button", { name: "Back to the cast" }).click();
-      await expect(castRecord(page, "Cast").getByRole("list", { name: "Present" })).toBeVisible();
+      await expect(record.locator('[data-cast-edit="outfit"]')).toBeVisible();
+      for (const title of ["Looks", "Intimate"]) {
+        await expect(
+          record.locator("details").filter({ has: page.getByText(title, { exact: true }) }),
+        ).not.toHaveAttribute("open", "");
+      }
+      await expect(
+        roster.getByRole("region", { name: "Away" }).locator(":scope > ul > li > details"),
+      ).not.toHaveAttribute("open", "");
       await page.getByRole("dialog").getByRole("button", { name: "Close the cast" }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
 
@@ -308,7 +315,7 @@ for (const factor of FACTORS) {
     const record = await openRecord(page, SEEDED);
     await expect(record.getByRole("heading", { name: SEEDED })).toBeFocused();
     await expect(record).toContainText(KEEPER_WOMAN_OUTFIT);
-    await expect(record.getByRole("button", { name: "Edit record", exact: true })).toBeVisible();
+    await expect(record.locator('[data-cast-edit="outfit"]')).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(record).toHaveCount(0);
     await expect(castEntry(page, SEEDED)).toBeFocused();
@@ -883,8 +890,8 @@ test("an empty failed alternate hides an older keeper failure over covered cast,
   await replyActions(page).getByRole("button", { name: "New reply" }).click();
   await expect(replyCounter(page)).toContainText("2 / 2");
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
-  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-    "No reply: the model's provider answered with an error. Try again.",
+  await expect(lastReply(page).locator("[data-swipe]:not([data-leaving]) [data-prose]")).toHaveText(
+    "No reply: the model's provider answered with an error.Try again",
   );
   await expect(again).toHaveCount(0);
   await expect(castStatus(page)).toHaveText("");
@@ -915,8 +922,8 @@ test("an empty failed alternate hides an older keeper failure over covered cast,
 
   await replyCounter(page).getByRole("button", { name: "Next reply" }).click();
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
-  await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-    "No reply: the model's provider answered with an error. Try again.",
+  await expect(lastReply(page).locator("[data-swipe]:not([data-leaving]) [data-prose]")).toHaveText(
+    "No reply: the model's provider answered with an error.Try again",
   );
   await expect(castEntry(page, womanOf(covered))).toBeVisible();
   await expect(castEntry(page, womanOf(uncovered))).toHaveCount(0);
@@ -927,7 +934,7 @@ test("an empty failed alternate hides an older keeper failure over covered cast,
   expect(await upstreamRecords(covered, "cast")).toHaveLength(1);
 });
 
-test("edit mode saves, cancels by button and by Escape without closing, and Revert takes a correction back", async ({
+test("a value corrects where it stands, Escape and leaving unchanged keep it, and Revert takes a correction back", async ({
   page,
   request,
 }) => {
@@ -935,28 +942,29 @@ test("edit mode saves, cancels by button and by Escape without closing, and Reve
   await seeded(page);
   const record = await openRecord(page, SEEDED);
   const field = (name: string) => record.locator(`[data-cast-field="${name}"]`);
-  const edit = record.getByRole("button", { name: "Edit record", exact: true });
-  const save = record.getByRole("button", { name: "Save", exact: true });
+  const outfit = record.locator('[data-cast-edit="outfit"]');
+  const box = record.getByRole("textbox", { name: "Outfit", exact: true });
 
-  // Escape leaves edit mode, not the record.
-  await edit.click();
-  await expect(record.getByRole("textbox", { name: "Outfit" })).toHaveValue(KEEPER_WOMAN_OUTFIT);
-  await record.getByRole("textbox", { name: "Outfit" }).fill("a red scarf");
+  // Escape leaves the field, not the record, and keeps the value.
+  await outfit.click();
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue(KEEPER_WOMAN_OUTFIT);
+  await expect(box).toHaveAttribute("maxlength", String(CAST_LIMITS.field));
+  await box.fill("a red scarf");
   await page.keyboard.press("Escape");
-  await expect(save).toHaveCount(0);
+  await expect(box).toHaveCount(0);
   await expect(record).toBeVisible();
-  await expect(edit).toBeFocused();
-  await expect(field("outfit")).toContainText(KEEPER_WOMAN_OUTFIT);
-
-  // Cancel too.
-  await edit.click();
-  await record.getByRole("textbox", { name: "Outfit" }).fill("a red scarf");
-  await record.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(save).toHaveCount(0);
+  await expect(outfit).toBeFocused();
   await expect(field("outfit")).toContainText(KEEPER_WOMAN_OUTFIT);
   await expect(field("outfit")).not.toHaveAttribute("data-cast-corrected");
 
-  // Save: a look that holds for the chat, a state the next update takes over.
+  // Leaving it unchanged corrects nothing.
+  await outfit.click();
+  await record.getByRole("heading", { name: SEEDED }).click();
+  await expect(box).toHaveCount(0);
+  await expect(field("outfit")).not.toHaveAttribute("data-cast-corrected");
+
+  // Enter saves: a look that holds for the chat, a state the next update takes over.
   await page.keyboard.press("Escape");
   await expect(record).toHaveCount(0);
   await editRecord(page, SEEDED, { hair: "short silver hair", outfit: "a red scarf" });
@@ -984,10 +992,52 @@ test("edit mode saves, cancels by button and by Escape without closing, and Reve
   await expect(field("outfit")).toContainText(KEEPER_WOMAN_OUTFIT);
   await expect(field("outfit")).not.toHaveAttribute("data-cast-corrected");
 
+  await record.locator("summary").filter({ hasText: "Looks" }).click();
   await record.getByRole("button", { name: "Revert hair" }).click();
   await expect(field("hair")).toContainText("long copper-red hair in a braid");
   await expect(field("hair")).not.toHaveAttribute("data-cast-corrected");
   await expect(record.getByRole("button", { name: "Revert hair" })).toHaveCount(0);
+});
+
+test("an empty More details correction moves with focus and Saved feedback", async ({
+  page,
+  request,
+}) => {
+  await castChat(request);
+  await seeded(page);
+  const record = await openRecord(page, SEEDED);
+  await record.locator("summary").filter({ hasText: "More details" }).click();
+  await record.locator('[data-cast-edit="disarray"]').click();
+  const field = record.locator('textarea[data-cast-field="disarray"]');
+  await field.fill("coat unbuttoned");
+  await field.press("Enter");
+  const value = record.locator('[data-cast-edit="disarray"]');
+  await expect(value).toBeFocused();
+  await expect(value).toContainText("coat unbuttoned");
+  await expect(value.locator("..").locator("[data-inline-save]")).toHaveText("Saved");
+  await expect(value.locator("xpath=ancestor::section[1]")).toContainText("Now");
+});
+
+test("the phone roster can remove an expanded away member", async ({ page, request }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await castChat(request);
+  await seeded(page);
+  await castPanel(page)
+    .getByRole("button", { name: `and ${SHEET_WOMAN} away` })
+    .click();
+  const roster = castRecord(page, "Cast");
+  const away = roster.getByRole("region", { name: "Away" });
+  await away.locator("summary").filter({ hasText: SHEET_WOMAN }).click();
+  await away.getByRole("button", { name: "Remove from cast", exact: true }).click();
+  await expect(roster).toHaveCount(0);
+  await expect(castPanel(page)).toContainText(`${SHEET_WOMAN} removed.`);
+  await expect(castPanel(page).getByRole("button", { name: /away/ })).toHaveCount(0);
+  const undo = castPanel(page).getByRole("button", { name: `Undo removing ${SHEET_WOMAN}` });
+  await expect(undo).toBeFocused();
+  await undo.click();
+  await expect(
+    castPanel(page).getByRole("button", { name: `and ${SHEET_WOMAN} away` }),
+  ).toBeVisible();
 });
 
 test("personality keywords, a repeated one included, revert to exactly the recorded ones", async ({

@@ -158,7 +158,7 @@ test("search, tag filter and order narrow the gallery; a tag filter or order gli
   await expect(tile(page, gamma ?? "")).toBeVisible();
 
   await search.fill("no character is called this");
-  await expect(page.getByRole("heading", { name: "No characters match" })).toBeVisible();
+  await expect(page.getByText("No characters match.")).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(search).toHaveValue("");
 });
@@ -173,7 +173,12 @@ test("a new character is saved once named, and every field and greeting persists
 
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+  const nameSave = page
+    .getByRole("textbox", { name: "Name", exact: true })
+    .locator("..")
+    .locator("[data-inline-save]");
+  await expect(nameSave).toHaveText("Saved");
 
   // The optional details wait in Card details, after the portrait, name and tags.
   await page.getByText("Card details", { exact: true }).click();
@@ -186,6 +191,8 @@ test("a new character is saved once named, and every field and greeting persists
     ["Creator notes", "For testing."],
   ];
   for (const [label, value] of fields) await page.getByLabel(label, { exact: true }).fill(value);
+  // A field's own saved feedback stays still while another field is edited.
+  await expect(nameSave).toHaveText("Saved");
   await page.getByRole("textbox", { name: "Tags" }).fill("mystery");
   await page.getByRole("textbox", { name: "Tags" }).press("Enter");
 
@@ -250,7 +257,7 @@ test("a character just created, duplicated, is itself again on Back", async ({ p
   await page.locator("header").getByRole("button", { name: "New character" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
   await expect(page).toHaveURL(/\/characters\/[0-9a-f-]{36}$/);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   const created = page.url();
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: "Duplicate" }).click();
@@ -323,7 +330,9 @@ test("a failed save says so and retries; leaving with it unsaved asks", async ({
   await leave.getByRole("button", { name: "Stay" }).click();
 
   await page.unroute("**/api/characters/*");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 });
 
 test("duplicate, export and delete, with a chat draft that is never at risk", async ({ page }) => {
@@ -445,17 +454,15 @@ test("the chat speaks as the chosen character, and switching asks first", async 
     await expect(lastReply(page)).toContainText(`${first} looks up.`);
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-    // The character is present once, at the head of the latest reply (above the story on
-    // phones, with its name), not on every turn.
+    // The character is present once at the latest reply, above its prose on phones.
     const presence = page.locator("[data-presence]");
     await expect(presence).toHaveCount(1);
-    if (width < 720) await expect(presence).toContainText(first ?? "");
-    else await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
+    await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
     const portrait = presence.locator("img");
     await expect(portrait).toHaveJSProperty("complete", true);
     const box = await portrait.boundingBox();
     expect(box?.width).toBe(width >= 1200 ? 160 : width >= 720 ? 112 : 96);
-    await expect(messages(page).locator("img")).toHaveCount(width < 720 ? 0 : 1);
+    await expect(messages(page).locator("img")).toHaveCount(1);
     // Who speaks opens the turn, read once with its colon by assistive technology.
     expect(await lastReply(page).evaluate((turn) => turn.textContent)).toMatch(
       new RegExp(`^${first}: `),
@@ -479,7 +486,7 @@ test("the chat speaks as the chosen character, and switching asks first", async 
 const editShown = (page: Page, name: string) =>
   editTile(page, name).evaluate((link) => getComputedStyle(link.parentElement as Element).opacity);
 
-test("with a hover, a card's portrait starts the chat and its Edit shows only on hover", async ({
+test("with a hover, a card's portrait starts the chat and its Edit is shown without one", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -491,11 +498,17 @@ test("with a hover, a card's portrait starts the chat and its Edit shows only on
   await expect(card).toBeVisible();
   // No Chat beside the caption: the card itself is the chat.
   await expect(card.getByRole("button")).toHaveCount(1);
+  // Found without hovering: shown with the pointer away, and still with it over the portrait.
   await page.mouse.move(0, 0);
-  await expect.poll(() => editShown(page, name)).toBe("0");
-  await card.locator("img, svg[data-icon='Mark']").first().hover();
   await expect.poll(() => editShown(page, name)).toBe("1");
-  await expect(edit).toHaveText("Edit");
+  await expect(edit).toBeVisible();
+  const portrait = await card.locator("img, svg[data-icon='Mark']").first().boundingBox();
+  await page.mouse.move(
+    (portrait?.x ?? 0) + (portrait?.width ?? 0) / 2,
+    (portrait?.y ?? 0) + (portrait?.height ?? 0) / 2,
+  );
+  await expect.poll(() => editShown(page, name)).toBe("1");
+  await expect(edit).toHaveAccessibleName(`Edit ${name}`);
 
   await edit.click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(name);
@@ -508,7 +521,7 @@ test("with a hover, a card's portrait starts the chat and its Edit shows only on
 test.describe("on touch", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
-  test("a card's Edit stays shown as its pen, a 44px target, and a tap on the portrait starts the chat", async ({
+  test("a card's Edit stays shown as its pen, a 44px target clear of the chat's button, and a tap on the portrait starts the chat", async ({
     page,
   }) => {
     const name = uniqueName("Touch");
@@ -517,24 +530,31 @@ test.describe("on touch", () => {
     const edit = editTile(page, name);
     await expect(edit).toBeVisible();
     await expect.poll(() => editShown(page, name)).toBe("1");
-    // The word is read, not drawn: the pen alone on a 36px plate, its target 44px.
+    // The word is read, not drawn: the pen alone, a 44px target trailing the metadata.
     await expect(edit).toHaveAccessibleName(`Edit ${name}`);
-    const plate = await edit.evaluate((link) => {
-      const box = link.getBoundingClientRect();
-      const reach = getComputedStyle(link, "::after");
-      const word = link.querySelector("span");
-      return {
-        width: box.width,
-        height: box.height,
-        reach: [Number.parseFloat(reach.width), Number.parseFloat(reach.height)],
-        word: word === null ? null : getComputedStyle(word).position,
-      };
-    });
-    expect(plate).toEqual({ width: 36, height: 36, reach: [44, 44], word: "absolute" });
+    const chat = tile(page, name).getByRole("button", { name: `Chat with ${name}`, exact: true });
+    const editBox = await edit.boundingBox();
+    const chatBox = await chat.boundingBox();
+    expect({ width: editBox?.width, height: editBox?.height }).toEqual({ width: 44, height: 44 });
+    // Edit trails the metadata below the portrait and full-width name, with no overlapping target.
+    expect((editBox?.y ?? 0) >= (chatBox?.y ?? 0) + (chatBox?.height ?? 0)).toBe(true);
 
-    await tile(page, name)
-      .getByRole("button", { name: `Chat with ${name}`, exact: true })
-      .tap();
+    // The portrait answers as the chat's button, and a tap on it starts the chat.
+    const portrait = await tile(page, name)
+      .locator("img, svg[data-icon='Mark']")
+      .first()
+      .boundingBox();
+    const x = (portrait?.x ?? 0) + (portrait?.width ?? 0) / 2;
+    const y = (portrait?.y ?? 0) + (portrait?.height ?? 0) / 2;
+    await expect
+      .poll(() =>
+        page.evaluate(
+          ({ px, py }) => document.elementFromPoint(px, py)?.closest("button")?.ariaLabel ?? null,
+          { px: x, py: y },
+        ),
+      )
+      .toBe(`Chat with ${name}`);
+    await page.touchscreen.tap(x, y);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
     await expect(lastReply(page)).toContainText(`${name} looks up.`);
   });
@@ -566,13 +586,16 @@ test("an empty library invites an import on the populated gallery's edges", asyn
   expect(Math.abs(empty.left - populated.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(empty.right - populated.right)).toBeLessThanOrEqual(1);
   expect(Math.abs(((await heading.boundingBox())?.x ?? 0) - populated.left)).toBeLessThanOrEqual(1);
-  // One first step in the body; the header keeps the others.
+  // Import and the quiet AI creation path sit together in the empty state.
   const body = page.locator("main [data-skip-target]");
-  await expect(body.getByRole("button")).toHaveCount(1);
-  await expect(body.getByRole("button", { name: "Import cards" })).toBeVisible();
+  await expect(body.getByRole("button")).toHaveCount(2);
+  await expect(body.getByRole("button", { name: "Import", exact: true })).toBeVisible();
+  await expect(body.getByRole("button", { name: "Create with AI" })).toBeVisible();
 });
 
-test("Create with AI shows once on a phone's gallery, under the search", async ({ page }) => {
+test("collection actions share the phone toolbar below the full gallery title", async ({
+  page,
+}) => {
   await createCharacterViaApi(page.request, uniqueName("Once"));
   const header = page.locator("main header");
   const body = page.locator("main [data-skip-target]");
@@ -582,13 +605,17 @@ test("Create with AI shows once on a phone's gallery, under the search", async (
     await expect(page.getByRole("list", { name: "Characters" })).toBeVisible();
     await expect(header.getByRole("button", { name: "Import cards" })).toBeVisible();
     await expect(header.getByRole("button", { name: "New character" })).toBeVisible();
-    // Phones name it under the search; from tablet up the header carries it.
-    await expect(header.getByRole("button", { name: "Create with AI" })).toHaveCount(
-      width < 720 ? 0 : 1,
-    );
-    await expect(body.getByRole("button", { name: "Create with AI" })).toHaveCount(
-      width < 720 ? 1 : 0,
-    );
+    await expect(header.getByRole("button", { name: "Create with AI" })).toHaveCount(1);
+    await expect(body.getByRole("button", { name: "Create with AI" })).toHaveCount(0);
+    const toolbar = header.getByRole("toolbar", { name: "Collection actions" });
+    if (width < 720) {
+      await expect(toolbar.getByRole("button")).toHaveText(["Import", "New", "Create with AI"]);
+      const title = await header.getByRole("heading", { level: 1 }).boundingBox();
+      const row = await toolbar.boundingBox();
+      expect(row?.y).toBeGreaterThanOrEqual((title?.y ?? 0) + (title?.height ?? 0));
+    } else {
+      await expect(toolbar).toHaveCount(0);
+    }
   }
 });
 

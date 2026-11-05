@@ -1,4 +1,5 @@
-import { DisclosureChevron } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
+import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
 import type { Draft } from "./panel-state.ts";
 
@@ -16,7 +17,7 @@ export function OtherNodes({ nodes }: { nodes: Draft["inspection"]["nodes"] }) {
   if (nodes.length === 0) return null;
   return (
     <details className="disclosure">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-md text-reed text-ui hover:text-ink touch:min-h-11 [&::-webkit-details-marker]:hidden">
+      <summary className={cn(SUMMARY_LINE, "gap-2 text-ui")}>
         <DisclosureChevron />
         {countOf(nodes.length, "other node")} {nodes.length === 1 ? "keeps its" : "keep their"}{" "}
         settings
@@ -28,6 +29,31 @@ export function OtherNodes({ nodes }: { nodes: Draft["inspection"]["nodes"] }) {
               <NodeLabel title={node.title} node={node.id} />
             </span>
             , {node.classType}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * The nodes a refusal concerns, as the panel names them, closed under the
+ * sentence that says what is wrong and what to do, so the way out reads first.
+ */
+export function NodesInvolved({ nodes }: { nodes: readonly string[] }) {
+  if (nodes.length === 0) return null;
+  return (
+    <details className="disclosure">
+      <summary className={cn(SUMMARY_LINE, "gap-2")}>
+        <DisclosureChevron />
+        {nodes.length === 1
+          ? "The node concerned"
+          : `The ${countOf(nodes.length, "node")} concerned`}
+      </summary>
+      <ul className="grid gap-1 pt-1 pl-6 text-note text-ink">
+        {nodes.map((node) => (
+          <li key={node} className="text-pretty break-words">
+            {node}
           </li>
         ))}
       </ul>

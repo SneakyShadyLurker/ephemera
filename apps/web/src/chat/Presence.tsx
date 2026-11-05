@@ -26,15 +26,21 @@ const COLUMN = {
  * The character, present once. Tablet and desktop: the portrait floats at the
  * head of the latest reply shown, or of the story while there is none, so
  * that reply's text wraps around it and it moves down the story with each new
- * reply; the header names the character. Phones: a band above the first turn
+ * reply; the header names the character. Phones: a band at the latest reply
  * that scrolls away, after which the header carries a small portrait; without
- * art, the name alone in the story face. It arrives the way an imported
- * portrait does, in each new place, and opens larger on a click or tap.
+ * art, the name alone in the story face. The pending turn takes its place
+ * immediately, without replaying an imported portrait's entrance.
  * With a ComfyUI address saved, Picture this scene sits under the portrait,
  * or in its place without one. The cast's roster follows, in the float's
  * column or across the band, whenever it has someone to list, portrait or not.
  */
-export function Presence({ placement }: { placement: "float" | "band" }) {
+export function Presence({
+  placement,
+  inReply = false,
+}: {
+  placement: "float" | "band";
+  inReply?: boolean;
+}) {
   const character = useChatCharacter();
   const desktop = useFormFactor() === "desktop";
   const pictures = useSetting((settings) => settings.comfyuiBaseUrl) !== "";
@@ -56,7 +62,12 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         art={<FullPortrait id={character.id} version={character.portrait} shown={size} />}
         className={COLUMN[placement]}
       >
-        <Portrait id={character.id} version={character.portrait} size={size} />
+        <Portrait
+          id={character.id}
+          name={character.name}
+          version={character.portrait}
+          size={size}
+        />
       </PortraitViewer>
       {/* The reply's one light on tablet and desktop; phones carry it on the nameplate's hairline. */}
       {placement === "float" && <ReplyRim />}
@@ -79,7 +90,7 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
         <div
           key={character.id}
           data-presence=""
-          className="surface-in float-left mt-1 mr-8 mb-4 desktop:mr-(--gap-presence) @story-column/story:mr-(--gap-presence)"
+          className="float-left mt-1 mr-8 mb-4 desktop:mr-(--gap-presence) @story-column/story:mr-(--gap-presence)"
         >
           {column}
         </div>
@@ -91,8 +102,10 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
       {column}
       {/* Level with the portrait's foot, above the button under it. */}
       <p
+        aria-hidden="true"
         className={cn(
           "min-w-0 break-words font-story text-band text-narration",
+          BAND_NAME,
           pictures && "mb-11 touch:mb-13",
         )}
       >
@@ -102,23 +115,41 @@ export function Presence({ placement }: { placement: "float" | "band" }) {
   ) : pictures ? (
     <div className="flex items-center gap-4">
       {column}
-      <p className="min-w-0 break-words font-story text-heading text-narration">{name}</p>
+      <p
+        aria-hidden="true"
+        className={cn("min-w-0 break-words font-story text-heading text-narration", BAND_NAME)}
+      >
+        {name}
+      </p>
     </div>
   ) : (
-    <p className="break-words font-story text-heading text-narration">{name}</p>
+    <p
+      aria-hidden="true"
+      className={cn("break-words font-story text-heading text-narration", BAND_NAME)}
+    >
+      {name}
+    </p>
   );
   // The band's roster spans its whole width, under the portrait and the name.
   return (
     <div
       key={character.id}
       data-presence=""
-      className={cn("surface-in -mt-2", portrait ? "pb-4" : "pb-3")}
+      className={cn(!inReply && "-mt-2", portrait ? "pb-4" : "pb-3")}
     >
-      {head}
+      {inReply ? column : head}
       {cast && <CastPanel placement="band" />}
     </div>
   );
 }
+
+/**
+ * The band's name gives way, as the header's title does, while a turn of the
+ * character's names them in the story (Thread's NameShown), so a name never
+ * shows twice; it keeps its room, so nothing below moves.
+ */
+const BAND_NAME =
+  "transition-opacity duration-(--duration-quick) ease-fade [[data-name-shown]_&]:opacity-0";
 
 /**
  * The floating portrait's rim: busy while a reply (or Write for me's
@@ -146,7 +177,7 @@ export function HeaderPortrait() {
       data-presence-header=""
       className="presence-in relative isolate shrink-0"
     >
-      <Leaf id={character.id} version={character.portrait} className="w-8" />
+      <Leaf id={character.id} name={character.name} version={character.portrait} className="w-8" />
     </span>
   );
 }

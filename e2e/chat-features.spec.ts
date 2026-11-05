@@ -85,7 +85,9 @@ for (const [fixture, notice] of [
     await send(page, `${canary("in")} [e2e-finish:${fixture}]`);
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expect(lastReply(page).getByText(notice, { exact: true })).toBeVisible();
-    await expect(lastReply(page).locator("[data-prose]")).toHaveText(notice);
+    await expect(lastReply(page).locator("[data-prose]")).toHaveText(
+      fixture === "blocked" ? `${notice}Try again` : notice,
+    );
   });
 }
 
@@ -310,6 +312,23 @@ test("swipes: New reply writes another, arrows and keys step, Replace swaps only
   expect(await upstreamRecords(line)).toHaveLength(3);
 });
 
+test("New reply appends a third alternate while the first of two is shown", async ({ page }) => {
+  await openChat(page, "mock-fast");
+  const line = canary("in");
+  await send(page, line);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  const actions = replyActions(page);
+  await actions.getByRole("button", { name: "New reply" }).click();
+  await expect(replyCounter(page)).toContainText("2 / 2");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await actions.getByRole("button", { name: "Previous reply" }).click();
+  await expect(replyCounter(page)).toContainText("1 / 2");
+  await actions.getByRole("button", { name: "New reply" }).click();
+  await expect(replyCounter(page)).toContainText("3 / 3");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  expect(await upstreamRecords(line)).toHaveLength(3);
+});
+
 test("a failed reply says why and Try again replaces it in place", async ({ page }) => {
   await openChat(page, "mock-fast");
   // The first request never reaches the server; the next one goes through.
@@ -323,13 +342,14 @@ test("a failed reply says why and Try again replaces it in place", async ({ page
   await send(page, line);
   await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
   await expect(lastReply(page).locator("[data-prose]")).toHaveText(
-    "No reply: the server couldn't be reached. Check the connection, then try again.",
+    "No reply: the server couldn't be reached.Try again",
   );
-  // Try again leads the row, in place of New reply, which would keep the empty one.
+  // Try again sits beside the failure, replacing the empty attempt in place.
   const actions = replyActions(page);
   await expect(actions.getByRole("button", { name: "New reply" })).toHaveCount(0);
-  await expect(actions.getByRole("button").first()).toHaveText("Try again");
-  await actions.getByRole("button", { name: "Try again", exact: true }).click();
+  const failure = lastReply(page).getByRole("alert");
+  await expect(failure.getByRole("button", { name: "Try again", exact: true })).toBeVisible();
+  await failure.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   await expect(lastReply(page)).toContainText(line.replace("-in-", "-out-"));
   // Replaced in place: one reply, so no pager, and the note is gone.
@@ -452,7 +472,7 @@ test("the preset's Author's Note reaches the model at depth 1 as the user, is la
   await expect(sendNote).toHaveAccessibleDescription(
     "Off: kept here and not placed in the prompt; {{authorsNote}} still reads it.",
   );
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Chat" }).click();
   // Session comes back open, as it was left.
   await expect(page.getByRole("dialog", { name: "Session" })).toBeVisible();
@@ -652,7 +672,7 @@ test("the prompt preset's Continue instruction is edited in Actions and joins na
   const nudge = `[Go on, {{char}}. ${uniqueName("nudge")}]`;
   const actions = page.getByRole("region", { name: "Actions", exact: true });
   await actions.getByRole("textbox", { name: "Continue", exact: true }).fill(nudge);
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 
   await openChat(page, "mock-fast");
   await openSession(page);

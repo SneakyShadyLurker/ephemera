@@ -17,6 +17,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { cn } from "@/lib/cn";
+import { WindowLink } from "../settings/window-link.tsx";
 import { useInFlight } from "./Screen.tsx";
 import { ThemeSwitch } from "./ThemeSwitch.tsx";
 import { setNavOpen, useUi } from "./ui.ts";
@@ -101,7 +102,7 @@ export function Rail({ compact }: { compact: boolean }) {
       aria-label="Main"
       className={cn(
         "flex h-dvh shrink-0 flex-col overflow-y-auto border-rush border-r pb-4",
-        compact ? "w-20 items-stretch px-1.5" : "w-52 px-3",
+        compact ? "w-20 items-stretch px-1.5" : "w-rail px-3",
       )}
     >
       <div
@@ -154,6 +155,18 @@ export function NavSheet() {
           className="min-h-0 overflow-y-auto px-3 pb-[calc(1rem+env(safe-area-inset-bottom))]"
         >
           <Destinations layout="sheet" onNavigate={() => setNavOpen(false)} />
+          <div className="mt-3 grid gap-2 border-rush border-t px-4 pt-3">
+            <ThemeSwitch labelled />
+            <WindowLink
+              model={null}
+              section="appearance"
+              onClick={() => setNavOpen(false)}
+              className="row flex min-h-11 items-center gap-3 rounded-md px-3 text-ink text-ui"
+            >
+              <SettingsIcon size={20} />
+              Appearance
+            </WindowLink>
+          </div>
         </nav>
       </DrawerContent>
     </Drawer>

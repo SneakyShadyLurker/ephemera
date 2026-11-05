@@ -1,6 +1,7 @@
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
 import { cn } from "@/lib/cn";
+import { SEGMENT, SEGMENT_LABELLED, SEGMENTS } from "./toggle-group.tsx";
 
 /** One choice of several, named by `aria-labelledby` or a label around its radios. */
 function RadioGroup<Value>({ className, ...props }: RadioGroupPrimitive.Props<Value>) {
@@ -22,7 +23,7 @@ function Radio({ className, ...props }: RadioPrimitive.Root.Props) {
     <RadioPrimitive.Root
       data-slot="radio"
       className={cn(
-        "relative grid size-4 shrink-0 place-items-center rounded-full border border-control-edge bg-surface transition-colors duration-(--duration-quick) ease-fade after:absolute after:-inset-2.5 data-checked:border-ink data-checked:bg-ink data-disabled:border-rush data-disabled:bg-rush touch:size-5",
+        "relative grid size-4 shrink-0 place-items-center rounded-full border border-control-edge bg-surface transition-colors duration-(--duration-quick) ease-fade after:absolute after:-inset-2.5 data-checked:border-ink data-checked:bg-ink data-disabled:border-rush data-disabled:bg-rush touch:size-5 touch:after:-inset-3",
         className,
       )}
       {...props}
@@ -33,15 +34,15 @@ function Radio({ className, ...props }: RadioPrimitive.Root.Props) {
 }
 
 /**
- * One choice of a few, drawn as segments of one control on a canvas well:
- * the chosen segment lifts onto the surface in ink. The caller sets the
+ * One choice of a few, drawn as segments of one control in the segmented
+ * skin the toggle group wears (toggle-group.tsx). The caller sets the
  * columns.
  */
 function RadioSegments<Value>({ className, ...props }: RadioGroupPrimitive.Props<Value>) {
   return (
     <RadioGroupPrimitive
       data-slot="radio-segments"
-      className={cn("grid gap-1 rounded-md bg-canvas p-1", className)}
+      className={cn("grid", SEGMENTS, className)}
       {...props}
     />
   );
@@ -53,7 +54,9 @@ function RadioSegment({ className, ...props }: RadioPrimitive.Root.Props) {
     <RadioPrimitive.Root
       data-slot="radio-segment"
       className={cn(
-        "press grid h-11 cursor-pointer place-items-center rounded-sm text-reed text-ui data-checked:bg-surface data-checked:text-ink",
+        SEGMENT,
+        SEGMENT_LABELLED,
+        "grid cursor-pointer place-items-center data-checked:bg-surface-selected data-checked:text-ink",
         className,
       )}
       {...props}

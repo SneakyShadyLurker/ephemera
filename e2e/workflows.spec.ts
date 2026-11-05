@@ -48,7 +48,9 @@ async function openSettings(page: Page) {
 async function openDescribe(page: Page) {
   await page.goto("/characters");
   await page.getByRole("button", { name: "Create with AI" }).first().click();
-  await page.locator('[data-kind="subject"]').click();
+  await expect(
+    page.getByRole("button", { name: "Change from Subject", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("textbox", { name: COPY.subject.field })).toBeVisible();
 }
 
@@ -74,6 +76,7 @@ test("a saved workflow file shows where Ephemera's values go, then saves as read
   }
   await expect(rows.nth(0)).toContainText('In this file: "a lighthouse at dusk"');
   await expect(panel.getByRole("combobox", { name: "Output node", exact: true })).toHaveCount(0);
+  await panel.getByText("Import details", { exact: true }).click();
   await expect(panel.getByRole("heading", { name: "Changed", exact: true })).toBeVisible();
   await expect(panel.getByRole("heading", { name: "Left out", exact: true })).toBeVisible();
   await expect(panel.getByRole("heading", { name: "On your ComfyUI", exact: true })).toBeVisible();
@@ -103,6 +106,7 @@ test("a workflow with two image outputs asks for one before it saves", async ({ 
   await expect(notChosen).toHaveCount(0);
 
   await choose(panel, "Output node", SECOND_SAVER);
+  await panel.getByText("Import details", { exact: true }).click();
   await expect(notChosen).toBeVisible();
   await expect(panel.getByText("Choose one mapping before saving.")).toHaveCount(0);
   await expect(save).toBeEnabled();
@@ -227,7 +231,7 @@ test("deleting the workflow in use goes back to the default", async ({ comfy, pa
   await expect.poll(async () => (await readSettings(request)).comfyuiWorkflow).not.toBe(before);
   await openSettings(page);
   const row = workflowRow(page, name);
-  await expect(row).toContainText("In use");
+  await expect(row).toContainText("Selected");
 
   await actionsFor(page, name).click();
   await page.getByRole("menuitem", { name: "Delete" }).click();

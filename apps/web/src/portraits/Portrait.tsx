@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { GLIDE } from "@/app/glide.ts";
 import { useOnScreen } from "@/app/KeptScroll.tsx";
 import { MarkIcon } from "@/components/icons";
@@ -13,6 +13,121 @@ export const LEAF_EDGE =
 /** Within one screen of view, around the viewport and around every scroller on the way. */
 const NEAR_SCREEN: IntersectionObserverInit = { rootMargin: "100% 0px", scrollMargin: "100% 0px" };
 
+/** Keep the actual decoded node until its replacement loads, including across session renewals. */
+function KeptImage({
+  src,
+  arriving = false,
+  lazy = false,
+  unavailable,
+}: {
+  src: string | null;
+  arriving?: boolean;
+  lazy?: boolean;
+  unavailable?: ReactNode;
+}) {
+  const renewals = useRenewals();
+  const current = `${renewals}:${src}`;
+  const [drawn, setDrawn] = useState<{ key: string; src: string } | null>(
+    src === null || arriving ? null : { key: current, src },
+  );
+  const [failed, setFailed] = useState<string | null>(null);
+  const frame = useRef<HTMLSpanElement>(null);
+  if (src === null && drawn !== null) setDrawn(null);
+  useEffect(() => {
+    if (src === null || drawn?.key === current) return;
+    let active = true;
+    const show = () => {
+      const probe = new Image();
+      probe.src = src;
+      void probe.decode().then(
+        () => {
+          if (active) {
+            setFailed(null);
+            setDrawn({ key: current, src });
+          }
+        },
+        () => {
+          if (active) setFailed(current);
+        },
+      );
+    };
+    const leaf = frame.current;
+    // Renewals keep the gallery's lazy boundary, including portraits far off screen.
+    const observer =
+      lazy && leaf
+        ? new IntersectionObserver((entries) => {
+            if (!entries.some((entry) => entry.isIntersecting)) return;
+            observer?.disconnect();
+            show();
+          }, NEAR_SCREEN)
+        : null;
+    if (observer && leaf) observer.observe(leaf);
+    else show();
+    return () => {
+      active = false;
+      observer?.disconnect();
+    };
+  }, [current, src, drawn?.key, lazy]);
+  const missing = failed === (drawn?.key ?? current);
+  return (
+    <span ref={frame} className="absolute inset-0">
+      {src !== null &&
+        (missing ? (
+          unavailable === undefined ? (
+            <UnavailablePortrait />
+          ) : (
+            unavailable
+          )
+        ) : drawn !== null ? (
+          <img
+            key={drawn.key}
+            src={drawn.src}
+            alt=""
+            loading={lazy ? "lazy" : "eager"}
+            decoding="async"
+            draggable={false}
+            onError={() => setFailed(drawn.key)}
+            className={cn(
+              "absolute inset-0 size-full object-cover object-top",
+              arriving && "surface-in",
+            )}
+          />
+        ) : null)}
+    </span>
+  );
+}
+
+/** A refused image keeps its frame and shows a deliberate, quiet face. */
+function UnavailablePortrait({
+  name,
+  caption = false,
+  compact = false,
+}: {
+  name?: string | undefined;
+  caption?: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <span
+      role="img"
+      aria-label="Portrait unavailable"
+      className="absolute inset-0 grid place-content-center justify-items-center gap-2 bg-surface-hover p-2 text-center"
+    >
+      <span
+        aria-hidden="true"
+        className={cn("font-semibold font-story text-ink", compact ? "text-note" : "text-title")}
+      >
+        {initial(name ?? "Portrait")}
+      </span>
+      {caption && (
+        <span aria-hidden="true" className="text-meta text-reed">
+          Portrait unavailable
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** The shared-element name that carries a portrait from a gallery into its sheet. */
 export const PORTRAIT_TRANSITION = "character-portrait";
 
@@ -24,6 +139,7 @@ export const PORTRAIT_TRANSITION = "character-portrait";
  */
 export function Portrait({
   owner = "characters",
+  name,
   id,
   version,
   size = "thumb",
@@ -32,6 +148,7 @@ export function Portrait({
   className,
 }: {
   owner?: PortraitOwner;
+  name?: string;
   id: string;
   version: number | null;
   size?: PortraitSize;
@@ -42,41 +159,12 @@ export function Portrait({
   className?: string;
 }) {
   // An image refused while signed out loads again after the renewal.
-  const renewals = useRenewals();
   const frame = useRef<HTMLDivElement>(null);
   // Back in a gallery, the morph lands only on a tile on screen (an edit can move it to the top).
   const shown = useOnScreen(frame, transition);
   const style: CSSProperties | undefined =
     transition && shown ? { viewTransitionName: PORTRAIT_TRANSITION } : undefined;
   const src = version === null ? null : portraitUrl(owner, id, version, size);
-  // The art on the leaf. Arriving art waits for its pixels, so it surfaces out of
-  // blur once they paint, and a replacement keeps the art it replaces until then.
-  const [drawn, setDrawn] = useState(arriving ? null : src);
-  if (!arriving && drawn !== src) setDrawn(src);
-  // The probe starts once the leaf comes within a screen of view (as native lazy loading does),
-  // so arrivals far off screen fetch nothing yet; `scrollMargin` widens the screen's own
-  // scroller, which clips the leaf before the viewport does.
-  useEffect(() => {
-    const leaf = frame.current;
-    if (!arriving || src === null || leaf === null) return;
-    let current = true;
-    // A refused decode shows the image anyway; the element reports its own failure.
-    const show = () => {
-      if (current) setDrawn(src);
-    };
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      observer.disconnect();
-      const probe = new Image();
-      probe.src = src;
-      probe.decode().then(show, show);
-    }, NEAR_SCREEN);
-    observer.observe(leaf);
-    return () => {
-      current = false;
-      observer.disconnect();
-    };
-  }, [arriving, src]);
   return (
     <div
       ref={frame}
@@ -88,22 +176,27 @@ export function Portrait({
         className,
       )}
     >
-      {version === null ? (
-        <div className="flex size-full items-end p-[9%]">
-          <MarkIcon size={32} className="text-reed opacity-45 [&_[data-lamp]]:fill-current" />
-        </div>
-      ) : drawn === null ? null : (
-        // A new version is a new node, so a replacement surfaces again.
-        <img
-          key={`${renewals}:${drawn}`}
-          src={drawn}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          className={cn("size-full object-cover object-top", arriving && "surface-in")}
+      {/* The mark low in the leaf, 9% of its width in from the corner (the leaf is the container). */}
+      {version === null && name ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 grid place-items-center font-semibold font-story text-ink text-title"
+        >
+          {initial(name)}
+        </span>
+      ) : (
+        <MarkIcon
+          size={32}
+          className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
         />
       )}
+      <KeptImage
+        key={`${owner}:${id}`}
+        src={src}
+        arriving={arriving}
+        lazy={size !== "full"}
+        unavailable={<UnavailablePortrait name={name} caption />}
+      />
     </div>
   );
 }
@@ -124,23 +217,15 @@ export function FullPortrait({
   /** The size already on screen, so already loaded. */
   shown: PortraitSize;
 }) {
-  const renewals = useRenewals();
   return (
-    <span key={renewals} className="relative block size-full">
+    <span className="relative block size-full">
       {shown !== "full" && (
-        <img
-          src={portraitUrl(owner, id, version, shown)}
-          alt=""
-          draggable={false}
-          className="absolute inset-0 size-full object-cover object-top"
-        />
+        <KeptImage key={`shown:${owner}:${id}`} src={portraitUrl(owner, id, version, shown)} />
       )}
-      <img
+      <KeptImage
+        key={`full:${owner}:${id}`}
         src={portraitUrl(owner, id, version, "full")}
-        alt=""
-        decoding="async"
-        draggable={false}
-        className="relative size-full object-cover object-top"
+        {...(shown !== "full" ? { unavailable: null } : {})}
       />
     </span>
   );
@@ -149,31 +234,31 @@ export function FullPortrait({
 /** The small leaf of the chat cues and Session: the whole art, no crop. */
 export function Leaf({
   owner = "characters",
+  name,
   id,
   version,
   className,
 }: {
   owner?: PortraitOwner;
+  name?: string | undefined;
   id: string;
   version: number;
   className?: string;
 }) {
-  const renewals = useRenewals();
+  const src = portraitUrl(owner, id, version, "thumb");
+  // Art that did not load leaves the leaf's quiet ground, never the browser's broken image.
   return (
     <span
       className={cn(
-        "relative block aspect-[2/3] shrink-0 overflow-hidden rounded-xs",
+        "relative block aspect-[2/3] shrink-0 overflow-hidden rounded-xs bg-surface-selected",
         LEAF_EDGE,
         className,
       )}
     >
-      <img
-        key={renewals}
-        src={portraitUrl(owner, id, version, "thumb")}
-        alt=""
-        decoding="async"
-        draggable={false}
-        className="size-full object-cover"
+      <KeptImage
+        key={`${owner}:${id}`}
+        src={src}
+        unavailable={<UnavailablePortrait name={name} compact />}
       />
     </span>
   );
@@ -216,6 +301,6 @@ export function PortraitLeaf({
       <span className="text-[70cqi]">{initial(name)}</span>
     </span>
   ) : (
-    <Leaf owner={owner} id={id} version={version} className={className} />
+    <Leaf owner={owner} id={id} name={name} version={version} className={className} />
   );
 }

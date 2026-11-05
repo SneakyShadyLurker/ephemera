@@ -10,6 +10,7 @@ import {
 } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useId, useRef, useState } from "react";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { NumberField } from "@/components/ui/number-field";
@@ -20,6 +21,7 @@ import { isNotFound, useModelInfo, useModelOptions } from "../api.ts";
 import { useSetting } from "../settings/settings.ts";
 import { useAutosave } from "../sheet/autosave.ts";
 import { ConflictNotice, useReload } from "../sheet/ConflictNotice.tsx";
+import { FieldFeedback, FieldSaving } from "../sheet/FieldFeedback.tsx";
 import { HELP, SHEET_GRID, sheetLabel } from "../sheet/fields.ts";
 import {
   NameField,
@@ -78,7 +80,7 @@ function Section({ title, id, children }: { title: string; id?: string; children
       <h2 id={id} className={LABEL}>
         {title}
       </h2>
-      <div className="grid gap-6">{children}</div>
+      <div className="grid gap-4">{children}</div>
     </section>
   );
 }
@@ -138,6 +140,8 @@ function SamplerPresetEditor({
   const efforts = REASONING_EFFORTS.filter(
     (effort) => offered.includes(effort) || effort === values.reasoning,
   );
+  const reasoningUnavailable =
+    replyModel !== null && modelInfo !== undefined && !offered.includes(values.reasoning);
   const reasoningHelp =
     replyModel === null || modelInfo === undefined
       ? "How long a reasoning model thinks first. Every level shows until a model is chosen."
@@ -168,6 +172,7 @@ function SamplerPresetEditor({
         />
       </SheetHeader>
       <SheetBody
+        saving={{ status: autosave.status, noun: "preset" }}
         label="Sampler preset"
         after={
           autosave.status.kind === "conflict" && (
@@ -303,12 +308,16 @@ function SamplerPresetEditor({
                 ))}
               </SelectContent>
             </Select>
-            <p
-              key={reasoningHelp}
-              className={`${HELP} transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0`}
-            >
-              {reasoningHelp}
-            </p>
+            {reasoningUnavailable ? (
+              <InlineStatus as="p">{reasoningHelp}</InlineStatus>
+            ) : (
+              <p
+                key={reasoningHelp}
+                className={`${HELP} transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0`}
+              >
+                {reasoningHelp}
+              </p>
+            )}
           </div>
         </Section>
       </SheetBody>
@@ -359,9 +368,10 @@ function ValueRow({
     });
   return (
     <fieldset ref={row} aria-labelledby={labelId} className="m-0 grid min-w-0 gap-1 border-0 p-0">
-      <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-1 touch:min-h-11">
-        <span id={labelId} className="flex-1 font-medium text-ink text-ui max-tablet:basis-full">
+      <div className="flex min-h-9 items-center gap-2 touch:min-h-11">
+        <span id={labelId} className="min-w-0 flex-1 font-medium text-ink text-ui">
           {label}
+          {unit && <span className="font-normal text-note text-reed"> ({unit})</span>}
         </span>
         {value === null ? (
           <span className="flex items-center gap-2">
@@ -382,25 +392,27 @@ function ValueRow({
             </Button>
           </span>
         ) : (
-          <span className="flex items-center gap-2 arrive">
-            <NumberField
-              value={value}
-              min={range.min}
-              max={range.max}
-              step={range.step}
-              largeStep={range.step * 10}
-              label={label}
-              className="w-32 touch:w-44"
-              format={{
-                minimumFractionDigits: decimals,
-                maximumFractionDigits: decimals,
-                useGrouping: grouping,
-              }}
-              onValueChange={(next) => {
-                if (next !== null) onChange(next);
-              }}
-            />
-            {unit && <span className="text-note text-reed">{unit}</span>}
+          <span className="flex shrink-0 items-center gap-1 arrive">
+            {/* Feedback belongs below the whole parameter, never between its value and slider. */}
+            <FieldSaving value={null}>
+              <NumberField
+                value={value}
+                min={range.min}
+                max={range.max}
+                step={range.step}
+                largeStep={range.step * 10}
+                label={label}
+                className={slider ? "w-28 touch:w-34" : "w-32 touch:w-44"}
+                format={{
+                  minimumFractionDigits: decimals,
+                  maximumFractionDigits: decimals,
+                  useGrouping: grouping,
+                }}
+                onValueChange={(next) => {
+                  if (next !== null) onChange(next);
+                }}
+              />
+            </FieldSaving>
             <Button
               size="text"
               aria-label={`Reset ${label} to ${unset.toLowerCase()}`}
@@ -425,7 +437,9 @@ function ValueRow({
           onValueChange={(next) => onChange(Array.isArray(next) ? (next[0] ?? value) : next)}
         />
       )}
-      <p className={HELP}>{help}</p>
+      <FieldFeedback value={value}>
+        <p className={HELP}>{help}</p>
+      </FieldFeedback>
     </fieldset>
   );
 }

@@ -7,9 +7,11 @@ import {
   newEntry,
 } from "@ephemera/core";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { EmptyState } from "@/app/EmptyState.tsx";
 import { useFormFactor } from "@/app/form-factor.ts";
+import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { SCROLL_GUTTER_END, SCROLL_GUTTERS } from "@/app/Screen.tsx";
-import { LorebookIcon, PlusIcon } from "@/components/icons";
+import { PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { type SaveStatus, useAutosave } from "../sheet/autosave.ts";
@@ -18,6 +20,7 @@ import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import {
   type BackTarget,
   SheetHeader,
+  SheetTitleBoundary,
   useLeaveGuard,
   useLeavingSheet,
 } from "../sheet/SheetFrame.tsx";
@@ -379,12 +382,18 @@ export function LorebookEditor<Saved extends { revision: number }>({
     ) : null;
 
   const undoLine = removed !== null && (
-    <p role="status" className="flex items-center gap-2 text-note text-reed arrive">
+    <InlineStatus
+      as="p"
+      role="status"
+      className="arrive"
+      actions={
+        <Button size="text" className="text-ink" onClick={undo}>
+          Undo
+        </Button>
+      }
+    >
       <span className="min-w-0 truncate">{entryTitle(removed.entry, removed.index)} removed.</span>
-      <Button size="text" className="text-ink" onClick={undo}>
-        Undo
-      </Button>
-    </p>
+    </InlineStatus>
   );
 
   const list = (
@@ -447,6 +456,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
         <div className="flex min-h-0 flex-1">
           <div
             ref={scroller}
+            data-sheet-scroller=""
             data-skip-target={split || !inEntry ? "" : undefined}
             tabIndex={-1}
             className={cn(
@@ -456,6 +466,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
                 : cn("min-h-0 min-w-0 flex-1", SCROLL_GUTTERS, inEntry && "hidden"),
             )}
           >
+            <SheetTitleBoundary alwaysVisible={inEntry} />
             <div className={split ? "contents" : "mx-auto max-w-column"}>{list}</div>
           </div>
           <div
@@ -468,7 +479,7 @@ export function LorebookEditor<Saved extends { revision: number }>({
           >
             {editor ??
               (split && entries.length > 0 && (
-                <p className="px-10 pt-16 text-reed text-ui">Choose an entry to edit it.</p>
+                <EmptyState compact title="Choose an entry to edit it." className="px-10 pt-16" />
               ))}
           </div>
         </div>
@@ -488,13 +499,16 @@ export function LorebookEditor<Saved extends { revision: number }>({
 
 function EmptyBook({ text, onAdd }: { text: string; onAdd: () => void }) {
   return (
-    <div className={cn(LIST_X, "grid justify-items-start gap-3 pt-10")}>
-      <LorebookIcon size={24} className="text-reed" />
-      <p className="max-w-help text-pretty text-lead text-narration">{text}</p>
-      <Button variant="outline" onClick={onAdd}>
-        <PlusIcon size={16} />
-        Add the first entry
-      </Button>
-    </div>
+    <EmptyState
+      compact
+      title={text}
+      className={cn(LIST_X, "pt-10")}
+      actions={
+        <Button variant="outline" onClick={onAdd}>
+          <PlusIcon size={16} />
+          Add the first entry
+        </Button>
+      }
+    />
   );
 }

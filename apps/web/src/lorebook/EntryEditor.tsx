@@ -26,7 +26,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { oneOf } from "@/lib/one-of.ts";
 import { countOf } from "@/lib/text";
-import { FIELD, HELP, TITLE_FIELD } from "../sheet/fields.ts";
+import { COMPACT_LABEL, FIELD, FIELD_LABEL, HELP, TITLE_FIELD } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
 import { activationChange, entryKeyProblems, isActivation, secondaryKeyProblems } from "./book.ts";
@@ -57,7 +57,7 @@ import { KeywordsField } from "./KeywordsField.tsx";
 import { ActivationMark } from "./marks.tsx";
 import { SettingsRow } from "./SettingsRow.tsx";
 
-const LABEL = "font-medium text-ink text-ui";
+const LABEL = FIELD_LABEL;
 
 /** The editor's closed rows, in the order the owner asks them. */
 const ENTRY_ROWS = ["where", "when", "pool", "brings", "matches"] as const;
@@ -702,7 +702,7 @@ function WhatBringsItIn({
         </div>
       )}
       <div className="grid gap-1.5">
-        <span id={labelId} className="text-meta text-reed">
+        <span id={labelId} className={COMPACT_LABEL}>
           Can go in through
         </span>
         <ToggleGroup
