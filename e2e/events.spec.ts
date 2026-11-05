@@ -65,28 +65,45 @@ test("closing Events saves edits made while its close save is waiting", async ({
   await freshChat(request);
   const original = "The lamp flickers.";
   const edited = "The lamp flickers twice.";
-  const later = " Then it goes dark.";
+  const other = "The door opens.";
+  const later = "The door opens slowly.";
   const id = await createEventViaApi(request, original);
+  const otherId = await createEventViaApi(request, other);
   const held = await holdAnswer(page, id, "PATCH");
   try {
+    const now = Date.now();
+    await page.clock.install({ time: now });
     await page.goto("/lorebooks");
     await openEvents(page);
     await page.getByRole("link", { name: "Events in chat", exact: true }).click();
     const sheet = page.getByRole("dialog", { name: "Events", exact: true });
     await sheet.getByRole("button", { name: original }).click();
-    const instruction = sheet.getByRole("textbox", { name: "Instruction" });
+    await sheet.getByRole("button", { name: other }).click();
+    const instruction = sheet.locator(`[data-event="${id}"]`).getByRole("textbox", {
+      name: "Instruction",
+    });
+    const otherInstruction = sheet.locator(`[data-event="${otherId}"]`).getByRole("textbox", {
+      name: "Instruction",
+    });
+    // Only close can save A; B stays clean until that flush is already waiting.
+    await page.clock.pauseAt(now + 60_000);
     await instruction.fill(edited);
     await page.keyboard.press("Escape");
     await held.committed;
     await expect(sheet).toBeVisible();
-    await instruction.press("End");
-    await instruction.pressSequentially(later);
-    await expect(instruction).toHaveValue(edited + later);
+    await otherInstruction.fill(later);
+    await expect(otherInstruction).toHaveValue(later);
     held.release();
+    // Keep B's debounce paused: the close loop must find and flush this newly dirty row.
+    await expect
+      .poll(async () => (await storedEvents(request)).find((event) => event.id === otherId)?.text)
+      .toBe(later);
+    await page.clock.resume();
     await expect(sheet).toHaveCount(0);
-    expect((await storedEvents(request))[0]?.text).toBe(edited + later);
+    expect((await storedEvents(request)).find((event) => event.id === id)?.text).toBe(edited);
     await page.getByRole("button", { name: "Events", exact: true }).click();
-    await expect(sheet.getByRole("button", { name: edited + later })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: edited })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: later })).toBeVisible();
   } finally {
     held.release();
   }
