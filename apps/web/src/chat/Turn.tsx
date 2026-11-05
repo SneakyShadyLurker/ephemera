@@ -15,7 +15,7 @@ import { REFUSAL_NOTE, WINDOW_UNKNOWN } from "./refusal.ts";
 import { SwipeFrame } from "./Swipe.tsx";
 import { useChat } from "./session.ts";
 import { type AssistantMessage, type MessageStatus, type Reply, shownReply } from "./store.ts";
-import { ReplyActions, TurnActions } from "./TurnActions.tsx";
+import { GreetingActions, ReplyActions, TurnActions } from "./TurnActions.tsx";
 
 // The Markdown renderer loads apart from the page; the thread preloads it on mount.
 const Markdown = lazy(() => loadMarkdown().then((module) => ({ default: module.Markdown })));
@@ -168,7 +168,7 @@ function Prose({ text, streaming }: { text: string; streaming: boolean }) {
 /**
  * One turn. It subscribes to its own message, read at its place in the
  * thread, so streaming re-renders only this turn and each change costs a
- * turn one lookup; the last reply's actions row is the thread's, below it.
+ * turn one lookup; the last reply's actions follow its prose inside the turn.
  */
 export function Turn({
   id,
@@ -244,15 +244,7 @@ export function Turn({
   );
 }
 
-/** The existing reply footer also explains provider-ended partial replies. */
-/**
- * A failed reply, not a greeting: its actions (Try again first) sit under
- * its note inside the turn instead of in the row after it, so they follow
- * the words that say what went wrong.
- */
-export const failedInPlace = (message: AssistantMessage): boolean =>
-  !message.greeting && shownReply(message).status === "failed";
-
+/** The reply footer also explains provider-ended partial replies. */
 export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
   const partial =
     reply.status !== "complete"
@@ -385,15 +377,23 @@ function ReplyTurn({
               </SwipeFrame>
               <ReplyNote reply={reply} last={last} />
             </div>
-            {last && !locked && failedInPlace(message) && (
-              // Right under what went wrong, before the portrait's column and the cast end.
-              <div
-                data-reply-actions=""
-                className="-ml-2 pt-1 font-sans transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
-              >
-                <ReplyActions message={message} />
-              </div>
-            )}
+            {last &&
+              !locked &&
+              !streaming &&
+              reply.status !== "waiting" &&
+              (!message.greeting || message.replies.length > 1) && (
+                // Below the prose end: the portrait and cast never push this row away.
+                <div
+                  data-reply-actions=""
+                  className="-ml-2 pt-1 font-sans transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+                >
+                  {message.greeting ? (
+                    <GreetingActions message={message} />
+                  ) : (
+                    <ReplyActions message={message} />
+                  )}
+                </div>
+              )}
           </>
         )}
       </div>

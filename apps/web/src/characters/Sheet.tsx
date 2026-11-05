@@ -453,6 +453,14 @@ function SheetEditor({
                 </ReviewField>
               }
               tags={<TagsField tags={fields.tags} onChange={(tags) => edit({ tags })} />}
+              details={
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <CardDetails fields={fields} edit={edit} locked={locked} />
+                  </div>
+                  {phone && <SectionsMenu disabled={id === null || locked} />}
+                </div>
+              }
               owner="characters"
               noun="character"
               id={id}
@@ -481,12 +489,6 @@ function SheetEditor({
                     )
               }
             />
-          </div>
-          <div className="col-span-full flex min-w-0 items-start gap-3 tablet:col-start-2 tablet:col-span-1">
-            <div className="min-w-0 flex-1">
-              <CardDetails fields={fields} edit={edit} locked={locked} />
-            </div>
-            {phone && <SectionsMenu disabled={id === null || locked} />}
           </div>
         </section>
 
@@ -652,12 +654,10 @@ function ChatButton({
   locked: boolean;
 }) {
   const { start, dialog } = useStartChat();
-  const phone = useFormFactor() === "phone";
   return (
     <>
       <Button
         variant="outline"
-        size={phone ? "icon" : "default"}
         aria-label="Chat"
         disabled={id === null || locked}
         onClick={async () => {
@@ -667,7 +667,7 @@ function ChatButton({
         }}
       >
         <ChatIcon size={16} />
-        {!phone && "Chat"}
+        Chat
       </Button>
       {dialog}
     </>

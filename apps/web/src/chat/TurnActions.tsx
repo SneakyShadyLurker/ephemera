@@ -246,9 +246,9 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
       </Tooltip>
     );
   return (
-    <div className="flex flex-wrap items-center gap-0.5">
+    <div className="flex flex-wrap items-center gap-3">
       {count > 1 ? (
-        <fieldset className="flex items-center">
+        <fieldset className="flex items-center gap-3">
           <legend className="sr-only">Replies</legend>
           <IconAction
             label="Previous reply"
@@ -319,7 +319,7 @@ export function GreetingActions({ message }: { message: AssistantMessage }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {count > 1 && (
-        <fieldset className="flex items-center">
+        <fieldset className="flex items-center gap-3">
           <legend className="sr-only">Greetings</legend>
           <IconAction
             label="Previous greeting"

@@ -530,6 +530,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
   const alertRef = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
   const feedbackId = useId();
+  const feedbackRef = useRef<HTMLTextAreaElement>(null);
 
   // Back from Describe, the list is where it was and focus on the idea that was picked.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only on arrival.
@@ -624,6 +625,21 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
             <Button size="text" onClick={() => inTransition(resetIdeas)}>
               Start over
             </Button>
+            <Button
+              size="text"
+              onClick={() => {
+                feedbackRef.current?.scrollIntoView({
+                  block: "center",
+                  behavior: scrollBehavior(),
+                });
+                feedbackRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              Adjust ideas
+            </Button>
+            <Button size="text" disabled={running || model.model === null} onClick={adjust}>
+              New ideas
+            </Button>
           </div>
         </div>
       )}
@@ -688,6 +704,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
             Adjust the ideas
           </label>
           <textarea
+            ref={feedbackRef}
             id={feedbackId}
             data-lamp-field=""
             value={feedback}
@@ -699,7 +716,11 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
             translate="no"
             className={cn(REQUEST_FIELD, "max-h-[min(20rem,32dvh)] min-h-[calc(3*1.75rem+1.5rem)]")}
           />
-          <SendRow model={model} submit="New ideas" disabled={running || model.model === null} />
+          <SendRow
+            model={model}
+            submit="Send adjustment"
+            disabled={running || model.model === null}
+          />
         </form>
       )}
     </div>

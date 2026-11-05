@@ -46,7 +46,7 @@ import {
 } from "../presets/queries.ts";
 import { useSettings, useUpdateSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
-import { COMPACT_LABEL } from "../sheet/fields.ts";
+import { COMPACT_LABEL, EXPLANATION } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { useStartChat } from "./StartChat.tsx";
@@ -164,7 +164,10 @@ function Field({
       {note && (
         <p
           key={typeof note === "string" ? note : undefined}
-          className="text-pretty text-note text-reed transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+          className={cn(
+            EXPLANATION,
+            "transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
+          )}
         >
           {note}
         </p>
@@ -219,7 +222,7 @@ function CharacterField() {
             </span>
           </Link>
           <div className="flex flex-wrap items-center justify-between gap-x-3">
-            <p className="text-pretty text-note text-reed">
+            <p className={EXPLANATION}>
               {empty ? (
                 <>
                   No characters yet. Add one in{" "}

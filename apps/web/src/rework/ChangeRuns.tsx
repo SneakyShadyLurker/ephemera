@@ -1,7 +1,6 @@
-import { Fragment, useRef } from "react";
+import { Fragment, type ReactNode, useRef } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import type { Run, Segment } from "./tracked.ts";
 
@@ -12,9 +11,6 @@ import type { Run, Segment } from "./tracked.ts";
  */
 
 export type Decision = "accepted" | "rejected";
-
-const WORD = /\S+/gu;
-const countWords = (text: string): number => text.match(WORD)?.length ?? 0;
 
 /** A struck run of the original, spoken as a deletion where the element alone is not. */
 export function Deleted({ text, className }: { text: string; className?: string | undefined }) {
@@ -62,16 +58,6 @@ export function Runs({ runs }: { runs: readonly Run[] }) {
   });
 }
 
-const LETTER = /[\p{L}\p{N}]/u;
-
-/**
- * Whether the word diff keeps any word of the original. A rewrite that
- * keeps only spaces and punctuation reads better as the old passage struck,
- * then the new one, than as words interleaved one by one.
- */
-const keepsWords = (runs: readonly Run[]): boolean =>
-  runs.some((run) => run.kind === "same" && LETTER.test(run.text));
-
 /** Whether a change only adds: rejecting it folds it away rather than swapping emphasis. */
 const isPureInsertion = (runs: readonly Run[]): boolean =>
   runs.length > 0 && runs.every((run) => run.kind === "ins");
@@ -114,11 +100,11 @@ export function ChangeDecision({
     <span
       data-reason-for={reasonFor}
       className={cn(
-        "my-1 inline-flex w-full items-baseline gap-4 align-top font-normal font-sans text-note text-reed tracking-normal whitespace-normal",
+        "mt-2 inline-flex w-full items-start gap-3 align-top font-normal font-sans text-note text-reed tracking-normal whitespace-normal",
         reasonFor !== undefined && "change-arrive",
       )}
     >
-      <span id={whyId} className="min-w-0 flex-1 text-pretty">
+      <span id={whyId} className="min-w-0 flex-1 pt-1.5 text-pretty">
         {why}
         {rejected && <span className="sr-only"> Rejected.</span>}
       </span>
@@ -127,7 +113,7 @@ export function ChangeDecision({
           key="restore"
           ref={restore}
           variant="link"
-          size="inline"
+          size="text"
           className="shrink-0"
           aria-label={`Restore ${label}`}
           onClick={() => {
@@ -142,7 +128,7 @@ export function ChangeDecision({
           key="reject"
           ref={reject}
           variant="link"
-          size="inline"
+          size="text"
           className="shrink-0"
           aria-label={`Reject ${label}`}
           onClick={() => {
@@ -158,12 +144,8 @@ export function ChangeDecision({
 }
 
 /**
- * One change inside a tracked view, in the flow of its field's text:
- * interleaved runs, or for a large rewrite that keeps little (R3) one
- * inserted passage with the original behind "Show original". The group is
- * what Previous and Next focus (`data-change-at`, R5); its reason and
- * decision stand at the end of its sentence (TrackedText), and `whyId`
- * names the reason that describes it.
+ * One proposal: the original, its replacement, then its reason and decision.
+ * Previous and Next focus the whole block; unchanged passages stand outside it.
  */
 export function ChangeRuns({
   change,
@@ -173,6 +155,7 @@ export function ChangeRuns({
   field,
   whyId,
   decision,
+  children,
 }: {
   change: Extract<Segment, { kind: "change" }>;
   /** The change's arrival order: the dock finds it by this. */
@@ -185,6 +168,7 @@ export function ChangeRuns({
   /** The id of the change's reason, wherever its row stands. */
   whyId: string;
   decision: Decision;
+  children?: ReactNode;
 }) {
   const pure = isPureInsertion(change.runs);
   return (
@@ -198,33 +182,20 @@ export function ChangeRuns({
       data-decision={decision}
       data-pure={pure ? "" : undefined}
       className={cn(
-        "change-mark change-arrive group/change -ms-1 ps-1",
-        // A passage and its disclosure stand as a block of their own.
-        change.mode === "passage" && "block",
+        "change-mark change-arrive group/change my-4 block border-rush border-b pb-3 pl-3",
       )}
     >
-      {change.mode === "passage" ? (
-        <>
-          <Inserted text={change.replace} />
-          <details className="disclosure mt-1.5 font-sans whitespace-normal">
-            <summary className={SUMMARY_LINE}>
-              Show original ({countWords(change.find)} words)
-              <DisclosureChevron />
-            </summary>
-            <span className="mt-1.5 block whitespace-pre-wrap text-pretty">
-              <Deleted text={change.find} />
-            </span>
-          </details>
-        </>
-      ) : keepsWords(change.runs) || change.find === "" || change.replace === "" ? (
-        <Runs runs={change.runs} />
-      ) : (
-        <>
+      {change.find !== "" && (
+        <span className="block">
           <Deleted text={change.find} />
-          <Gap />
-          <Inserted text={change.replace} />
-        </>
+        </span>
       )}
+      {change.replace !== "" && (
+        <span className="mt-1 block">
+          <Inserted text={change.replace} />
+        </span>
+      )}
+      {children}
     </span>
   );
 }

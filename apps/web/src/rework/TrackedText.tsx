@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { countOf } from "@/lib/text";
@@ -73,59 +73,6 @@ export function TrackedText({
   }
   const isOpen = (start: number, end: number) =>
     opened.some(([from, to]) => from <= start && end <= to);
-  /**
-   * The changes whose reason rows stand at each offset, in text order. A row
-   * whose sentence ends inside a folded run stands before the fold.
-   */
-  const rows = new Map<number, ReviewItem[]>();
-  for (const { segment } of placed) {
-    if (segment.kind !== "change") continue;
-    const item = byAt.get(Number(segment.id));
-    if (item === undefined) continue;
-    const fold = placed.find(
-      ({ segment: other, start, end }) =>
-        other.kind === "collapsed" &&
-        !isOpen(start, end) &&
-        start < segment.reasonAt &&
-        segment.reasonAt <= end,
-    );
-    const at = fold === undefined ? segment.reasonAt : fold.start;
-    rows.set(at, [...(rows.get(at) ?? []), item]);
-  }
-  const rowsAt = (offset: number) =>
-    (rows.get(offset) ?? []).map((item) => {
-      const at = item.change.at;
-      return (
-        <ChangeDecision
-          key={`r${at}`}
-          label={`change ${item.number} of ${item.total}`}
-          why={item.change.why}
-          whyId={`${ids}-${at}`}
-          decision={item.decision}
-          onAccept={() => reworkStore.getState().accept(at)}
-          onReject={() => reworkStore.getState().reject(at)}
-          reasonFor={at}
-        />
-      );
-    });
-  /** Unchanged text from `start`, cut where reason rows stand inside it. */
-  const prose = (value: string, start: number) => {
-    const end = start + value.length;
-    const cuts = [...rows.keys()]
-      .filter((offset) => start < offset && offset <= end)
-      .sort((a, b) => a - b);
-    const nodes: ReactNode[] = [];
-    let from = start;
-    for (const cut of cuts) {
-      if (cut > from) {
-        nodes.push(<span key={`s${from}`}>{value.slice(from - start, cut - start)}</span>);
-      }
-      nodes.push(...rowsAt(cut));
-      from = cut;
-    }
-    if (from < end) nodes.push(<span key={`s${from}`}>{value.slice(from - start)}</span>);
-    return nodes;
-  };
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: a group of runs and changes; a fieldset would carry form semantics.
@@ -143,7 +90,7 @@ export function TrackedText({
     >
       {placed.map(({ segment, start, end }) => {
         if (segment.kind === "same") {
-          return <Fragment key={`s${start}`}>{prose(segment.text, start)}</Fragment>;
+          return <Fragment key={`s${start}`}>{segment.text}</Fragment>;
         }
         if (segment.kind === "collapsed") {
           if (isOpen(start, end)) {
@@ -154,7 +101,7 @@ export function TrackedText({
                 tabIndex={-1}
                 className="change-arrive outline-none"
               >
-                {prose(segment.text, start)}
+                {segment.text}
               </span>
             );
           }
@@ -190,8 +137,17 @@ export function TrackedText({
               field={label}
               whyId={`${ids}-${item.change.at}`}
               decision={item.decision}
-            />
-            {rowsAt(end)}
+            >
+              <ChangeDecision
+                label={`change ${item.number} of ${item.total}`}
+                why={item.change.why}
+                whyId={`${ids}-${item.change.at}`}
+                decision={item.decision}
+                onAccept={() => reworkStore.getState().accept(item.change.at)}
+                onReject={() => reworkStore.getState().reject(item.change.at)}
+                reasonFor={item.change.at}
+              />
+            </ChangeRuns>
           </Fragment>
         );
       })}

@@ -1,7 +1,7 @@
 import { type ReactNode, useId } from "react";
 import { Infotip } from "@/components/ui/infotip";
 import { cn } from "@/lib/cn";
-import { FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
+import { EXPLANATION, FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
 
 /*
  * The one row grammar of Settings: the label on the leading edge with its
@@ -14,7 +14,7 @@ import { FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
  * label, so a narrow tablet panel and a phone share one rule.
  */
 
-export const HINT = "text-pretty text-note text-reed";
+export const HINT = EXPLANATION;
 
 /**
  * A Settings panel's actions (Save, Cancel), stuck to the bottom of the

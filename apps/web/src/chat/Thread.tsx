@@ -27,19 +27,16 @@ import { SceneItems } from "./Scene.tsx";
 import { useChat } from "./session.ts";
 import {
   type ChatState,
-  lastReply,
   lockedBefore,
   messageIds,
   nextPrompt,
   nthSentId,
   promptFoldedTurns,
   rememberedEnd,
-  shownReply,
   storyEmpty,
 } from "./store.ts";
 import { FoldLine, Tombstone, TrimMarker } from "./ThreadMarks.tsx";
-import { failedInPlace, Turn } from "./Turn.tsx";
-import { GreetingActions, ReplyActions } from "./TurnActions.tsx";
+import { Turn } from "./Turn.tsx";
 
 /**
  * Where the next prompt starts once the window is full: the first sent turn,
@@ -150,7 +147,6 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
                   </Fragment>
                 ))}
                 <SeamSlot here={seam !== null && seam >= ids.length} />
-                <LastReplyActions key={ids.at(-1)} />
                 {(ids.length - 1 >= horizon || shown) && (
                   <SceneItems anchorId={ids.at(-1) ?? ""} enter={settled} />
                 )}
@@ -385,44 +381,4 @@ function useEmptyStoryEdge(chosen: boolean) {
       observer.disconnect();
     };
   }, [chosen, scrollRef, contentRef, state]);
-}
-
-/**
- * The last reply's actions, as their own row below it: shown once the reply
- * settles, so nothing below a streaming reply moves, and keyed by the reply,
- * so a new last reply brings a new row instead of moving the old one. A
- * greeting without alternates has no row: its own More carries Edit and Delete.
- */
-function LastReplyActions() {
-  const message = useChat((state) => lastReply(state));
-  const editing = useChat((state) => state.editing !== null && state.editing.id === message?.id);
-  // Remembered, or being remembered: read-only.
-  const locked = useChat(
-    (state) =>
-      message !== undefined &&
-      (state.messages.at(-1) !== message || state.messages.length - 1 < lockedBefore(state)),
-  );
-  if (
-    message === undefined ||
-    locked ||
-    (message.greeting && message.replies.length === 1) ||
-    editing ||
-    shownReply(message).status === "streaming" ||
-    shownReply(message).status === "waiting" ||
-    // A failed reply keeps its actions under its note, inside the turn (Turn.tsx).
-    failedInPlace(message)
-  )
-    return null;
-  return (
-    <li
-      data-reply-actions=""
-      className="-mt-6 -ml-2 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0 tablet:-mt-8"
-    >
-      {message.greeting ? (
-        <GreetingActions message={message} />
-      ) : (
-        <ReplyActions message={message} />
-      )}
-    </li>
-  );
 }

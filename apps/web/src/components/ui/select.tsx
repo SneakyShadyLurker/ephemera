@@ -12,12 +12,11 @@ const TRIGGER =
 
 /**
  * A choice set in a line of words (the composer's persona and sampler): its
- * value in the field select's type and boundary, and a plate growing
- * its target to 24px, 44px on touch, mostly downward so it stays clear of
- * the control above the line.
+ * value in the field select's type and boundary, with a real 44px touch
+ * region so its layout reserves the whole target.
  */
 const INLINE_TRIGGER =
-  "press relative -mx-1 inline-flex h-6 min-w-0 items-center gap-2 rounded-md border border-control-edge bg-surface px-1 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover focus-visible:border-dusk-line after:absolute after:inset-0 touch:after:-inset-y-2.5";
+  "press relative inline-flex h-6 min-w-0 items-center gap-2 rounded-md border border-control-edge bg-surface px-2 text-left text-ink text-ui hover:bg-surface-hover data-popup-open:bg-surface-hover focus-visible:border-dusk-line touch:h-11";
 
 /** The trigger's chevron, turning while the list is open. */
 const TRIGGER_ICON =

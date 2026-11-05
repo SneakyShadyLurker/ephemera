@@ -47,13 +47,10 @@ const UNPLACED: Record<Unplaced, string> = {
 function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: ReworkCard | null }) {
   const unplaced = all.flatMap((change) => (change.ok ? [] : [change]));
   if (unplaced.length === 0) return null;
-  const one = unplaced.length === 1;
   return (
     <details className="disclosure">
       <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>
-        {one
-          ? "1 change could not be matched. It won't be applied."
-          : `${unplaced.length} changes could not be matched. They won't be applied.`}
+        {unplaced.length} could not be placed
         <DisclosureChevron />
       </summary>
       <ul className="mt-2 grid max-h-[30dvh] gap-3 overflow-y-auto border-rush border-l pl-3">
@@ -377,7 +374,22 @@ function DockPresenter({
                   line.failure ? "text-ember" : "text-ink",
                 )}
               >
-                {line.text}
+                {view.phase === "review" &&
+                view.ended === "complete" &&
+                !line.failure &&
+                order.length > 0
+                  ? `${accepted} of ${changes(order.length)}`
+                  : line.text}
+                {view.phase === "review" &&
+                  (view.ended !== "complete" || line.failure) &&
+                  order.length > 0 && (
+                    <span className="mt-0.5 block font-normal text-meta text-reed">
+                      {accepted} of {changes(order.length)}
+                    </span>
+                  )}
+                {view.phase === "review" && current && (
+                  <span className="mt-0.5 block font-normal text-meta text-reed">{current}</span>
+                )}
               </p>
               {meta && <span className="text-meta text-reed tabular-nums">{meta}</span>}
             </div>
@@ -386,7 +398,11 @@ function DockPresenter({
           </div>
           {below}
           <p role="status" className="sr-only">
-            {!present || line.failure ? "" : line.announce}
+            {!present || line.failure
+              ? ""
+              : view.phase === "review" && order.length > 0
+                ? `${accepted} of ${changes(order.length)} selected. ${current ?? ""}`
+                : line.announce}
           </p>
           <p role="alert" className="sr-only">
             {present && line.failure ? line.announce : ""}

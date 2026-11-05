@@ -967,7 +967,7 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-exit"), model: "mock-fast" });
   const bar = page.locator('[role="region"][aria-label="AI Rework"]');
-  await expect(bar).toContainText("3 changes in 2 fields");
+  await expect(bar).toContainText("3 of 3 changes");
   await expect(bar).toHaveCSS("opacity", "1");
   const cleared = bar.evaluate(
     (element) =>
@@ -992,8 +992,8 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   );
   await bar.getByRole("button", { name: "Discard", exact: true }).click();
   const after = await cleared;
-  expect(after.outgoing).toContain("3 changes in 2 fields");
-  expect(after.outgoing).toContain("1 change could not be matched");
+  expect(after.outgoing).toContain("3 of 3 changes");
+  expect(after.outgoing).toContain("1 could not be placed");
   expect(after.inert).toBe(true);
   expect(after.remains).toBe(false);
   expect(after.html).not.toContain(`${base}-rej`);
@@ -1066,7 +1066,7 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-fade"), model: "mock-fast" });
   const bar = page.locator('[role="region"][aria-label="AI Rework"]');
-  await expect(bar).toContainText("3 changes in 2 fields");
+  await expect(bar).toContainText("3 of 3 changes");
   await expect(bar).toHaveCSS("opacity", "1");
   const height = (await bar.boundingBox())?.height ?? 0;
   const closing = exitFrames(bar);
@@ -1077,7 +1077,7 @@ test("reduced-motion Rework exits at full height without waiting for a CSS event
     expect(frame.height).toBeCloseTo(height, 0);
     expect(frame.inert).toBe(true);
     expect(frame.hidden).toBe(true);
-    expect(frame.text).toContain("3 changes in 2 fields");
+    expect(frame.text).toContain("3 of 3 changes");
   }
   await expect(bar).toHaveCount(0);
 });

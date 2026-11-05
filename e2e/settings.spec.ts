@@ -420,10 +420,12 @@ test("a colour set by hand stays when its key colour changes, and Cancel puts th
   await page.getByRole("menuitem", { name: "Lamplight" }).click();
   const editor = page.getByRole("region", { name: "New palette" });
   await editor.getByRole("button", { name: /^All colours/ }).click();
-  // The sample scene reveals its Markdown through a view transition; typing waits for it.
+  // Preview opens over the editor without changing its scroll position.
+  await editor.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(
-    editor.getByRole("figure", { name: "Sample scene" }).getByRole("emphasis"),
+    page.getByRole("figure", { name: "Sample scene" }).getByRole("emphasis"),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
 
   await hexField(page, "Actions").fill("#6b4a2e");
   await expect(editor.getByText("Set by you", { exact: true })).toBeVisible();

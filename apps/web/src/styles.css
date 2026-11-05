@@ -1705,7 +1705,7 @@ details[open] > summary .disclosure-chevron {
 }
 
 @utility tracked-del {
-  color: var(--ember);
+  color: var(--reed);
   text-decoration-line: line-through;
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;

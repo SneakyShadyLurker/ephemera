@@ -175,7 +175,7 @@ export function useNotebook(characterId: string, state: MemoryState, onSeen: (n:
 const PROSE_FIELD = cn(OPEN_PROSE, "font-story text-ink text-turn");
 
 const MARGIN_LABEL = sheetLabel("line");
-const HELP = cn(SHEET_HELP, "text-ui");
+const HELP = cn(SHEET_HELP, "text-turn");
 
 /** Line breaks of any kind: a relationship, a fact, a thread or a cast line is one line. */
 const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;
@@ -853,9 +853,9 @@ function CastLines({
           {full ? `${MEMORY_LIMITS.cast} people is the most a notebook keeps` : "Add a person"}
         </Button>
         <p id={helpId} className={HELP}>
-          People the story invented and keeps meeting: a name, a gender and only details that stay
-          fixed, never what they are doing. A person without a name is not kept. A line that does
-          not read as a person stays as written and brings no one into a new chat.
+          Recurring people: a name, gender and fixed details. Current activity belongs in the scene.
+          Unnamed people are not kept; unrecognized lines stay as written and bring no one into a
+          new chat.
         </p>
       </div>
     </fieldset>

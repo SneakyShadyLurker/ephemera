@@ -13,7 +13,7 @@ import { notReached } from "../signin/signin.ts";
 import { countsText, setMemoryOn } from "./memory.ts";
 import { memoryOnIn, memoryQuery } from "./queries.ts";
 
-const HELP = cn(SHEET_HELP, "text-ui");
+const HELP = cn(SHEET_HELP, "text-turn");
 
 /** Said wherever memory is offered: what it keeps, and what it never does. */
 export const MEMORY_KEPT =
@@ -80,9 +80,9 @@ export function MemorySwitch({
       <SwitchField
         label="Remember the story"
         description={
-          <span className="text-ui">
+          <span className="text-turn">
             {description ??
-              `On for every character. ${name} remembers what happens across chats, scene by scene, as each chat grows; turned off, each chat is forgotten when it ends. ${MEMORY_KEPT}`}
+              `${name} remembers each chat as it grows. Turned off, new chats are forgotten. ${MEMORY_KEPT}`}
           </span>
         }
         checked={on}

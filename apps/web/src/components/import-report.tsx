@@ -2,6 +2,8 @@ import type { ImportReport } from "@ephemera/core";
 import { useState } from "react";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
+import { EXPLANATION } from "@/sheet/fields.ts";
 
 /*
  * An imported file's report: what became of it and, on request, what was
@@ -92,7 +94,7 @@ export function ReportGroup({
   return (
     <div className="grid gap-1">
       <Heading className="font-medium text-ink">{title}</Heading>
-      <ul className="grid gap-1 text-pretty text-reed">
+      <ul className={cn("grid gap-1", EXPLANATION, "text-turn")}>
         {items.map((item, index) => (
           // Lines can repeat (two prompts with one name); their order is fixed.
           // biome-ignore lint/suspicious/noArrayIndexKey: a static list rendered once per report.

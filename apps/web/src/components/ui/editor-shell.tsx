@@ -13,6 +13,7 @@ import {
   PANEL_TITLE,
 } from "@/components/ui/drawer";
 import { cn } from "@/lib/cn";
+import { EXPLANATION } from "@/sheet/fields.ts";
 
 /** The same header in a drawer, dialog or working popover. Close always comes last. */
 export function EditorHeader({
@@ -118,9 +119,7 @@ export function ResponsiveEditor({
       <EditorHeader
         title={<Title className={cn(PANEL_TITLE, "text-balance")}>{title}</Title>}
         description={
-          description && (
-            <Description className="text-pretty text-note text-reed">{description}</Description>
-          )
+          description && <Description className={EXPLANATION}>{description}</Description>
         }
         close={
           <Button

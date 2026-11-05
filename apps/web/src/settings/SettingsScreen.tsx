@@ -128,9 +128,7 @@ export function SettingsScreen({
                     >
                       <span className="grid gap-0.5">
                         <span className={FIELD_LABEL}>{SECTION_TEXT[section].label}</span>
-                        <span className="text-pretty text-note text-reed">
-                          {SECTION_TEXT[section].purpose}
-                        </span>
+                        <span className={HINT}>{SECTION_TEXT[section].purpose}</span>
                       </span>
                       <NextIcon size={16} className="text-reed" />
                     </SectionLink>
@@ -412,10 +410,7 @@ function ChatSettings() {
             description="A reply's reasoning starts open instead of folded."
             about={
               <Infotip label="Show reasoning open">
-                <p>
-                  Models that reason show their thinking above the reply, folded by default. On,
-                  each reply arrives with its reasoning open; you can still fold any reply's.
-                </p>
+                <p>You can still open or fold the reasoning on each reply.</p>
               </Infotip>
             }
           />
@@ -429,10 +424,7 @@ function ChatSettings() {
             description="When a model keeps its reasoning to itself, say how long it thought."
             about={
               <Infotip label="Time hidden reasoning">
-                <p>
-                  Some models reason but send none of it. On, the reply shows how long the model
-                  thought before answering, so a slow reply is explained. Off, nothing is shown.
-                </p>
+                <p>Only a duration is shown; the model's hidden words are never available.</p>
               </Infotip>
             }
           />
@@ -701,7 +693,7 @@ function KeptSettings() {
         {KEPT.map(({ title, lines }) => (
           <section key={title} className="grid content-start gap-3">
             <h3 className={SECTION_HEADING}>{title}</h3>
-            <ul className="grid gap-2 text-pretty text-note text-reed">
+            <ul className={`grid gap-2 ${HINT}`}>
               {lines.map(([lead, rest]) => (
                 <li key={lead}>
                   <span className="text-ink">{lead}</span>
@@ -712,9 +704,7 @@ function KeptSettings() {
           </section>
         ))}
       </div>
-      <p className="text-pretty text-note text-reed">
-        A reload, closing the tab or Clear ends the chat for good.
-      </p>
+      <p className={HINT}>A reload, closing the tab or Clear ends the chat for good.</p>
     </div>
   );
 }

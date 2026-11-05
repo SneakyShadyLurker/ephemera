@@ -24,7 +24,12 @@ import { chatStore, useChat } from "../chat/session.ts";
 import { currentSettings, useSetting, useSettings } from "../settings/settings.ts";
 import { isFailure, type SaveStatus } from "../sheet/autosave.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
-import { GROUP_HEADING, NOTEBOOK_GRID, STORY_SECTION_HEADING } from "../sheet/fields.ts";
+import {
+  EXPLANATION,
+  GROUP_HEADING,
+  NOTEBOOK_GRID,
+  STORY_SECTION_HEADING,
+} from "../sheet/fields.ts";
 import {
   type BackTarget,
   LeaveGuardScope,
@@ -210,18 +215,13 @@ function MemoryFrame({
       <SheetHeaderFrame
         back={backTo(id, name, from)}
         frame={SHEET_FRAME.form}
-        title={`What ${name} remembers`}
-        titleClassName="title-in"
+        title="Memory"
+        subtitle={name}
         titleProps={{ id: SCREEN_TITLE, tabIndex: -1, "aria-label": "Memory" }}
-        titleReplacement={
-          failing ? (
-            <SaveState status={saving.status} creating={false} noun={saving.noun} short />
-          ) : undefined
-        }
       >
-        {saving !== null && !failing && (
-          <span className="px-2 max-tablet:sr-only">
-            <SaveState status={saving.status} creating={false} noun={saving.noun} />
+        {saving !== null && (
+          <span className={cn("px-2", !failing && "max-tablet:sr-only")}>
+            <SaveState status={saving.status} creating={false} noun={saving.noun} short={phone} />
           </span>
         )}
         {on && <RememberNow id={id} name={name} />}
@@ -272,7 +272,7 @@ function MemoryFrame({
 }
 
 /** What turning memory off does, and what it keeps, after the line that says it is on. */
-const MEMORY_DETAIL = `Turned off, each chat is forgotten when it ends; what is remembered stays. ${MEMORY_KEPT}`;
+const MEMORY_DETAIL = `Turned off, saved memories stay. ${MEMORY_KEPT}`;
 
 /** "What Mira remembers", set as the character's name is in the story, with its rule to the edge. */
 function Heading({ id, name, children }: { id: string; name: string; children?: ReactNode }) {
@@ -637,9 +637,12 @@ function RememberNowReason({ id, name }: { id: string; name: string }) {
       as="p"
       role="presentation"
       id={REASON_ID}
-      className="pt-1.5 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0"
+      className={cn(
+        EXPLANATION,
+        "pt-1.5 transition-opacity duration-(--duration-quick) ease-fade starting:opacity-0",
+      )}
     >
-      Remember now waits. {reason}
+      {reason}
     </InlineStatus>
   );
 }

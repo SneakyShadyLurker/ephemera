@@ -14,13 +14,12 @@ import {
 } from "@ephemera/core";
 import { useBlocker } from "@tanstack/react-router";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
-import { useFormFactor } from "@/app/form-factor.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { ChevronDownIcon, MoonIcon, SunIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { DisclosureChevron } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { scrollBehavior } from "../app/reduced-motion.ts";
@@ -88,7 +87,6 @@ export function PaletteEditor({
   nameOf: (base: PaletteChoice) => string;
 }) {
   const { palette, setPalette, followPalette } = useTheme();
-  const phone = useFormFactor() === "phone";
   const heading = useRef<HTMLHeadingElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const headingId = useId();
@@ -305,6 +303,30 @@ export function PaletteEditor({
         </div>
       </div>
 
+      <div className="sticky top-0 z-(--z-raised) -mx-4 border-rush border-y bg-surface px-4 py-1.5 tablet:-mx-5 tablet:px-5">
+        <Popover>
+          <PopoverTrigger render={<Button size="text" variant="outline" />}>Preview</PopoverTrigger>
+          <PopoverContent
+            title="Palette preview"
+            className="w-[min(32rem,calc(100vw-2rem))] overflow-y-auto p-3"
+          >
+            <figure
+              aria-label="Sample scene"
+              className="grid gap-3 rounded-lg border border-rush bg-canvas px-4 py-3.5"
+            >
+              <p className="slip text-line text-ink">The tide is turning. Are you coming in?</p>
+              <div className="voice-scene [&_blockquote]:my-0">
+                <CardProse text={SAMPLE} streaming={false} />
+              </div>
+              <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
+                <span className={buttonVariants({ variant: "primary" })}>Send</span>
+                <span className={buttonVariants({ variant: "outline" })}>New reply</span>
+              </div>
+            </figure>
+          </PopoverContent>
+        </Popover>
+      </div>
+
       {KEY_GROUPS.map((group) => (
         <fieldset key={group.title} className="grid gap-3">
           <legend className="mb-1 grid gap-0.5">
@@ -341,26 +363,6 @@ export function PaletteEditor({
           </div>
         </Collapsible.Panel>
       </Collapsible.Root>
-
-      <details open={!phone} className="disclosure">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-medium text-ink text-ui">
-          Preview
-          <DisclosureChevron />
-        </summary>
-        <figure
-          aria-label="Sample scene"
-          className="grid gap-3 rounded-lg border border-rush bg-canvas px-4 py-3.5"
-        >
-          <p className="slip text-line text-ink">The tide is turning. Are you coming in?</p>
-          <div className="voice-scene [&_blockquote]:my-0">
-            <CardProse text={SAMPLE} streaming={false} />
-          </div>
-          <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-            <span className={buttonVariants({ variant: "primary" })}>Send</span>
-            <span className={buttonVariants({ variant: "outline" })}>New reply</span>
-          </div>
-        </figure>
-      </details>
 
       <Summary shortfalls={shortfalls} onReveal={reveal} />
 

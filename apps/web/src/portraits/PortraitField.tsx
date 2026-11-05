@@ -30,6 +30,7 @@ export function PortraitField({
   compactOnPhone = false,
   identity,
   tags,
+  details,
 }: {
   owner: PortraitOwner;
   id: string | null;
@@ -51,6 +52,7 @@ export function PortraitField({
   compactOnPhone?: boolean;
   identity?: ReactNode;
   tags?: ReactNode;
+  details?: ReactNode;
 }) {
   const picker = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export function PortraitField({
         "grid content-start gap-1",
         // Phones: the portrait small at the row's start, its actions beside its foot.
         compactOnPhone &&
-          "grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-4 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:grid-rows-[auto_1fr_auto] tablet:gap-x-6",
+          "grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-4 tablet:grid-cols-[7rem_minmax(0,1fr)] tablet:grid-rows-[auto_auto_1fr_auto] tablet:gap-x-6",
       )}
     >
       <input
@@ -107,7 +109,7 @@ export function PortraitField({
           event.currentTarget.value = "";
         }}
       />
-      <div className={cn(compactOnPhone && "row-span-2")}>
+      <div className={cn(compactOnPhone && "row-span-2 tablet:row-span-3")}>
         {version === null ? (
           <button
             type="button"
@@ -143,7 +145,7 @@ export function PortraitField({
         className={cn(
           "flex flex-wrap items-center gap-1 pt-1 empty:hidden max-tablet:flex-nowrap",
           compactOnPhone &&
-            "col-start-2 row-start-2 self-end tablet:col-start-1 tablet:row-start-3",
+            "col-start-2 row-start-2 self-end tablet:col-start-1 tablet:row-start-4",
         )}
       >
         {primary?.({ busy })}
@@ -186,6 +188,11 @@ export function PortraitField({
       {tags && (
         <div className="col-span-full min-w-0 tablet:col-start-2 tablet:col-span-1 tablet:row-start-2 tablet:self-start">
           {tags}
+        </div>
+      )}
+      {details && (
+        <div className="col-span-full min-w-0 self-start tablet:col-start-2 tablet:col-span-1 tablet:row-start-3">
+          {details}
         </div>
       )}
       <NoticeSlot

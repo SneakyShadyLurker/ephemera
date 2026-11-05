@@ -70,6 +70,7 @@ export function SheetHeaderFrame({
   title,
   titleProps,
   titleClassName,
+  subtitle,
   titleReplacement,
   children,
 }: {
@@ -79,6 +80,7 @@ export function SheetHeaderFrame({
   title?: ReactNode;
   titleProps?: { id?: string; tabIndex?: number; "aria-label"?: string };
   titleClassName?: string;
+  subtitle?: ReactNode;
   titleReplacement?: ReactNode;
   children?: ReactNode;
 }) {
@@ -95,6 +97,7 @@ export function SheetHeaderFrame({
                   {title}
                 </HeaderTitle>
               )}
+              {subtitle && <p className="truncate text-meta text-reed">{subtitle}</p>}
             </div>
             <HeaderActions>{children}</HeaderActions>
           </>

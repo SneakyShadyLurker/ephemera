@@ -150,6 +150,31 @@ test("focus in the Session sheet stays in Session when it docks on a wider windo
 test.describe("on a touch phone", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
+  test("reduced-motion sheets declare only fades while opening and closing", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openChat(page, "mock-fast");
+    await openSession(page);
+    const sheet = page.getByRole("dialog", { name: "Session", exact: true });
+    const opening = await sheet.evaluate((node) => getComputedStyle(node).transitionProperty);
+    const closing = sheet.evaluate(
+      (node) =>
+        new Promise<string[]>((resolve) => {
+          const properties: string[] = [];
+          const sample = () => {
+            if (!node.isConnected) return resolve(properties);
+            properties.push(getComputedStyle(node).transitionProperty);
+            requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    await sheet.getByRole("button", { name: "Close Session" }).click();
+    expect({ opening, closing: [...new Set(await closing)] }).toEqual({
+      opening: "opacity",
+      closing: ["opacity"],
+    });
+  });
+
   test("the composer and reply actions fit with touch-sized controls", async ({ page }) => {
     await openChat(page, "mock-fast");
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
@@ -854,7 +879,9 @@ test("returning to a story mid-reply lands on the newest text without sliding th
   ).toBeLessThan(4);
 });
 
-test("streaming leaves earlier turns untouched and shifts no layout", async ({ page }) => {
+test("streaming removes the previous reply's actions once, leaves its prose untouched and shifts no layout", async ({
+  page,
+}) => {
   await openChat(page, "mock-fast");
   await send(page, canary("in"));
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
@@ -863,15 +890,32 @@ test("streaming leaves earlier turns untouched and shifts no layout", async ({ p
   await page.evaluate(() => {
     const record = window as unknown as {
       __mutations: number;
+      __actionsRemoved: number;
       __shift: number;
       __shifted: string[];
     };
     record.__mutations = 0;
+    record.__actionsRemoved = 0;
     record.__shift = 0;
     record.__shifted = [];
     for (const turn of document.querySelectorAll("[data-message]")) {
       new MutationObserver((changes) => {
-        record.__mutations += changes.length;
+        for (const change of changes) {
+          const removed = change.removedNodes[0];
+          // The actions now follow their reply inside the turn. Sending retires
+          // exactly that row; no prose, name, attribute or other child may change.
+          if (
+            change.type === "childList" &&
+            change.addedNodes.length === 0 &&
+            change.removedNodes.length === 1 &&
+            removed instanceof HTMLElement &&
+            removed.hasAttribute("data-reply-actions")
+          ) {
+            record.__actionsRemoved += 1;
+          } else {
+            record.__mutations += 1;
+          }
+        }
       }).observe(turn, { subtree: true, childList: true, characterData: true, attributes: true });
     }
     new PerformanceObserver((list) => {
@@ -916,15 +960,25 @@ test("streaming leaves earlier turns untouched and shifts no layout", async ({ p
   const measured = await page.evaluate(() => {
     const record = window as unknown as {
       __mutations: number;
+      __actionsRemoved: number;
       __shift: number;
       __shifted: string[];
     };
-    return { mutations: record.__mutations, shift: record.__shift, shifted: record.__shifted };
+    return {
+      mutations: record.__mutations,
+      actionsRemoved: record.__actionsRemoved,
+      shift: record.__shift,
+      shifted: record.__shifted,
+    };
   });
   expect(
-    { mutations: measured.mutations, shift: measured.shift },
+    {
+      mutations: measured.mutations,
+      actionsRemoved: measured.actionsRemoved,
+      shift: measured.shift,
+    },
     measured.shifted.join("\n"),
-  ).toEqual({ mutations: 0, shift: 0 });
+  ).toEqual({ mutations: 0, actionsRemoved: 1, shift: 0 });
 });
 
 test("turns moved by a deletion and its Undo keep their own text, and the next reply streams into its own", async ({
