@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { imageFile, uniqueName } from "./support/cards.ts";
 import { chooseCharacter, chooseModel, messages, send } from "./support/chat.ts";
@@ -137,6 +138,55 @@ async function moreAction(page: Page, action: string) {
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("menuitem", { name: action }).click();
 }
+
+test("the persona helper names the reader and prompt placement without overflowing", async ({
+  page,
+  request,
+}, testInfo) => {
+  const id = await createPersonaViaApi(request, uniqueName("Archive keeper"));
+  await page.goto(`/personas/${id}`);
+  const helper = page.getByText(
+    "Who {{user}} is in the story. The model reads it while you chat as this persona, at the persona description's place in the prompt preset.",
+    { exact: true },
+  );
+  await expect(helper).toBeVisible();
+  const samples = [];
+  for (const width of [360, 390, 820, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const geometry = await helper.evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const rect = node.getBoundingClientRect();
+      const lines = Array.from(range.getClientRects());
+      return {
+        rect: rect.toJSON(),
+        lines: lines.map((line) => line.toJSON()),
+        lineCount: new Set(lines.map((line) => Math.round(line.top))).size,
+        overflow: node.scrollWidth - node.clientWidth,
+      };
+    });
+    samples.push({ width, ...geometry });
+    const path = testInfo.outputPath("round11-persona-helper.json");
+    await writeFile(path, JSON.stringify(samples, null, 2));
+    await testInfo.attach(`round11-persona-helper-${width}`, {
+      path,
+      contentType: "application/json",
+    });
+    expect(geometry.overflow).toBeLessThanOrEqual(1);
+    expect(
+      geometry.lines.every(
+        (line) => line.left >= geometry.rect.left - 1 && line.right <= geometry.rect.right + 1,
+      ),
+    ).toBe(true);
+    if (width === 1440) expect(geometry.lineCount).toBeLessThanOrEqual(2);
+    await expect(page.getByLabel("Description", { exact: true })).toBeEditable();
+    await expectNoOverflow(page);
+  }
+  await testInfo.attach("round11-persona-helper", {
+    body: JSON.stringify(samples, null, 2),
+    contentType: "application/json",
+  });
+});
 
 test("a persona is created, edited, given a portrait, duplicated and deleted", async ({ page }) => {
   const name = uniqueName("Aria");

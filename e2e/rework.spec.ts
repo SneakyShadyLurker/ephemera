@@ -28,6 +28,7 @@ import {
   CONVERTED_DESCRIPTION,
   ownerRequest,
   reworkBook,
+  reworkCharacter,
 } from "./support/rework-fixtures.ts";
 import { expect, test } from "./support/test.ts";
 
@@ -1487,6 +1488,695 @@ async function createRichCharacter(page: Page) {
     ],
   });
   return id;
+}
+
+for (const hasTouch of [false, true]) {
+  test.describe(`inline decisions touch=${hasTouch}`, () => {
+    test.use({ hasTouch });
+    for (const width of [360, 390, 820, 1440]) {
+      for (const reducedMotion of ["no-preference", "reduce"] as const) {
+        test(`reason flow and targets ${width}/${reducedMotion}`, async ({
+          page,
+          policyViolations,
+        }, testInfo) => {
+          await page.setViewportSize({ width, height: 1000 });
+          await page.emulateMedia({ reducedMotion });
+          const base = canary("inline");
+          const { name, ...fields } = reworkCharacter(base);
+          const removedGreeting =
+            "Ada looks up from the ledger and watches the harbour lamps. ".repeat(5);
+          const id = await createCharacterViaApi(page.request, name, {
+            ...fields,
+            firstMessage: `${removedGreeting}The story continues.`,
+          });
+          const book = reworkBook();
+          book.entries.push({
+            keys: ["lighthouse"],
+            comment: "The lighthouse",
+            content:
+              "The lighthouse keeper watches the harbour and records each arriving ship. ".repeat(
+                20,
+              ),
+            enabled: true,
+            insertionOrder: 100,
+            useRegex: false,
+          });
+          await setLorebookViaApi(page.request, id, book);
+          const answer = [
+            richBlock(
+              "name",
+              "Her family name follows the request.",
+              `Ada Reed ${base.slice(-8)}`,
+              "Ada Voss",
+            ),
+            richBlock("tags", "", "", "drama, harbour"),
+            richBlock(
+              "description",
+              "Her age now matches the request.",
+              ANCHOR_ONE,
+              "Ada is 32 and keeps the archive.",
+            ),
+            richBlock(
+              "description",
+              "The graduation year follows the new age and keeps the timeline consistent with the years she spent learning to keep the archive before she arrived in the harbour reading room.",
+              ANCHOR_TWO,
+              "She graduated in 2001.",
+            ),
+            richBlock("entry_1_name", "A clearer name.", "", "The customs ledger"),
+            richBlock("entry_1_keys", "Follow the ledger.", "", "ledger, customs"),
+            richBlock("entry_1", "The cargo matters.", "every placeholder", "every cargo"),
+            richBlock("entry_2", "The lighthouse no longer fits.", "", ""),
+            richBlock("entry_new_1_name", "The raid needs a harbour master.", "", "Harbour master"),
+            richBlock("entry_new_1_keys", "", "", "harbour master"),
+            richBlock("entry_new_1", "", "", "Teodor keeps the harbour office."),
+            richBlock("firstMessage", "", removedGreeting, ""),
+            richBlock("creatorNotes", "An aside for the owner.", "", "An archive note."),
+            "<summary>The archive changes.</summary>",
+          ].join("\n");
+          await page.route("**/api/creator/rework", (route) =>
+            route.fulfill({
+              contentType: "application/x-ndjson; charset=utf-8",
+              body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+            }),
+          );
+          await openSheet(page, id);
+          await openRework(page);
+          await submitRework(page, { request: "Rework the archive.", model: "mock-fast" });
+          await expect(dock(page).getByRole("button", { name: /^Apply/ })).toBeEnabled();
+          const buttons = page.getByRole("button", {
+            name: /^Reject (change|new entry:|removed entry:)/,
+          });
+          await expect(buttons).toHaveCount(11);
+          const samples: unknown[] = [];
+          try {
+            for (const scheme of ["light", "dark"]) {
+              for (const palette of ["tokyo-night", "catppuccin"]) {
+                await page.evaluate(
+                  ({ scheme, palette }) => {
+                    document.documentElement.dataset.theme = scheme;
+                    document.documentElement.dataset.palette = palette;
+                  },
+                  { scheme, palette },
+                );
+                for (let index = 0; index < (await buttons.count()); index++) {
+                  const button = buttons.nth(index);
+                  await button.evaluate((node) => node.scrollIntoView({ block: "center" }));
+                  await expect
+                    .poll(() =>
+                      button.evaluate(
+                        (node) =>
+                          node
+                            .getAnimations({ subtree: true })
+                            .filter(
+                              (animation) =>
+                                animation.playState === "running" &&
+                                animation.effect?.getTiming().iterations !== Infinity,
+                            ).length,
+                      ),
+                    )
+                    .toBe(0);
+                  const sample = await button.evaluate((node, hasTouch) => {
+                    const row = node.parentElement;
+                    const reason = row?.firstElementChild;
+                    if (!(row instanceof HTMLElement) || !(reason instanceof HTMLElement))
+                      throw new Error("Missing reason row");
+                    const rect = node.getBoundingClientRect();
+                    const rowRect = row.getBoundingClientRect();
+                    const range = document.createRange();
+                    if (reason.firstChild?.nodeType === Node.TEXT_NODE)
+                      range.selectNode(reason.firstChild);
+                    const last = Array.from(range.getClientRects())
+                      .filter((rect) => rect.width > 0)
+                      .at(-1);
+                    const words = document.createRange();
+                    const visibleLabel = node.querySelector("span.underline:not([aria-hidden])");
+                    if (!visibleLabel) throw new Error("Missing visible action label");
+                    words.selectNodeContents(visibleLabel);
+                    const actionLines = words.getClientRects().length;
+                    const style = getComputedStyle(node);
+                    const wordStyle = getComputedStyle(visibleLabel);
+                    const decoration = (css: CSSStyleDeclaration) => ({
+                      textDecorationColor: css.textDecorationColor,
+                      textDecorationLine: css.textDecorationLine,
+                      textUnderlineOffset: css.textUnderlineOffset,
+                    });
+                    const after = getComputedStyle(node, "::after");
+                    const reach = hasTouch ? 22 : 15;
+                    const identify = (element: Element | null) =>
+                      element && {
+                        tag: element.tagName,
+                        role: element.getAttribute("role"),
+                        label: element.getAttribute("aria-label"),
+                        text: element.textContent?.replace(/\s+/g, " ").trim().slice(0, 160),
+                      };
+                    const box = (element: Element) => {
+                      const css = getComputedStyle(element);
+                      const bounds = element.getBoundingClientRect();
+                      return {
+                        ...identify(element),
+                        class: element.getAttribute("class"),
+                        borderBox: bounds.toJSON(),
+                        paddingBox: {
+                          x: bounds.x + Number.parseFloat(css.borderLeftWidth),
+                          y: bounds.y + Number.parseFloat(css.borderTopWidth),
+                          width:
+                            bounds.width -
+                            Number.parseFloat(css.borderLeftWidth) -
+                            Number.parseFloat(css.borderRightWidth),
+                          height:
+                            bounds.height -
+                            Number.parseFloat(css.borderTopWidth) -
+                            Number.parseFloat(css.borderBottomWidth),
+                        },
+                        overflowX: css.overflowX,
+                        overflowY: css.overflowY,
+                        clipPath: css.clipPath,
+                        contain: css.contain,
+                        position: css.position,
+                        zIndex: css.zIndex,
+                        opacity: css.opacity,
+                        transform: css.transform,
+                        visibility: css.visibility,
+                        paintClip: css.clip,
+                        clientWidth: element.clientWidth,
+                        scrollWidth: element.scrollWidth,
+                      };
+                    };
+                    // The absolute pseudo-element is positioned against the button's padding box.
+                    // Its computed height is content-box unless box-sizing says otherwise.
+                    const borderTop = Number.parseFloat(style.borderTopWidth);
+                    const borderLeft = Number.parseFloat(style.borderLeftWidth);
+                    const afterHeight =
+                      Number.parseFloat(after.height) +
+                      (after.boxSizing === "border-box"
+                        ? 0
+                        : Number.parseFloat(after.paddingTop) +
+                          Number.parseFloat(after.paddingBottom) +
+                          Number.parseFloat(after.borderTopWidth) +
+                          Number.parseFloat(after.borderBottomWidth));
+                    const afterWidth =
+                      Number.parseFloat(after.width) +
+                      (after.boxSizing === "border-box"
+                        ? 0
+                        : Number.parseFloat(after.paddingLeft) +
+                          Number.parseFloat(after.paddingRight) +
+                          Number.parseFloat(after.borderLeftWidth) +
+                          Number.parseFloat(after.borderRightWidth));
+                    const target = {
+                      x: rect.x + borderLeft + Number.parseFloat(after.left),
+                      y: rect.y + borderTop + Number.parseFloat(after.top),
+                      width: afterWidth,
+                      height: afterHeight,
+                    };
+                    const edges = [
+                      [target.x + 1, target.y + target.height / 2],
+                      [target.x + target.width - 1, target.y + target.height / 2],
+                      [target.x + target.width / 2, target.y + 1],
+                      [target.x + target.width / 2, target.y + target.height - 1],
+                    ].map(([x = 0, y = 0]) => ({
+                      x,
+                      y,
+                      hit: node.contains(document.elementFromPoint(x, y)),
+                    }));
+                    const points = [-reach, reach].map((offset) => {
+                      const x = rect.x + rect.width / 2;
+                      const y = rect.y + rect.height / 2 + offset;
+                      const hit = document.elementFromPoint(x, y);
+                      return { x, y, hit: node.contains(hit), blocker: identify(hit) };
+                    });
+                    const ancestors = [];
+                    for (let element = node.parentElement; element; element = element.parentElement)
+                      ancestors.push(box(element));
+                    const neighbors = Array.from(
+                      document.querySelectorAll("button, summary, input, [role='combobox']"),
+                    )
+                      .filter((element) => element !== node)
+                      .filter((element) => {
+                        const other = element.getBoundingClientRect();
+                        return (
+                          other.width > 0 &&
+                          other.height > 0 &&
+                          other.bottom >= rect.top - 60 &&
+                          other.top <= rect.bottom + 60
+                        );
+                      })
+                      .map((element) => {
+                        const other = element.getBoundingClientRect();
+                        const x = other.x + other.width / 2;
+                        const y = other.y + other.height / 2;
+                        const hit = document.elementFromPoint(x, y);
+                        const facingY = other.top >= rect.bottom ? other.top + 1 : other.bottom - 1;
+                        const facingHit = document.elementFromPoint(x, facingY);
+                        return {
+                          ...box(element),
+                          x,
+                          y,
+                          hit: element.contains(hit),
+                          blocker: identify(hit),
+                          inViewport:
+                            other.left >= 0 &&
+                            other.right <= innerWidth &&
+                            other.top >= 0 &&
+                            other.bottom <= innerHeight,
+                          relevant:
+                            element.matches("summary") ||
+                            element.getAttribute("aria-label") === "Sections" ||
+                            element.textContent?.trim() === "Sections",
+                          facingY,
+                          facingHit: element.contains(facingHit),
+                          facingBlocker: identify(facingHit),
+                        };
+                      });
+                    return {
+                      kind: "current-layout",
+                      label: node.getAttribute("aria-label"),
+                      caller:
+                        node.closest("[role='group']")?.getAttribute("aria-label") ?? reason.id,
+                      reason:
+                        reason.firstChild?.nodeType === Node.TEXT_NODE
+                          ? (reason.firstChild.textContent ?? "")
+                          : "",
+                      rowHeight: rowRect.height,
+                      lineHeight: style.lineHeight,
+                      targetHeight: afterHeight,
+                      target,
+                      edges,
+                      row: rowRect.toJSON(),
+                      group: node.closest("[role='group']")?.getBoundingClientRect().toJSON(),
+                      density: {
+                        paddingTop: getComputedStyle(row).paddingTop,
+                        paddingBottom: getComputedStyle(row).paddingBottom,
+                        marginTop: getComputedStyle(row).marginTop,
+                        groupPaddingBottom: node.closest("[role='group']")
+                          ? getComputedStyle(node.closest("[role='group']") as Element)
+                              .paddingBottom
+                          : null,
+                      },
+                      hiddenLabels: Array.from(
+                        node.querySelectorAll("[aria-hidden='true']"),
+                        (label) => ({
+                          text: label.textContent?.trim(),
+                          visibility: getComputedStyle(label).visibility,
+                        }),
+                      ),
+                      visibleLabel: visibleLabel.textContent,
+                      buttonDecoration: decoration(style),
+                      visibleWordDecoration: decoration(wordStyle),
+                      buttonWidth: rect.width,
+                      containingPaddingBox: box(node).paddingBox,
+                      after: {
+                        position: after.position,
+                        boxSizing: after.boxSizing,
+                        width: after.width,
+                        height: after.height,
+                        top: after.top,
+                        right: after.right,
+                        bottom: after.bottom,
+                        left: after.left,
+                      },
+                      hitAbove: points[0]?.hit ?? false,
+                      hitBelow: points[1]?.hit ?? false,
+                      points,
+                      ancestors,
+                      neighbors,
+                      viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+                      animations: document
+                        .getAnimations()
+                        .filter((animation) => animation.playState === "running")
+                        .map((animation) => ({
+                          state: animation.playState,
+                          time: animation.currentTime,
+                          timing: animation.effect?.getComputedTiming(),
+                          target:
+                            animation.effect instanceof KeyframeEffect &&
+                            animation.effect.target instanceof Element
+                              ? identify(animation.effect.target)
+                              : null,
+                        })),
+                      gap:
+                        last && Math.abs(last.bottom - rect.bottom) < 4
+                          ? rect.left - last.right
+                          : null,
+                      start: rect.left - rowRect.left,
+                      overflow: Math.max(0, rect.right - rowRect.right),
+                      actionLines,
+                      display: getComputedStyle(row).display,
+                      margin: style.marginInlineStart,
+                      afterTop: after.top,
+                      afterBottom: after.bottom,
+                    };
+                  }, hasTouch);
+                  const dockRect = await dock(page).evaluate((node) =>
+                    node.getBoundingClientRect().toJSON(),
+                  );
+                  samples.push({
+                    width,
+                    hasTouch,
+                    reducedMotion,
+                    scheme,
+                    palette,
+                    dock: dockRect,
+                    ...sample,
+                  });
+                  expect.soft(sample.display).toBe("block");
+                  expect.soft(sample.lineHeight).toBe("20px");
+                  expect.soft(sample.targetHeight).toBe(hasTouch ? 48 : 32);
+                  expect.soft(sample.edges.every((point) => point.hit)).toBe(true);
+                  expect.soft(sample.target.y).toBeGreaterThanOrEqual(sample.row.top - 0.01);
+                  expect
+                    .soft(sample.target.y + sample.target.height)
+                    .toBeLessThanOrEqual(sample.row.bottom + 0.01);
+                  if (sample.group) {
+                    expect.soft(sample.target.y).toBeGreaterThanOrEqual(sample.group.top - 0.01);
+                    expect
+                      .soft(sample.target.y + sample.target.height)
+                      .toBeLessThanOrEqual(sample.group.bottom + 0.01);
+                  }
+                  for (const neighbor of sample.neighbors.filter(
+                    (neighbor) => neighbor.relevant && neighbor.inViewport,
+                  )) {
+                    expect.soft(neighbor.hit, JSON.stringify(neighbor)).toBe(true);
+                    expect.soft(neighbor.facingHit, JSON.stringify(neighbor)).toBe(true);
+                  }
+                  expect
+                    .soft(sample.hiddenLabels)
+                    .toEqual([{ text: "Restore", visibility: "hidden" }]);
+                  expect.soft(sample.hitAbove).toBe(true);
+                  expect.soft(sample.hitBelow).toBe(true);
+                  expect
+                    .soft(sample.target.y + sample.target.height)
+                    .toBeLessThanOrEqual(dockRect.top);
+                  expect.soft(sample.actionLines).toBe(1);
+                  expect
+                    .soft(sample.visibleWordDecoration.textDecorationColor)
+                    .toBe(sample.buttonDecoration.textDecorationColor);
+                  expect
+                    .soft(sample.visibleWordDecoration.textUnderlineOffset)
+                    .toBe(sample.buttonDecoration.textUnderlineOffset);
+                  expect.soft(sample.visibleWordDecoration.textDecorationLine).toBe("underline");
+                  expect.soft(sample.buttonDecoration.textDecorationLine).toBe("none");
+                  expect.soft(sample.overflow).toBeLessThanOrEqual(1);
+                  if (sample.reason === "") {
+                    expect.soft(sample.start).toBeLessThanOrEqual(1);
+                    expect.soft(sample.margin).toBe("0px");
+                  } else if (sample.gap !== null) {
+                    expect.soft(sample.gap).toBeGreaterThan(0);
+                    expect.soft(sample.gap).toBeLessThanOrEqual(16);
+                  }
+                }
+              }
+            }
+            if (!hasTouch) {
+              const name = await buttons.first().getAttribute("aria-label");
+              if (!name) throw new Error("Missing representative decision name");
+              for (const state of ["accepted", "rejected"] as const) {
+                const button = page.getByRole("button", {
+                  name: state === "accepted" ? name : name.replace(/^Reject/, "Restore"),
+                  exact: true,
+                });
+                await expect(button).toBeEnabled();
+                await button.scrollIntoViewIfNeeded();
+                const readDecoration = () =>
+                  button.evaluate((node) => {
+                    const word = node.querySelector("span.underline:not([aria-hidden])");
+                    const edge = Array.from(document.querySelectorAll(".border-control-edge"))
+                      .filter((element) => !element.matches(":disabled, [data-disabled]"))
+                      .find((element) => {
+                        const css = getComputedStyle(element);
+                        return (
+                          css.borderTopStyle !== "none" && Number.parseFloat(css.borderTopWidth) > 0
+                        );
+                      });
+                    if (!word || !edge) throw new Error("Missing visible word or control edge");
+                    const css = getComputedStyle(node);
+                    const wordCss = getComputedStyle(word);
+                    const decoration = (style: CSSStyleDeclaration) => ({
+                      textDecorationColor: style.textDecorationColor,
+                      textDecorationLine: style.textDecorationLine,
+                      textUnderlineOffset: style.textUnderlineOffset,
+                    });
+                    return {
+                      finePointer: matchMedia("(hover: hover) and (pointer: fine)").matches,
+                      hovered: node.matches(":hover"),
+                      color: css.color,
+                      controlEdge: getComputedStyle(edge).borderTopColor,
+                      edgeTag: edge.tagName,
+                      edgeClass: edge.getAttribute("class"),
+                      buttonDecoration: decoration(css),
+                      visibleWordDecoration: decoration(wordCss),
+                      animations: node
+                        .getAnimations({ subtree: true })
+                        .filter(
+                          (animation) =>
+                            animation.playState === "running" &&
+                            animation.effect?.getTiming().iterations !== Infinity,
+                        ).length,
+                      scheme: document.documentElement.dataset.theme,
+                      palette: document.documentElement.dataset.palette,
+                    };
+                  });
+                for (const hovered of [false, true, false]) {
+                  if (hovered) await button.hover({ timeout: 5_000 });
+                  else await page.mouse.move(0, 0);
+                  await expect
+                    .poll(
+                      async () => {
+                        const sample = await readDecoration();
+                        return (
+                          sample.hovered === hovered &&
+                          sample.animations === 0 &&
+                          sample.buttonDecoration.textDecorationColor ===
+                            (hovered ? sample.color : sample.controlEdge)
+                        );
+                      },
+                      { timeout: 5_000 },
+                    )
+                    .toBe(true);
+                  const sample = await readDecoration();
+                  samples.push({
+                    kind: "inline-decoration-pointer",
+                    width,
+                    reducedMotion,
+                    state,
+                    ...sample,
+                  });
+                  expect.soft(sample.finePointer).toBe(true);
+                  expect
+                    .soft(sample.buttonDecoration.textDecorationColor)
+                    .toBe(hovered ? sample.color : sample.controlEdge);
+                  expect.soft(sample.controlEdge).not.toBe(sample.color);
+                  expect
+                    .soft(sample.visibleWordDecoration.textDecorationColor)
+                    .toBe(sample.buttonDecoration.textDecorationColor);
+                  expect
+                    .soft(sample.visibleWordDecoration.textUnderlineOffset)
+                    .toBe(sample.buttonDecoration.textUnderlineOffset);
+                  expect.soft(sample.visibleWordDecoration.textDecorationLine).toBe("underline");
+                  expect.soft(sample.buttonDecoration.textDecorationLine).toBe("none");
+                }
+                await button.click();
+              }
+            }
+            // Each shared caller keeps its counterpart focused for all native activation paths.
+            const names = await buttons.evaluateAll((nodes) =>
+              nodes.map((node) => node.getAttribute("aria-label") ?? ""),
+            );
+            const reasonShape = (button: Locator) =>
+              button.evaluate((node) => {
+                const row = node.parentElement;
+                const reason = row?.firstElementChild;
+                const text = reason?.firstChild;
+                if (!row || !reason) throw new Error("Missing reason");
+                const origin = row.getBoundingClientRect();
+                const range = document.createRange();
+                const rects = [];
+                if (text?.nodeType === Node.TEXT_NODE) {
+                  for (let index = 0; index < (text.textContent?.length ?? 0); index++) {
+                    range.setStart(text, index);
+                    range.setEnd(text, index + 1);
+                    rects.push(
+                      ...Array.from(range.getClientRects(), (rect) => ({
+                        x: rect.x - origin.x,
+                        y: rect.y - origin.y,
+                        width: rect.width,
+                        height: rect.height,
+                      })),
+                    );
+                  }
+                }
+                return {
+                  id: reason.id,
+                  reason: text?.nodeType === Node.TEXT_NODE ? (text.textContent ?? "") : "",
+                  rowWidth: origin.width,
+                  buttonWidth: node.getBoundingClientRect().width,
+                  rects,
+                };
+              });
+            for (const name of names) {
+              const reject = page.getByRole("button", { name, exact: true });
+              const restore = page.getByRole("button", {
+                name: name.replace(/^Reject/, "Restore"),
+                exact: true,
+              });
+              const before = await reasonShape(reject);
+              await reject.click();
+              await expect(restore).toBeFocused();
+              const rejected = await reasonShape(restore);
+              samples.push({ kind: "counterpart-reason-geometry", name, before, rejected });
+              const compare = (actual: typeof before) => {
+                expect.soft(actual.id).toBe(before.id);
+                expect.soft(actual.reason).toBe(before.reason);
+                expect
+                  .soft(Math.abs(actual.buttonWidth - before.buttonWidth))
+                  .toBeLessThanOrEqual(0.01);
+                expect.soft(actual.rects).toHaveLength(before.rects.length);
+                actual.rects.forEach((rect, index) => {
+                  const original = before.rects[index];
+                  if (!original) return;
+                  for (const key of ["x", "y", "width", "height"] as const)
+                    expect.soft(Math.abs(rect[key] - original[key])).toBeLessThanOrEqual(0.01);
+                });
+              };
+              compare(rejected);
+              await restore.press("Enter");
+              await expect(reject).toBeFocused();
+              const restored = await reasonShape(reject);
+              compare(restored);
+              samples.push({ kind: "counterpart-restored-geometry", name, restored });
+              await expect(reject).toHaveAccessibleName(name);
+              expect.soft(await reject.ariaSnapshot()).not.toContain("Restore");
+              await reject.press("Space");
+              await expect(restore).toBeFocused();
+              expect.soft(await restore.ariaSnapshot()).not.toContain("Reject");
+              await restore.press("Space");
+              await expect(reject).toBeFocused();
+            }
+            for (const summary of await page
+              .locator("summary")
+              .filter({ hasText: /Show (\d+ unchanged words|removed)/ })
+              .all()) {
+              await summary.evaluate((node) => node.scrollIntoView({ block: "center" }));
+              expect(
+                await summary.evaluate((node) => {
+                  const rect = node.getBoundingClientRect();
+                  return node.contains(
+                    document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2),
+                  );
+                }),
+              ).toBe(true);
+            }
+            const removed = page
+              .getByRole("group", { name: /in First message$/ })
+              .locator("details");
+            const removedSummary = removed.locator("summary");
+            await removedSummary.evaluate((node) => node.scrollIntoView({ block: "center" }));
+            const removedGeometry = await removedSummary.evaluate((node) => {
+              const rect = node.getBoundingClientRect();
+              const parent = node.parentElement?.getBoundingClientRect();
+              const preview = node.firstElementChild;
+              const chevron = node.querySelector("svg");
+              const label = node.lastElementChild;
+              if (!preview || !chevron || !label || !parent)
+                throw new Error("Missing removed summary");
+              return {
+                rect: rect.toJSON(),
+                parent: parent.toJSON(),
+                preview: {
+                  client: preview.clientWidth,
+                  scroll: preview.scrollWidth,
+                  overflow: getComputedStyle(preview).textOverflow,
+                },
+                chevron: chevron.getBoundingClientRect().toJSON(),
+                label: label.getBoundingClientRect().toJSON(),
+                hit: node.contains(
+                  document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2),
+                ),
+                viewport: innerWidth,
+              };
+            });
+            samples.push({ kind: "long-removed-summary", ...removedGeometry });
+            expect
+              .soft(removedGeometry.rect.width)
+              .toBeLessThanOrEqual(removedGeometry.parent.width + 0.01);
+            expect.soft(removedGeometry.hit).toBe(true);
+            expect
+              .soft(removedGeometry.preview.scroll)
+              .toBeGreaterThan(removedGeometry.preview.client);
+            expect.soft(removedGeometry.preview.overflow).toBe("ellipsis");
+            for (const rect of [removedGeometry.chevron, removedGeometry.label]) {
+              expect.soft(rect.left).toBeGreaterThanOrEqual(0);
+              expect.soft(rect.right).toBeLessThanOrEqual(removedGeometry.viewport);
+            }
+            if (hasTouch)
+              expect.soft(removedGeometry.rect.height).toBeGreaterThanOrEqual(44 - 0.01);
+            await removedSummary.focus();
+            await removedSummary.press("Enter");
+            await expect(removed).toHaveAttribute("open", "");
+            await expect
+              .poll(() =>
+                removed.evaluate(
+                  (node) =>
+                    node
+                      .getAnimations({ subtree: true })
+                      .filter(
+                        (animation) =>
+                          animation.playState === "running" &&
+                          animation.effect?.getTiming().iterations !== Infinity,
+                      ).length,
+                ),
+              )
+              .toBe(0);
+            const prose = await removed.evaluate((node) => {
+              const body = node.lastElementChild;
+              if (!body) throw new Error("Missing removed prose");
+              const range = document.createRange();
+              const text = Array.from((body.querySelector("del") ?? body).childNodes).find(
+                (child) => child.nodeType === Node.TEXT_NODE,
+              );
+              if (!text) throw new Error("Missing deleted text");
+              const glyphs = [];
+              // pre-wrap preserves hanging spaces; compare painted characters, not those spaces.
+              for (let index = 0; index < (text.textContent?.length ?? 0); index++) {
+                if (/\s/.test(text.textContent?.[index] ?? "")) continue;
+                range.setStart(text, index);
+                range.setEnd(text, index + 1);
+                glyphs.push(...Array.from(range.getClientRects(), (rect) => rect.toJSON()));
+              }
+              return {
+                container: node.getBoundingClientRect().toJSON(),
+                glyphs,
+              };
+            });
+            samples.push({ kind: "long-removed-expanded", ...prose });
+            for (const line of prose.glyphs) {
+              expect.soft(line.left).toBeGreaterThanOrEqual(prose.container.left - 0.01);
+              expect.soft(line.right).toBeLessThanOrEqual(prose.container.right + 0.01);
+            }
+            await removedSummary.press("Space");
+            await expect(removed).not.toHaveAttribute("open");
+            const removedGroup = removed.locator("xpath=../..");
+            await removedGroup.getByRole("button", { name: /^Reject change/ }).click();
+            await expect(removedSummary).toContainText("Show kept");
+            await removedGroup.getByRole("button", { name: /^Restore change/ }).click();
+            await expect(removedSummary).toContainText("Show removed");
+            await dock(page).getByRole("button", { name: "Next change" }).click();
+            await expect(changes(page).first()).toBeFocused();
+            await expect(changes(page).first()).toHaveAccessibleDescription(
+              "Her family name follows the request.",
+            );
+          } finally {
+            samples.push({ kind: "CSP-violations-observed", violations: [...policyViolations] });
+            const path = testInfo.outputPath("round11-inline-decision-geometry.json");
+            await writeFile(path, JSON.stringify(samples, null, 2));
+            await testInfo.attach("round11-inline-decision-geometry", {
+              path,
+              contentType: "application/json",
+            });
+          }
+        });
+      }
+    }
+  });
 }
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {

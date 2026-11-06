@@ -25,8 +25,9 @@ window, and once the user is back the tab carries on by itself, sending
 the message that was waiting and saving edits made meanwhile. If the tab
 finds itself signed in as someone else, it drops everything it holds and
 reloads as that user.
-The waiting reply says Not sent yet; the notice beside the composer gives
-the sign-in reason and action.
+The waiting reply says "The reply hasn't started yet." for both a new send
+and a new alternate; the notice beside the composer gives the sign-in reason
+and action.
 
 ## What persists and what vanishes
 
@@ -282,8 +283,9 @@ Version 1.0 holds everything below.
   brings the heading and answer into view once, unless
   the owner has already scrolled or moved focus elsewhere. A panel already
   in view stays in place. A fully resolved mapping
-  without selectable alternatives folds under "Ephemera fills these four places";
-  choices and mapping problems stay open. Changes and omissions wait under Import
+  without selectable alternatives folds under "Ephemera fills these four places".
+  On phones, "All found in this file" sits below that label; on larger layouts
+  it sits beside it. Choices and mapping problems stay open. Changes and omissions wait under Import
   details and the nodes a refusal concerns under a disclosure; it
   saves the workflow under a name and a family (Krea 2, MOSS or General for
   any other model). Ephemera takes out the file's own prompt, scales the
@@ -382,8 +384,9 @@ Version 1.0 holds everything below.
   while the model writes, in each field's place: Removed and Proposed
   passages at reading size within the field's one frame, long removals folded
   behind Show removed, and long unchanged stretches folded behind
-  "Show N unchanged words". Each change's reason follows it with Reject,
-  or Restore once rejected, always visible. Rejected changes label the original
+  "Show N unchanged words". Reject follows its reason in the same text flow,
+  or Restore once rejected, always visible. The action keeps the same width
+  in both states so the reason does not rewrap. Rejected changes label the original
   Kept and the proposal Rejected, or Not added for a pure insertion. Rejected
   proposals stay readable in full-strength struck reed; pure insertions fold
   away. Reduced motion makes tint changes instant while retaining the fold fade. Lorebook

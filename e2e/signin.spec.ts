@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import {
   browserStorage,
   lastReply,
@@ -74,7 +75,7 @@ test.describe("sign-in expiry", () => {
     const line = canary("in");
     await send(page, line);
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
-    await expect(lastReply(page)).toContainText("Not sent yet.");
+    await expect(lastReply(page)).toContainText("The reply hasn't started yet.");
     await expect(lastReply(page)).not.toContainText("sign in");
     await expect(lastReply(page).locator(".caret, .lamplight-edge")).toHaveCount(0);
     await expect(notice(page)).toHaveCount(1);
@@ -526,6 +527,182 @@ test.describe("sign-in expiry", () => {
   });
 });
 
+for (const width of [360, 390]) {
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`waiting copy preserves slot and live owners ${width}/${reducedMotion}`, async ({
+      page,
+      context,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion });
+      await openChat(page, "mock-slow");
+      const line = canary("in");
+      const message = page.getByLabel("Message", { exact: true });
+      const previewed = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/chat/preview" &&
+          (response.request().postData() ?? "").includes(line) &&
+          response.ok(),
+      );
+      await message.fill(line);
+      await previewed;
+      const routes = await expire(context);
+      await message.press("Enter");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+      expect(routes.chat()).toBe(1);
+      const note = lastReply(page).getByText("The reply hasn't started yet.", { exact: true });
+      await expect(note).toBeVisible();
+      await expect
+        .poll(() =>
+          note.evaluate((node) => {
+            const slot = node.closest('[role="status"]')?.parentElement;
+            return slot
+              ?.getAnimations({ subtree: true })
+              .filter((animation) => animation.playState === "running").length;
+          }),
+        )
+        .toBe(0);
+      const geometry = await note.evaluate((node) => {
+        const owners = () =>
+          Array.from(
+            document.querySelectorAll('[aria-live], [role="status"], [role="alert"], [role="log"]'),
+          ).map((owner) => ({
+            tag: owner.tagName,
+            role: owner.getAttribute("role"),
+            live: owner.getAttribute("aria-live"),
+            atomic: owner.getAttribute("aria-atomic"),
+          }));
+        const read = () => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const status = node.closest('[role="status"]');
+          return {
+            text: node.textContent,
+            lines: range.getClientRects().length,
+            note: node.getBoundingClientRect().toJSON(),
+            status: status?.getBoundingClientRect().toJSON(),
+            slot: status?.parentElement?.getBoundingClientRect().toJSON(),
+            owners: owners(),
+          };
+        };
+        const current = read();
+        const saved = node.textContent;
+        try {
+          // Same rendered slot, synchronous comparison with its former copy, without recreating live owners.
+          node.textContent = "Not sent yet.";
+          return {
+            current,
+            previousCopy: read(),
+            turnOwners: node
+              .closest("[data-message]")
+              ?.querySelectorAll('[aria-live], [role="status"], [role="alert"]').length,
+          };
+        } finally {
+          node.textContent = saved;
+        }
+      });
+      const path = testInfo.outputPath("round11-waiting-copy-geometry-and-live-owners.json");
+      await writeFile(path, JSON.stringify({ width, reducedMotion, ...geometry }, null, 2));
+      await testInfo.attach("round11-waiting-copy-geometry-and-live-owners", {
+        path,
+        contentType: "application/json",
+      });
+      expect(geometry.current.lines).toBe(1);
+      expect(geometry.current.slot?.height).toBe(28);
+      expect(geometry.current.slot?.height).toBe(geometry.previousCopy.slot?.height);
+      expect(geometry.current.status?.height).toBe(geometry.previousCopy.status?.height);
+      expect(geometry.current.owners).toEqual(geometry.previousCopy.owners);
+      expect(geometry.turnOwners).toBe(1);
+      await expect(notice(page)).toContainText("Your message is kept");
+      await signInThroughPortal(page, context);
+      await expect(lastReply(page)).toContainText("Reply:");
+      await expect(note).toHaveCount(0);
+      await page.getByRole("button", { name: "Stop", exact: true }).click();
+      await expect(lastReply(page)).toHaveAttribute("data-status", "stopped");
+      await expect(lastReply(page).getByText("Stopped.", { exact: true })).toBeVisible();
+      await expect(
+        lastReply(page).getByText("The reply hasn't started yet.", { exact: true }),
+      ).toHaveCount(0);
+      expect(routes.chat()).toBe(1);
+    });
+    test(`waiting alternate follows an already-sent message ${width}/${reducedMotion}`, async ({
+      page,
+      context,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion });
+      await openChat(page, "mock-fast");
+      const line = canary("in");
+      await send(page, line);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expect(turns(page).filter({ hasText: line })).toHaveCount(1);
+      expect(await upstreamRecords(line)).toHaveLength(1);
+      const routes = await expire(context);
+      await page
+        .locator("[data-reply-actions]")
+        .getByRole("button", { name: "New reply", exact: true })
+        .click();
+      await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+      expect(routes.chat()).toBe(1);
+      const note = lastReply(page).getByText("The reply hasn't started yet.", { exact: true });
+      await expect(note).toBeVisible();
+      await expect(page.locator("[data-reply-actions]")).toHaveCount(0);
+      await expect(turns(page).filter({ hasText: line })).toHaveCount(1);
+      await expect
+        .poll(() =>
+          note.evaluate(
+            (node) =>
+              node.closest('[role="status"]')?.parentElement?.getBoundingClientRect().height,
+          ),
+        )
+        .toBe(28);
+      const proof = await note.evaluate((node) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return {
+          note: node.textContent,
+          lines: range.getClientRects().length,
+          slot: node.closest('[role="status"]')?.parentElement?.getBoundingClientRect().toJSON(),
+          liveOwners: node
+            .closest("[data-message]")
+            ?.querySelectorAll('[aria-live], [role="status"], [role="alert"]').length,
+          presence: document.querySelectorAll("[data-presence]").length,
+        };
+      });
+      expect(proof.lines).toBe(1);
+      expect(proof.liveOwners).toBe(1);
+      expect(proof.slot?.height).toBe(28);
+      await signInThroughPortal(page, context);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expect(note).toHaveCount(0);
+      await expect(page.locator("[data-reply-actions]")).toContainText("2 / 2");
+      await expect(turns(page).filter({ hasText: line })).toHaveCount(1);
+      const records = await upstreamRecords(line);
+      expect(records).toHaveLength(2);
+      const path = testInfo.outputPath("round11-waiting-alternate-proof.json");
+      await writeFile(
+        path,
+        JSON.stringify(
+          {
+            width,
+            reducedMotion,
+            alreadySentRequests: 1,
+            refusedAlternateRequests: routes.chat(),
+            renewedRequests: records.length,
+            ...proof,
+          },
+          null,
+          2,
+        ),
+      );
+      await testInfo.attach("round11-waiting-alternate-proof", {
+        path,
+        contentType: "application/json",
+      });
+    });
+  }
+}
+
 for (const { name, width, height, scheme } of FORM_FACTORS) {
   test(`the sign-in notice fits the ${name} layout and passes axe`, async ({ page, context }) => {
     await page.setViewportSize({ width, height });
@@ -535,7 +712,7 @@ for (const { name, width, height, scheme } of FORM_FACTORS) {
     await send(page, canary("in"));
     await expect(notice(page)).toContainText("Your sign-in has expired");
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
-    await expect(lastReply(page)).toContainText("Not sent yet.");
+    await expect(lastReply(page)).toContainText("The reply hasn't started yet.");
     await expect(notice(page)).toHaveCount(1);
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);

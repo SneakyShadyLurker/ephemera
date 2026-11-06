@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import type { Locator, Page } from "@playwright/test";
 import type { CreatorArtStatus } from "../packages/core/src/index.ts";
 import { uniqueName } from "./support/cards.ts";
@@ -627,6 +628,241 @@ for (const reducedMotion of ["reduce", "no-preference"] as const) {
       }
     });
   }
+}
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test.describe(`settled summary ${reducedMotion}`, () => {
+    test.use({ hasTouch: true });
+    for (const width of [360, 390, 820, 1440]) {
+      test(`mapping hierarchy and CSS layout scaling approximation at ${width}`, async ({
+        page,
+        comfy,
+        policyViolations,
+      }, testInfo) => {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.emulateMedia({ reducedMotion });
+        await comfy({ objectInfo: SDXL_OBJECT_INFO });
+        await openSettings(page);
+        const panel = await openImport(page, cleanUiFile());
+        const mapping = panel.locator("details").filter({ hasText: "All found in this file" });
+        const summary = mapping.locator("summary");
+        await expect(summary).toBeVisible();
+        const samples: unknown[] = [];
+        const diagnose = (control: Locator) =>
+          control.evaluate((node) => {
+            const panel = node.closest("section");
+            const summary = panel?.querySelector("details.disclosure > summary");
+            const save = Array.from(panel?.querySelectorAll("button") ?? []).find(
+              (element) => element.textContent?.trim() === "Save workflow",
+            );
+            if (!(panel instanceof HTMLElement) || !(summary instanceof HTMLElement) || !save)
+              throw new Error("Missing diagnostic panel, summary or Save");
+            const identify = (element: Element | null) =>
+              element && {
+                tag: element.tagName,
+                role: element.getAttribute("role"),
+                label: element.getAttribute("aria-label"),
+                text: element.textContent?.replace(/\s+/g, " ").trim().slice(0, 160),
+              };
+            const box = (element: Element) => {
+              const css = getComputedStyle(element);
+              const rect = element.getBoundingClientRect();
+              return {
+                ...identify(element),
+                class: element.getAttribute("class"),
+                rect: rect.toJSON(),
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+                minWidth: css.minWidth,
+                width: css.width,
+                maxWidth: css.maxWidth,
+                display: css.display,
+                flex: css.flex,
+                gap: css.gap,
+                overflowX: css.overflowX,
+                overflowY: css.overflowY,
+                contain: css.contain,
+                clipPath: css.clipPath,
+                paddingBox: {
+                  x: rect.x + Number.parseFloat(css.borderLeftWidth),
+                  y: rect.y + Number.parseFloat(css.borderTopWidth),
+                  width:
+                    rect.width -
+                    Number.parseFloat(css.borderLeftWidth) -
+                    Number.parseFloat(css.borderRightWidth),
+                  height:
+                    rect.height -
+                    Number.parseFloat(css.borderTopWidth) -
+                    Number.parseFloat(css.borderBottomWidth),
+                },
+              };
+            };
+            const capture = () => {
+              const currentSummary = panel.querySelector("details.disclosure > summary");
+              const ancestors = [];
+              for (let element: Element | null = panel; element; element = element.parentElement)
+                ancestors.push(box(element));
+              const actions = Array.from(
+                panel.querySelectorAll("button, summary, input, [role='combobox']"),
+                (element) => {
+                  const rect = element.getBoundingClientRect();
+                  return {
+                    ...box(element),
+                    points: [0.1, 0.5, 0.9].flatMap((x) =>
+                      [0.1, 0.5, 0.9].map((y) => {
+                        const px = rect.x + rect.width * x;
+                        const py = rect.y + rect.height * y;
+                        const hit = document.elementFromPoint(px, py);
+                        return { x: px, y: py, hit: element.contains(hit), blocker: identify(hit) };
+                      }),
+                    ),
+                  };
+                },
+              );
+              return {
+                viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+                document: box(document.documentElement),
+                scroller: box(document.scrollingElement ?? document.documentElement),
+                panel: box(panel),
+                summary: currentSummary && box(currentSummary),
+                summaryChildren: Array.from(
+                  currentSummary?.querySelectorAll("span, svg") ?? [],
+                  box,
+                ),
+                commitPair: save.parentElement && box(save.parentElement),
+                footer: save.parentElement?.parentElement && box(save.parentElement.parentElement),
+                actions,
+                ancestors,
+              };
+            };
+            return { current: capture() };
+          });
+        try {
+          for (const scale of width < 820 ? [1] : [1, 2]) {
+            // CSS layout scaling approximation only; this does not exercise native browser zoom.
+            await page.setViewportSize({ width: width / scale, height: 1000 / scale });
+            await summary.scrollIntoViewIfNeeded();
+            const diagnostic = await diagnose(summary);
+            samples.push({
+              standardWidth: width,
+              scale,
+              stage: "summary-before-interaction",
+              ...diagnostic,
+            });
+            await expect(summary).toHaveAccessibleName(
+              /^Ephemera fills these four places\s*\.\s*All found in this file$/,
+            );
+            const geometry = await summary.evaluate((node) => {
+              const wrapper = node.firstElementChild;
+              const label = wrapper?.firstElementChild;
+              const status = wrapper?.lastElementChild;
+              const chevron = node.lastElementChild;
+              if (!wrapper || !label || !status || !chevron)
+                throw new Error("Missing summary content");
+              const rect = node.getBoundingClientRect();
+              const labelRect = label.getBoundingClientRect();
+              const statusRect = status.getBoundingClientRect();
+              const labelStyle = getComputedStyle(label);
+              const statusStyle = getComputedStyle(status);
+              return {
+                height: rect.height,
+                width: rect.width,
+                viewport: innerWidth,
+                overflow: node.scrollWidth - node.clientWidth,
+                wrapperDisplay: getComputedStyle(wrapper).display,
+                align: getComputedStyle(node).alignItems,
+                gap: getComputedStyle(node).columnGap,
+                label: labelRect.toJSON(),
+                status: statusRect.toJSON(),
+                chevron: chevron.getBoundingClientRect().toJSON(),
+                labelWeight: labelStyle.fontWeight,
+                statusWeight: statusStyle.fontWeight,
+                labelColor: labelStyle.color,
+                statusColor: statusStyle.color,
+                labelSize: labelStyle.fontSize,
+                statusSize: statusStyle.fontSize,
+              };
+            });
+            samples.push({
+              standardWidth: width,
+              scale,
+              mechanism:
+                "CSS layout scaling approximation: viewport dimensions divided by scale, not native browser zoom",
+              ...geometry,
+            });
+            expect.soft(geometry.height).toBeGreaterThanOrEqual(44 - 0.01);
+            expect.soft(geometry.overflow).toBeLessThanOrEqual(1);
+            expect.soft(geometry.labelWeight).toBe("500");
+            expect.soft(geometry.statusWeight).toBe("400");
+            expect.soft(geometry.labelColor).not.toBe(geometry.statusColor);
+            expect.soft(geometry.labelSize).toBe("14px");
+            expect.soft(geometry.statusSize).toBe("14px");
+            expect.soft(geometry.gap).toBe("8px");
+            if (width / scale < 720) {
+              expect.soft(geometry.wrapperDisplay).toBe("grid");
+              expect.soft(geometry.align).toBe("flex-start");
+              expect.soft(geometry.status.top).toBeGreaterThanOrEqual(geometry.label.bottom);
+              expect.soft(geometry.chevron.top - geometry.label.top).toBeCloseTo(2, 0);
+              if (width === 390 && scale === 1) expect.soft(geometry.label.height).toBe(20);
+            } else if (scale === 1) {
+              expect.soft(geometry.wrapperDisplay).toBe("flex");
+              expect.soft(geometry.status.top).toBeCloseTo(geometry.label.top, 0);
+              expect.soft(geometry.label.height).toBe(20);
+            }
+            await summary.focus();
+            await summary.press("Enter");
+            await expect(mapping).toHaveAttribute("open", "");
+            await expect(mappingRows(panel)).toHaveCount(4);
+            await summary.press("Space");
+            await expect(mapping).not.toHaveAttribute("open");
+            const save = panel.getByRole("button", { name: "Save workflow", exact: true });
+            await save.scrollIntoViewIfNeeded();
+            samples.push({
+              standardWidth: width,
+              scale,
+              stage: "save-before-reachability-assertion",
+              ...(await diagnose(save)),
+            });
+            samples.push({
+              standardWidth: width,
+              scale,
+              save: await save.evaluate((node) => {
+                const rect = node.getBoundingClientRect();
+                return {
+                  rect: rect.toJSON(),
+                  viewport: { width: innerWidth, height: innerHeight },
+                  panel: node.closest("section")?.getBoundingClientRect().toJSON(),
+                  hits: [0.1, 0.5, 0.9].map((x) =>
+                    [0.1, 0.5, 0.9].map((y) =>
+                      node.contains(
+                        document.elementFromPoint(
+                          rect.x + rect.width * x,
+                          rect.y + rect.height * y,
+                        ),
+                      ),
+                    ),
+                  ),
+                };
+              }),
+            });
+            await expectWorkflowControlPainted(save);
+          }
+        } finally {
+          samples.push({ kind: "CSP-violations-observed", violations: [...policyViolations] });
+          const path = testInfo.outputPath("round11-summary-layout.json");
+          await writeFile(path, JSON.stringify(samples, null, 2));
+          await testInfo.attach("round11-summary-CSS-layout-scaling-approximation", {
+            path,
+            contentType: "application/json",
+          });
+          await testInfo.attach("round11-summary-CSS-layout-scaling-approximation-accessibility", {
+            body: await summary.ariaSnapshot(),
+            contentType: "text/plain",
+          });
+        }
+      });
+    }
+  });
 }
 
 test("a saved workflow file shows where Ephemera's values go, then saves as ready", async ({

@@ -1937,8 +1937,12 @@ AI Rework:
   unchanged runs over 60 words to the sentences beside a change.
   `ChangeRuns` shows Removed and Proposed passages within one field frame;
   a removal over 160 characters or containing a line break folds behind
-  Show removed. Each reason follows its proposal with one always-visible
-  Reject or Restore action; new changes start accepted. Tags and keys group
+  Show removed; its preview truncates within the field while the disclosure
+  label remains reachable. Each reason follows its proposal with one
+  always-visible Reject or Restore action in inline text flow. Both labels
+  share a reserved width, and the decision's padding contains the action's
+  enlarged target without covering neighboring controls. New changes start
+  accepted. Tags and keys group
   their removed and proposed chips under the same labels. Rejection changes
   those labels to Kept and Rejected (Not added for a pure insertion), and
   removes active deletion/insertion semantics from the rejected change.

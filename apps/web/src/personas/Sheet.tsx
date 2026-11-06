@@ -258,8 +258,8 @@ function PersonaEditor({
               className={FIELD}
             />
             <p className={HELP}>
-              Who {"{{user}}"} is in the story. Sent at the persona description's place in the
-              prompt preset while you chat as this persona.
+              Who {"{{user}}"} is in the story. The model reads it while you chat as this persona,
+              at the persona description's place in the prompt preset.
             </p>
           </div>
         </section>
