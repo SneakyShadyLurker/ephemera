@@ -212,12 +212,12 @@ function DockPresenter({
         aria-label="Previous change"
         className={ICON_TARGET}
         disabled={index === 0}
-        onClick={() => goTo(index === null ? 0 : index - 1)}
+        onClick={() => goTo(index === null ? order.length - 1 : index - 1)}
       >
         <PreviousIcon />
       </Button>
       <span aria-hidden="true" className="min-w-9 text-center text-meta text-reed tabular-nums">
-        {index === null ? "–" : index + 1} / {order.length}
+        {index !== null && `${index + 1} / ${order.length}`}
       </span>
       <Button
         size="icon"
@@ -405,7 +405,9 @@ function DockPresenter({
             {!present || line.failure
               ? ""
               : view.phase === "review" && order.length > 0
-                ? `${applyLine}. ${current ?? ""}`
+                ? current === null
+                  ? applyLine
+                  : `${applyLine}. ${current}`
                 : line.announce}
           </p>
           <p role="alert" className="sr-only">

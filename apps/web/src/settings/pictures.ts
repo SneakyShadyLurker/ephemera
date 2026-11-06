@@ -21,6 +21,25 @@ const UNAVAILABLE: Record<CreatorArtUnavailable, string> = {
     "Something answered at this address, but not as a ComfyUI picture server does. Check the address.",
 };
 
+/** An address remedy only when the reported blocker is the address. */
+export function addressAction(
+  status: CreatorArtStatus | "checking" | "failed" | undefined,
+): "add" | "edit" | null {
+  if (status === undefined || status === "checking" || status === "failed") return null;
+  if (status.state === "off") return "add";
+  if (status.state !== "unavailable") return null;
+  switch (status.reason) {
+    case "not_allowed":
+    case "insecure":
+    case "unreachable":
+    case "invalid_response":
+      return "edit";
+    case "unauthorized":
+    case "not_ready":
+      return null;
+  }
+}
+
 /** One status line: whether portraits can be made, in plain words, and the names of what is missing. */
 interface PortraitStatusLine {
   tone: "ready" | "off" | "problem";

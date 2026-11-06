@@ -159,9 +159,11 @@ export function leaveGuardOf(rows: readonly RowSaving[]) {
 export function EventsSection({
   inSheet = false,
   onSavingChange,
+  newEventRequested = false,
 }: {
   inSheet?: boolean;
   onSavingChange?: (saving: ReturnType<typeof leaveGuardOf>) => void;
+  newEventRequested?: boolean;
 }) {
   const queryClient = useQueryClient();
   const events = useQuery(eventsQuery);
@@ -180,6 +182,7 @@ export function EventsSection({
     });
   }, [inSheet, libraryEventsOpen]);
   const newButton = useRef<HTMLButtonElement>(null);
+  const consumed = useRef(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   /** Rows new in this visit (made or brought back), which arrive with motion. */
@@ -259,6 +262,29 @@ export function EventsSection({
     setArrived((current) => [...current, key]);
     setRowOpen(key, true);
   };
+
+  const consumeOpening = useEffectEvent(() => {
+    if (!newEventRequested) return;
+    if (atLimit) newButton.current?.focus({ preventScroll: true });
+    else add();
+  });
+  useEffect(() => {
+    if (!newEventRequested) {
+      consumed.current = false;
+      return;
+    }
+    // Defined data has passed the list query's parser, including a cached list whose refetch failed.
+    if (consumed.current || events.data === undefined) return;
+    // Let the removed Retry control's focus recovery settle before the new row's autofocus.
+    // Cancellation keeps a closed or outgoing sheet from creating or focusing a late draft.
+    let arrival = requestAnimationFrame(() => {
+      arrival = requestAnimationFrame(() => {
+        consumed.current = true;
+        consumeOpening();
+      });
+    });
+    return () => cancelAnimationFrame(arrival);
+  }, [newEventRequested, events.data]);
 
   /** A row gone for good (deleted, or given up after a deletion elsewhere): nothing keeps it now. */
   const forget = (key: string) => {

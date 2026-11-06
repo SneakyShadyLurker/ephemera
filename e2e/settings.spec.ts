@@ -379,6 +379,42 @@ test.describe("palette phone actions in the flow", () => {
             await expect(hexField(page, "Background")).toBeFocused();
             await expectPaletteControlPainted(hexField(page, "Background"));
 
+            if (height === 844 && !saved) {
+              const upper = hexField(page, "Background");
+              const summary = editor
+                .getByRole("status")
+                .filter({ hasText: /Every colour|may be hard to read/ });
+              const measureReach = async (kind: string, value: string, shortfalls: number) => {
+                const upperBox = await upper.boundingBox();
+                const saveBefore = await save.boundingBox();
+                const distance = (saveBefore?.y ?? NaN) - (upperBox?.y ?? NaN);
+                await save.scrollIntoViewIfNeeded();
+                await expectPaletteControlPainted(save);
+                process.stdout.write(
+                  `I palette Save reach ${JSON.stringify({ kind, scheme, width, height, background: value, shortfalls, distancePx: distance, distanceVh: distance / height, allColours: "closed", unresolved: kind === "warning-free" && distance > height })}\n`,
+                );
+              };
+              await expect(editor.getByRole("button", { name: /^All colours/ })).toHaveAttribute(
+                "aria-expanded",
+                "false",
+              );
+              if (scheme === "light") {
+                await upper.fill("#24283b");
+                await upper.press("Tab");
+                await expect(summary).toContainText("may be hard to read");
+                const shortfalls = await summary.getByRole("button").count();
+                expect(shortfalls).toBeGreaterThan(0);
+                await measureReach("warning-heavy", "#24283b", shortfalls);
+              }
+              // #e5e6eb leaves Muted text and Error below their floors by day;
+              // use Tokyo Night's actual day background for this warning-free fixture.
+              const value = scheme === "dark" ? "#24283b" : "#e1e2e7";
+              await upper.fill(value);
+              await upper.press("Tab");
+              await expect(summary).toHaveText("Every colour reads clearly by day and by night.");
+              await measureReach("warning-free", value, 0);
+            }
+
             await page.locator("[data-skip-target]").evaluate((scroller) => {
               scroller.scrollTop = scroller.scrollHeight;
             });

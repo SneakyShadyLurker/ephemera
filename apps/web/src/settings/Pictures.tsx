@@ -102,6 +102,10 @@ export function Pictures() {
     replacing.current = workflow;
     picker.current?.click();
   };
+  const editAddress = () => {
+    address.current?.focus({ preventScroll: true });
+    address.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
+  };
 
   // After the commit that shows the saved row, its name takes focus; Import, when the list
   // could not be refreshed to show it.
@@ -122,6 +126,7 @@ export function Pictures() {
             notice={unchecked ? SAVED_UNCHECKED : null}
             onImport={() => choose(null)}
             onReplace={(workflow) => choose(workflow)}
+            onEditAddress={editAddress}
             about={
               <>
                 <p>
@@ -180,10 +185,7 @@ export function Pictures() {
               setUnchecked(!checked);
               setSaved(id);
             }}
-            onEditAddress={() => {
-              address.current?.focus({ preventScroll: true });
-              address.current?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
-            }}
+            onEditAddress={editAddress}
           />
         )}
       </NoticeSlot>

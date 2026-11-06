@@ -34,6 +34,7 @@ export function Workflows({
   notice = null,
   onImport,
   onReplace,
+  onEditAddress,
   about,
 }: {
   /** "Import a workflow", where focus returns after an import or a delete. */
@@ -42,6 +43,7 @@ export function Workflows({
   notice?: string | null;
   onImport: () => void;
   onReplace: (workflow: WorkflowSummary) => void;
+  onEditAddress: () => void;
   /** More about workflows, behind an infotip beside the heading. */
   about?: ReactNode;
 }) {
@@ -153,6 +155,7 @@ export function Workflows({
                     onDeleted,
                   }}
                   inUse={userWorkflowId(workflow.id) === comfyuiWorkflow}
+                  onEditAddress={onEditAddress}
                 />
               ))}
             </ul>
@@ -169,6 +172,7 @@ export function Workflows({
                   key={option.id}
                   row={{ scope: "server", workflow: option }}
                   inUse={option.id === comfyuiWorkflow}
+                  onEditAddress={onEditAddress}
                 />
               ))}
             </ul>

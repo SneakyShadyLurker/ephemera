@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addressAction,
   deletedLine,
   EMPTY_WORKFLOWS,
   FAMILY_NAMES,
@@ -11,6 +12,25 @@ import {
   WORKFLOWS_FULL,
   workflowStatus,
 } from "./pictures.ts";
+
+describe("address remedies", () => {
+  it.each<[Parameters<typeof addressAction>[0], ReturnType<typeof addressAction>]>([
+    [undefined, null],
+    ["checking", null],
+    ["failed", null],
+    [{ state: "off" }, "add"],
+    [{ state: "ready" }, null],
+    [{ state: "missing", nodes: [], models: [] }, null],
+    [{ state: "unavailable", reason: "not_allowed" }, "edit"],
+    [{ state: "unavailable", reason: "insecure" }, "edit"],
+    [{ state: "unavailable", reason: "unreachable" }, "edit"],
+    [{ state: "unavailable", reason: "invalid_response" }, "edit"],
+    [{ state: "unavailable", reason: "unauthorized" }, null],
+    [{ state: "unavailable", reason: "not_ready" }, null],
+  ])("offers the remedy for %j", (status, action) => {
+    expect(addressAction(status)).toBe(action);
+  });
+});
 
 describe("the portrait status in Settings", () => {
   it("says plainly when portraits are off or ready", () => {

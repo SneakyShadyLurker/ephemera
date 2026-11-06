@@ -261,8 +261,9 @@ Version 1.0 holds everything below.
 - Settings > Pictures lists the workflows: the owner's own under Yours,
   then the server's, each with its family, its status in words (Ready,
   Checking, Missing requirements, Unavailable or Unchecked). The chosen one
-  says Selected and, when it cannot paint, Cannot run, with a reason and
-  Choose another. Import takes a ComfyUI workflow file, saved
+  says Selected and, when it cannot paint, Cannot run with a reason.
+  Add the address or Edit the address goes to the address field when that
+  is the remedy; missing requirements offer Choose another. Import takes a ComfyUI workflow file, saved
   from ComfyUI or exported as API, chosen or dropped on the section on
   tablet and desktop; a saved one needs ComfyUI to answer, since its nodes
   are read from it. An owner keeps up to 24. The import panel shows where
@@ -375,7 +376,9 @@ Version 1.0 holds everything below.
   entries the changes touch, add or remove show above the lorebook's
   summary; a new entry is accepted or rejected whole. A bar under the sheet
   counts the changes to apply and the rejected changes separately,
-  steps through them with Previous and Next and a position counter, lists the
+  steps through them with Previous and Next and a position counter that
+  appears after navigating. Before that, Next starts at the first change and
+  Previous at the last. The bar lists the
   ones that could not be matched (never applied) and offers Discard and
   Apply. Stop keeps what arrived for review.
 - While the model works and under review the fields are read-only, and
@@ -452,6 +455,7 @@ Version 1.0 holds everything below.
   entry shows: always, on its keywords, or by chance with a percentage.
   The editor's entries lead the pane; scan depth, token budget and Chaining
   wait under Book settings, with their current values in its summary.
+  An entry's Text comes before its activation controls, so writing comes first.
 - Import SillyTavern World Info files or standalone card lorebooks and
   convert them to native data. Export and re-import Ephemera lorebook JSON.
   Reports say what was kept, changed and left out.
@@ -462,7 +466,9 @@ Version 1.0 holds everything below.
   after the library and the books in cards. The row arrives closed and says how many events there are and
   how many are on; opened, it lists them. Events in the chat header opens
   the same list without leaving the story, in a side sheet or a bottom
-  sheet on phones, where More holds Events. Events in chat and Events in
+  sheet on phones, where More holds Events and New event. New event opens
+  the sheet with a blank instruction ready to write; at the limit it goes
+  to the limit note instead. Events in chat and Events in
   Lorebooks link the two views. Each event has its instruction
   (up to 500 characters, one line, macros filled as in the Author's Note),
   a chance per reply (0 to 100%, one decimal), a cooldown in replies (0 to
@@ -707,7 +713,9 @@ Version 1.0 holds everything below.
   reveals it. Under the portrait, up
   to five present, each with what she is doing and how she seems to feel where
   the column has room, then the rest and those away behind disclosures;
-  across the phone's band, their names and ages over at most two lines,
+  on phones beside a reply portrait, names and ages fit its column's height,
+  each name over at most two lines, with the rest behind a roster action.
+  Without that portrait, the band keeps names over at most two lines,
   then how many more. Men and others are kept for the narrator but not listed,
   and with no introduced woman the panel stays hidden. A name opens
   her record, beside the roster from tablet up and as a drawer on phones;
@@ -729,9 +737,13 @@ Version 1.0 holds everything below.
   and the roster says she was removed, with Undo, until the cast next
   updates or the panel is used. While the keeper works, "Updating…" stands
   beside "Cast" and one light passes along a hairline under it, and the
-  record surface's header carries both. On phones the band shows only the
-  light, so its names hold still; the header's cast control stays still.
-  Under reduced motion the words alone say it, the band's included. A failure says so, with Try again, even before
+  record surface's header carries both while open. Beside a phone reply
+  portrait, one reserved line holds the status or removal message and one
+  action row holds roster access, Try again and Undo as needed. Names fill
+  the remaining height, so feedback does not move the prose below. The
+  other phone band shows only the light, so its names hold still; the
+  header's cast control stays still. Under reduced motion the words alone
+  say it, the band's included. A failure says so, with Try again, even before
   anyone is listed, and the fields the newest update changed wash briefly.
 - The register, its snapshots and the corrections are chat content:
   Clear, a reload or leaving the page drops them with the chat.
@@ -798,7 +810,8 @@ Version 1.0 holds everything below.
   Session docks only when the story keeps its readable width beside it;
   otherwise it opens as a sheet.
 - On phones the header names Cast, More and Session, with Memory directly
-  available once loaded while memory is on; More holds Events, Prompt and Clear chat. The
+  available once loaded while memory is on; More holds Events, New event,
+  Prompt and Clear chat. The
   navigation button carries the mark and a menu cue, and its sheet also
   offers the theme switch and Appearance.
 - Start from a character's greeting; swipe between alternate greetings.

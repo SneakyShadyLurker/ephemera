@@ -94,7 +94,14 @@ test("compose, stream and review: the dock counts the changes and the fields are
   const bar = dock(page);
   await expect(bar).toContainText("3 changes to apply");
   await expect(bar).not.toContainText("left out");
-  await expect(bar.getByText("– / 3", { exact: true })).toBeVisible();
+  await expect(bar.getByText("– / 3", { exact: true })).toHaveCount(0);
+  expect(await bar.getByRole("status").textContent()).toBe("3 changes to apply");
+  await bar.getByRole("button", { name: "Previous change" }).click();
+  await expect(
+    page.getByRole("group", { name: "Change 3 of 3 in Entry 1: The harbour ledger" }),
+  ).toBeFocused();
+  await expect(bar.getByText("3 / 3", { exact: true })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Next change" })).toBeDisabled();
   await expect(bar.getByText("1 could not be placed")).toBeVisible();
   await expect(bar.getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
   // The changed field shows its tracked view; the others stay, read-only.
@@ -503,6 +510,7 @@ test("an upstream error ends the run in ember and echoes nothing", async ({ page
 });
 
 for (const size of [
+  { name: "narrow phone", width: 360, height: 844, drawer: true },
   { name: "phone", width: 390, height: 844, drawer: true },
   { name: "tablet", width: 820, height: 1180, drawer: false },
 ] as const) {
@@ -549,6 +557,21 @@ for (const size of [
     const box = await bar.boundingBox();
     expect(box).not.toBeNull();
     expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(size.height + 0.5);
+    if (size.width === 360) {
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? Infinity)).toBeLessThanOrEqual(360);
+      const previous = bar.getByRole("button", { name: "Previous change" });
+      const next = bar.getByRole("button", { name: "Next change" });
+      for (const button of [previous, next]) {
+        const target = await button.boundingBox();
+        expect(target?.height).toBeGreaterThanOrEqual(44);
+        expect(target?.width).toBeGreaterThanOrEqual(44);
+      }
+      await next.click();
+      await expect(page.getByRole("group", { name: "Change 1 of 3 in Description" })).toBeFocused();
+      await expect(previous).toBeDisabled();
+      await expect(bar.getByText("1 / 3", { exact: true })).toBeVisible();
+    }
   });
 }
 
@@ -767,7 +790,7 @@ test("replacement, deletion, insertion and keyword decisions agree with their sp
   const bar = dock(page);
   await expect(bar).toContainText("4 changes to apply");
   await expect(bar.getByText("1 could not be placed", { exact: true })).toBeVisible();
-  await expect(bar.getByText("– / 4", { exact: true })).toBeVisible();
+  await expect(bar.getByText("– / 4", { exact: true })).toHaveCount(0);
   const replacement = page.getByRole("group", { name: /^Change \d of 4 in Description$/ });
   const deletion = page.getByRole("group", { name: /^Change \d of 4 in Creator notes$/ });
   const insertion = page.getByRole("group", { name: /^Change \d of 4 in First message$/ });

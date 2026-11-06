@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { EVENT_DIRECTION, type StoredEvent } from "../packages/core/src/events/event.ts";
+import {
+  EVENT_DIRECTION,
+  EVENT_LIMITS,
+  type StoredEvent,
+} from "../packages/core/src/events/event.ts";
 import { eventsResponseSchema } from "../packages/core/src/responses.ts";
 import { uniqueName } from "./support/cards.ts";
 import { chooseCharacter, lastReply, send, upstreamRecords } from "./support/chat.ts";
@@ -57,6 +61,151 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 }
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
+
+test.describe("phone More > New event", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  const sheet = (page: Page) => page.getByRole("dialog", { name: "Events", exact: true });
+  const openNew = async (page: Page) => {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    const menu = page.getByRole("menu", { name: "Chat actions" });
+    await expect(menu.getByRole("menuitem")).toHaveText([
+      "Events",
+      "New event",
+      "Prompt",
+      "Clear chat",
+    ]);
+    await expect(menu.getByRole("menuitem", { name: "New event", exact: true })).toHaveAttribute(
+      "aria-haspopup",
+      "dialog",
+    );
+    await menu.getByRole("menuitem", { name: "New event", exact: true }).click();
+  };
+
+  for (const phase of ["cached", "delayed", "retry", "closed"] as const) {
+    test(`${phase}: consumes one local draft and preserves closing focus`, async ({
+      page,
+      request,
+    }) => {
+      let fail = phase === "retry";
+      const release = Promise.withResolvers<void>();
+      const seen = Promise.withResolvers<void>();
+      let gets = 0;
+      let creates = 0;
+      if (phase === "cached") await createEventViaApi(request, "The cached lantern turns.");
+      const initial = await storedEvents(request);
+      page.on("request", (sent) => {
+        if (sent.url().endsWith("/api/events") && sent.method() === "POST") creates++;
+      });
+      await page.route("**/api/events", async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        gets++;
+        seen.resolve();
+        if (phase === "delayed" || phase === "closed") await release.promise;
+        if (fail) return route.fulfill({ status: 503, json: { error: "unavailable" } });
+        return route.fulfill({ json: { events: initial } });
+      });
+      try {
+        await page.goto("/");
+        if (phase === "cached") {
+          await page.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length);
+          await page.keyboard.press("Escape");
+          await expect(sheet(page)).toHaveCount(0);
+          // The cached list remains usable while the next visit's stale refetch fails.
+          fail = true;
+        }
+        await openNew(page);
+        await seen.promise;
+        if (phase === "closed") {
+          await page.keyboard.press("Escape");
+          await expect(sheet(page)).toHaveCount(0);
+          release.resolve();
+          await expect(page.getByRole("button", { name: "More", exact: true })).toBeFocused();
+          await page.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+          await expect(sheet(page).getByText("No events yet.", { exact: false })).toBeVisible();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(0);
+        } else {
+          if (phase === "delayed") {
+            await expect(
+              sheet(page).getByRole("textbox", { name: "Instruction", exact: true }),
+            ).toHaveCount(0);
+            await expect(
+              sheet(page).getByRole("heading", { name: "Events", exact: true }),
+            ).toBeFocused();
+            release.resolve();
+          }
+          if (phase === "retry") {
+            await expect(sheet(page).getByText("The events could not be loaded.")).toBeVisible({
+              timeout: 15_000,
+            });
+            fail = false;
+            await sheet(page).getByRole("button", { name: "Try again", exact: true }).click();
+          }
+          const instruction = sheet(page).getByRole("textbox", {
+            name: "Instruction",
+            exact: true,
+          });
+          await expect(instruction).toBeFocused();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length + 1);
+          if (phase === "cached") {
+            await expect(sheet(page).getByText("The events could not be refreshed.")).toBeVisible({
+              timeout: 15_000,
+            });
+            await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length + 1);
+            await expect(instruction).toBeFocused();
+          }
+          expect(creates).toBe(0);
+          expect(await storedEvents(request)).toEqual(initial);
+          await page.keyboard.press("Escape");
+          await expect(sheet(page)).toHaveCount(0);
+          await expect(page.getByRole("button", { name: "More", exact: true })).toBeFocused();
+          await page.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+          if (initial.length === 0)
+            await expect(sheet(page).getByText("No events yet.", { exact: false })).toBeVisible();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length);
+        }
+        expect(gets).toBeGreaterThan(0);
+        expect(creates).toBe(0);
+      } finally {
+        release.resolve();
+      }
+    });
+  }
+
+  test("at the limit the existing focusable New event explains the limit", async ({
+    page,
+    request,
+  }) => {
+    const id = await createEventViaApi(request, "The lantern turns.");
+    const [event] = await storedEvents(request);
+    await page.route("**/api/events", (route) =>
+      route.request().method() === "GET"
+        ? route.fulfill({
+            json: {
+              events: Array.from({ length: EVENT_LIMITS.events }, (_, index) => ({
+                ...event,
+                id: index === 0 ? id : crypto.randomUUID(),
+              })),
+            },
+          })
+        : route.continue(),
+    );
+    await page.goto("/");
+    await openNew(page);
+    const button = sheet(page).getByRole("button", { name: "New event", exact: true });
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(sheet(page).getByText(/200 events is the most/)).toBeVisible();
+    await expect(
+      sheet(page).getByRole("textbox", { name: "Instruction", exact: true }),
+    ).toHaveCount(0);
+    expect(await storedEvents(request)).toHaveLength(1);
+  });
+});
 
 for (const entry of ["Lorebooks", "chat"] as const) {
   for (const reducedMotion of ["no-preference", "reduce"] as const) {

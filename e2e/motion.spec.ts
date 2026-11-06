@@ -399,6 +399,7 @@ test("Session opens and closes its layout slot continuously, including a reverse
 
 test("reduced-motion Session keeps its width while its closing fade is visible", async ({
   page,
+  request,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -430,6 +431,66 @@ test("reduced-motion Session keeps its width while its closing fade is visible",
   expect(frames.some(({ opacity }) => opacity > 0.05 && opacity < 0.95)).toBe(true);
   for (const { width } of frames) expect(width).toBeCloseTo(432, 0);
   await expect(page.getByRole("complementary", { name: "Session" })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const characterId = await createCharacterViaApi(request, uniqueName("Session slip"));
+  await patchSettings(request, { characterId, model: "mock-fast" });
+  await page.goto("/");
+  await send(page, "The player records another turn of the lamp. ".repeat(100));
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  const player = page.locator('[data-message][data-role="user"]').last();
+  await player.evaluate((element) => {
+    const scroller = document.querySelector('[role="log"] > div');
+    if (scroller === null) throw new Error("Missing chat scroller");
+    scroller.scrollTop +=
+      element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 80;
+  });
+  const observe = () =>
+    player.evaluate((element) => {
+      const scroller = document.querySelector('[role="log"] > div');
+      const plate = element.querySelector<HTMLElement>('[data-speaker][data-voice="line"]');
+      const name = plate?.querySelector("p");
+      if (
+        scroller === null ||
+        plate === null ||
+        plate === undefined ||
+        name === null ||
+        name === undefined
+      )
+        throw new Error("Missing player nameplate geometry");
+      const bounds = plate.getBoundingClientRect();
+      const scroll = scroller.getBoundingClientRect();
+      const turn = element.getBoundingClientRect();
+      const top = Number.parseFloat(getComputedStyle(plate).top);
+      return {
+        scrollTop: scroller.scrollTop,
+        plateTop: bounds.top,
+        plateBottom: bounds.bottom,
+        scrollerTop: scroll.top,
+        turnTop: turn.top,
+        turnBottom: turn.bottom,
+        stickyTop: top,
+        geometricallyStuck:
+          turn.top < scroll.top + top && Math.abs(bounds.top - scroll.top - top) < 2,
+        fadeHeight: getComputedStyle(name, "::after").height,
+        fadeOpacity: getComputedStyle(name, "::after").opacity,
+      };
+    });
+  await expect.poll(async () => (await observe()).geometricallyStuck).toBe(true);
+  const before = await observe();
+  await page.getByRole("button", { name: "Session", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Session", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  const afterEscape = await observe();
+  await expect(page.getByRole("dialog", { name: "Session", exact: true })).toHaveCount(0);
+  const settled = await observe();
+  process.stdout.write(
+    `D Session player slip observation ${JSON.stringify({ before, afterEscape, settled })}\n`,
+  );
+  expect(afterEscape.scrollTop).toBeCloseTo(before.scrollTop, 0);
+  expect(settled.scrollTop).toBeCloseTo(before.scrollTop, 0);
+  expect(settled.plateTop).toBeCloseTo(before.plateTop, 0);
+  expect(settled.geometricallyStuck).toBe(true);
 });
 
 for (const viewport of [

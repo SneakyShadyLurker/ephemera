@@ -23,7 +23,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useCanDock } from "@/app/form-factor.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { ChatIcon, MoreIcon, PlusIcon } from "@/components/icons";
+import { MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Unfold } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
@@ -720,8 +720,14 @@ function ChatHistoryBand({
       className="relative border-control-edge border-y py-1 pl-3 before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-control-edge dark:bg-surface"
     >
       <div className="flex min-h-12 items-center gap-3 pr-1 pl-1">
-        <span className="grid w-7 place-items-center text-reed" aria-hidden="true">
-          <ChatIcon size={16} />
+        <span className="grid w-7 place-items-center">
+          <Switch
+            size="sm"
+            checked={enabled}
+            aria-label="Send Chat history"
+            aria-describedby="chat-history-help"
+            onCheckedChange={onToggle}
+          />
         </span>
         <span className="grid min-w-0 flex-1">
           <span
@@ -738,14 +744,6 @@ function ChatHistoryBand({
               : "Off: no messages of the chat are sent, nor the blocks and notes inside it."}
           </span>
         </span>
-        {/* At the end of the band, so the blocks inside stay aligned with its name. */}
-        <Switch
-          size="sm"
-          checked={enabled}
-          aria-label="Send Chat history"
-          aria-describedby="chat-history-help"
-          onCheckedChange={onToggle}
-        />
       </div>
       {hasBlocks && (
         <>

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { LamplightRim } from "@/components/lamplight.tsx";
 import { cn } from "@/lib/cn";
@@ -45,6 +46,7 @@ export function Presence({
   const desktop = useFormFactor() === "desktop";
   const pictures = useSetting((settings) => settings.comfyuiBaseUrl) !== "";
   const cast = useCastVisible();
+  const portraitColumn = useRef<HTMLDivElement>(null);
   if (character === undefined) return null;
   const name = character.name;
 
@@ -77,7 +79,7 @@ export function Presence({
   // After the portrait's viewer in the tab order.
   const roster = placement === "float" && cast;
   const column = (portrait || pictures || roster) && (
-    <div className={cn("grid shrink-0 gap-2", COLUMN[placement])}>
+    <div ref={portraitColumn} className={cn("grid shrink-0 gap-2", COLUMN[placement])}>
       {portrait}
       {pictures && <SceneButton wide={placement === "float"} />}
       {roster && <CastPanel placement="float" />}
@@ -95,6 +97,16 @@ export function Presence({
           {column}
         </div>
       )
+    );
+  }
+  if (inReply && portrait) {
+    return (
+      <div key={character.id} data-presence="" className="flex items-start gap-4 pb-4">
+        {column}
+        <div className="min-w-0 flex-1">
+          <CastPanel placement="band" portraitColumn={portraitColumn} />
+        </div>
+      </div>
     );
   }
   const head = portrait ? (

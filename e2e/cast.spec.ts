@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
 import { formatCount } from "../apps/web/src/lib/text.ts";
+import { castUpdateResponseSchema } from "../packages/core/src/cast/api.ts";
 import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
@@ -34,7 +35,14 @@ import {
   send,
   upstreamRecords,
 } from "./support/chat.ts";
-import { createCharacterViaApi, patchSettings, readSettings, saved } from "./support/entities.ts";
+import { portraitPng } from "./support/creator-fixtures.ts";
+import {
+  createCharacterViaApi,
+  patchSettings,
+  readSettings,
+  saved,
+  setPortraitViaApi,
+} from "./support/entities.ts";
 import { expect, test } from "./support/test.ts";
 import {
   MOCK_OUTPUT_TOKENS,
@@ -113,6 +121,423 @@ async function seeded(page: Page) {
 }
 
 const inspector = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
+
+/** Read the actual pseudo hit plates, rather than treating glyph boxes as targets. */
+async function expectStackFit(page: Page, state: string, names = true) {
+  const panel = castPanel(page);
+  await panel.scrollIntoViewIfNeeded();
+  const geometry = await panel.evaluate((element) => {
+    const column = element.closest("[data-presence]")?.firstElementChild;
+    if (!column) throw new Error("Missing portrait column");
+    const stack = element.getBoundingClientRect();
+    const portrait = column.getBoundingClientRect();
+    const actions = [...element.querySelectorAll<HTMLElement>("[data-slot=button]")].map(
+      (action) => {
+        const rect = action.getBoundingClientRect();
+        const style = getComputedStyle(action);
+        const after = getComputedStyle(action, "::after");
+        const left =
+          rect.left + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(after.left);
+        const top =
+          rect.top + Number.parseFloat(style.borderTopWidth) + Number.parseFloat(after.top);
+        const right =
+          rect.right - Number.parseFloat(style.borderRightWidth) - Number.parseFloat(after.right);
+        const bottom =
+          rect.bottom -
+          Number.parseFloat(style.borderBottomWidth) -
+          Number.parseFloat(after.bottom);
+        const range = document.createRange();
+        range.selectNodeContents(action);
+        const text = range.getBoundingClientRect();
+        return {
+          label: action.textContent,
+          left,
+          top,
+          right,
+          bottom,
+          width: right - left,
+          height: bottom - top,
+          controlRight: rect.right,
+          hit: [-18, 0, 18].every((x) =>
+            [-18, 0, 18].every((y) =>
+              action.contains(
+                document.elementFromPoint((left + right) / 2 + x, (top + bottom) / 2 + y),
+              ),
+            ),
+          ),
+          textFits:
+            text.left >= rect.left - 1 &&
+            text.right <= rect.right + 1 &&
+            text.top >= rect.top - 1 &&
+            text.bottom <= rect.bottom + 1,
+        };
+      },
+    );
+    return {
+      width: stack.width,
+      budget: portrait.height,
+      height: stack.height,
+      bottom: stack.bottom,
+      columnBottom: portrait.bottom,
+      left: stack.left,
+      // Layout height avoids coordinate cancellation in a translated ancestor.
+      names: [...element.querySelectorAll<HTMLElement>("[data-cast-name]")].map(
+        (name) => name.offsetHeight,
+      ),
+      actions,
+    };
+  });
+  expect(geometry.bottom, state).toBeLessThanOrEqual(geometry.columnBottom + 1);
+  if (names) expect(geometry.names.length, state).toBeGreaterThanOrEqual(1);
+  for (const height of geometry.names) expect(height, state).toBeLessThanOrEqual(44);
+  for (const [index, action] of geometry.actions.entries()) {
+    expect(action.width, `${state}: ${action.label}`).toBeGreaterThanOrEqual(44);
+    expect(action.height, `${state}: ${action.label}`).toBeGreaterThanOrEqual(44);
+    expect(action.left, `${state}: ${action.label}`).toBeGreaterThanOrEqual(geometry.left);
+    expect(action.controlRight, `${state}: ${action.label}`).toBeLessThanOrEqual(
+      geometry.left + geometry.width,
+    );
+    expect(action.hit, `${state}: ${action.label}`).toBe(true);
+    expect(action.textFits, `${state}: ${action.label}`).toBe(true);
+    for (const other of geometry.actions.slice(index + 1)) {
+      expect(
+        Math.min(action.right, other.right) - Math.max(action.left, other.left),
+        state,
+      ).toBeLessThanOrEqual(-4);
+    }
+  }
+  await expect(panel.locator("[aria-live]")).toHaveCount(1);
+  await expect(panel.locator("[aria-live]")).toHaveAttribute("aria-live", "polite");
+  process.stdout.write(`C state geometry ${JSON.stringify({ state, ...geometry })}\n`);
+  return geometry;
+}
+
+test.describe("portrait-side phone cast", () => {
+  test.use({ hasTouch: true });
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["reduce", "no-preference"] as const) {
+      test(`${width}px ${reducedMotion}: portrait stack waiting uses zero name rows`, async ({
+        page,
+        request,
+        comfy,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion, colorScheme: width === 360 ? "light" : "dark" });
+        if (width === 360) await comfy();
+        const characterId = await createCharacterViaApi(request, uniqueName("Waiting cast"), {
+          firstMessage: "The lamp waits.",
+        });
+        await setPortraitViaApi(request, characterId, portraitPng("waiting-cast"));
+        await patchSettings(request, { characterId });
+        await page.goto("/");
+        await expect(castPanel(page)).toHaveAttribute("data-cast-stack", "");
+        await expect(castStatus(page)).toHaveText("Choose a model to load the cast.");
+        await expect(castPanel(page).locator("[data-cast-name]")).toHaveCount(0);
+        await expectStackFit(page, `${width}/${reducedMotion}/waiting`, false);
+      });
+      for (const portrait of [true, false]) {
+        test(`${width}px ${reducedMotion} portrait=${portrait}: fit, status, roster and Undo stay reachable`, async ({
+          page,
+          request,
+          comfy,
+        }) => {
+          test.setTimeout(90_000);
+          await page.setViewportSize({ width, height: 844 });
+          await page.emulateMedia({ reducedMotion, colorScheme: width === 360 ? "light" : "dark" });
+          // Exercise both the portrait-only and the portrait-plus-scene budgets.
+          if (width === 360) await comfy();
+          const { characterId } = await castChat(request);
+          if (portrait) await setPortraitViaApi(request, characterId, portraitPng("cast-band"));
+          const names = [
+            "Alexandrine Marguerite de la Rochefort du Château de Saint Clair",
+            "Beatriz",
+            "Cecilia",
+            "Dorothea",
+            "Eleanor",
+          ];
+          let calls = 0;
+          let failKeeper = false;
+          let awayOnly = false;
+          let updating = Promise.withResolvers<void>();
+          let release = Promise.withResolvers<void>();
+          let holdKeeper = true;
+          await page.route("**/api/cast/update", async (route) => {
+            if (failKeeper) {
+              if (holdKeeper) {
+                updating.resolve();
+                await release.promise;
+              }
+              return route.fulfill({ json: { error: "cast_failed" } });
+            }
+            const response = await route.fetch();
+            const body = castUpdateResponseSchema.parse(await response.json());
+            const template = body.changes.cast[SEEDED];
+            if (template === undefined) throw new Error("Missing keeper fixture");
+            const cast = { ...body.changes.cast };
+            delete cast[SEEDED];
+            for (const name of names)
+              cast[name] = awayOnly
+                ? { ...template, state: { ...template.state, present: false } }
+                : template;
+            if (++calls > 1 && holdKeeper) {
+              updating.resolve();
+              await release.promise;
+            }
+            await route.fulfill({
+              response,
+              json: { ...body, changes: { ...body.changes, cast } },
+            });
+          });
+          try {
+            await page.goto("/");
+            await expect(castEntry(page, names[0] ?? "")).toBeVisible();
+            const panel = castPanel(page);
+            if (portrait) {
+              await expect(panel).toHaveAttribute("data-cast-stack", "");
+              const geometry = await panel.evaluate((element) => {
+                const group = element.closest<HTMLElement>("[data-presence]");
+                const column = group?.firstElementChild;
+                const name = element.querySelector<HTMLElement>("[data-cast-name]");
+                const label = name?.querySelector<HTMLElement>(
+                  "[data-cast-entry] > span:last-child",
+                );
+                if (!group || !column || !name || !label)
+                  throw new Error("Missing portrait grouping");
+                return {
+                  groupHeight:
+                    group.clientHeight - Number.parseFloat(getComputedStyle(group).paddingBottom),
+                  columnHeight: column.getBoundingClientRect().height,
+                  rosterHeight: element.getBoundingClientRect().height,
+                  nameHeight: name.getBoundingClientRect().height,
+                  nameScrollWidth: label.scrollWidth,
+                  nameWidth: label.clientWidth,
+                  portraitRight: column.getBoundingClientRect().right,
+                  rosterLeft: element.getBoundingClientRect().left,
+                };
+              });
+              expect(geometry.rosterLeft - geometry.portraitRight).toBeCloseTo(16, 0);
+              expect(geometry.nameScrollWidth).toBeLessThanOrEqual(geometry.nameWidth);
+              expect(geometry.rosterHeight).toBeLessThanOrEqual(geometry.columnHeight + 1);
+              expect(geometry.nameHeight).toBeLessThanOrEqual(44);
+              await expect(castEntry(page, names[0] ?? "")).toHaveAccessibleName(
+                new RegExp(`^${names[0]}`),
+              );
+              const clamp = await panel
+                .locator("[data-cast-name]")
+                .first()
+                .locator("[data-cast-entry] > span:last-child")
+                .evaluate((element) => ({
+                  clamp: getComputedStyle(element).webkitLineClamp,
+                  scroll: element.scrollHeight,
+                  height: element.getBoundingClientRect().height,
+                }));
+              expect(clamp.clamp).toBe("2");
+              expect(clamp.scroll).toBeGreaterThan(clamp.height);
+              const normal = await expectStackFit(page, `${width}/${reducedMotion}/normal`);
+              expect(normal.width).toBe(width === 360 ? 208 : 238);
+              expect(normal.budget).toBe(width === 360 ? 196 : 144);
+              await expect(panel.locator("[data-cast-tail]")).toHaveText(
+                width === 360 ? "and 4 more" : "and 5 more",
+              );
+              expect(await panel.locator("[data-cast-name]").count()).toBeGreaterThanOrEqual(1);
+              await panel.locator("[data-cast-tail]").click();
+              const roster = page.getByRole("dialog", { name: "Cast", exact: true });
+              for (const name of names)
+                await expect(roster.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
+              await expect(roster.getByText(SHEET_WOMAN, { exact: false })).toBeVisible();
+              await page.keyboard.press("Escape");
+            } else {
+              await expect(panel).not.toHaveAttribute("data-cast-stack");
+            }
+            await chooseModel(page, "mock-slow");
+            await send(page, "The lamp is steady.");
+            const group = lastReply(page).locator("[data-presence]");
+            const prose = lastReply(page).locator(".prose-turn").first();
+            const offset = async () => (await prose.boundingBox())?.y ?? NaN;
+            // Compare in the reply's own coordinates: scrolling the thread is allowed.
+            const relative = async () => (await offset()) - ((await group.boundingBox())?.y ?? NaN);
+            await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+            const before = await relative();
+            await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
+              timeout: 15_000,
+            });
+            await updating.promise;
+            await expect(castUpdating(page)).toBeVisible();
+            expect(await relative()).toBeCloseTo(before, 0);
+            if (portrait) await expectStackFit(page, `${width}/${reducedMotion}/held Updating`);
+            release.resolve();
+            await expect(castUpdating(page)).toHaveCount(0);
+            expect(await relative()).toBeCloseTo(before, 0);
+            await expect(prose.locator("summary")).toBeVisible();
+            if (portrait) {
+              await castEntry(page, names[0] ?? "").click();
+              const record = page.getByRole("dialog");
+              await record.getByRole("button", { name: "Remove from cast", exact: true }).click();
+              await expect(
+                page.getByRole("button", { name: `Undo removing ${names[0]}` }),
+              ).toBeVisible();
+              await expect(record).toBeHidden();
+              const undo = () =>
+                castPanel(page).getByRole("button", { name: `Undo removing ${names[0]}` });
+              await expect(undo()).toBeFocused();
+              await expectStackFit(page, `${width}/${reducedMotion}/removal`);
+              const removalText = castPanel(page).locator("[data-cast-removed] > span").first();
+              await expect(removalText).toHaveText(names[0] ?? "");
+              expect(
+                await removalText.evaluate((element) => element.scrollWidth > element.clientWidth),
+              ).toBe(true);
+              await expect(castPanel(page).locator("[aria-live]")).toContainText(
+                `${names[0]} removed.`,
+              );
+              expect(await relative()).toBeCloseTo(before, 0);
+              await undo().click();
+              await expect(castEntry(page, names[0] ?? "")).toBeVisible();
+              expect(await relative()).toBeCloseTo(before, 0);
+              {
+                await chooseModel(page, "mock-fast");
+                failKeeper = true;
+                updating = Promise.withResolvers<void>();
+                release = Promise.withResolvers<void>();
+                const phraseSamples = page.evaluate(async () => {
+                  const samples: string[][] = [];
+                  const start = performance.now();
+                  while (performance.now() - start < 10_000) {
+                    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                    const phrases = [
+                      ...document.querySelectorAll<HTMLElement>(
+                        "[data-cast-stack] [data-cast-status]",
+                      ),
+                    ];
+                    samples.push(
+                      phrases
+                        .filter(
+                          (element) => Number.parseFloat(getComputedStyle(element).opacity) > 0.05,
+                        )
+                        .map((element) => element.textContent ?? ""),
+                    );
+                    if (
+                      phrases.some(
+                        (element) =>
+                          element.textContent === "Couldn't update." &&
+                          Number.parseFloat(getComputedStyle(element).opacity) > 0.99,
+                      )
+                    )
+                      break;
+                  }
+                  return samples;
+                });
+                await exchange(page, "The lamp falters.");
+                await updating.promise;
+                await expect(castUpdating(page)).toBeVisible();
+                await expect
+                  .poll(() =>
+                    castUpdating(page).evaluate((element) =>
+                      Number.parseFloat(getComputedStyle(element).opacity),
+                    ),
+                  )
+                  .toBeGreaterThan(0.99);
+                release.resolve();
+                const again = castPanel(page).getByRole("button", {
+                  name: "Try again to update the cast",
+                });
+                await expect(again).toBeVisible();
+                const failureOffset = await relative();
+                await expectStackFit(page, `${width}/${reducedMotion}/failure`);
+                await expect(castStatus(page)).toHaveText("Couldn't update.");
+                await expect(castPanel(page).locator("[aria-live]")).toHaveText(
+                  "Cast couldn't update.",
+                );
+                const samples = await phraseSamples;
+                expect(samples.every((phrases) => phrases.length <= 1)).toBe(true);
+                expect(samples.some((phrases) => phrases.includes("Updating…"))).toBe(true);
+                expect(samples.some((phrases) => phrases.includes("Couldn't update."))).toBe(true);
+                await castEntry(page, names[0] ?? "").click();
+                await page
+                  .getByRole("dialog")
+                  .getByRole("button", { name: "Remove from cast", exact: true })
+                  .click();
+                await expect(undo()).toBeFocused();
+                await expect(again).toBeVisible();
+                await expectStackFit(page, `${width}/${reducedMotion}/removal+failure`);
+                await expect(castStatus(page)).toHaveText(`${names[0]} removed.`);
+                expect(await relative()).toBeCloseTo(failureOffset, 0);
+                await undo().click();
+                await expect(castStatus(page)).toHaveText("Couldn't update.");
+                failKeeper = false;
+                updating = Promise.withResolvers<void>();
+                release = Promise.withResolvers<void>();
+                await again.click();
+                await updating.promise;
+                await expect(castUpdating(page)).toBeVisible();
+                await expectStackFit(page, `${width}/${reducedMotion}/Retry Updating`);
+                expect(await relative()).toBeCloseTo(failureOffset, 0);
+                release.resolve();
+                await expect(again).toHaveCount(0);
+                await expect(castUpdating(page)).toHaveCount(0);
+                expect(await relative()).toBeCloseTo(failureOffset, 0);
+
+                // A removal may stand into the next reply and disappear on its keeper snapshot.
+                await castEntry(page, names[0] ?? "").click();
+                await page
+                  .getByRole("dialog")
+                  .getByRole("button", { name: "Remove from cast", exact: true })
+                  .click();
+                await expect(undo()).toBeFocused();
+                updating = Promise.withResolvers<void>();
+                release = Promise.withResolvers<void>();
+                await chooseModel(page, "mock-slow");
+                await send(page, "The lamp keeps its place.");
+                await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+                const standingOffset = await relative();
+                await expectStackFit(page, `${width}/${reducedMotion}/standing removal streaming`);
+                await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
+                  timeout: 15_000,
+                });
+                await updating.promise;
+                await expect(undo()).toBeVisible();
+                expect(await relative()).toBeCloseTo(standingOffset, 0);
+                release.resolve();
+                await expect(undo()).toHaveCount(0);
+                await expectStackFit(page, `${width}/${reducedMotion}/keeper cleared removal`);
+                expect(await relative()).toBeCloseTo(standingOffset, 0);
+
+                // Remove another present member while a mock-slow reply is still writing.
+                holdKeeper = false;
+                await send(page, "The lamp is still writing.");
+                await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+                await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+                const streamingOffset = await relative();
+                await castEntry(page, names[1] ?? "").click();
+                await page
+                  .getByRole("dialog")
+                  .getByRole("button", { name: "Remove from cast", exact: true })
+                  .click();
+                await expectStackFit(page, `${width}/${reducedMotion}/removal during stream`);
+                expect(await relative()).toBeCloseTo(streamingOffset, 0);
+                await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
+                  timeout: 15_000,
+                });
+                await expect(castUpdating(page)).toHaveCount(0);
+                expect(await relative()).toBeCloseTo(streamingOffset, 0);
+                awayOnly = true;
+                await chooseModel(page, "mock-fast");
+                await exchange(page, "The lamp room empties.");
+                await expect(castPanel(page).locator("[data-cast-name]")).toHaveCount(0);
+                await expectStackFit(page, `${width}/${reducedMotion}/away-only`, false);
+                await expect(castPanel(page).locator("[data-cast-tail]")).toHaveText("4 away");
+                await castPanel(page).locator("[data-cast-tail]").click();
+                await expect(page.getByRole("dialog", { name: "Cast", exact: true })).toBeVisible();
+                await page.keyboard.press("Escape");
+              }
+            }
+          } finally {
+            release.resolve();
+          }
+        });
+      }
+    }
+  }
+});
 
 /** Holds every request to `url` until the returned release is called. */
 async function hold(page: Page, url: string) {

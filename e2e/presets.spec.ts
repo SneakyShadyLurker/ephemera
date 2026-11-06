@@ -63,6 +63,20 @@ test("a prompt preset's blocks are toggled, moved, added, placed in the chat, re
   await page.keyboard.type(presetName);
   await expect(name).toHaveValue(presetName);
 
+  const history = page.getByRole("switch", { name: "Send Chat history", exact: true });
+  const regular = page.getByRole("switch", { name: "Send Main prompt", exact: true });
+  // The fixed band retains its 12px inset; its switch leads the indented rows inside it.
+  expect(
+    ((await history.boundingBox())?.x ?? NaN) - ((await regular.boundingBox())?.x ?? NaN),
+  ).toBe(12);
+  await expect(history).toHaveAccessibleDescription("The conversation so far.");
+  await history.focus();
+  await page.keyboard.press("Space");
+  await expect(history).not.toBeChecked();
+  await expect(history).toHaveAccessibleDescription(/Off: no messages/);
+  await page.keyboard.press("Space");
+  await expect(history).toBeChecked();
+
   await page.getByRole("switch", { name: "Send Persona description" }).click();
   await expect(page.getByRole("button", { name: /^Persona description: off/ })).toBeVisible();
 
@@ -77,6 +91,10 @@ test("a prompt preset's blocks are toggled, moved, added, placed in the chat, re
   await blockName.fill("Stay in scene");
   await page.getByRole("button", { name: "Inside the chat" }).click();
   await expect(band(page)).toContainText("Stay in scene");
+  expect((await band(page).getByRole("switch").first().boundingBox())?.x).toBeCloseTo(
+    (await history.boundingBox())?.x ?? Infinity,
+    0,
+  );
   await expect(page.getByRole("status").filter({ hasText: "is now inside the chat" })).toHaveCount(
     1,
   );

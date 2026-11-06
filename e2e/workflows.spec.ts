@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import type { CreatorArtStatus } from "../packages/core/src/index.ts";
 import { uniqueName } from "./support/cards.ts";
 import { ART_TIMEOUT, COPY, expectBatch, recordArt } from "./support/creator.ts";
 import { keptBase, ownerDescription } from "./support/creator-fixtures.ts";
@@ -38,6 +39,54 @@ import {
 const DEFAULT_WORKFLOW = "Krea 2 Gonzalomo";
 
 const READY = "Every node and model file is there.";
+
+for (const [status, action] of [
+  [{ state: "off" }, "Add the address"],
+  [{ state: "unavailable", reason: "not_allowed" }, "Edit the address"],
+  [{ state: "unavailable", reason: "insecure" }, "Edit the address"],
+  [{ state: "unavailable", reason: "unreachable" }, "Edit the address"],
+  [{ state: "unavailable", reason: "invalid_response" }, "Edit the address"],
+  [{ state: "ready" }, null],
+  [{ state: "unavailable", reason: "unauthorized" }, null],
+  [{ state: "unavailable", reason: "not_ready" }, null],
+  [{ state: "missing", nodes: ["MissingNode"], models: [] }, "Choose another"],
+] satisfies [CreatorArtStatus, string | null][]) {
+  test(`selected workflow recovery matches ${JSON.stringify(status)}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.route("**/api/creator/art/status?*", (route) => route.fulfill({ json: status }));
+    await openSettings(page);
+    const selected = page
+      .locator("[data-workflow]")
+      .filter({ has: page.getByText("Selected", { exact: true }) });
+    await expect(selected).toHaveCount(1);
+    if (action === "Add the address" || action === "Edit the address") {
+      const button = selected.getByRole("button", { name: action, exact: true });
+      await button.click();
+      const address = page.getByRole("textbox", { name: "Picture server address", exact: true });
+      await expect(address).toBeFocused();
+      await expect(address).toBeInViewport();
+      await expect(
+        selected.getByRole("combobox", { name: "Choose another", exact: true }),
+      ).toHaveCount(0);
+    } else if (action === "Choose another") {
+      await expect(
+        selected.getByRole("combobox", { name: "Choose another", exact: true }),
+      ).toBeVisible();
+    } else {
+      await expect(selected.getByRole("button", { name: /^(Add|Edit) the address$/ })).toHaveCount(
+        0,
+      );
+      await expect(
+        selected.getByRole("combobox", { name: "Choose another", exact: true }),
+      ).toHaveCount(0);
+      if (status.state === "unavailable")
+        await expect(selected).toContainText(
+          status.reason === "unauthorized" ? "refused this server's token" : "not ready yet",
+        );
+    }
+  });
+}
 
 async function openSettings(page: Page) {
   await page.goto("/settings?section=pictures");

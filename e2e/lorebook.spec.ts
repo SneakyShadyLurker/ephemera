@@ -33,6 +33,27 @@ test("the owner creates a lorebook from the sheet and edits an entry that autosa
   await expect(page.getByRole("textbox", { name: "Title" })).toBeFocused();
   await page.getByRole("textbox", { name: "Title" }).fill("The Grey Lantern");
   const keywords = page.getByLabel("Keywords", { exact: true });
+  const text = page.getByLabel("Text", { exact: true });
+  expect(
+    await text.evaluate((element) => {
+      const activation = [...document.querySelectorAll('[role="group"]')].find((group) =>
+        group.textContent?.includes("Always"),
+      );
+      return (
+        activation !== undefined &&
+        Boolean(element.compareDocumentPosition(activation) & Node.DOCUMENT_POSITION_FOLLOWING)
+      );
+    }),
+  ).toBe(true);
+  await text.focus();
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(() =>
+      page
+        .getByRole("group", { name: "Goes in" })
+        .evaluate((group) => group.contains(document.activeElement)),
+    )
+    .toBe(true);
   await keywords.fill("lantern");
   await keywords.press("Enter");
   await keywords.fill("grey light, lamp room");

@@ -138,7 +138,10 @@ story, stuck or not; `Thread` observes them against its scroller and sets
 `data-name-shown`. The latest reply owns the portrait and Cast on every
 screen, including while waiting for text; moving them there does not replay
 their entrance. Focus on the portrait or its viewer holds that placement
-until focus leaves. Reply actions sit below the prose inside the turn,
+until focus leaves. On phones, the in-reply Cast stack measures the portrait
+column before paint and fits names around a shared action row and a reserved
+status line. Removal, retry and keeper feedback use those slots without
+growing the group; the full roster remains reachable. Reply actions sit below the prose inside the turn,
 ahead of scene pictures, with a reserved row while streaming. Latest has
 its own reserved row on phones and floats over the story from tablet up.
 `portraits/Portrait.tsx` retains the decoded image until its replacement
@@ -1887,7 +1890,9 @@ AI Rework:
   removes active deletion/insertion semantics from the rejected change.
   The dock counts accepted, placeable changes to apply and rejected changes
   separately; its disclosure lists changes that could not be placed.
-  Previous and Next focus the change blocks beside a position counter. Everything renders as text
+  Previous and Next focus the change blocks beside a position counter that
+  stays blank until navigation; idle Previous starts at the last change and
+  Next at the first. Everything renders as text
   nodes. Apply writes the
   accepted changes into the sheet's draft (the lorebook included) and the
   autosave saves them; Undo restores the fields Apply wrote, skipping any

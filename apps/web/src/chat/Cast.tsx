@@ -259,6 +259,37 @@ function Pass({ on }: { on: boolean }) {
 
 const retry = () => chatStore.getState().retryCast();
 
+function TryAgain({ failed, className }: { failed: boolean; className?: string }) {
+  return (
+    <Button
+      variant="link"
+      size="inline"
+      aria-label={
+        failed ? "Try again to update the cast" : "Try again to read the cast from the card"
+      }
+      onClick={retry}
+      className={cn("text-meta", className)}
+    >
+      Try again
+    </Button>
+  );
+}
+
+function UndoRemoval({ removal, className }: { removal: CastRemoval; className?: string }) {
+  return (
+    <Button
+      variant="link"
+      size="inline"
+      data-cast-undo=""
+      aria-label={`Undo removing ${removal.name}`}
+      onClick={undoCastRemoval}
+      className={cn("text-meta", className)}
+    >
+      Undo
+    </Button>
+  );
+}
+
 /** The status line, polite to assistive technology, and Try again after a failure. */
 /**
  * Why the card is not read yet, while the sheet waits (session.ts
@@ -274,7 +305,7 @@ function useWaitingText(): string {
   return "Set a context window to load the cast.";
 }
 
-function Status({ className }: { className?: string }) {
+function Status({ className, live = true }: { className?: string; live?: boolean }) {
   const waiting = useChat(sheetWaiting);
   const waitingText = useWaitingText();
   const statusText = useChat(castStatusText);
@@ -287,22 +318,10 @@ function Status({ className }: { className?: string }) {
       role="presentation"
       className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 font-sans text-meta", className)}
     >
-      <p data-cast-status="" aria-live="polite" className="text-reed">
+      <p data-cast-status="" aria-live={live ? "polite" : undefined} className="text-reed">
         {text}
       </p>
-      {(failed || unread) && (
-        <Button
-          variant="link"
-          size="inline"
-          aria-label={
-            failed ? "Try again to update the cast" : "Try again to read the cast from the card"
-          }
-          onClick={retry}
-          className="text-meta"
-        >
-          Try again
-        </Button>
-      )}
+      {(failed || unread) && <TryAgain failed={failed} />}
     </InlineStatus>
   );
 }
@@ -319,16 +338,7 @@ function RemovalLine({ removal }: { removal: CastRemoval }) {
       <span aria-live="polite" className="text-reed">
         {removal.name} removed.
       </span>
-      <Button
-        variant="link"
-        size="inline"
-        data-cast-undo=""
-        aria-label={`Undo removing ${removal.name}`}
-        onClick={undoCastRemoval}
-        className="text-meta"
-      >
-        Undo
-      </Button>
+      <UndoRemoval removal={removal} />
     </InlineStatus>
   );
 }
@@ -339,23 +349,33 @@ function RemovalLine({ removal }: { removal: CastRemoval }) {
  * band's measured row says Updating without showing it, unless reduced
  * motion leaves the words alone to show it.
  */
-function Heading({ passing, band }: { passing: boolean; band: boolean }) {
+function Heading({
+  passing,
+  band,
+  statusSlot = false,
+}: {
+  passing: boolean;
+  band: boolean;
+  statusSlot?: boolean;
+}) {
   const reduced = useReducedMotion();
+  const surfaceOpen = useCastSurface((state) => state.open);
+  const phone = useFormFactor() === "phone";
+  const live = !(phone && surfaceOpen);
   return (
-    <div className="grid gap-1">
+    <div className={cn("grid gap-1", band && reduced && !statusSlot && "touch:min-h-11")}>
       <p className="flex flex-wrap items-baseline gap-x-2 font-sans text-meta text-reed">
         Cast
-        {band && reduced ? (
-          <span className="grid">
-            <span inert aria-hidden="true" className="invisible text-note [grid-area:1/1]">
-              Updating…
-            </span>
-            <Updating shown live className="[grid-area:1/1]" />
-          </span>
-        ) : (
-          <Updating shown={!band} live />
-        )}
+        {!statusSlot && !(band && reduced) && <Updating shown={!band} live={live} />}
       </p>
+      {band && reduced && !statusSlot && (
+        <span className="grid">
+          <span inert aria-hidden="true" className="invisible text-note [grid-area:1/1]">
+            Updating…
+          </span>
+          <Updating shown live={live} className="[grid-area:1/1]" />
+        </span>
+      )}
       <span aria-hidden="true" className="relative h-px">
         <span
           className={cn(
@@ -382,12 +402,14 @@ function Entry({
   row,
   open,
   wash,
+  stack = false,
 }: {
   entry: CastEntry;
   line: boolean;
   row: boolean;
   open: boolean;
   wash: { key: string; style: CSSProperties } | undefined;
+  stack?: boolean;
 }) {
   const age = ageOf(entry);
   const text = line ? stateLine(entry) : "";
@@ -402,7 +424,11 @@ function Entry({
       className={cn(
         "group press relative grid rounded-sm py-0.5 text-left touch:min-h-11",
         // Room around the glyphs, so the focus ring never touches them; the names stay put.
-        row ? "-mx-1 px-1 whitespace-nowrap" : "-mx-1.5 w-[calc(100%+0.75rem)] px-1.5",
+        stack
+          ? "w-full min-w-0 px-1.5 touch:h-11"
+          : row
+            ? "-mx-1 px-1 whitespace-nowrap"
+            : "-mx-1.5 w-[calc(100%+0.75rem)] px-1.5",
       )}
     >
       {/* The open entry's hairline: in the float's margin, under the name in the band's row. */}
@@ -410,11 +436,15 @@ function Entry({
         aria-hidden="true"
         className={cn(
           "absolute rounded-full bg-dusk transition-opacity duration-(--duration-quick) ease-fade",
-          row ? "inset-x-1 bottom-0 h-0.5 touch:bottom-1.5" : "inset-y-1 -left-1.5 w-0.5",
+          row
+            ? "inset-x-1 bottom-0 h-0.5 touch:bottom-1.5"
+            : stack
+              ? "inset-y-1 left-0 w-0.5"
+              : "inset-y-1 -left-1.5 w-0.5",
           open ? "opacity-100" : "opacity-0",
         )}
       />
-      <span className={cn(GROUP_HEADING, "break-words")}>
+      <span className={cn(GROUP_HEADING, "break-words", stack && "line-clamp-2")}>
         {entry.anchor.name}
         {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
       </span>
@@ -467,11 +497,18 @@ const isRemoval = (item: CastEntry | CastRemoval): item is CastRemoval => "name"
  * the away in disclosures, and the status line. On the phone's band: the
  * names wrapped over at most two lines, then "and 2 more" or "and 3 away".
  */
-export function CastPanel({ placement }: { placement: "float" | "band" }) {
+export function CastPanel({
+  placement,
+  portraitColumn,
+}: {
+  placement: "float" | "band";
+  portraitColumn?: RefObject<HTMLDivElement | null>;
+}) {
   const visible = useCastVisible();
   const register = useChat(discoveredRegister);
   const busy = useChat(busyOf);
   const openId = useCastSurface((state) => (state.open ? state.entryId : null));
+  const surfaceOpen = useCastSurface((state) => state.open);
   const change = useChat(latestChange);
   const removal = useCastRemoval();
   const narrow = useFormFactor() === "tablet";
@@ -479,19 +516,32 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
   if (!visible) return null;
   const listed = listedEntries(register);
   const { present, away } = split(listed);
-  // While a record is open its surface's header carries the light instead.
-  const passing = busy && !listed.some((entry) => entry.id === openId);
-  const entry = (item: CastEntry, line: boolean, row = false) => (
+  // The open surface carries this operation's one light, including at the full roster.
+  const passing = busy && !surfaceOpen;
+  const entry = (item: CastEntry, line: boolean, row = false, stack = false) => (
     <Entry
       entry={item}
       line={line}
       row={row}
+      stack={stack}
       open={item.id === openId}
       wash={washOf(change, item.id, ["activity", "mood"], mountedAt)}
     />
   );
 
   if (placement === "band") {
+    if (portraitColumn !== undefined) {
+      return (
+        <StackRoster
+          present={present}
+          away={away}
+          removal={removal}
+          passing={passing}
+          portraitColumn={portraitColumn}
+          entry={(item) => entry(item, false, false, true)}
+        />
+      );
+    }
     return (
       <BandRoster
         present={present}
@@ -544,6 +594,201 @@ export function CastPanel({ placement }: { placement: "float" | "band" }) {
   );
 }
 
+/** Names beside the reply portrait, fitted before paint to its measured column. */
+function StackRoster({
+  present,
+  away,
+  removal,
+  passing,
+  portraitColumn,
+  entry,
+}: {
+  present: CastEntry[];
+  away: CastEntry[];
+  removal: CastRemoval | null;
+  passing: boolean;
+  portraitColumn: RefObject<HTMLDivElement | null>;
+  entry: (item: CastEntry) => ReactNode;
+}) {
+  const rosterOpen = useCastSurface((state) => state.open && state.entryId === null);
+  const failed = useChat((state) => state.cast.status === "failed" && keeperTargetUncovered(state));
+  const unread = useChat(sheetUnread);
+  const busy = useChat(busyOf);
+  const waiting = useChat(sheetWaiting);
+  const waitingText = useWaitingText();
+  const statusText = useChat(castStatusText);
+  const reduced = useReducedMotion();
+  const explanation = failed || unread ? statusText : waiting ? waitingText : statusText;
+  const compact =
+    explanation === "Cast couldn't update: the cast model is busy."
+      ? "Cast model busy."
+      : explanation === "Showing the last known cast."
+        ? "Last known cast."
+        : explanation === "Cast couldn't update."
+          ? "Couldn't update."
+          : explanation;
+  const text =
+    removal !== null
+      ? `${removal.name} removed.`
+      : failed || unread || waiting || explanation === "Reading the card"
+        ? compact
+        : busy
+          ? "Updating…"
+          : compact;
+  const announcement =
+    removal === null
+      ? failed || unread
+        ? explanation
+        : text
+      : `${text}${failed || unread ? ` ${explanation}` : ""}`;
+  const row = useRef<HTMLDivElement>(null);
+  const status = useRef<HTMLDivElement>(null);
+  const actions = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState("");
+  useLayoutEffect(() => {
+    const column = portraitColumn.current;
+    const element = row.current;
+    if (column === null || element === null) return;
+    const measure = () => {
+      setDimensions(
+        `${column.getBoundingClientRect().height}|${element.getBoundingClientRect().width}`,
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [portraitColumn]);
+  const tailOf = (count: number) =>
+    present.length > count
+      ? count === 0
+        ? `Show all ${formatCount(present.length + away.length)}`
+        : `and ${formatCount(present.length - count + away.length)} more`
+      : away.length > 0
+        ? awayText(away, true)
+        : "";
+  // Include every input to the fixed rows, as well as the clamped name rows.
+  const probe = `${dimensions}|clamp:2|${present.map((item) => `${item.id}:${item.anchor.name}:${ageOf(item)}`).join()}|${away.map((item) => `${item.id}:${item.anchor.name}`).join()}|${tailOf(0)}|${tailOf(present.length)}|retry:${failed}:${unread}|undo:${removal?.entryId ?? ""}:${removal?.name ?? ""}|${text}`;
+  const [fit, setFit] = useState({ probe: "", count: present.length });
+  const measuring = fit.probe !== probe;
+  const count = measuring ? present.length : fit.count;
+  // During the pre-paint measurement, also lay out the possible tail action.
+  const tail = tailOf(count) || (measuring ? tailOf(0) : "");
+  useLayoutEffect(() => {
+    if (!measuring) return;
+    const element = row.current;
+    const column = portraitColumn.current;
+    if (element === null || column === null) return;
+    const names = [...element.querySelectorAll<HTMLElement>("[data-cast-name]")];
+    const budget = column.getBoundingClientRect().height;
+    const gap = Number.parseFloat(getComputedStyle(element).rowGap) || 0;
+    const heading = element.firstElementChild?.getBoundingClientRect().height ?? 0;
+    const statusHeight = status.current?.getBoundingClientRect().height ?? 0;
+    const actionHeight = actions.current?.getBoundingClientRect().height ?? 0;
+    // Fixed parts first. Check each candidate with its own tail requirement,
+    // including the all-names candidate that can dispense with the action row.
+    let fitted = 0;
+    let namesHeight = 0;
+    for (let candidate = 1; candidate <= names.length; candidate++) {
+      namesHeight += (names[candidate - 1]?.getBoundingClientRect().height ?? 0) + gap;
+      const hasActions =
+        candidate < present.length || away.length > 0 || failed || unread || removal !== null;
+      if (
+        heading + gap + statusHeight + namesHeight + (hasActions ? actionHeight + gap : 0) <=
+        budget
+      ) {
+        fitted = candidate;
+      }
+    }
+    setFit({ probe, count: fitted });
+  }, [measuring, probe, present.length, away.length, failed, unread, removal, portraitColumn]);
+  const action =
+    "self-stretch justify-start border-0 touch:min-w-8.5 after:inset-y-0 touch:after:inset-y-0 first:after:left-0 touch:first:after:left-0 scale-100! active:opacity-70 transition-opacity duration-(--duration-quick) ease-fade";
+  return (
+    <div ref={row} data-cast="" data-cast-stack="" className="grid content-start gap-1 font-story">
+      <Heading passing={passing} band statusSlot />
+      {count > 0 && (
+        <ul aria-label="Cast" className="grid gap-1">
+          {present.slice(0, count).map((item, index) => (
+            <li
+              key={item.id}
+              data-cast-name=""
+              className="arrive stagger min-w-0"
+              style={staggerStep(Math.min(index, ROSTER - 1))}
+            >
+              {entry(item)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {(tail !== "" || failed || unread || removal !== null) && (
+        <div ref={actions} className="flex min-h-6 items-stretch gap-x-6 touch:h-11">
+          {tail !== "" && (
+            <Button
+              variant="link"
+              size="inline"
+              data-cast-tail=""
+              aria-haspopup="dialog"
+              aria-expanded={rosterOpen}
+              onClick={(event) => openCast(null, event.currentTarget)}
+              className={cn(
+                action,
+                "min-w-0 shrink whitespace-normal text-left font-story text-note",
+              )}
+            >
+              <span className="line-clamp-2">{tail}</span>
+            </Button>
+          )}
+          {(failed || unread) && (
+            <TryAgain
+              failed={failed}
+              className={cn(action, "shrink-0 whitespace-nowrap font-sans")}
+            />
+          )}
+          {removal !== null && (
+            <UndoRemoval
+              removal={removal}
+              className={cn(action, "shrink-0 whitespace-nowrap font-sans")}
+            />
+          )}
+        </div>
+      )}
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </span>
+      <div
+        ref={status}
+        aria-hidden="true"
+        className={cn("min-w-0 font-sans text-meta text-reed", count > 0 ? "h-5" : "min-h-5")}
+      >
+        <MotionScope>
+          <AnimatePresence initial={false} mode="wait">
+            <m.p
+              key={text}
+              data-cast-status=""
+              data-cast-updating={text === "Updating…" ? "" : undefined}
+              data-cast-removed={removal !== null ? "" : undefined}
+              {...fading()}
+              transition={fade(reduced ? "--duration-quick" : "--duration-arrive")}
+              className={cn(count > 0 ? "truncate" : "line-clamp-2", removal !== null && "flex")}
+            >
+              {removal !== null ? (
+                <>
+                  <span className="min-w-0 truncate">{removal.name}</span>
+                  <span className="shrink-0 whitespace-pre"> removed.</span>
+                </>
+              ) : (
+                text
+              )}
+            </m.p>
+          </AnimatePresence>
+        </MotionScope>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The band's roster: "Cast", then the names with their ages wrapped over at
  * most two lines, then "and 2 more" (those that would need a third, and the
@@ -564,6 +809,7 @@ function BandRoster({
   entry: (item: CastEntry) => ReactNode;
 }) {
   const rosterOpen = useCastSurface((state) => state.open && state.entryId === null);
+  const surfaceOpen = useCastSurface((state) => state.open);
   const row = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   // The heading's width too: reduced motion reserves the room for "Updating…".
@@ -581,7 +827,7 @@ function BandRoster({
     observer.observe(heading);
     return () => observer.disconnect();
   }, []);
-  const probe = `${present.map((item) => item.id).join()}|${away.length}|${removal?.entryId ?? ""}|${width}|${headingWidth}`;
+  const probe = `${present.map((item) => `${item.id}:${item.anchor.name}:${ageOf(item)}`).join()}|${away.map((item) => item.anchor.name).join()}|${removal?.entryId ?? ""}:${removal?.name ?? ""}|${width}|${headingWidth}`;
   const [fit, setFit] = useState({ probe: "", count: present.length });
   const measuring = fit.probe !== probe;
   const count = measuring ? present.length : fit.count;
@@ -654,7 +900,7 @@ function BandRoster({
         )}
         {removal !== null && !removal.present && <RemovalLine removal={removal} />}
       </div>
-      <Status />
+      <Status live={!surfaceOpen} />
     </div>
   );
 }
