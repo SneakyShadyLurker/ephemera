@@ -54,9 +54,13 @@ const PORTRAIT_FILTER = "transition-[filter] duration-(--duration-tint) ease-fad
 const PORTRAIT_HOVER = `${PORTRAIT_FILTER} group-hover:brightness-[1.04] group-active:brightness-95`;
 /** The same, answering the chat's button, whose plate lies over the portrait. */
 const CHAT_PORTRAIT_HOVER = `${PORTRAIT_FILTER} group-has-[>button:hover]/tile:brightness-[1.04] group-has-[>button:active]/tile:brightness-95`;
+const TILE_CAPTION_ROW =
+  "flex min-h-[calc(2*var(--text-meta--line-height))] min-w-0 items-center gap-1";
+const TILE_CAPTION =
+  "min-w-0 flex-1 line-clamp-2 text-pretty break-words px-0.5 text-meta text-reed";
 
 /**
- * A gallery's tile: the portrait, the name and one quiet caption line.
+ * A gallery's tile: the portrait, the name and two quiet caption lines.
  * Without `onChat` the whole tile opens the sheet. With it (a character),
  * the tile starts the chat, and Edit opens the sheet from its own place
  * trailing the metadata, always shown, quiet. The portrait and name form
@@ -117,8 +121,8 @@ export function PortraitTile({
           {portrait}
           <TileName name={name} />
         </Link>
-        <div className="flex min-w-0 items-center gap-1">
-          <span id={captionId} className="min-w-0 flex-1 truncate px-0.5 text-meta text-reed">
+        <div className={TILE_CAPTION_ROW}>
+          <span id={captionId} className={TILE_CAPTION}>
             {caption}
           </span>
           {!actionsBelow && actions}
@@ -140,8 +144,8 @@ export function PortraitTile({
         <TileName name={name} />
       </button>
       {/* Always there, quiet in reed, so the way to the sheet is found without hovering. */}
-      <div className="flex min-w-0 items-center gap-1">
-        <span id={captionId} className="min-w-0 flex-1 truncate px-0.5 text-meta text-reed">
+      <div className={TILE_CAPTION_ROW}>
+        <span id={captionId} className={TILE_CAPTION}>
           {caption}
         </span>
         <Link

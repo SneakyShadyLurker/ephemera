@@ -672,6 +672,27 @@ for (const width of [390, 1440]) {
             y: (control.control.top + control.control.bottom) / 2,
           };
         }
+        if (activeArrival) {
+          // Only this final public Send needs a single-batch answer: streaming
+          // latency is unrelated to pointer delivery during the natural entrance.
+          const body = [
+            { type: "start" },
+            { type: "text-start", id: "active-more" },
+            { type: "text-delta", id: "active-more", delta: "Reply: Second exchange." },
+            { type: "text-end", id: "active-more" },
+            { type: "finish", finishReason: "stop" },
+          ]
+            .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+            .join("");
+          await page.route(
+            "**/api/chat",
+            async (route) => {
+              stages.request = route.request().postDataJSON();
+              await route.fulfill({ contentType: "text/event-stream", body });
+            },
+            { times: 1 },
+          );
+        }
         const prepare = ({ index, activeArrival }: { index: number; activeArrival: boolean }) => {
           const scroll = document.querySelector('[role="log"]')?.firstElementChild;
           if (!(scroll instanceof HTMLElement)) throw new Error("Missing More scroller");
@@ -693,6 +714,7 @@ for (const width of [390, 1440]) {
               client: scroll.clientHeight,
               time: performance.now(),
               target: target?.getAttribute("aria-label") ?? target?.tagName ?? null,
+              ...(activeArrival ? { trusted: event?.isTrusted } : {}),
               prevented: event?.defaultPrevented,
               active: document.activeElement?.getAttribute("aria-label"),
               focusVisible: button.matches(":focus-visible"),
@@ -702,7 +724,20 @@ for (const width of [390, 1440]) {
                 state: animation.playState,
                 time: animation.currentTime,
                 property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+                ...(activeArrival
+                  ? {
+                      remaining:
+                        Number(animation.effect?.getComputedTiming().endTime) -
+                        Number(animation.currentTime),
+                    }
+                  : {}),
               })),
+              hit: button.contains(
+                document.elementFromPoint(
+                  event instanceof MouseEvent ? event.clientX : (rect.left + rect.right) / 2,
+                  event instanceof MouseEvent ? event.clientY : (rect.top + rect.bottom) / 2,
+                ),
+              ),
               menu: document.querySelector('[role="menu"]') !== null,
               ...extra,
             });
@@ -772,6 +807,11 @@ for (const width of [390, 1440]) {
           }>();
           let frame = 0;
           let deadline = 0;
+          let replyRecorded = false;
+          const replyComplete = () =>
+            document.querySelectorAll(
+              '[data-message][data-role="assistant"][data-status="complete"]',
+            ).length === 3;
           const sampleArrival = () => {
             const button = buttonAt();
             const turn = turnAt();
@@ -784,29 +824,33 @@ for (const width of [390, 1440]) {
                   animation instanceof CSSTransition &&
                   animation.transitionProperty === "translate",
               );
-            const complete =
-              document.querySelectorAll(
-                '[data-message][data-role="assistant"][data-status="complete"]',
-              ).length === 3;
+            const complete = replyComplete();
+            const rect = button.getBoundingClientRect();
+            const view = scroll.getBoundingClientRect();
+            const x = (rect.left + rect.right) / 2;
+            const y = (rect.top + rect.bottom) / 2;
+            const hit = button.contains(document.elementFromPoint(x, y));
+            const fullyInside =
+              rect.top >= view.top &&
+              rect.bottom <= view.bottom &&
+              rect.left >= view.left &&
+              rect.right <= view.right;
             if (
               animations.length &&
               complete &&
+              !button.disabled &&
+              getComputedStyle(button).visibility === "visible" &&
+              !button.closest('[aria-busy="true"]') &&
+              hit &&
+              fullyInside &&
               scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 1
             ) {
-              const rect = button.getBoundingClientRect();
-              const view = scroll.getBoundingClientRect();
-              const x = (rect.left + rect.right) / 2;
-              const y = (rect.top + rect.bottom) / 2;
               record("arrival-ready");
               arrival.resolve({
                 x,
                 y,
-                hit: button.contains(document.elementFromPoint(x, y)),
-                fullyInside:
-                  rect.top >= view.top &&
-                  rect.bottom <= view.bottom &&
-                  rect.left >= view.left &&
-                  rect.right <= view.right,
+                hit,
+                fullyInside,
                 geometry: {
                   top: scroll.scrollTop,
                   height: scroll.scrollHeight,
@@ -823,6 +867,10 @@ for (const width of [390, 1440]) {
           };
           const observer = new MutationObserver(() => {
             attach();
+            if (activeArrival && attached && !replyRecorded && replyComplete()) {
+              replyRecorded = true;
+              record("reply-complete");
+            }
             if (activeArrival && attached && !frame) {
               frame = requestAnimationFrame(sampleArrival);
               deadline = window.setTimeout(
@@ -838,7 +886,11 @@ for (const width of [390, 1440]) {
               observer.disconnect();
             }
           });
-          observer.observe(document.body, { subtree: true, childList: true });
+          observer.observe(document.body, {
+            subtree: true,
+            childList: true,
+            ...(activeArrival ? { attributes: true, attributeFilter: ["data-status"] } : {}),
+          });
           record("before-click");
           return {
             arrival: arrival.promise,
@@ -866,26 +918,41 @@ for (const width of [390, 1440]) {
         let pointerAttempted = false;
         try {
           if (activeArrival) {
-            await send(page, "Second exchange.");
-            const arrival = await trace.evaluate((value) => value.arrival);
-            await test.info().attach("following-more-arrival", {
-              body: JSON.stringify(arrival, null, 2),
-              contentType: "application/json",
-            });
-            process.stdout.write(`Following More natural arrival ${JSON.stringify(arrival)}\n`);
+            // Arm delivery before Send, and let it run without waiting for the
+            // Enter command's completion or any diagnostic/assertion round trip.
+            const pointing = trace
+              .evaluate((value) => value.arrival)
+              .then(async (arrival) => {
+                pointerAttempted = true;
+                await page.mouse.click(arrival.x, arrival.y);
+                return arrival;
+              });
+            const [, arrival] = await Promise.all([send(page, "Second exchange."), pointing]);
             expect(arrival.fullyInside).toBe(true);
             expect(arrival.hit).toBe(true);
             stages.beforeHover = arrival.geometry;
             stages.afterHover = arrival.geometry;
+            stages.arrival = arrival;
             reachablePoint = arrival;
           }
           // A locator click waits for position stability. Deliver real pointer
           // input at the verified hit point while this entrance is interruptible.
-          pointerAttempted = true;
-          if (reachablePoint && !settled)
-            await page.mouse.click(reachablePoint.x, reachablePoint.y);
-          else await more.click();
+          if (!activeArrival) {
+            pointerAttempted = true;
+            if (reachablePoint && !settled)
+              await page.mouse.click(reachablePoint.x, reachablePoint.y);
+            else await more.click();
+          }
           await expect(page.getByRole("menu")).toBeVisible();
+          if (activeArrival) {
+            expect(stages.request).toMatchObject({
+              mode: "reply",
+              messages: expect.arrayContaining([
+                expect.objectContaining({ role: "user", content: "Second exchange." }),
+              ]),
+            });
+            stages.messages = await deletionMessages(page);
+          }
         } finally {
           const events = await trace.evaluate((value) => value.stop());
           await test.info().attach("more-menu-events", {
@@ -901,6 +968,10 @@ for (const width of [390, 1440]) {
               false,
             );
             if (width === 1440 && reducedMotion === "no-preference" && !settled)
+              expect(events.find((event) => event.kind === "pointerdown:capture")?.trusted).toBe(
+                true,
+              );
+            if (width === 1440 && reducedMotion === "no-preference" && !settled)
               expect(
                 events.find((event) => event.kind === "pointerdown:capture")?.animations,
               ).toEqual(
@@ -908,6 +979,7 @@ for (const width of [390, 1440]) {
                   expect.objectContaining({ state: "running", property: "translate" }),
                 ]),
               );
+            expect(events.find((event) => event.kind === "pointerdown:capture")?.hit).toBe(true);
           }
         }
         const beforeDelete = await geometry();
@@ -930,6 +1002,14 @@ for (const width of [390, 1440]) {
         await page.keyboard.press("Enter");
         await expect(messages(page)).toHaveCount(5);
         stages.restored = await geometry();
+        if (activeArrival) {
+          stages.restoredMessages = await deletionMessages(page);
+          const identities = (value: unknown) =>
+            (value as Awaited<ReturnType<typeof deletionMessages>>).map(
+              ({ visible: _visible, ...message }) => message,
+            );
+          expect(identities(stages.restoredMessages)).toEqual(identities(stages.messages));
+        }
         process.stdout.write(
           `Older deletion stages ${JSON.stringify({ width, reducedMotion, intent, stages })}\n`,
         );

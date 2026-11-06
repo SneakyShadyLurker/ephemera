@@ -200,8 +200,23 @@ function KeepTail({ escaped }: { escaped: RefObject<boolean> }) {
     });
     observer.observe(scroller);
     if (contentRef.current) observer.observe(contentRef.current);
+    // Markdown can briefly shrink the story between two DOM updates, then grow
+    // again before either a scroll event or ResizeObserver delivery. The browser
+    // clamps our last write to that smaller physical end. Adopt that measured
+    // clamp while it is still observable, so the later event does not compare
+    // against a stale write and mistake the layout change for upward input.
+    const clamped = new MutationObserver(() => {
+      if (escaped.current || !state.isAtBottom) return;
+      const top = scroller.scrollTop;
+      const previous = Math.max(state.lastScrollTop ?? top, state.ignoreScrollToTop ?? top);
+      if (top < previous && top === Math.max(0, scroller.scrollHeight - scroller.clientHeight))
+        restoreScrollTop(top);
+    });
+    if (contentRef.current)
+      clamped.observe(contentRef.current, { childList: true, characterData: true, subtree: true });
     return () => {
       observer.disconnect();
+      clamped.disconnect();
       scroller.removeEventListener("scroll", onScroll, true);
       scroller.removeEventListener("wheel", onWheel);
       scroller.removeEventListener("keydown", onKeyDown);

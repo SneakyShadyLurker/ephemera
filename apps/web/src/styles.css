@@ -460,6 +460,14 @@
   --portrait-tallest: 46dvh;
   /* Between the floating portrait and the prose beside it, from desktop or a story wide enough for a column. */
   --gap-presence: 2.5rem;
+  /* The shared outer chat frame, including its desktop insets. */
+  --container-script: calc(
+    var(--container-portrait) +
+    var(--gap-presence) +
+    var(--container-story) +
+    var(--inset-story-start) +
+    var(--inset-story-end)
+  );
   /*
    * From this story width the prose beside the portrait keeps a column of its
    * own: the measure, the gap and the portrait's narrowest (10rem) column.

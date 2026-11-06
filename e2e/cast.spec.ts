@@ -1,6 +1,9 @@
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
 import { formatCount } from "../apps/web/src/lib/text.ts";
-import { castUpdateResponseSchema } from "../packages/core/src/cast/api.ts";
+import {
+  castSheetResponseSchema,
+  castUpdateResponseSchema,
+} from "../packages/core/src/cast/api.ts";
 import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
@@ -356,6 +359,127 @@ test.describe("portrait-side phone cast", () => {
   test.use({ hasTouch: true });
   for (const width of [360, 390]) {
     for (const reducedMotion of ["reduce", "no-preference"] as const) {
+      test(`single long away name falls back without clamping ${width}/${reducedMotion}`, async ({
+        page,
+        request,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion });
+        const { characterId } = await castChat(request);
+        await setPortraitViaApi(request, characterId, portraitPng("long-away"));
+        const name = "AlexandrineMargueriteDeLaRochefortDuChateau".slice(0, 40);
+        await page.route("**/api/cast/sheets/**", async (route) => {
+          const response = await route.fetch();
+          const body = castSheetResponseSchema.parse(await response.json());
+          if (body.sheet)
+            body.sheet.entries = body.sheet.entries.map((entry) => ({
+              ...entry,
+              anchor: {
+                ...entry.anchor,
+                name: entry.anchor.name === SHEET_WOMAN ? name : entry.anchor.name,
+              },
+            }));
+          await route.fulfill({ response, json: body });
+        });
+        await page.route("**/api/cast/update", async (route) => {
+          const response = await route.fetch();
+          const body = castUpdateResponseSchema.parse(await response.json());
+          const away = body.changes.cast[SHEET_WOMAN];
+          if (!away) throw new Error("Missing away fixture");
+          delete body.changes.cast[SHEET_WOMAN];
+          body.changes.cast[name] = away;
+          await route.fulfill({ response, json: body });
+        });
+        await page.goto("/");
+        await expect(castEntry(page, SEEDED)).toBeVisible();
+        const tail = castPanel(page).locator("[data-cast-tail]");
+        await expect(tail).toHaveText("1 away");
+        await expect(tail).toHaveAccessibleName("1 away");
+        await expectStackFit(page, `${width}/${reducedMotion}/long-away`);
+        await tail.click();
+        await expect(
+          page.getByRole("dialog", { name: "Cast", exact: true }).getByText(name, { exact: false }),
+        ).toBeVisible();
+      });
+      test(`single away identity fits after names ${width}/${reducedMotion}`, async ({
+        page,
+        request,
+        comfy,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion });
+        if (width === 360) await comfy();
+        const { characterId } = await castChat(request);
+        await setPortraitViaApi(request, characterId, portraitPng("single-away"));
+        let failKeeper = false;
+        let addPresent = false;
+        await page.route("**/api/cast/update", async (route) => {
+          if (failKeeper) return route.fulfill({ json: { error: "cast_failed" } });
+          if (!addPresent) return route.continue();
+          const response = await route.fetch();
+          const body = castUpdateResponseSchema.parse(await response.json());
+          const template = body.changes.cast[SEEDED];
+          if (!template) throw new Error("Missing present fixture");
+          body.changes.cast.Beatriz = template;
+          await route.fulfill({ response, json: body });
+        });
+        await page.goto("/");
+        await expect(castEntry(page, SEEDED)).toBeVisible();
+        const tail = () => castPanel(page).locator("[data-cast-tail]");
+        await expect(tail()).toHaveText(`and ${SHEET_WOMAN} away`);
+        await expect(tail()).toHaveAccessibleName(`and ${SHEET_WOMAN} away`);
+        await expect(castPanel(page).locator("[data-cast-name]")).toHaveCount(1);
+        await expectStackFit(page, `${width}/${reducedMotion}/single-away`);
+        await page.setViewportSize({ width: width === 360 ? 390 : 360, height: 844 });
+        await expect(tail()).toHaveText(`and ${SHEET_WOMAN} away`);
+        await expectStackFit(page, `${width}/${reducedMotion}/resized-away`);
+        await page.setViewportSize({ width, height: 844 });
+        // Keep one present name after removal so retry and Undo retain their
+        // ordinary roster owner, rather than removing the last present woman.
+        addPresent = true;
+        await exchange(page, "A friend joins the lamp room.");
+        await expect(castPanel(page).locator("[data-cast-tail]")).toHaveText(
+          width === 390 ? "and 2 more" : `and ${SHEET_WOMAN} away`,
+        );
+        failKeeper = true;
+        await exchange(page, "The lamp dims.");
+        await expect(
+          castPanel(page).getByRole("button", { name: "Try again to update the cast" }),
+        ).toBeVisible();
+        await expectStackFit(page, `${width}/${reducedMotion}/away-retry`);
+        await castEntry(page, SEEDED).click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "Remove from cast", exact: true })
+          .click();
+        await expect(
+          castPanel(page).getByRole("button", { name: "Try again to update the cast" }),
+        ).toBeVisible();
+        await expect(tail()).toHaveText(`and ${SHEET_WOMAN} away`);
+        const wrapped = await tail()
+          .locator("span")
+          .evaluate((node) => ({
+            height: node.getBoundingClientRect().height,
+            scrollHeight: node.scrollHeight,
+            line: Number.parseFloat(getComputedStyle(node).lineHeight),
+            textWidth: node.getBoundingClientRect().width,
+          }));
+        process.stdout.write(
+          `C named away with three actions ${JSON.stringify({ width, reducedMotion, ...wrapped })}\n`,
+        );
+        expect(wrapped.line).toBe(20);
+        expect(wrapped.height).toBe(2 * wrapped.line);
+        expect(wrapped.scrollHeight).toBeLessThanOrEqual(wrapped.height);
+        await expectStackFit(page, `${width}/${reducedMotion}/away-retry-undo`);
+        const undo = castPanel(page).getByRole("button", { name: /Undo removing/ });
+        await expect(undo).toBeFocused();
+        await undo.click();
+        await expect(castEntry(page, SEEDED)).toBeVisible();
+      });
+    }
+  }
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["reduce", "no-preference"] as const) {
       test(`${width}px ${reducedMotion}: portrait stack waiting uses zero name rows`, async ({
         page,
         request,
@@ -401,6 +525,7 @@ test.describe("portrait-side phone cast", () => {
           let updating = Promise.withResolvers<void>();
           let release = Promise.withResolvers<void>();
           let holdKeeper = true;
+          let geometryTrace: string | undefined;
           await page.route("**/api/cast/update", async (route) => {
             if (failKeeper) {
               if (holdKeeper) {
@@ -491,12 +616,88 @@ test.describe("portrait-side phone cast", () => {
               await expect(panel).not.toHaveAttribute("data-cast-stack");
             }
             await chooseModel(page, "mock-slow");
+            geometryTrace = await page.evaluate(() => {
+              const samples: unknown[] = [];
+              const phases = new Map<
+                string,
+                { phase: string; min: number; max: number; frames: number }
+              >();
+              let frame = 0;
+              let previous = "";
+              const sample = () => {
+                const turn = [...document.querySelectorAll('[data-role="assistant"]')].at(-1);
+                const group = turn?.querySelector("[data-presence]");
+                const prose = turn?.querySelector(".prose-turn");
+                if (group && prose) {
+                  const box = (element: Element | null | undefined) =>
+                    element?.getBoundingClientRect().toJSON();
+                  const state = {
+                    turn: turn?.querySelector("[data-edit-for]")?.getAttribute("data-edit-for"),
+                    status: turn?.getAttribute("data-status"),
+                    text: turn?.querySelector("[data-prose]")?.textContent?.slice(0, 20),
+                    relative: prose.getBoundingClientRect().top - group.getBoundingClientRect().top,
+                    group: box(group),
+                    column: box(group.firstElementChild),
+                    portrait: box(group.querySelector('[aria-label^="Portrait of"]')),
+                    scene: box(group.querySelector('[aria-label^="Picture"]')),
+                    stack: box(group.querySelector("[data-cast-stack]")),
+                    rows: [
+                      ...group.querySelectorAll(
+                        "[data-cast-name], [data-cast-status], [data-cast-tail]",
+                      ),
+                    ].map(box),
+                    prose: box(prose),
+                    thought: box(prose.querySelector("details")),
+                    open: prose.querySelector("details")?.open,
+                    animations: [turn, group, prose, prose.querySelector("details")].flatMap(
+                      (element) =>
+                        element
+                          ? element.getAnimations().map((animation) => ({
+                              owner: element.className,
+                              state: animation.playState,
+                              time: animation.currentTime,
+                              property:
+                                animation instanceof CSSTransition
+                                  ? animation.transitionProperty
+                                  : null,
+                              translate: getComputedStyle(element).translate,
+                            }))
+                          : [],
+                    ),
+                  };
+                  const current = JSON.stringify(state);
+                  const phase = `${document.querySelectorAll('[data-role="assistant"]').length}/${state.status}/${state.text?.startsWith("Reply:")}/${group.querySelector("[data-cast-status]")?.textContent}`;
+                  const prior = phases.get(phase);
+                  phases.set(phase, {
+                    phase,
+                    min: Math.min(prior?.min ?? state.relative, state.relative),
+                    max: Math.max(prior?.max ?? state.relative, state.relative),
+                    frames: (prior?.frames ?? 0) + 1,
+                  });
+                  if (current !== previous && samples.length < 2000)
+                    samples.push({ at: performance.now(), ...state });
+                  previous = current;
+                }
+                frame = requestAnimationFrame(sample);
+              };
+              frame = requestAnimationFrame(sample);
+              const key = `castGeometry${Math.random()}`;
+              Reflect.set(window, key, () => {
+                cancelAnimationFrame(frame);
+                return { samples, phases: [...phases.values()] };
+              });
+              return key;
+            });
             await send(page, "The lamp is steady.");
-            const group = lastReply(page).locator("[data-presence]");
             const prose = lastReply(page).locator(".prose-turn").first();
-            const offset = async () => (await prose.boundingBox())?.y ?? NaN;
             // Compare in the reply's own coordinates: scrolling the thread is allowed.
-            const relative = async () => (await offset()) - ((await group.boundingBox())?.y ?? NaN);
+            // Both rectangles must come from the same frame of a live stream.
+            const relative = () =>
+              prose.evaluate((element) => {
+                const group = element.closest("[data-message]")?.querySelector("[data-presence]");
+                if (!group) return NaN;
+                return element.getBoundingClientRect().top - group.getBoundingClientRect().top;
+              });
             await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
             if (portrait) {
               await expect(castStatus(page)).toHaveText(STALE);
@@ -687,6 +888,29 @@ test.describe("portrait-side phone cast", () => {
             }
           } finally {
             release.resolve();
+            if (geometryTrace) {
+              const samples = await page.evaluate((key) => {
+                const stop = Reflect.get(window, key) as
+                  | (() => {
+                      samples: unknown[];
+                      phases: { phase: string; min: number; max: number; frames: number }[];
+                    })
+                  | undefined;
+                Reflect.deleteProperty(window, key);
+                return stop?.();
+              }, geometryTrace);
+              await test.info().attach("cast-shared-frame-geometry", {
+                body: JSON.stringify(samples, null, 2),
+                contentType: "application/json",
+              });
+              process.stdout.write(
+                `C shared-frame evidence ${JSON.stringify({ width, reducedMotion, portrait, ...samples })}\n`,
+              );
+              if (portrait)
+                for (const phase of samples?.phases ?? [])
+                  if (phase.phase.includes("/streaming/true/"))
+                    expect(phase.max - phase.min, phase.phase).toBeLessThan(0.5);
+            }
           }
         });
       }

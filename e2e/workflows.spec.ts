@@ -132,6 +132,271 @@ async function expectWorkflowControlPainted(control: Locator) {
     .toBe(true);
 }
 
+/** Native delivery diagnostics only, installed before choosing the file. */
+async function traceWorkflowArrival(page: Page, holdResize = false) {
+  await page.evaluate((holdResize) => {
+    const NativeObserver = window.ResizeObserver;
+    const nearest = Element.prototype.scrollIntoView;
+    const scrollTo = Element.prototype.scrollTo;
+    const events: unknown[] = [];
+    const snapshot = () => {
+      const title = Array.from(document.querySelectorAll("h3")).find(
+        (node) => node.textContent === "Import a workflow",
+      );
+      const panel = title?.closest("section");
+      const slot = panel?.parentElement;
+      const view = panel?.closest<HTMLElement>("[data-skip-target]");
+      const answer = panel?.querySelector("[data-workflow-answer]");
+      return {
+        busy: panel?.getAttribute("aria-busy"),
+        answerText: answer?.textContent,
+        heading: title?.getBoundingClientRect().toJSON(),
+        answer: answer?.getBoundingClientRect().toJSON(),
+        panel: panel?.getBoundingClientRect().toJSON(),
+        slot: slot?.getBoundingClientRect().toJSON(),
+        slotStyle: slot?.getAttribute("style"),
+        inert: !!panel?.closest("[inert]"),
+        view: view?.getBoundingClientRect().toJSON(),
+        top: view?.scrollTop,
+        height: view?.scrollHeight,
+        client: view?.clientHeight,
+        focus: document.activeElement?.outerHTML.slice(0, 200),
+      };
+    };
+    const record = (kind: string, detail = {}) => {
+      if (events.length < 350)
+        events.push({ kind, time: performance.now(), ...detail, ...snapshot() });
+    };
+    let id = 0;
+    let held = holdResize;
+    const deliveries = new Map<ResizeObserver, () => void>();
+    window.ResizeObserver = class extends NativeObserver {
+      id = ++id;
+      relevant = false;
+      targets = new Set<Element>();
+      constructor(callback: ResizeObserverCallback) {
+        super((entries, observer) => {
+          if (this.relevant) record("resize-delivery", { id: this.id });
+          if (
+            held &&
+            this.targets.size === 3 &&
+            Array.from(this.targets).some((target) => target.matches("[data-skip-target]"))
+          ) {
+            record("arrival-resize-held", { id: this.id });
+            deliveries.set(this, () => callback(entries, observer));
+            return;
+          }
+          callback(entries, observer);
+        });
+      }
+      override observe(target: Element, options?: ResizeObserverOptions) {
+        this.targets.add(target);
+        if (
+          target.matches("[data-skip-target]") ||
+          target.querySelector("[data-workflow-answer]")
+        ) {
+          this.relevant = true;
+          record("observe", { id: this.id, target: target.tagName, stack: new Error().stack });
+        }
+        super.observe(target, options);
+      }
+      override disconnect() {
+        if (this.relevant) record("disconnect", { id: this.id, stack: new Error().stack });
+        deliveries.delete(this);
+        super.disconnect();
+      }
+    };
+    Element.prototype.scrollIntoView = function (options) {
+      record("mount-nearest", { target: this.textContent, options });
+      nearest.call(this, options);
+      record("after-nearest");
+    };
+    Element.prototype.scrollTo = function (
+      this: Element,
+      ...args: Parameters<Element["scrollTo"]>
+    ) {
+      if (this.matches("[data-skip-target]")) record("alignment", { args });
+      Reflect.apply(scrollTo, this, args);
+    } as Element["scrollTo"];
+    const input = (event: Event) =>
+      record(event.type, {
+        target: (event.target as Element)?.outerHTML?.slice(0, 200),
+        trusted: event.isTrusted,
+      });
+    for (const type of ["focusin", "wheel", "touchmove", "keydown"])
+      document.addEventListener(type, input, { capture: true });
+    let previous = "";
+    const mutations = new MutationObserver(() => {
+      const current = JSON.stringify(snapshot());
+      if (current !== previous) {
+        previous = current;
+        record("state-or-layout");
+      }
+    });
+    mutations.observe(document.querySelector("[data-skip-target]") ?? document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-busy", "style", "inert"],
+    });
+    Reflect.set(window, "releaseWorkflowArrivalResize", () => {
+      held = false;
+      record("arrival-resize-released", { queued: deliveries.size });
+      for (const deliver of deliveries.values()) deliver();
+      deliveries.clear();
+    });
+    Reflect.set(window, "stopWorkflowArrivalDiagnostics", () => {
+      record("final");
+      mutations.disconnect();
+      window.ResizeObserver = NativeObserver;
+      Element.prototype.scrollIntoView = nearest;
+      Element.prototype.scrollTo = scrollTo;
+      for (const type of ["focusin", "wheel", "touchmove", "keydown"])
+        document.removeEventListener(type, input, { capture: true });
+      return events;
+    });
+  }, holdResize);
+  return async () => {
+    const events = await page.evaluate(() => {
+      const result = (Reflect.get(window, "stopWorkflowArrivalDiagnostics") as () => unknown)();
+      Reflect.deleteProperty(window, "stopWorkflowArrivalDiagnostics");
+      Reflect.deleteProperty(window, "releaseWorkflowArrivalResize");
+      return result;
+    });
+    process.stdout.write(`P2 arrival ${JSON.stringify(events)}\n`);
+    await test.info().attach("workflow-arrival.json", {
+      body: JSON.stringify(events),
+      contentType: "application/json",
+    });
+  };
+}
+
+for (const width of [390, 820, 1440]) {
+  for (const reducedMotion of ["reduce", "no-preference"] as const) {
+    for (const override of width === 390
+      ? (["none", "wheel", "key", "focus"] as const)
+      : (["none"] as const)) {
+      test(`workflow first answer alignment ${width}/${reducedMotion}/${override}`, async ({
+        page,
+        comfy,
+      }) => {
+        await page.setViewportSize({ width, height: width === 820 ? 1180 : 844 });
+        await page.emulateMedia({ reducedMotion });
+        await comfy({ objectInfo: SDXL_OBJECT_INFO });
+        let release = () => {};
+        const wait = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await page.route("**/api/workflows/inspect", async (route) => {
+          const response = await route.fetch();
+          await wait;
+          await route.fulfill({ response });
+        });
+        await openSettings(page);
+        const panel = await openImport(page, cleanUiFile());
+        const heading = panel.getByRole("heading", { name: "Import a workflow", exact: true });
+        await expect(heading).toBeFocused();
+        await expect(panel).toHaveAttribute("aria-busy", "true");
+        const view = page.locator("[data-skip-target]");
+        const trace = await view.evaluate((node) => {
+          const original = node.scrollTo;
+          const calls: unknown[] = [];
+          node.scrollTo = function (
+            this: HTMLElement,
+            ...args: Parameters<HTMLElement["scrollTo"]>
+          ) {
+            calls.push(args);
+            Reflect.apply(original, this, args);
+          } as HTMLElement["scrollTo"];
+          Reflect.set(window, "stopWorkflowScrollTrace", () => {
+            node.scrollTo = original;
+            return calls;
+          });
+          return true;
+        });
+        try {
+          if (override === "wheel") {
+            const observed = page.evaluate(
+              () =>
+                new Promise<void>((resolve) => {
+                  document.addEventListener("wheel", () => resolve(), { once: true });
+                }),
+            );
+            const rect = await view.boundingBox();
+            await page.mouse.move((rect?.x ?? 0) + 60, (rect?.y ?? 0) + 100);
+            await page.mouse.wheel(0, -150);
+            await observed;
+          } else if (override === "key") {
+            await heading.press("PageUp");
+          } else if (override === "focus") {
+            await page
+              .getByRole("textbox", { name: "Picture server address", exact: true })
+              .focus();
+          }
+          release();
+          await expect(panel.getByRole("status")).toHaveText(READY);
+          // Observe settlement without waiting on paused activity animations or
+          // revealing either target. This is bounded, test-only observation.
+          await page.evaluate(async () => {
+            let previous = "";
+            let changed = performance.now();
+            const start = changed;
+            while (performance.now() - start < 6000) {
+              await new Promise((resolve) => requestAnimationFrame(resolve));
+              const view = document.querySelector("[data-skip-target]");
+              const state = `${view?.scrollTop}|${view?.scrollHeight}|${document.querySelector("[data-workflow-answer]")?.getBoundingClientRect().top}`;
+              if (state !== previous) changed = performance.now();
+              previous = state;
+              if (performance.now() - changed >= 400) return;
+            }
+            throw new Error("Workflow geometry did not settle within six seconds");
+          });
+          if (override === "none") {
+            await expectWorkflowControlPainted(heading);
+            await expectWorkflowControlPainted(panel.getByText("On your ComfyUI", { exact: true }));
+            await expect(heading).toBeFocused();
+            if (width !== 820)
+              await expect
+                .poll(async () => {
+                  return heading.evaluate(
+                    (node) =>
+                      node.getBoundingClientRect().top -
+                      (node.closest("[data-skip-target]")?.getBoundingClientRect().top ?? NaN),
+                  );
+                })
+                .toBeCloseTo(24, 0);
+          } else if (override === "focus") {
+            await expect(
+              page.getByRole("textbox", { name: "Picture server address", exact: true }),
+            ).toBeFocused();
+          }
+          const calls = await page.evaluate(() =>
+            (Reflect.get(window, "stopWorkflowScrollTrace") as () => unknown[])(),
+          );
+          const geometry = await panel.evaluate((node) => ({
+            heading: node.querySelector("h3")?.getBoundingClientRect().toJSON(),
+            answer: node.querySelector("[data-workflow-answer]")?.getBoundingClientRect().toJSON(),
+            view: node.closest("[data-skip-target]")?.getBoundingClientRect().toJSON(),
+          }));
+          process.stdout.write(
+            `F answer arrival ${JSON.stringify({ width, reducedMotion, override, calls, ...geometry })}\n`,
+          );
+          expect(calls.length).toBeLessThanOrEqual(override === "none" ? 1 : 0);
+          // Editing details is later work and must not invoke the arrival again.
+          await panel.getByRole("textbox", { name: "Name", exact: true }).fill("Arrival workflow");
+        } finally {
+          release();
+          if (trace)
+            await page.evaluate(() => {
+              (Reflect.get(window, "stopWorkflowScrollTrace") as (() => unknown) | undefined)?.();
+              Reflect.deleteProperty(window, "stopWorkflowScrollTrace");
+            });
+        }
+      });
+    }
+  }
+}
+
 test.describe("workflow phone actions in the flow", () => {
   test.use({ hasTouch: true });
 
@@ -239,6 +504,130 @@ test.describe("workflow phone actions in the flow", () => {
     });
   }
 });
+
+for (const reducedMotion of ["reduce", "no-preference"] as const) {
+  test(`a replacement file gets its own answer arrival ${reducedMotion}`, async ({
+    page,
+    comfy,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion });
+    await comfy({ objectInfo: SDXL_OBJECT_INFO });
+    let release = () => {};
+    let reached = () => {};
+    const first = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    await page.route("**/api/workflows/inspect", async (route) => {
+      const response = await route.fetch();
+      if (++calls === 1) {
+        reached();
+        await held;
+      }
+      await route.fulfill({ response });
+    });
+    try {
+      await openSettings(page);
+      const panel = await openImport(page, cleanUiFile());
+      await first;
+      await pickFile(page, () => importButton(page).click(), {
+        ...cleanUiFile(),
+        name: "replacement.json",
+      });
+      await expect(panel).toContainText("replacement.json");
+      await expect(panel.getByRole("status")).toHaveText(READY);
+      const title = panel.getByRole("heading", { name: "Import a workflow", exact: true });
+      const view = page.locator("[data-skip-target]");
+      await expect
+        .poll(() =>
+          title.evaluate(
+            (node) =>
+              node.getBoundingClientRect().top -
+              (node.closest("[data-skip-target]")?.getBoundingClientRect().top ?? NaN),
+          ),
+        )
+        .toBeCloseTo(24, 0);
+      const top = await view.evaluate((node) => node.scrollTop);
+      release();
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      expect(await view.evaluate((node) => node.scrollTop)).toBe(top);
+      await expect(panel).toContainText("replacement.json");
+      await panel.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Discard", exact: true })
+        .click();
+      await expect(panel).toHaveCount(0);
+      await expect(importButton(page)).toBeFocused();
+    } finally {
+      release();
+    }
+  });
+  for (const result of ["refused", "failed", "failed-rerender"] as const) {
+    test(`workflow ${result} answer arrives once ${reducedMotion}`, async ({ page, comfy }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.emulateMedia({ reducedMotion });
+      await comfy({ objectInfo: SDXL_OBJECT_INFO });
+      let inspections = 0;
+      if (result !== "refused")
+        await page.route("**/api/workflows/inspect", (route) => {
+          inspections += 1;
+          return route.abort();
+        });
+      await openSettings(page);
+      const stopTrace = await traceWorkflowArrival(page, result === "failed-rerender");
+      try {
+        const panel = await openImport(
+          page,
+          result === "refused"
+            ? {
+                name: "invalid.json",
+                mimeType: "application/json",
+                buffer: Buffer.from("invalid JSON {"),
+              }
+            : cleanUiFile(),
+        );
+        await expect(panel.getByRole("alert")).toBeVisible();
+        if (result === "failed-rerender") {
+          // Hold only this owner's native resize delivery across a real Retry,
+          // without changing rendering, the response, or another observer.
+          await expect.poll(() => inspections).toBe(1);
+          await panel
+            .getByRole("button", { name: "Try again", exact: true })
+            .dispatchEvent("click");
+          await expect.poll(() => inspections).toBe(2);
+          await expect(panel.getByRole("alert")).toBeVisible();
+          await page.evaluate(() =>
+            (Reflect.get(window, "releaseWorkflowArrivalResize") as () => void)(),
+          );
+        }
+        const title = panel.getByRole("heading", { name: "Import a workflow", exact: true });
+        await expect
+          .poll(() =>
+            title.evaluate(
+              (node) =>
+                node.getBoundingClientRect().top -
+                (node.closest("[data-skip-target]")?.getBoundingClientRect().top ?? NaN),
+            ),
+          )
+          .toBeCloseTo(24, 0);
+        await expectWorkflowControlPainted(panel.getByRole("alert"));
+        await expect(title).toBeFocused();
+        await page.keyboard.press("Escape");
+        await expect(panel).toHaveCount(0);
+        await expect(importButton(page)).toBeFocused();
+      } finally {
+        await stopTrace();
+      }
+    });
+  }
+}
 
 test("a saved workflow file shows where Ephemera's values go, then saves as ready", async ({
   comfy,

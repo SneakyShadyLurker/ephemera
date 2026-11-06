@@ -119,7 +119,7 @@ Version 1.0 holds everything below.
   and the empty chat's Choose a character and Session's character row open
   it. The portrait and name form the Chat target; Edit stays visible beside
   the details below the name and opens the sheet. The name keeps the full
-  caption width.
+  caption width. Tags wrap to two lines in an equal-height row beside Edit.
   A persona's card opens its sheet.
   An empty gallery says so on the same edges as a full one and offers
   Import as the first step, with New and Create with AI beside it. Import, New and
@@ -272,7 +272,10 @@ Version 1.0 holds everything below.
   are read from it. An owner keeps up to 24. The import panel shows where
   Ephemera fills the prompt, the size and count, the seed and the image
   output, asks which node to use where the file leaves one open, and says
-  what the owner's ComfyUI lacks before the mapping. A fully resolved mapping
+  what the owner's ComfyUI lacks before the mapping. Each file's first answer
+  brings the heading and answer into view once, unless
+  the owner has already scrolled or moved focus elsewhere. A panel already
+  in view stays in place. A fully resolved mapping
   without selectable alternatives folds under "Ephemera fills these four places";
   choices and mapping problems stay open. Changes and omissions wait under Import
   details and the nodes a refusal concerns under a disclosure; it
@@ -824,6 +827,9 @@ Version 1.0 holds everything below.
   Remove character starts a chat without one through the usual confirmation.
   Session docks only when the story keeps its readable width beside it;
   otherwise it opens as a sheet.
+  The portrait and prose fill the chat column up to their natural combined
+  width, then centre together. The header, composer and notices share those
+  edges; the owner's slips follow the frame's trailing edge.
 - On phones the header names Cast, More and Session, with Memory directly
   available once loaded while memory is on; More holds Events, New event,
   Prompt and Clear chat. The

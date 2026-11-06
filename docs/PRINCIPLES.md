@@ -333,11 +333,11 @@ field, lorebook entry and model reply is untrusted text.
   wide, so it moves down the story as the story grows (above the story on
   phones), not a thumbnail on every turn.
 - The character's prose wraps at about 75 characters of the reading sans,
-  never longer. A wide window is still used, not framed in empty canvas:
-  the story spans the chat column with padding, the owner's slips keep its
-  trailing edge, and the portrait grows into the width the prose leaves,
-  up to its widest column, and never taller than about half the window,
-  so a short reply stays in view beside it.
+  never longer. The combined portrait-and-prose frame fills the chat
+  column up to its natural maximum, then centres in a wider column; the
+  owner's slips follow its trailing edge. The portrait grows into the
+  width the prose leaves, up to its widest column, and never taller than
+  about half the window, so a short reply stays in view beside it.
 - Past full HD the whole interface scales up with the window, to a quarter
   larger at 4K; the measure scales with the type, so lines never hold more
   characters. A screen's header controls sit on

@@ -35,64 +35,81 @@ const MODEL_DEFAULTS = {
   reasoning: "provider-default",
 };
 
-test("sampler choices describe the model before selection in composer and Session at 360px", async ({
-  page,
-  request,
-}) => {
-  await page.setViewportSize({ width: 360, height: 780 });
-  const longModel = `model-${"a-very-long-model-name-with-no-breaks".repeat(4)}`;
-  const shortId = await createPresetViaApi(request, "sampler", {
-    name: "Quiet sampler",
-    values: { ...MODEL_DEFAULTS, model: "mock-slow", temperature: 0.7 },
-  });
-  const longId = await createPresetViaApi(request, "sampler", {
-    name: "Long sampler",
-    values: {
-      ...MODEL_DEFAULTS,
-      model: longModel,
-      temperature: 0.9,
-      topP: 0.95,
-      maxOutputTokens: 8192,
-      seed: 42,
-    },
-  });
-  await patchSettings(request, { model: "mock-fast" });
-  await page.goto("/");
-  for (const entry of ["composer", "Session"]) {
-    if (entry === "Session") await openSession(page);
-    const trigger = page.getByRole("combobox", {
-      name: entry === "composer" ? "Sampler" : "Sampler preset",
-      exact: true,
+for (const width of [360, 390]) {
+  test(`sampler choices describe the model before selection in composer and Session at ${width}px`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 780 });
+    const longModel = `model-${"a-very-long-model-name-with-no-breaks".repeat(4)}`;
+    const shortId = await createPresetViaApi(request, "sampler", {
+      name: "Quiet sampler",
+      values: { ...MODEL_DEFAULTS, model: "mock-slow", temperature: 0.7 },
     });
-    await trigger.click();
-    const short = page.getByRole("option", { name: "Quiet sampler", exact: true });
-    const long = page.getByRole("option", { name: "Long sampler", exact: true });
-    await expect(short).toHaveAccessibleDescription(/Mock-slow, temperature 0.7/);
-    await expect(long).toHaveAccessibleDescription(new RegExp(longModel, "i"));
-    const description = long.locator('[aria-hidden="true"]').first();
-    expect(
-      await description.evaluate(
-        (node) =>
-          node.getBoundingClientRect().height <=
-          Number.parseFloat(getComputedStyle(node).lineHeight) * 2 + 1,
-      ),
-    ).toBe(true);
-    expect(await long.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-    if (entry === "composer") await short.click();
-    else await long.click();
-    const id = entry === "composer" ? shortId : longId;
-    const model = entry === "composer" ? "mock-slow" : longModel;
-    await expect
-      .poll(async () => ({
-        id: (await readSettings(request)).samplerPresetId,
-        model: (await readSettings(request)).model,
-      }))
-      .toEqual({ id, model });
-    await expect(trigger).toContainText(entry === "composer" ? "Quiet sampler" : "Long sampler");
-    if (entry === "Session") await closeSession(page);
-  }
-  await expectNoOverflow(page);
-});
+    const longId = await createPresetViaApi(request, "sampler", {
+      name: "Long sampler",
+      values: {
+        ...MODEL_DEFAULTS,
+        model: longModel,
+        temperature: 0.9,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+        seed: 42,
+        reasoning: "high",
+      },
+    });
+    await patchSettings(request, { model: "mock-fast" });
+    await page.goto("/");
+    for (const entry of ["composer", "Session"]) {
+      if (entry === "Session") await openSession(page);
+      const trigger = page.getByRole("combobox", {
+        name: entry === "composer" ? "Sampler" : "Sampler preset",
+        exact: true,
+      });
+      await trigger.click();
+      const short = page.getByRole("option", { name: "Quiet sampler", exact: true });
+      const long = page.getByRole("option", { name: "Long sampler", exact: true });
+      await expect(short).toHaveAccessibleDescription(/Mock-slow, temperature 0.7/);
+      await expect(long).toHaveAccessibleDescription(new RegExp(longModel, "i"));
+      await expect(long).toHaveAccessibleDescription(/seed 42.*reasoning high/i);
+      const popup = await page.getByRole("listbox").boundingBox();
+      expect(popup?.x).toBeGreaterThanOrEqual(0);
+      expect((popup?.x ?? Infinity) + (popup?.width ?? Infinity)).toBeLessThanOrEqual(width);
+      if (entry === "composer") {
+        const positioner = await short
+          .locator('xpath=ancestor::*[contains(@style,"--available-width")][1]')
+          .boundingBox();
+        expect(positioner?.width).toBeCloseTo(320, 0);
+        const summary = short.locator('[aria-hidden="true"]').first();
+        expect(await summary.evaluate((node) => node.scrollHeight <= node.clientHeight)).toBe(true);
+      }
+      const description = long.locator('[aria-hidden="true"]').first();
+      expect(
+        await description.evaluate(
+          (node) =>
+            node.getBoundingClientRect().height <=
+            Number.parseFloat(getComputedStyle(node).lineHeight) * 2 + 1,
+        ),
+      ).toBe(true);
+      expect(await long.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      if (entry === "composer") {
+        await page.keyboard.press("q");
+        await page.keyboard.press("Enter");
+      } else await long.click();
+      const id = entry === "composer" ? shortId : longId;
+      const model = entry === "composer" ? "mock-slow" : longModel;
+      await expect
+        .poll(async () => ({
+          id: (await readSettings(request)).samplerPresetId,
+          model: (await readSettings(request)).model,
+        }))
+        .toEqual({ id, model });
+      await expect(trigger).toContainText(entry === "composer" ? "Quiet sampler" : "Long sampler");
+      if (entry === "Session") await closeSession(page);
+    }
+    await expectNoOverflow(page);
+  });
+}
 
 const blocks = (page: Page) => page.getByRole("list", { name: "Blocks in send order" });
 const band = (page: Page) => page.getByRole("list", { name: "Blocks inside the chat" });

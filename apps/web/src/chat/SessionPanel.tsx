@@ -429,7 +429,10 @@ function PresetSelect<T extends { id: string; name: string }>({
         captionId={look === "inline" ? labelId : undefined}
         placeholder={look === "inline" ? "None" : presetPlaceholder(presets)}
       />
-      <SelectContent label={`${label}s`} {...(look === "inline" && { className: "min-w-64" })}>
+      <SelectContent
+        label={`${label}s`}
+        {...(look === "inline" && { className: "w-[min(20rem,var(--available-width))]" })}
+      >
         {list.map((preset) => (
           <SelectItem
             key={preset.id}

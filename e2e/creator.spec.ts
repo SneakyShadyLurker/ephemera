@@ -41,6 +41,82 @@ import { appOrigin, expect, test } from "./support/test.ts";
 
 const heading = (page: Page, name: string) => page.getByRole("heading", { name, level: 2 });
 
+test.describe("untouched Describe arrival", () => {
+  test.use({ hasTouch: true });
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["reduce", "no-preference"] as const) {
+      test(`Describe starts at the top ${width}/${reducedMotion}`, async ({ page, request }) => {
+        await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+        await page.emulateMedia({ reducedMotion });
+        await patchSettings(request, { model: "mock-fast", comfyuiBaseUrl: "" });
+        const arrival = async (kind: string, focused: boolean) => {
+          const field = page.getByRole("textbox", { name: COPY.subject.field });
+          await expect(field).toBeVisible();
+          await expect(page.getByRole("button", { name: "Portraits off: details" })).toBeVisible();
+          await page.evaluate(async () => {
+            await document.fonts.ready;
+            await Promise.all(
+              document
+                .getAnimations()
+                .filter(
+                  (animation) =>
+                    animation.effect?.getComputedTiming().iterations !== Infinity &&
+                    animation.timeline === document.timeline,
+                )
+                .map((animation) => animation.finished.catch(() => {})),
+            );
+            await new Promise((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            );
+          });
+          const geometry = await page.locator("[data-creator]").evaluate((element) => {
+            const scroller = element.querySelector<HTMLElement>("[data-skip-target]");
+            const context = element.querySelector("form > div");
+            return {
+              top: scroller?.scrollTop,
+              context: context?.getBoundingClientRect().toJSON(),
+              header: element.querySelector("header")?.getBoundingClientRect().toJSON(),
+              viewport: scroller?.getBoundingClientRect().toJSON(),
+              focus: document.activeElement?.tagName,
+            };
+          });
+          process.stdout.write(
+            `E Describe ${JSON.stringify({ width, reducedMotion, kind, ...geometry })}\n`,
+          );
+          expect(geometry.top).toBe(0);
+          expect(geometry.context?.top).toBeGreaterThanOrEqual(geometry.header?.bottom ?? Infinity);
+          if (focused) await expect(field).toBeFocused();
+          else await expect(field).not.toBeFocused();
+        };
+        const modelsReady = page.waitForResponse(
+          (response) => new URL(response.url()).pathname === "/api/models" && response.ok(),
+        );
+        await page.goto("/characters/create");
+        await modelsReady;
+        await arrival("plain", true);
+        await page.getByRole("button", { name: "Change from Subject" }).tap();
+        await page.locator('[data-kind="subject"]').tap();
+        await arrival("Change to Subject", true);
+        await brainstorm(page, {
+          request: brainstormRequest(canary("arrival"), { kind: "subject" }),
+          model: "mock-fast",
+        });
+        await expect(ideaRows(page)).toHaveCount(10);
+        await ideaRows(page).first().getByRole("button").first().tap();
+        await arrival("from idea", false);
+        await page.getByRole("button", { name: BRAINSTORM_COPY.back }).tap();
+        await ideaRows(page).first().getByRole("button").first().tap();
+        await arrival("back then idea", false);
+        // A later real model interaction may reveal the lower form. It is not arrival.
+        await choose(page, "Model", "mock-slow");
+        process.stdout.write(
+          `E after owner model interaction ${JSON.stringify(await page.locator("[data-creator] [data-skip-target]").evaluate((node) => ({ top: node.scrollTop, focus: document.activeElement?.tagName })))}\n`,
+        );
+      });
+    }
+  }
+});
+
 test("the three kinds sit on aligned tracks, each label on one line, Brainstorm a row below", async ({
   page,
 }) => {

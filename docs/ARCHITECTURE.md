@@ -100,7 +100,8 @@ check or announcement; pending saves and failures retain precedence.
 
 Phone collection headers keep the full title above a labelled action row.
 Character tiles use the portrait and full-width name as the Chat target,
-with Edit always visible beside the metadata below. The phone navigation
+with Edit always visible beside a reserved two-line metadata row below.
+Persona tiles share that wrapping caption treatment. The phone navigation
 sheet includes theme and Appearance controls. In chat, Memory is a direct
 header action and More holds Events, Prompt and Clear chat; Events opens
 `chat/EventsSheet.tsx`, reusing `events/EventsSection.tsx` in a side sheet or
@@ -137,6 +138,13 @@ save keeps the mounted editor under its logical saved pathname, so replacing
 `/new` with the created id preserves typing and focus. Search-only book entry
 navigation stays local and does not fetch the book again.
 
+`chat/frame.ts` shares one centred, bounded frame between thread, composer,
+header and notices. Its outer maximum is the portrait column, presence gap,
+prose measure and story insets together, derived once in `styles.css` from
+their rem tokens; below that maximum it fills the available chat column.
+The owner's slips keep its trailing edge, while the prose keeps its measure
+and the portrait keeps its growth and height cap.
+
 The chat title yields while at least half of a character name remains
 readable below the story's 0.75rem top-edge fade, stuck or not; `Thread`
 observes the name text against its scroller and sets `data-name-shown`.
@@ -145,8 +153,11 @@ screen, including while waiting for text; moving them there does not replay
 their entrance. Focus on the portrait or its viewer holds that placement
 until focus leaves. On phones, the in-reply Cast stack measures the portrait
 column before paint and fits names around a shared action row and a reserved
-status line. Removal, retry and keeper feedback use those slots without
-growing the group; the full roster remains reachable. Reply actions sit below the prose inside the turn,
+status line. Once all present names fit, a single away woman's name is used
+only when its full phrase fits two note lines beside retry and Undo;
+otherwise the tail keeps its count. Removal, retry and keeper feedback use
+those slots without growing the group; the full roster remains reachable.
+Reply actions sit below the prose inside the turn,
 ahead of scene pictures, with a reserved row while streaming. Latest has
 its own reserved row on phones and floats over the story from tablet up.
 `Conversation` coordinates native anchoring with the existing scroll library:
@@ -1414,7 +1425,12 @@ content's path: the tab's memory and one request in the server.
   workflows and hosts the import panel (`apps/web/src/workflows/`), which
   holds the file, the inspection and the choices in component state and
   sends graphs through plain request functions, so no query cache holds
-  one.
+  one. Its mounted presentation aligns the heading and first inspection
+  answer once per file when they are outside the settings scrollport,
+  waiting for the opening slot's scroll range and retaining only the trailing
+  canvas needed to align a short panel for that file. Wheel, touch, scroll keys,
+  scrollbar input or focus outside the panel relinquish that arrival;
+  replacements get a new opportunity, and saving never starts one.
 - **`POST /api/scene`** (`apps/server/src/scene.ts`): Picture this scene.
   The tab sends the model (Settings' image prompt model, else the chat's,
   taken at the press; no effort), the workflow, the character's
@@ -2103,9 +2119,10 @@ once and saved in order. A save that fails or is refused is said inline on
 Settings and, wherever else the choice was made, in a notice over the
 content column. A change made before the settings first loaded is laid over
 them once they do. `chat/ChatChoices.tsx` shares the persona selector and
-sampler choice owner with Session; both selectors describe each sampler with
-the existing model-and-settings summary. Selecting one with a model changes
-both settings together. Session orders Character, Persona, Sampler preset,
+sampler choice owner with Session; the inline sampler popup uses up to
+20rem within its positioner's available width. Both selectors describe each
+sampler with the existing model-and-settings summary. Selecting one with a
+model changes both settings together. Session orders Character, Persona, Sampler preset,
 Prompt preset and Model, folding explanations but keeping model and
 reasoning mismatches visible. The palette editor widens its Settings frame
 on desktop for a sticky sample beside the fields, offers Preview on smaller

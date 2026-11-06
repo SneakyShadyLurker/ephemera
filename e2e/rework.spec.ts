@@ -36,6 +36,268 @@ async function openSheet(page: Page, id: string) {
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).toBeVisible();
 }
 
+for (const scenario of [
+  "none",
+  "before-wheel",
+  "before-touch",
+  "before-key",
+  "frame-wheel",
+  "frame-touch",
+  "frame-key",
+  "new-run",
+  "failed",
+] as const) {
+  test(`a single-batch Rework answer reveals once, arrival=${scenario}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const base = canary("terminal-batch");
+    const id = await createReworkCharacter(page.request, base);
+    const answer = `<change><field>description</field><why>Show the new wording.</why><find>${ANCHOR_ONE}</find><replace>A proposed arrival passage.</replace></change><summary>One change.</summary>`;
+    let release = () => {};
+    const response = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requests = 0;
+    await page.route("**/api/creator/rework", async (route) => {
+      requests += 1;
+      await response;
+      await route.fulfill({
+        contentType: "application/x-ndjson",
+        body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: scenario === "failed" ? ["incomplete"] : [] })}\n`,
+      });
+    });
+    await openSheet(page, id);
+    await page.evaluate((scenario) => {
+      const original = Element.prototype.scrollIntoView;
+      const nativeFrame = window.requestAnimationFrame;
+      const nativeCancel = window.cancelAnimationFrame;
+      const calls: unknown[] = [];
+      const events: { kind: string; time: number; [key: string]: unknown }[] = [];
+      const record = (kind: string, detail = {}) => {
+        events.push({
+          kind,
+          time: performance.now(),
+          pending: Array.from(document.querySelectorAll('[aria-label="AI Rework"] button')).some(
+            (button) => button.textContent?.trim() === "Stop",
+          ),
+          ...detail,
+        });
+      };
+      const input = (event: Event) =>
+        record(event.type, {
+          trusted: event.isTrusted,
+          target: (event.target as Element)?.tagName,
+        });
+      for (const type of ["wheel", "touchmove", "keydown"])
+        window.addEventListener(type, input, { capture: true });
+      const observer = new MutationObserver(() => {
+        if (document.querySelector("[data-change-at]")) record("change-painted");
+      });
+      observer.observe(document.querySelector("main") ?? document.body, {
+        childList: true,
+        subtree: true,
+      });
+      let stale: FrameRequestCallback | undefined;
+      let captured = false;
+      window.requestAnimationFrame = (callback) => {
+        if (!callback.toString().includes("data-change-at")) return nativeFrame(callback);
+        record("reveal-scheduled");
+        if (scenario === "new-run" && !captured) {
+          captured = true;
+          stale = callback;
+          // Keep a cancelled callback callable, as if already dequeued. It is
+          // delivered on a native frame after a public replacement run starts.
+          return nativeFrame(() => record("old-frame-dequeued"));
+        }
+        return nativeFrame((time) => {
+          record("reveal-frame");
+          if (scenario.startsWith("frame-")) {
+            const target = document.querySelector("main [data-skip-target]");
+            const type = scenario.slice(6);
+            target?.dispatchEvent(
+              type === "key"
+                ? new KeyboardEvent("keydown", { key: "PageUp", bubbles: true })
+                : type === "wheel"
+                  ? new WheelEvent("wheel", { deltaY: -90, bubbles: true })
+                  : new Event("touchmove", { bubbles: true }),
+            );
+          }
+          callback(time);
+          record("reveal-delivered");
+        });
+      };
+      window.cancelAnimationFrame = (id) => {
+        record("frame-cancelled", { id });
+        nativeCancel(id);
+      };
+      Element.prototype.scrollIntoView = function (options) {
+        if (this.hasAttribute("data-change-at")) {
+          const call = {
+            at: this.getAttribute("data-change-at"),
+            options,
+            time: performance.now(),
+          };
+          calls.push(call);
+          record("reveal-scroll", call);
+        }
+        original.call(this, options);
+      };
+      Reflect.set(window, "readArrivalTrace", () => ({ events, calls }));
+      Reflect.set(window, "markArrival", record);
+      Reflect.set(
+        window,
+        "deliverStaleArrival",
+        () =>
+          new Promise<void>((resolve) => {
+            nativeFrame((time) => {
+              record("old-frame-delivered-in-new-run");
+              stale?.(time);
+              resolve();
+            });
+          }),
+      );
+      Reflect.set(window, "stopArrivalTrace", () => {
+        observer.disconnect();
+        window.requestAnimationFrame = nativeFrame;
+        window.cancelAnimationFrame = nativeCancel;
+        for (const type of ["wheel", "touchmove", "keydown"])
+          window.removeEventListener(type, input, { capture: true });
+        Element.prototype.scrollIntoView = original;
+        return { events, calls };
+      });
+    }, scenario);
+    try {
+      await openRework(page);
+      await submitRework(page, { request: ownerRequest(base, "batch"), model: "mock-fast" });
+      await expect.poll(() => requests).toBe(1);
+      await page.evaluate(() =>
+        (Reflect.get(window, "markArrival") as (kind: string) => void)("run-1-pending"),
+      );
+      if (scenario.startsWith("before-")) {
+        const view = page.locator("main [data-skip-target]");
+        if (scenario === "before-wheel") {
+          const box = await view.boundingBox();
+          await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 100);
+          await page.mouse.wheel(0, 90);
+        } else if (scenario === "before-key") {
+          await view.press("PageUp");
+        } else {
+          await view.dispatchEvent("touchmove");
+        }
+        const type =
+          scenario === "before-key"
+            ? "keydown"
+            : scenario === "before-wheel"
+              ? "wheel"
+              : "touchmove";
+        await expect
+          .poll(() =>
+            page.evaluate(
+              (type) =>
+                (
+                  Reflect.get(window, "readArrivalTrace") as () => { events: { kind: string }[] }
+                )().events.some((event) => event.kind === type),
+              type,
+            ),
+          )
+          .toBe(true);
+      }
+      await page.evaluate(() =>
+        (Reflect.get(window, "markArrival") as (kind: string) => void)("answer-released"),
+      );
+      release();
+      await expect(dock(page)).toContainText("1 change to apply");
+      await expect(changes(page)).toHaveCount(1);
+      if (scenario === "new-run") {
+        await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
+        await openRework(page);
+        await submitRework(page, {
+          request: ownerRequest(base, "replacement"),
+          model: "mock-fast",
+        });
+        await expect.poll(() => requests).toBe(2);
+        await expect(dock(page)).toContainText("1 change to apply");
+        await page.evaluate(() =>
+          (Reflect.get(window, "deliverStaleArrival") as () => Promise<void>)(),
+        );
+      }
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      const evidence = await page.evaluate(() => ({
+        change: document.querySelector("[data-change-at]")?.getBoundingClientRect().toJSON(),
+        view: document.querySelector("main [data-skip-target]")?.getBoundingClientRect().toJSON(),
+        focus: document.activeElement?.getAttribute("aria-label"),
+      }));
+      const { calls, events } = await page.evaluate(() =>
+        (
+          Reflect.get(window, "readArrivalTrace") as () => {
+            calls: unknown[];
+            events: { kind: string; time: number; pending: boolean }[];
+          }
+        )(),
+      );
+      process.stdout.write(
+        `G terminal batch ${JSON.stringify({ scenario, requests, calls, events, ...evidence })}\n`,
+      );
+      expect(calls).toHaveLength(scenario === "none" || scenario === "new-run" ? 1 : 0);
+      if (scenario.startsWith("before-")) {
+        const type =
+          scenario === "before-key"
+            ? "keydown"
+            : scenario === "before-wheel"
+              ? "wheel"
+              : "touchmove";
+        expect(events.find((event) => event.kind === type)?.time).toBeLessThan(
+          events.find((event) => event.kind === "answer-released")?.time ?? -Infinity,
+        );
+        expect(events.find((event) => event.kind === type)?.pending).toBe(true);
+      }
+      if (scenario.startsWith("frame-")) {
+        const type =
+          scenario === "frame-key" ? "keydown" : scenario === "frame-wheel" ? "wheel" : "touchmove";
+        const input = events.find((event) => event.kind === type);
+        expect(input?.time).toBeGreaterThanOrEqual(
+          events.find((event) => event.kind === "reveal-scheduled")?.time ?? Infinity,
+        );
+        expect(input?.time).toBeLessThanOrEqual(
+          events.find((event) => event.kind === "reveal-delivered")?.time ?? -Infinity,
+        );
+      }
+      if (scenario === "new-run") {
+        expect(events.some((event) => event.kind === "old-frame-dequeued")).toBe(true);
+        expect(events.some((event) => event.kind === "old-frame-delivered-in-new-run")).toBe(true);
+      }
+      if (scenario === "none" || scenario === "new-run") {
+        expect(evidence.change?.top).toBeGreaterThanOrEqual(evidence.view?.top ?? Infinity);
+        expect(evidence.change?.bottom).toBeLessThanOrEqual(evidence.view?.bottom ?? -Infinity);
+      }
+      await expect(dock(page).getByText("1 / 1", { exact: true })).toHaveCount(0);
+    } finally {
+      release();
+      const diagnostic = await page.evaluate(() => {
+        const trace = (Reflect.get(window, "readArrivalTrace") as (() => unknown) | undefined)?.();
+        (Reflect.get(window, "stopArrivalTrace") as (() => unknown) | undefined)?.();
+        for (const name of [
+          "stopArrivalTrace",
+          "readArrivalTrace",
+          "markArrival",
+          "deliverStaleArrival",
+        ])
+          Reflect.deleteProperty(window, name);
+        return trace;
+      });
+      process.stdout.write(`P1 arrival ${JSON.stringify({ scenario, requests, diagnostic })}\n`);
+      await testInfo.attach("arrival-ordering.json", {
+        body: JSON.stringify(diagnostic),
+        contentType: "application/json",
+      });
+    }
+  });
+}
+
 for (const width of [390, 1440]) {
   test(`Rework never describes pending or failed earlier edits as unchanged at ${width}`, async ({
     page,

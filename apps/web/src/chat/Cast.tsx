@@ -676,21 +676,31 @@ function StackRoster({
   const row = useRef<HTMLDivElement>(null);
   const status = useRef<HTMLDivElement>(null);
   const actions = useRef<HTMLDivElement>(null);
+  const awayProbe = useRef<HTMLSpanElement>(null);
   const [dimensions, setDimensions] = useState("");
   useLayoutEffect(() => {
     const column = portraitColumn.current;
     const element = row.current;
     if (column === null || element === null) return;
+    let fonts = 0;
     const measure = () => {
       setDimensions(
-        `${column.getBoundingClientRect().height}|${element.getBoundingClientRect().width}`,
+        `${column.getBoundingClientRect().height}|${element.getBoundingClientRect().width}|${fonts}`,
       );
+    };
+    const fontLoaded = () => {
+      fonts = fonts + 1;
+      measure();
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(column);
     observer.observe(element);
-    return () => observer.disconnect();
+    document.fonts.addEventListener("loadingdone", fontLoaded);
+    return () => {
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", fontLoaded);
+    };
   }, [portraitColumn]);
   const tailOf = (count: number) =>
     present.length > count
@@ -702,11 +712,12 @@ function StackRoster({
         : "";
   // Include every input to the fixed rows, as well as the clamped name rows.
   const probe = `${dimensions}|clamp:2|${present.map((item) => `${item.id}:${item.anchor.name}:${ageOf(item)}`).join()}|${away.map((item) => `${item.id}:${item.anchor.name}`).join()}|${tailOf(0)}|${tailOf(present.length)}|retry:${failed}:${unread}|undo:${removal?.entryId ?? ""}:${removal?.name ?? ""}|${text}`;
-  const [fit, setFit] = useState({ probe: "", count: present.length });
+  const [fit, setFit] = useState({ probe: "", count: present.length, namedAway: false });
   const measuring = fit.probe !== probe;
   const count = measuring ? present.length : fit.count;
   // During the pre-paint measurement, also lay out the possible tail action.
-  const tail = tailOf(count) || (measuring ? tailOf(0) : "");
+  const tail =
+    (!measuring && fit.namedAway ? awayText(away) : tailOf(count)) || (measuring ? tailOf(0) : "");
   useLayoutEffect(() => {
     if (!measuring) return;
     const element = row.current;
@@ -733,13 +744,46 @@ function StackRoster({
         fitted = candidate;
       }
     }
-    setFit({ probe, count: fitted });
+    // Fit names first. The away identity only uses the fixed action row's
+    // remaining width, never a name slot or an additional line of height.
+    let namedAway = false;
+    const measureAway = awayProbe.current;
+    const actionRow = actions.current;
+    if (fitted === present.length && away.length === 1 && measureAway && actionRow) {
+      const siblings = [...actionRow.children].filter(
+        (child) => child instanceof HTMLElement && !child.hasAttribute("data-cast-tail"),
+      );
+      const spacing = Number.parseFloat(getComputedStyle(actionRow).columnGap) || 0;
+      const available =
+        actionRow.getBoundingClientRect().width -
+        siblings.reduce((width, child) => width + child.getBoundingClientRect().width, 0) -
+        spacing * siblings.length;
+      measureAway.style.width = `${Math.max(0, available)}px`;
+      const line = Number.parseFloat(getComputedStyle(measureAway).lineHeight);
+      namedAway =
+        available > 0 &&
+        measureAway.scrollWidth <= available + 0.5 &&
+        measureAway.getBoundingClientRect().height <= Math.min(2 * line, actionHeight) + 0.5;
+    }
+    setFit({ probe, count: fitted, namedAway });
   }, [measuring, probe, present.length, away.length, failed, unread, removal, portraitColumn]);
   const action =
     "self-stretch justify-start border-0 touch:min-w-8.5 after:inset-y-0 touch:after:inset-y-0 first:after:left-0 touch:first:after:left-0 scale-100! active:opacity-70 transition-opacity duration-(--duration-quick) ease-fade";
   return (
-    <div ref={row} data-cast="" data-cast-stack="" className="grid content-start gap-1 font-story">
+    <div
+      ref={row}
+      data-cast=""
+      data-cast-stack=""
+      className="relative grid content-start gap-1 font-story"
+    >
       <Heading passing={passing} band statusSlot />
+      <span
+        ref={awayProbe}
+        aria-hidden="true"
+        className="pointer-events-none invisible absolute top-0 left-0 overflow-hidden whitespace-normal text-note"
+      >
+        {awayText(away)}
+      </span>
       {count > 0 && (
         <ul aria-label="Cast" className="grid gap-1">
           {present.slice(0, count).map((item, index) => (
