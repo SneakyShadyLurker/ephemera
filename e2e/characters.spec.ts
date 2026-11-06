@@ -12,8 +12,15 @@ import {
   uniqueName,
   v3,
 } from "./support/cards.ts";
-import { chooseCharacter, lastReply, messages, openChat, send } from "./support/chat.ts";
-import { createCharacterViaApi } from "./support/entities.ts";
+import {
+  chooseCharacter,
+  chooseModel,
+  lastReply,
+  messages,
+  openChat,
+  send,
+} from "./support/chat.ts";
+import { createCharacterViaApi, patchSettings, tabTo } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { illustrationFile } from "./support/illustration.ts";
 import { expect, test } from "./support/test.ts";
@@ -29,6 +36,287 @@ const card = (name: string, extra: Record<string, unknown> = {}) =>
     extensions: { other_app: { kept: true } },
     ...extra,
   });
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  for (const delayed of [false, true]) {
+    test(`loaded gallery chat accepts keyboard typing once (${reducedMotion}, delayed=${delayed})`, async ({
+      page,
+      request,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      const name = uniqueName("Arrival");
+      await createCharacterViaApi(request, name, {
+        firstMessage: "The harbour lamp is lit.",
+        alternateGreetings: ["The morning tide is in."],
+      });
+      await patchSettings(request, { model: "mock-fast", characterId: null });
+      // SPA navigation keeps the model catalog loaded. page.goto would reset that precondition.
+      const models = page.waitForResponse("**/api/models");
+      await page.goto("/");
+      await models;
+      await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
+      await page.getByRole("link", { name: "Characters", exact: true }).click();
+      const arrivalFocus = await page.evaluateHandle(() => {
+        const calls: { preventScroll: boolean; before: number[]; after: number[] }[] = [];
+        const focus = HTMLElement.prototype.focus;
+        HTMLElement.prototype.focus = function (options) {
+          const scroll = () => {
+            const positions = [window.scrollY];
+            for (let node: HTMLElement | null = this; node; node = node.parentElement)
+              positions.push(node.scrollTop);
+            return positions;
+          };
+          const before = scroll();
+          focus.call(this, options);
+          if (this.matches("textarea[data-composer]"))
+            calls.push({ preventScroll: options?.preventScroll === true, before, after: scroll() });
+        };
+        return calls;
+      });
+      const held = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      if (delayed) {
+        // A new character's record is a public route read; no app state is injected.
+        await page.route("**/api/characters/*", async (route) => {
+          if (route.request().method() !== "GET" || route.request().url().includes("/portrait/"))
+            return route.continue();
+          held.resolve();
+          await release.promise;
+          await route.continue();
+        });
+      }
+      const start = page.getByRole("button", { name: `Chat with ${name}`, exact: true });
+      await start.focus();
+      await page.keyboard.press("Enter");
+      if (delayed) {
+        await held.promise;
+        release.resolve();
+      }
+      const message = page.getByRole("textbox", { name: "Message", exact: true });
+      await expect(page).toHaveURL(/\/$/);
+      await expect(message).toBeFocused();
+      const focusCalls = await arrivalFocus.evaluate((calls) => calls);
+      expect(focusCalls).toHaveLength(1);
+      expect(focusCalls[0]?.preventScroll).toBe(true);
+      expect(focusCalls[0]?.after).toEqual(focusCalls[0]?.before);
+      await page.keyboard.type("The lamp answers.");
+      await expect(message).toHaveValue("The lamp answers.");
+      await expect(messages(page)).toHaveCount(1);
+      await expect(page.getByRole("button", { name: "Next greeting" })).toBeVisible();
+      const scroll = await page
+        .locator('[role="log"] > div')
+        .first()
+        .evaluate((node) => node.scrollTop);
+      await tabTo(page, page.getByRole("button", { name: "Next greeting" }), { backward: true });
+      await expect(page.getByRole("button", { name: "Next greeting" })).toBeFocused();
+      // Starting the same character resumes this draft and does not request arrival focus.
+      await page.getByRole("link", { name: "Characters", exact: true }).click();
+      await start.click();
+      await expect(message).toHaveValue("The lamp answers.");
+      await expect(message).not.toBeFocused();
+      await page.goBack();
+      await page.goForward();
+      await expect(message).not.toBeFocused();
+      process.stdout.write(
+        `R8 arrival ${JSON.stringify({ reducedMotion, delayed, scroll, focusCalls })}\n`,
+      );
+    });
+  }
+  test(`a model blocker drops new-chat focus permanently (${reducedMotion})`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const name = uniqueName("Blocked arrival");
+    await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+    await patchSettings(request, { model: null, characterId: null });
+    await page.goto("/characters");
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    await expect(message).toBeVisible();
+    await expect(message).not.toBeFocused();
+    // Choosing elsewhere removes the blocker without re-publishing an arrival request.
+    await chooseModel(page, "mock-fast");
+    await expect(page.getByText("Choose a model to begin", { exact: true })).toHaveCount(0);
+    await expect(message).not.toBeFocused();
+  });
+  test(`a delayed model catalog drops arrival without a later focus attempt (${reducedMotion})`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const name = uniqueName("Delayed model arrival");
+    await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+    await patchSettings(request, { model: "mock-fast", characterId: null });
+    const release = Promise.withResolvers<void>();
+    const held = Promise.withResolvers<void>();
+    await page.route("**/api/models", async (route) => {
+      held.resolve();
+      await release.promise;
+      await route.continue();
+    });
+    await page.goto("/characters");
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    try {
+      await held.promise;
+      await expect(message).toBeVisible();
+      await expect(message).not.toBeFocused();
+    } finally {
+      release.resolve();
+    }
+    await expect(messages(page)).toHaveCount(1);
+    await expect(message).not.toBeFocused();
+    await page.getByRole("button", { name: "Light", exact: true }).click();
+    await expect(message).not.toBeFocused();
+  });
+}
+
+test.describe("touch new chat arrival", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test("a gallery start leaves Message unfocused", async ({ page, request }) => {
+    const name = uniqueName("Touch arrival");
+    await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+    await patchSettings(request, { model: "mock-fast", characterId: null });
+    await page.goto("/characters");
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).tap();
+    await expect(page.getByRole("textbox", { name: "Message", exact: true })).not.toBeFocused();
+  });
+});
+
+test("a newer gallery choice supersedes the start waiting for personas", async ({
+  page,
+  request,
+}) => {
+  const earlier = uniqueName("Earlier arrival");
+  const newer = uniqueName("Newer arrival");
+  for (const name of [earlier, newer])
+    await createCharacterViaApi(request, name, { firstMessage: `${name} waits.` });
+  await patchSettings(request, { model: "mock-fast", characterId: null });
+  await page.goto("/characters");
+  const held = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  await page.route("**/api/personas", async (route) => {
+    held.resolve();
+    await release.promise;
+    await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: `Chat with ${earlier}`, exact: true }).click();
+    await held.promise;
+    await page.getByRole("button", { name: `Chat with ${newer}`, exact: true }).click();
+  } finally {
+    release.resolve();
+  }
+  const message = page.getByRole("textbox", { name: "Message", exact: true });
+  await expect(message).toHaveAttribute("placeholder", `Write to ${newer}`);
+  await expect(message).toBeFocused();
+  await page.keyboard.type("Only the newer choice.");
+  await expect(message).toHaveValue("Only the newer choice.");
+});
+
+test("cancelling a gallery switch returns focus to its tile and leaves the draft", async ({
+  page,
+  request,
+}) => {
+  const first = uniqueName("Current arrival");
+  const next = uniqueName("Cancelled arrival");
+  for (const name of [first, next])
+    await createCharacterViaApi(request, name, { firstMessage: `${name} waits.` });
+  await patchSettings(request, { model: "mock-fast", characterId: null });
+  const models = page.waitForResponse("**/api/models");
+  await page.goto("/");
+  await models;
+  await page.getByRole("link", { name: "Characters", exact: true }).click();
+  await page.getByRole("button", { name: `Chat with ${first}`, exact: true }).click();
+  const message = page.getByRole("textbox", { name: "Message", exact: true });
+  await expect(message).toBeFocused();
+  await page.keyboard.type("Keep this draft.");
+  await page.getByRole("link", { name: "Characters", exact: true }).click();
+  const start = page.getByRole("button", { name: `Chat with ${next}`, exact: true });
+  await start.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("alertdialog", { name: /^Start a new chat/ });
+  await dialog.getByRole("button", { name: "Keep chatting", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(start).toBeFocused();
+  await page.goBack();
+  await expect(message).toHaveValue("Keep this draft.");
+  await expect(message).not.toBeFocused();
+});
+
+test("navigation opened during a start owns focus through arrival and close", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const name = uniqueName("Navigation arrival");
+  await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+  await patchSettings(request, { model: "mock-fast", characterId: null });
+  await page.goto("/characters");
+  const held = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  await page.route("**/api/personas", async (route) => {
+    held.resolve();
+    await release.promise;
+    await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+    await held.promise;
+    await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Close navigation", exact: true })).toBeVisible();
+  } finally {
+    release.resolve();
+  }
+  await expect(page).toHaveURL(/\/$/);
+  // The modal navigation correctly removes the background field from role queries.
+  const message = page.locator("textarea[data-composer]");
+  await expect(message).toHaveCount(1);
+  await expect(message).not.toBeFocused();
+  const close = page.getByRole("button", { name: "Close navigation", exact: true });
+  await close.click();
+  await expect(close).toHaveCount(0);
+  await expect(message).not.toBeFocused();
+});
+
+test("sending during a pending start keeps the generation and its newer focus owner", async ({
+  page,
+  request,
+}) => {
+  const name = uniqueName("Superseded by writing");
+  await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+  await patchSettings(request, { model: "mock-slow", characterId: null });
+  await page.goto("/characters");
+  const held = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  await page.route("**/api/personas", async (route) => {
+    held.resolve();
+    await release.promise;
+    await route.continue();
+  });
+  try {
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+    await held.promise;
+    await page.getByRole("link", { name: "Chat", exact: true }).click();
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    await message.fill("The current chat starts writing instead.");
+    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+    await message.press("Enter");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    await page.getByRole("button", { name: "Light", exact: true }).click();
+  } finally {
+    release.resolve();
+  }
+  const light = page.getByRole("button", { name: "Light", exact: true });
+  await expect(light).toBeFocused();
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+  await expect(light).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "Message", exact: true })).not.toHaveAttribute(
+    "placeholder",
+    `Write to ${name}`,
+  );
+});
 
 test("imports PNG and JSON cards, reports each file and shows their portraits", async ({
   page,

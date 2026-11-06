@@ -11,6 +11,7 @@ import {
   createCharacterViaApi,
   expectNoOverflow,
   FORM_FACTORS,
+  patchSettings,
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { APP_ORIGIN, CANARY_MARKER, canary } from "./support/env.ts";
@@ -23,6 +24,42 @@ import { expect, test } from "./support/test.ts";
  */
 
 test.describe("sign-in expiry", () => {
+  test("new-chat arrival drops during sign-in and preserves renewal's own focus return", async ({
+    page,
+    context,
+    request,
+  }) => {
+    const name = `Signed-out arrival ${crypto.randomUUID().slice(0, 6)}`;
+    await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+    await patchSettings(request, { model: "mock-fast", characterId: null });
+    await page.goto("/characters");
+    // Let the gallery's mounted refresh and code preloads finish before expiring the session.
+    await page.waitForLoadState("networkidle");
+    const composerFocus = await page.evaluateHandle(() => {
+      const calls: { preventScroll: boolean }[] = [];
+      const focus = HTMLElement.prototype.focus;
+      HTMLElement.prototype.focus = function (options) {
+        if (this.matches("textarea[data-composer]"))
+          calls.push({ preventScroll: options?.preventScroll === true });
+        focus.call(this, options);
+      };
+      return calls;
+    });
+    await expire(context);
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    await expect(notice(page)).toContainText("Your sign-in has expired");
+    await expect(message).toBeVisible();
+    await expect(message).not.toBeFocused();
+    expect(await composerFocus.evaluate((calls) => calls)).toEqual([]);
+    await signInThroughPortal(page, context);
+    await expect(notice(page)).toContainText("Signed in again");
+    // SignInDock's existing bare focus() is legitimate restoration, not the arrival's preventScroll attempt.
+    await expect(message).toBeFocused();
+    expect(await composerFocus.evaluate((calls) => calls)).toEqual([{ preventScroll: false }]);
+    await expect(notice(page)).toHaveCount(0, { timeout: 15_000 });
+    expect(await composerFocus.evaluate((calls) => calls)).toEqual([{ preventScroll: false }]);
+  });
   test("expiry mid-send keeps the chat and stores nothing", async ({ page, context }) => {
     await openChat(page, "mock-fast");
     const start = page.url();
@@ -384,9 +421,39 @@ test.describe("sign-in expiry", () => {
   test("a retry refused again says so and never loops", async ({ page, context }) => {
     await page.clock.install();
     await openChat(page, "mock-fast");
+    const line = canary("in");
+    const message = page.getByLabel("Message", { exact: true });
+    // Retain only public request paths and draft matches, never HTTP headers or bodies.
+    const requests: { path: string; draftMatches: boolean }[] = [];
+    const diagnostic = (phase: string, details: Record<string, number> = {}) =>
+      test.info().attach(`signin-retry-${phase}`, {
+        body: JSON.stringify({ phase, ...details, requests }),
+        contentType: "application/json",
+      });
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path === "/api/chat" || path === "/api/chat/preview")
+        requests.push({
+          path,
+          draftMatches: (request.postData() ?? "").includes(line),
+        });
+    });
+    const previewed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/chat/preview" &&
+        (response.request().postData() ?? "").includes(line) &&
+        response.ok(),
+    );
+    // Prepare the draft while signed in so the first refusal belongs to Send, not preview.
+    await message.fill(line);
+    const preview = await previewed;
+    await diagnostic("authenticated-preview", { status: preview.status() });
     const routes = await expire(context);
-    await send(page, canary("in"));
+    await diagnostic("expiry-installed");
+    await message.press("Enter");
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+    expect(routes.chat()).toBe(1);
+    await diagnostic("first-refusal-waiting", { refusedChats: routes.chat() });
     // A renewal is announced, as the tab's own user, but the session is still gone (another
     // window's sign-in failed).
     await page.evaluate(() =>
@@ -397,12 +464,15 @@ test.describe("sign-in expiry", () => {
     );
     await expect(notice(page)).toContainText("Still signed out");
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+    await diagnostic("second-refusal-waiting", { refusedChats: routes.chat() });
     // One attempt, one retry after the announcement, and nothing on its own after that,
     // past the longest a renewal waits (RENEWAL_PASS_MS, 15 s).
     await page.clock.runFor(16_000);
     expect(routes.chat()).toBe(2);
+    await diagnostic("after-16000ms", { refusedChats: routes.chat() });
     await signInThroughPortal(page, context);
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await diagnostic("actual-signin-complete", { refusedChats: routes.chat() });
   });
 
   test("sheet edits made while signed out are saved once the session is back", async ({

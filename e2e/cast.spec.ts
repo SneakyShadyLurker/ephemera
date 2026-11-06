@@ -5,6 +5,7 @@ import {
   castUpdateResponseSchema,
 } from "../packages/core/src/cast/api.ts";
 import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
+import { PALETTES } from "../packages/core/src/palettes.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
@@ -602,6 +603,7 @@ test.describe("portrait-side phone cast", () => {
               const normal = await expectStackFit(page, `${width}/${reducedMotion}/normal`);
               expect(normal.width).toBe(width === 360 ? 208 : 238);
               expect(normal.budget).toBe(width === 360 ? 196 : 144);
+              expect(normal.height).toBe(width === 360 ? 189 : 141);
               await expect(panel.locator("[data-cast-tail]")).toHaveText(
                 width === 360 ? "and 4 more" : "and 5 more",
               );
@@ -1046,6 +1048,140 @@ test("on a first run, a model without a known context window folds the story's m
   await expect(notice.getByRole("link", { name: "Set a context window" })).toBeFocused();
   await expect(step).toHaveCount(0);
 });
+
+for (const factor of [...FACTORS, { name: "stack", width: 390, height: 844 }]) {
+  test(`cast name cue keeps its budget across every palette (${factor.name})`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(factor);
+    const { characterId } = await castChat(request);
+    if (factor.name !== "phone") await setPortraitViaApi(request, characterId, portraitPng("cue"));
+    await seeded(page);
+    const entry = castEntry(page, SEEDED);
+    const name = entry.locator(":scope > span:nth-child(2) > span:first-child");
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    const messageNode = await message.elementHandle();
+    // Include the inert closing surface: aria-expanded=false alone does not finish its exit.
+    const record = page.getByRole("dialog", { includeHidden: true }).filter({
+      has: page.getByRole("heading", { name: SEEDED, includeHidden: true }),
+    });
+    const observations: unknown[] = [];
+    let context = { scheme: "", palette: "" };
+    const capture = async (stage: string) => {
+      const state = await name.evaluate(
+        (node, { message, recordName }) => {
+          const entry = node.closest("[data-cast-entry]");
+          const active = document.activeElement;
+          const style = getComputedStyle(node);
+          const records = [...document.querySelectorAll('[role="dialog"]')].filter((surface) =>
+            [...surface.querySelectorAll("h1,h2,h3,[role=heading]")].some((heading) =>
+              heading.textContent?.includes(recordName),
+            ),
+          );
+          return {
+            activeElement: {
+              tag: active?.tagName,
+              role: active?.getAttribute("role"),
+              label: active?.getAttribute("aria-label"),
+              isEntry: active === entry,
+              isMessage: active === message,
+            },
+            hovered: entry?.matches(":hover"),
+            focusVisible: entry?.matches(":focus-visible"),
+            expanded: entry?.getAttribute("aria-expanded"),
+            color: style.textDecorationColor,
+            ink: style.color,
+            line: style.textDecorationLine,
+            records: records.map((surface) => ({
+              connected: surface.isConnected,
+              inert: surface.hasAttribute("inert"),
+              ending: surface.hasAttribute("data-ending-style"),
+              animations: surface.getAnimations({ subtree: true }).map((animation) => ({
+                state: animation.playState,
+                currentTime: animation.currentTime,
+              })),
+            })),
+          };
+        },
+        { message: messageNode, recordName: SEEDED },
+      );
+      const observation = { factor: factor.name, ...context, stage, ...state };
+      observations.push(observation);
+      process.stdout.write(`R8 cast cue state ${JSON.stringify(observation)}\n`);
+      return state;
+    };
+    const baseline = await entry.boundingBox();
+    try {
+      for (const scheme of ["light", "dark"] as const) {
+        for (const palette of PALETTES) {
+          context = { scheme, palette };
+          await page.evaluate(
+            ({ scheme, palette }) => {
+              document.documentElement.dataset.theme = scheme;
+              document.documentElement.dataset.palette = palette;
+            },
+            { scheme, palette },
+          );
+          await message.click();
+          await expect(message).toBeFocused();
+          await expect
+            .poll(() =>
+              entry.evaluate((node) => ({
+                hovered: node.matches(":hover"),
+                focusVisible: node.matches(":focus-visible"),
+              })),
+            )
+            .toEqual({ hovered: false, focusVisible: false });
+          await expect(name).toHaveCSS("text-decoration-line", "underline");
+          // Sample interaction state and both colors together, without polling for a favorable color.
+          const quiet = await capture("quiet");
+          expect(quiet.activeElement.isMessage).toBe(true);
+          expect(quiet.hovered).toBe(false);
+          expect(quiet.focusVisible).toBe(false);
+          expect(quiet.expanded).toBe("false");
+          expect(quiet.records).toHaveLength(0);
+          expect(quiet.color).not.toBe(quiet.ink);
+          await entry.hover();
+          await expect(name).toHaveCSS("text-decoration-color", quiet.ink);
+          const hover = await capture("hover");
+          expect(hover.color).toBe(hover.ink);
+          const box = await entry.boundingBox();
+          expect(box?.width).toBeCloseTo(baseline?.width ?? NaN, 3);
+          expect(box?.height).toBeCloseTo(baseline?.height ?? NaN, 3);
+          await entry.click();
+          await expect(entry).toHaveAttribute("aria-expanded", "true");
+          await expect(record).toBeVisible();
+          await capture("open");
+          await expect(name).toHaveCSS("text-decoration-color", "rgba(0, 0, 0, 0)");
+          await page.keyboard.press("Escape");
+          await expect(entry).toHaveAttribute("aria-expanded", "false");
+          await capture("closing");
+          await expect(record).toHaveCount(0);
+          await expect(entry).toBeFocused();
+          await capture("closed-returned");
+          process.stdout.write(
+            `R8 cast cue ${JSON.stringify({ factor: factor.name, scheme, palette, box })}\n`,
+          );
+        }
+      }
+    } finally {
+      await capture("final").catch((error: unknown) => {
+        observations.push({
+          factor: factor.name,
+          ...context,
+          stage: "final",
+          error: String(error),
+        });
+      });
+      await test.info().attach("cast-cue-interaction-states", {
+        body: JSON.stringify(observations, null, 2),
+        contentType: "application/json",
+      });
+    }
+  });
+}
 
 for (const factor of FACTORS) {
   test(`the cast seeds from the card's sheet and the greeting, lists women only, and opens each record (${factor.name})`, async ({

@@ -101,14 +101,17 @@ check or announcement; pending saves and failures retain precedence.
 Phone collection headers keep the full title above a labelled action row.
 Character tiles use the portrait and full-width name as the Chat target,
 with Edit always visible beside a reserved two-line metadata row below.
-Persona tiles share that wrapping caption treatment. The phone navigation
+Persona tiles show wrapping metadata only when present, without reserved
+caption height; Make default follows the name and metadata. The phone navigation
 sheet includes theme and Appearance controls. In chat, Memory is a direct
 header action and More holds Events, Prompt and Clear chat; Events opens
 `chat/EventsSheet.tsx`, reusing `events/EventsSection.tsx` in a side sheet or
 phone bottom sheet. Links open the same Events list in chat or Lorebooks.
-The event editor leads with the instruction and folds timing and scope
-under Advanced. Character lorebook linking uses the shared choice picker's
-Link and Unlink row actions; success closes it and reports the named book
+Closed event summaries show up to two lines; open summaries truncate to one
+line so typing does not move the editor below. The event editor leads with
+the instruction and folds timing and scope under Advanced. Character lorebook
+linking uses the shared choice picker's Link and Unlink row actions; success
+closes it and reports the named book
 in place. The phone character sheet groups Sections, Link a lorebook and
 Details below its compact identity.
 
@@ -158,7 +161,11 @@ only when its full phrase fits two note lines beside retry and Undo;
 otherwise the tail keeps its count. Removal, retry and keeper feedback use
 those slots without growing the group; the full roster remains reachable.
 Reply actions sit below the prose inside the turn,
-ahead of scene pictures, with a reserved row while streaming. Latest has
+ahead of scene pictures, with a reserved row while streaming. New reply,
+Continue and More lead the alternate pager, keeping their positions when
+the first alternate arrives. Pager endpoints retain keyboard focus; after
+a keyboard New reply, focus returns there only if no newer input or focus
+owner has taken over. Latest has
 its own reserved row on phones and floats over the story from tablet up.
 `Conversation` coordinates native anchoring with the existing scroll library:
 while following, layout changes keep the tail in view; an upward escape

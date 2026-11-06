@@ -116,18 +116,24 @@ export function PortraitTile({
   );
   if (onChat === undefined) {
     return (
-      <div className="grid min-w-0">
-        <Link {...sheet} aria-describedby={captionId} className="group grid min-w-0 rounded-lg">
+      <div className={cn("grid min-w-0", actionsBelow && "content-start")}>
+        <Link
+          {...sheet}
+          aria-describedby={actionsBelow && caption === null ? undefined : captionId}
+          className="group grid min-w-0 rounded-lg"
+        >
           {portrait}
           <TileName name={name} />
         </Link>
-        <div className={TILE_CAPTION_ROW}>
-          <span id={captionId} className={TILE_CAPTION}>
-            {caption}
-          </span>
-          {!actionsBelow && actions}
-        </div>
-        {actionsBelow && <div className="justify-self-start">{actions}</div>}
+        {(!actionsBelow || caption !== null) && (
+          <div className={actionsBelow ? "flex min-w-0 items-center gap-1" : TILE_CAPTION_ROW}>
+            <span id={captionId} className={TILE_CAPTION}>
+              {caption}
+            </span>
+            {!actionsBelow && actions}
+          </div>
+        )}
+        {actionsBelow && actions && <div className="-ml-1.5 justify-self-start">{actions}</div>}
       </div>
     );
   }

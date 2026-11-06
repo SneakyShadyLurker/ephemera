@@ -8,7 +8,12 @@ import {
 import { eventsResponseSchema } from "../packages/core/src/responses.ts";
 import { uniqueName } from "./support/cards.ts";
 import { chooseCharacter, lastReply, send, upstreamRecords } from "./support/chat.ts";
-import { createCharacterViaApi, createEventViaApi, patchSettings } from "./support/entities.ts";
+import {
+  createCharacterViaApi,
+  createEventViaApi,
+  createLorebookViaApi,
+  patchSettings,
+} from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { expect, test, unsafe } from "./support/test.ts";
 
@@ -61,6 +66,78 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 }
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`event summaries wrap closed and keep the open caret still (${reducedMotion})`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const text =
+      "The harbour lantern dims as the keeper crosses the reading room, then brightens when she opens the northern window and hears footsteps approaching along the quay.";
+    const id = await createEventViaApi(request, text);
+    // A populated library keeps this field clear of the empty gallery's tall engraving.
+    await createLorebookViaApi(request, uniqueName("Event geometry"));
+    await page.goto("/lorebooks");
+    await openEvents(page);
+    const row = page.locator(`[data-event="${id}"]`);
+    const disclosure = row.locator("[data-disclosure]");
+    for (const width of [390, 820, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const closed = await disclosure.locator("span[title]").evaluate((node) => ({
+        clamp: getComputedStyle(node).webkitLineClamp,
+        height: node.getBoundingClientRect().height,
+        line: Number.parseFloat(getComputedStyle(node).lineHeight),
+        title: node.getAttribute("title"),
+        text: node.textContent,
+      }));
+      expect(closed.clamp).toBe("2");
+      expect(closed.height).toBeLessThanOrEqual(2 * closed.line);
+      expect(closed.text).toBe(text);
+      expect(closed.title).toBe(text);
+      await expect(disclosure).toHaveAccessibleName(text);
+      await disclosure.click();
+      const instruction = row.getByRole("textbox", { name: "Instruction", exact: true });
+      await expect(instruction).toBeVisible();
+      await instruction.fill("The lamp waits.");
+      await expect(row.locator("[data-inline-save]")).toHaveText("Saved");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              document
+                .getAnimations()
+                .filter(
+                  (animation) =>
+                    animation.playState === "running" &&
+                    animation.effect?.getComputedTiming().iterations !== Infinity &&
+                    animation.timeline === document.timeline,
+                ).length,
+          ),
+        )
+        .toBe(0);
+      const before = await instruction.boundingBox();
+      await instruction.press("End");
+      await page.keyboard.type(` ${text}`);
+      const after = await instruction.boundingBox();
+      expect(after?.y).toBe(before?.y);
+      const open = await disclosure.locator("span[title]").evaluate((node) => ({
+        height: node.getBoundingClientRect().height,
+        line: Number.parseFloat(getComputedStyle(node).lineHeight),
+        overflow: getComputedStyle(node).textOverflow,
+      }));
+      expect(open.height).toBe(open.line);
+      expect(open.overflow).toBe("ellipsis");
+      process.stdout.write(
+        `R8 event geometry ${JSON.stringify({ width, reducedMotion, closed, open, before, after })}\n`,
+      );
+      await instruction.fill(text);
+      await expect(row.locator("[data-inline-save]")).toHaveText("Saved");
+      await disclosure.click();
+      await expect(instruction).toBeHidden();
+    }
+  });
+}
 
 test.describe("phone More > New event", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });

@@ -452,7 +452,7 @@ function Entry({
         "group press relative grid rounded-sm py-0.5 text-left touch:min-h-11",
         // Room around the glyphs, so the focus ring never touches them; the names stay put.
         stack
-          ? "w-full min-w-0 px-1.5 touch:h-11"
+          ? "w-full min-w-0 content-center px-1.5 touch:h-11"
           : row
             ? "-mx-1 px-1 whitespace-nowrap"
             : "-mx-1.5 w-[calc(100%+0.75rem)] px-1.5",
@@ -472,7 +472,16 @@ function Entry({
         )}
       />
       <span className={cn(GROUP_HEADING, "break-words", stack && "line-clamp-2")}>
-        {entry.anchor.name}
+        <span
+          className={cn(
+            "underline underline-offset-4",
+            open
+              ? "decoration-transparent"
+              : "decoration-control-edge group-hover:decoration-current group-focus-visible:decoration-current",
+          )}
+        >
+          {entry.anchor.name}
+        </span>
         {age !== "" && <span className="font-normal text-reed"> ({age})</span>}
       </span>
       {text !== "" && (

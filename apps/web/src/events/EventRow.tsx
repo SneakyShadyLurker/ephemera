@@ -309,8 +309,8 @@ function EventRowBody({
               id={instructionId}
               title={blank ? undefined : fields.name}
               className={cn(
-                // Phones give a long instruction a second line; wider rows keep it to one.
-                "line-clamp-2 break-words font-medium text-ui tablet:line-clamp-none tablet:truncate",
+                "font-medium text-ui",
+                open ? "truncate" : "line-clamp-2 break-words",
                 fields.enabled && !blank ? "text-ink" : "text-reed",
               )}
             >

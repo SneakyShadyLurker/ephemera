@@ -56,17 +56,26 @@ function IconAction({
   shortcut,
   onClick,
   disabled,
+  focusableWhenDisabled,
   children,
 }: {
   label: string;
   shortcut?: string;
   onClick: () => void;
   disabled?: boolean;
+  focusableWhenDisabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <Tooltip label={label} {...(shortcut === undefined ? {} : { shortcut })}>
-      <Button size="icon" aria-label={label} disabled={disabled} onClick={onClick} className={ICON}>
+      <Button
+        size="icon"
+        aria-label={label}
+        disabled={disabled}
+        focusableWhenDisabled={focusableWhenDisabled}
+        onClick={onClick}
+        className={ICON}
+      >
         {children}
       </Button>
     </Tooltip>
@@ -209,13 +218,15 @@ export function TurnActions({
   );
 }
 
-const Divider = () => <span aria-hidden="true" className="mr-1.5 h-4 w-px bg-rush" />;
+const Divider = ({ className }: { className?: string }) => (
+  <span aria-hidden="true" className={cn("mr-1.5 h-4 w-px bg-rush", className)} />
+);
 
 /**
  * Under the last reply: New reply, Continue (when there is text to continue)
  * and More, which holds Replace, Edit and the deletes. The alternates' pager
- * (previous, `2 / 4`, next, or New reply on the last one) shows only once
- * there are two. One busy policy: nothing here starts while a generation runs.
+ * follows those actions (previous, `2 / 4`, next) only once there are two.
+ * One busy policy: nothing here starts while a generation runs.
  */
 export function ReplyActions({ message }: { message: AssistantMessage }) {
   const busy = useChat((state) => state.generating);
@@ -234,7 +245,48 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
         <Button
           variant="quiet"
           disabled={busy || !canGenerate || !writable}
-          onClick={() => void appendAlternate()}
+          data-new-reply=""
+          onClick={(event) => {
+            const button = event.currentTarget;
+            const keyboard = event.detail === 0 && document.activeElement === button;
+            const turn = button.closest<HTMLElement>("[data-message]");
+            const epoch = chatStore.getState().epoch;
+            const route = location.href;
+            let owned = keyboard;
+            const relinquish = () => {
+              owned = false;
+            };
+            const focusChanged = (event: FocusEvent) => {
+              if (event.target !== button) relinquish();
+            };
+            if (keyboard) {
+              document.addEventListener("focusin", focusChanged, true);
+              document.addEventListener("pointerdown", relinquish, true);
+              document.addEventListener("keydown", relinquish, true);
+            }
+            void appendAlternate().finally(() => {
+              // The streaming placeholder unmounts this button. Wait for its replacement's commit.
+              requestAnimationFrame(() => {
+                document.removeEventListener("focusin", focusChanged, true);
+                document.removeEventListener("pointerdown", relinquish, true);
+                document.removeEventListener("keydown", relinquish, true);
+                const active = document.activeElement;
+                const state = chatStore.getState();
+                if (
+                  owned &&
+                  turn?.isConnected &&
+                  location.href === route &&
+                  state.epoch === epoch &&
+                  state.messages.at(-1)?.id === message.id &&
+                  (active === null || active === document.body || !active.isConnected)
+                ) {
+                  turn.querySelector<HTMLButtonElement>("[data-new-reply]")?.focus({
+                    preventScroll: true,
+                  });
+                }
+              });
+            });
+          }}
           className={LABELLED}
         >
           <RegenerateIcon size={16} className="@min-[22rem]/reply-actions:hidden" />
@@ -244,29 +296,6 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
     );
   return (
     <div className={REPLY_ACTION_ROW}>
-      {count > 1 ? (
-        <fieldset className="flex shrink-0 items-center gap-0">
-          <legend className="sr-only">Replies</legend>
-          <IconAction
-            label="Previous reply"
-            onClick={() => void swipe(-1)}
-            disabled={busy || message.shown === 0}
-          >
-            <PreviousIcon size={16} />
-          </IconAction>
-          <span className="min-w-9 text-center text-meta text-reed tabular-nums">
-            <span aria-hidden="true">
-              {message.shown + 1} / {count}
-            </span>
-            <span className="sr-only">
-              Reply {message.shown + 1} of {count}
-            </span>
-          </span>
-          <IconAction label="Next reply" onClick={() => void swipe(1)} disabled={busy || atLast}>
-            <NextIcon size={16} />
-          </IconAction>
-        </fieldset>
-      ) : null}
       {newReply}
       {continuing ? (
         <p className="flex size-11 shrink-0 items-center justify-center text-note text-reed @min-[22rem]/reply-actions:w-auto @min-[22rem]/reply-actions:px-1.5">
@@ -295,6 +324,45 @@ export function ReplyActions({ message }: { message: AssistantMessage }) {
         replace={{ disabled: !canGenerate || !writable }}
         alternates={count > 1}
       />
+      {count > 1 && (
+        <Divider className={cn("shrink-0", count >= 100 && "@max-[24rem]/reply-actions:hidden")} />
+      )}
+      {count > 1 ? (
+        <fieldset className="flex shrink-0 items-center gap-0">
+          <legend className="sr-only">Replies</legend>
+          <IconAction
+            label="Previous reply"
+            onClick={() => void swipe(-1)}
+            disabled={busy || message.shown === 0}
+            focusableWhenDisabled
+          >
+            <PreviousIcon size={16} />
+          </IconAction>
+          <span
+            className="grid shrink-0 text-center text-meta text-reed tabular-nums"
+            style={{
+              gridTemplateColumns: `${String(count).length}ch auto ${String(count).length}ch`,
+            }}
+          >
+            <span aria-hidden="true">{message.shown + 1}</span>
+            <span aria-hidden="true" className="whitespace-pre">
+              {" / "}
+            </span>
+            <span aria-hidden="true">{count}</span>
+            <span className="sr-only">
+              Reply {message.shown + 1} of {count}
+            </span>
+          </span>
+          <IconAction
+            label="Next reply"
+            onClick={() => void swipe(1)}
+            disabled={busy || atLast}
+            focusableWhenDisabled
+          >
+            <NextIcon size={16} />
+          </IconAction>
+        </fieldset>
+      ) : null}
     </div>
   );
 }

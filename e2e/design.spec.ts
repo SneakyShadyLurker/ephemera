@@ -425,20 +425,106 @@ for (const hasTouch of [false, true]) {
         await page.goto("/personas");
         const link = page.getByRole("link", { name: persona, exact: true });
         await expect(link).toBeVisible();
-        const reserved = await link.evaluate((node) => {
-          const caption = document.getElementById(node.getAttribute("aria-describedby") ?? "");
-          return {
-            height: caption?.parentElement?.getBoundingClientRect().height,
-            line: Number.parseFloat(caption ? getComputedStyle(caption).lineHeight : "0"),
-            bottom: caption?.parentElement?.getBoundingClientRect().bottom,
-          };
-        });
-        expect(reserved.height).toBeGreaterThanOrEqual(2 * reserved.line);
+        await expect(link).not.toHaveAttribute("aria-describedby");
         const action = link.locator("xpath=..").getByRole("button", { name: "Make default" });
-        expect((await action.boundingBox())?.y).toBeGreaterThanOrEqual(reserved.bottom ?? Infinity);
+        const nameBox = await link.locator("span").last().boundingBox();
+        expect((await action.boundingBox())?.y).toBeCloseTo(
+          (nameBox?.y ?? NaN) + (nameBox?.height ?? NaN),
+          0,
+        );
         await expectNoOverflow(page);
       });
     }
+  });
+}
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`reply actions keep their origin and keyboard owner with 120 alternates (${reducedMotion})`, async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    await page.emulateMedia({ reducedMotion });
+    await openChat(page, "mock-fast");
+    await send(page, canary("stable-actions"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const widths = [360, 390, 820, 1440, 2560];
+    const origins = new Map<number, number[]>();
+    const geometry = async (width: number, count: number) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await settleReading(page);
+      const row = replyActions(page).locator(":scope > div");
+      const measured = await row.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          row: bounds.toJSON(),
+          buttons: [...element.querySelectorAll("button")].map((button) => ({
+            name: button.getAttribute("aria-label") ?? button.textContent?.trim(),
+            ...button.getBoundingClientRect().toJSON(),
+          })),
+          counter: element.querySelector("fieldset > span")?.getBoundingClientRect().width,
+        };
+      });
+      process.stdout.write(
+        `R8 reply geometry ${JSON.stringify({ width, count, reducedMotion, ...measured })}\n`,
+      );
+      expect(measured.row.height).toBe(44);
+      for (const button of measured.buttons) {
+        expect(button.width).toBeGreaterThanOrEqual(44);
+        expect(button.height).toBe(44);
+        expect(button.y).toBe(measured.buttons[0]?.y);
+        expect(button.right).toBeLessThanOrEqual(measured.row.right + 0.5);
+      }
+      const leading = measured.buttons.slice(0, 3).map((button) => button.x);
+      if (count === 1) origins.set(width, leading);
+      else expect(leading).toEqual(origins.get(width));
+      return measured;
+    };
+    for (const width of widths) await geometry(width, 1);
+    const newReply = () =>
+      replyActions(page).getByRole("button", { name: "New reply", exact: true });
+    await newReply().focus();
+    await page.keyboard.press("Enter");
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(newReply()).toBeFocused();
+    for (const width of widths) await geometry(width, 2);
+    const previous = replyActions(page).getByRole("button", { name: "Previous reply" });
+    const next = replyActions(page).getByRole("button", { name: "Next reply" });
+    await previous.focus();
+    await page.keyboard.press("Enter");
+    await expect(replyCounter(page)).toContainText("1 / 2");
+    await expect(previous).toBeFocused();
+    await expect(previous).toHaveAttribute("aria-disabled", "true");
+    await page.keyboard.press("Tab");
+    await expect(next).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(next).toBeFocused();
+    await expect(next).toHaveAttribute("aria-disabled", "true");
+    for (let count = 3; count <= 120; count++) {
+      await newReply().click();
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expect(replyCounter(page)).toContainText(`${count} / ${count}`);
+      if (count === 12 || count === 120) {
+        for (const width of widths) await geometry(width, count);
+        const counter = replyCounter(page).locator(":scope > span");
+        const before = (await counter.boundingBox())?.width;
+        await previous.click();
+        await expect(replyCounter(page)).toContainText(`${count - 1} / ${count}`);
+        expect((await counter.boundingBox())?.width).toBe(before);
+        await next.click();
+      }
+    }
+    await chooseModel(page, "mock-slow");
+    await newReply().focus();
+    await page.keyboard.press("Enter");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    await message.focus();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expect(message).toBeFocused();
+    await newReply().click();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expect(newReply()).not.toBeFocused();
   });
 }
 

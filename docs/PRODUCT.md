@@ -730,7 +730,8 @@ Version 1.0 holds everything below.
   each name over at most two lines, with the rest behind a roster action.
   Without that portrait, the band keeps names over at most two lines,
   then how many more. Men and others are kept for the narrator but not listed,
-  and with no introduced woman the panel stays hidden. A name opens
+  and with no introduced woman the panel stays hidden. Present names carry
+  a quiet underline that yields to the open-record mark. A name opens
   her record, beside the roster from tablet up and as a drawer on phones;
   the newest message's menu, and on phones a control in the header, open
   the whole roster. The record reads in sections under quiet headings,
@@ -838,10 +839,15 @@ Version 1.0 holds everything below.
 - Start from a character's greeting; swipe between alternate greetings.
   If a required character, persona or preset cannot load, the greeting
   waits with **Try again**.
+  Starting a new chat with a fine pointer attempts Message focus once after
+  navigation, without scrolling. Existing focus, open surfaces, sign-in or
+  model blockers and ongoing generation take precedence; an ineligible
+  attempt is discarded. Resuming a chat and touch navigation do not request
+  this focus. Existing focus restoration remains independent.
 - Streaming replies with stop.
 - Regenerate, and swipes: step through alternate replies, swiping past the
-  last one generates a new one. New reply stays separate from Previous and
-  Next in the action row directly below the latest reply's prose, above
+  last one generates a new one. New reply, Continue and More lead Previous
+  and Next in the action row directly below the latest reply's prose, above
   scene pictures; the row keeps its place while the reply streams. A swipe
   holds the turn's height until the replacement has laid out.
 - Edit or delete any message, delete a message and everything after it,
