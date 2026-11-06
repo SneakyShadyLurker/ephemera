@@ -37,7 +37,10 @@ test.describe("sign-in expiry", () => {
     const line = canary("in");
     await send(page, line);
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
-    await expect(lastReply(page)).toContainText("Not sent yet: waiting for you to sign in.");
+    await expect(lastReply(page)).toContainText("Not sent yet.");
+    await expect(lastReply(page)).not.toContainText("sign in");
+    await expect(lastReply(page).locator(".caret, .lamplight-edge")).toHaveCount(0);
+    await expect(notice(page)).toHaveCount(1);
     await expect(notice(page)).toContainText("Your sign-in has expired");
     await expect(notice(page)).toContainText("Your message is kept");
     // The owner keeps writing; nothing more can be sent until the session is back.
@@ -461,6 +464,9 @@ for (const { name, width, height, scheme } of FORM_FACTORS) {
     await expire(context);
     await send(page, canary("in"));
     await expect(notice(page)).toContainText("Your sign-in has expired");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+    await expect(lastReply(page)).toContainText("Not sent yet.");
+    await expect(notice(page)).toHaveCount(1);
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
     // Reachable by keyboard, between the thread and the composer.

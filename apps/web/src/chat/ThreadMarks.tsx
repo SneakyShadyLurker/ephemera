@@ -3,6 +3,7 @@ import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useChatCharacter } from "./character.ts";
+import { useDeletionView } from "./deletion-view.tsx";
 import { openInspector } from "./open-inspector.ts";
 import { chatStore, useChat } from "./session.ts";
 import type { Deleted } from "./store.ts";
@@ -24,6 +25,7 @@ function deletedText(deleted: Deleted, character: string): string {
  * message.
  */
 export function Tombstone() {
+  const view = useDeletionView();
   const deleted = useChat((state) => state.deleted);
   const character = useChatCharacter()?.name ?? "The model";
   const undo = useRef<HTMLButtonElement>(null);
@@ -45,7 +47,9 @@ export function Tombstone() {
         <Button
           ref={undo}
           variant="quiet"
-          onClick={() => chatStore.getState().undoDelete()}
+          onClick={(event) =>
+            view ? view.undo(deleted, event.currentTarget) : chatStore.getState().undoDelete()
+          }
           className="h-8 gap-1.5 px-2 text-ink touch:h-11"
         >
           <UndoIcon size={16} />

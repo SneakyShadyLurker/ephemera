@@ -36,6 +36,45 @@ async function openSheet(page: Page, id: string) {
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).toBeVisible();
 }
 
+for (const width of [390, 1440]) {
+  test(`Rework never describes pending or failed earlier edits as unchanged at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const base = canary("rw-save-precedence");
+    const id = await createReworkCharacter(page.request, base);
+    await openSheet(page, id);
+    const header = page.locator("header");
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/api/characters/${id}`, async (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback();
+      await pending;
+      return route.abort();
+    });
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("Unsaved name");
+    await openRework(page);
+    await submitRework(page, { request: ownerRequest(base, "kept-pending"), model: "mock-fast" });
+    await expect(dock(page)).toContainText("3 changes to apply");
+    await expect(header.getByText("Saving", { exact: true })).toBeVisible();
+    await expect(header.getByText("Card unchanged", { exact: true })).toHaveCount(0);
+    release();
+    const failure = "Not saved: can't reach Ephemera. Retrying";
+    await expect(header.getByText(failure, { exact: true }).first()).toBeVisible();
+    await expect(header.locator('[role="alert"]')).toHaveCount(1);
+    await expect(header.getByRole("alert")).toHaveText(failure);
+    await expect(header.getByText("Card unchanged", { exact: true })).toHaveCount(0);
+    await page.unroute(`**/api/characters/${id}`);
+    await expect(header.getByText("Card unchanged", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
+    await expect(header.getByText("Saved", { exact: true })).toBeVisible();
+  });
+}
+
 for (const count of [0, 1, 5]) {
   for (const allUnplaced of [false, true]) {
     test(`unplaced disclosure ${count}/all=${allUnplaced} remains usable at 360px`, async ({
@@ -59,12 +98,18 @@ for (const count of [0, 1, 5]) {
         }),
       );
       await openSheet(page, id);
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
       await openRework(page);
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
       await submitRework(page, {
         request: ownerRequest(base, "kept-unplaced"),
         model: "mock-fast",
       });
       const bar = dock(page);
+      await expect(
+        page.locator("header").getByText("Card unchanged", { exact: true }),
+      ).toBeVisible();
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toHaveCount(0);
       await expect(bar).toContainText(
         allUnplaced
           ? count === 0
@@ -316,6 +361,9 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
     )
     .toContain(`${kept}-lore`);
   await expect(lorebook.getByRole("link", { name: "Open lorebook" })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+  await dock(page).getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 });
 
 test("a model without a context window reopens the composer with what to do", async ({ page }) => {
@@ -421,6 +469,7 @@ test("after typing in an applied field, Undo leaves it and says so", async ({ pa
   );
   await expect(page.getByRole("button", { name: "AI Rework", exact: true })).toBeFocused();
   await expect(description).toHaveValue(/kept-undo-acc.* More\.$/s);
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 });
 
 test("the portrait switch follows what the model reads", async ({ page }) => {
@@ -551,6 +600,7 @@ test("Stop keeps what arrived and aborts the upstream", async ({ page }) => {
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-stop"), model: "mock-slow" });
   await expect(dock(page)).toContainText("Reworking with mock-slow");
+  await expect(page.locator("header").getByText("Card unchanged", { exact: true })).toBeVisible();
   await expect(changes(page)).toHaveCount(1, { timeout: 15_000 });
   await dock(page).getByRole("button", { name: "Stop" }).click();
   await expect(dock(page)).toContainText("Stopped. 1 change arrived.");
@@ -570,6 +620,7 @@ test("an upstream error ends the run in ember and echoes nothing", async ({ page
   const line = dock(page).getByText("The model stopped before it finished.").first();
   await expect(line).toBeVisible();
   await expect(line).toHaveClass(/text-ember/);
+  await expect(page.locator("header").getByText("Card unchanged", { exact: true })).toBeVisible();
   expect(await upstreamRecords(`${base}-req`)).toHaveLength(1);
   expect(await page.content()).not.toContain(`${base}-req`);
 });
@@ -587,6 +638,8 @@ for (const size of [
     const id = await createReworkCharacter(page.request, base, { portrait: true });
     await openSheet(page, id);
     const toolbar = page.getByRole("toolbar", { name: "Sheet actions", exact: true });
+    const chat = page.locator("header").getByRole("button", { name: "Chat", exact: true });
+    const chatBefore = await chat.boundingBox();
     if (size.drawer) {
       await expect(toolbar).toBeVisible();
       await expect(toolbar.getByRole("button", { name: "Chat", exact: true })).toHaveText("Chat");
@@ -613,6 +666,12 @@ for (const size of [
 
     const bar = dock(page);
     await expect(bar).toContainText("3 changes to apply");
+    await expect(page.locator("header").getByText("Card unchanged", { exact: true })).toBeVisible();
+    expect((await chat.boundingBox())?.x).toBe(chatBefore?.x);
+    const memory = page.locator("#s-memory");
+    await expect(memory.getByRole("switch")).toBeEnabled();
+    await expect(memory.getByRole("button", { name: "Open memory" })).toBeDisabled();
+    await expect(memory.locator("details")).not.toHaveAttribute("open");
     // The unmatched change waits behind its disclosure, closed, on every form factor.
     const unmatched = bar.locator("details");
     await expect(unmatched).toHaveCount(1);

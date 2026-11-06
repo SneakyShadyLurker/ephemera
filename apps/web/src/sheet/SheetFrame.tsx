@@ -140,14 +140,18 @@ export function SaveState({
   creating,
   noun,
   short = false,
+  reviewing = false,
 }: {
   status: SaveStatus;
   creating: boolean;
   noun: string;
   /** In the phone header: a conflict says only "Not saved", since its notice explains. */
   short?: boolean;
+  /** The stored card is saved while a separate Rework proposal is being reviewed. */
+  reviewing?: boolean;
 }) {
   const failure = isFailure(status, creating);
+  const unchanged = reviewing && status.kind === "saved";
   return (
     <>
       <span
@@ -159,20 +163,23 @@ export function SaveState({
           status.kind === "saving" && "lamplight-late",
         )}
       >
-        {status.kind === "saved" && <CheckIcon size={16} />}
+        {status.kind === "saved" && !unchanged && <CheckIcon size={16} />}
         {status.kind === "saving" && <SavingIcon size={16} />}
         {/* Saved and Saving take the same room, so nothing beside them moves as they swap. */}
         <span
           className={cn(
             "grid min-w-0",
-            (status.kind === "saved" || status.kind === "saving") &&
+            !unchanged &&
+              (status.kind === "saved" || status.kind === "saving") &&
               "after:invisible after:content-['Saving'] after:[grid-area:1/1]",
           )}
         >
           <span className="truncate [grid-area:1/1]">
-            {short && status.kind === "conflict"
-              ? "Not saved"
-              : saveStatusText(status, creating, noun)}
+            {unchanged
+              ? "Card unchanged"
+              : short && status.kind === "conflict"
+                ? "Not saved"
+                : saveStatusText(status, creating, noun)}
           </span>
         </span>
       </span>
@@ -195,6 +202,7 @@ export function SheetHeader({
   status,
   creating,
   noun,
+  reviewing = false,
   frame = SHEET_FRAME.form,
   gutters = SCROLL_GUTTERS,
   direct,
@@ -205,6 +213,7 @@ export function SheetHeader({
   status: SaveStatus;
   creating: boolean;
   noun: string;
+  reviewing?: boolean;
   /** The body's frame; the form's by default. */
   frame?: string;
   /** The body scroller's gutter class; SheetBody keeps `SCROLL_GUTTERS`. */
@@ -227,14 +236,14 @@ export function SheetHeader({
       }
       subtitle={
         phone && !failing ? (
-          <SaveState status={status} creating={creating} noun={noun} short />
+          <SaveState status={status} creating={creating} noun={noun} short reviewing={reviewing} />
         ) : undefined
       }
       direct={phone ? direct : undefined}
     >
       {!phone && (
         <span className="px-2">
-          <SaveState status={status} creating={creating} noun={noun} />
+          <SaveState status={status} creating={creating} noun={noun} reviewing={reviewing} />
         </span>
       )}
       {!phone && direct}

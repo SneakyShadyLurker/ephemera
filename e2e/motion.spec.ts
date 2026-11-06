@@ -11,6 +11,7 @@ import {
   chooseModel,
   headerAction,
   lastReply,
+  messages,
   openChat,
   replyActions,
   replyCounter,
@@ -34,10 +35,930 @@ import {
   setPortraitViaApi,
 } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
+import { settledSeamLine } from "./support/memory.ts";
 import { createReworkCharacter, dock, openRework, submitRework } from "./support/rework.ts";
 import { ownerRequest } from "./support/rework-fixtures.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { expect, test, unsafe } from "./support/test.ts";
+
+/** Public turn identities and visibility, including the greeting while fixtures arrive. */
+const deletionMessages = (page: Page) =>
+  messages(page).evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      id: node.querySelector<HTMLElement>("[data-edit-for]")?.dataset.editFor ?? null,
+      role: node.getAttribute("data-role"),
+      greeting: node.hasAttribute("data-greeting"),
+      status: node.getAttribute("data-status"),
+      text: node.querySelector("[data-prose]")?.textContent?.slice(0, 90),
+      visible:
+        node.getBoundingClientRect().bottom >
+          (node.closest('[role="log"]')?.getBoundingClientRect().top ?? 0) &&
+        node.getBoundingClientRect().top <
+          (node.closest('[role="log"]')?.getBoundingClientRect().bottom ?? 0),
+    })),
+  );
+
+async function deletionMoreBounds(more: Locator) {
+  return more.evaluate((button) => {
+    const turn = button.closest("[data-message]");
+    const plate = turn?.querySelector("[data-speaker]");
+    const scroll = button.closest('[role="log"]')?.firstElementChild;
+    if (!turn || !plate || !(scroll instanceof HTMLElement)) throw new Error("Missing More owners");
+    const box = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        height: rect.height,
+        width: rect.width,
+      };
+    };
+    const control = box(button);
+    const viewport = box(scroll);
+    const top = document.elementFromPoint(
+      (control.left + control.right) / 2,
+      (control.top + control.bottom) / 2,
+    );
+    return {
+      control,
+      viewport,
+      turn: box(turn),
+      plate: {
+        ...box(plate),
+        position: getComputedStyle(plate).position,
+        stickyTop: getComputedStyle(plate).top,
+      },
+      fullyInside:
+        control.top >= viewport.top &&
+        control.bottom <= viewport.bottom &&
+        control.left >= viewport.left &&
+        control.right <= viewport.right,
+      hit: button.contains(top),
+      above: top && {
+        tag: top.tagName,
+        label: top.getAttribute("aria-label"),
+        class: top.getAttribute("class"),
+      },
+      scroll: { top: scroll.scrollTop, height: scroll.scrollHeight, client: scroll.clientHeight },
+      motion: [turn, plate, button].map((node) => ({
+        tag: node.tagName,
+        class: node.getAttribute("class"),
+        transform: getComputedStyle(node).transform,
+        translate: getComputedStyle(node).translate,
+        animations: node
+          .getAnimations({ subtree: true })
+          .filter((animation) => animation.playState === "running")
+          .map((animation) => ({
+            time: animation.currentTime,
+            property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+          })),
+      })),
+    };
+  });
+}
+
+for (const width of [390, 1440]) {
+  test(`Latest after a history deletion supersedes its Undo bookmark at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: width === 390 ? "reduce" : "no-preference" });
+    const characterId = await createCharacterViaApi(request, uniqueName("Rejoin after deletion"), {
+      firstMessage: Array.from({ length: 24 }, () => "The lamp lights the harbour.").join("\n\n"),
+    });
+    await setPortraitViaApi(request, characterId, portraitPng("rejoin-after-deletion"));
+    await patchSettings(request, { characterId, model: "mock-fast" });
+    await page.goto("/");
+    await expect(page.locator("[data-message][data-greeting]")).toHaveAttribute(
+      "data-status",
+      "complete",
+    );
+    await expect(messages(page)).toHaveCount(1);
+    for (const line of ["First exchange.", "Second exchange."]) {
+      await send(page, line);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    }
+    const target = messages(page).nth(1);
+    const view = page.getByRole("log").locator(":scope > div").first();
+    await view.hover();
+    await page.mouse.wheel(0, -100_000);
+    await expect.poll(() => view.evaluate((node) => node.scrollTop)).toBe(0);
+    await target.hover();
+    await target.getByRole("button", { name: /^More actions/ }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(undo).toBeVisible();
+    await page.getByRole("button", { name: "Latest", exact: true }).click();
+    await expect
+      .poll(() => view.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop))
+      .toBeLessThan(1);
+    await undo.click();
+    await expect(messages(page)).toHaveCount(5);
+    await expect
+      .poll(() => view.evaluate((node) => node.scrollHeight - node.clientHeight - node.scrollTop))
+      .toBeLessThan(1);
+    await expect(replyActions(page)).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+    await expect(page.locator("[data-presence]")).toHaveCount(1);
+  });
+
+  test(`a refused Undo retains focus, geometry and its bookmark for a later permitted Undo at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const characterId = await createCharacterViaApi(request, uniqueName("Refused Undo"), {
+      firstMessage: Array.from({ length: 24 }, () => "The lamp lights the harbour.").join("\n\n"),
+    });
+    await setPortraitViaApi(request, characterId, portraitPng("refused-undo"));
+    await patchSettings(request, { characterId, model: "mock-fast" });
+    await page.goto("/");
+    await expect(page.locator("[data-message][data-greeting]")).toHaveAttribute(
+      "data-status",
+      "complete",
+    );
+    await expect(messages(page)).toHaveCount(1);
+    await send(
+      page,
+      Array.from({ length: 24 }, () => "The tide crosses the harbour.").join("\n\n"),
+    );
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await send(page, "The lamps return.");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const view = page.getByRole("log").locator(":scope > div").first();
+    const target = messages(page).nth(2);
+    await target.hover();
+    await target.getByRole("button", { name: /^More actions/ }).click();
+    const original = await target.evaluate((node) => {
+      const view = node.closest('[role="log"]')?.firstElementChild;
+      if (!view) throw new Error("Missing story scroller");
+      return {
+        offset: node.getBoundingClientRect().top - view.getBoundingClientRect().top,
+        line: Number.parseFloat(
+          getComputedStyle(node.querySelector(".prose-turn") ?? node).lineHeight,
+        ),
+      };
+    });
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await expect(messages(page)).toHaveCount(4);
+    let attempts = 0;
+    await page.route("**/api/memory/remember", (route) => {
+      attempts++;
+      return attempts === 1 ? route.abort() : route.fulfill({ json: { error: "memory_failed" } });
+    });
+    await headerAction(page, "Clear chat");
+    const dialog = page.getByRole("alertdialog", { name: "Clear this chat?" });
+    await dialog.getByRole("button", { name: "Remember and clear" }).click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "Those turns stay read-only until confirmed.",
+    );
+    await dialog.getByRole("button", { name: "Keep chatting" }).click();
+    await expect(dialog).toHaveCount(0);
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await undo.focus();
+    await expect(page.getByRole("log").locator("button[data-edit-for]")).toHaveCount(0);
+    const geometry = () =>
+      view.evaluate((node) => ({
+        top: node.scrollTop,
+        height: node.scrollHeight,
+        client: node.clientHeight,
+      }));
+    const before = await geometry();
+    await page.keyboard.press("Enter");
+    await expect(undo).toBeFocused();
+    await expect(messages(page)).toHaveCount(4);
+    const afterRefusal = await geometry();
+    expect(afterRefusal).toEqual(before);
+    const seam = page.locator("[data-memory-seam]");
+    await seam.getByRole("button", { name: "Try again" }).click();
+    expect(await settledSeamLine(page)).toContain(
+      "The memory was not written: the memory model's answer failed.",
+    );
+    expect(attempts).toBe(2);
+    await undo.focus();
+    await page.keyboard.press("Enter");
+    await expect(messages(page)).toHaveCount(5);
+    await expect(target.getByRole("button", { name: /^More actions/ })).toBeFocused();
+    const restored = await target.evaluate((node) => {
+      const view = node.closest('[role="log"]')?.firstElementChild;
+      if (!view) throw new Error("Missing restored story scroller");
+      return node.getBoundingClientRect().top - view.getBoundingClientRect().top;
+    });
+    expect(Math.abs(restored - original.offset)).toBeLessThanOrEqual(original.line);
+    process.stdout.write(
+      `Refused Undo stages ${JSON.stringify({ width, before, afterRefusal, original, restored, attempts })}\n`,
+    );
+  });
+
+  for (const input of ["wheel", "keyboard", "touch"] as const) {
+    test(`upward ${input} after deletion supersedes the Undo bookmark at ${width}`, async ({
+      page,
+      request,
+      context,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion: width === 390 ? "reduce" : "no-preference" });
+      const characterId = await createCharacterViaApi(request, uniqueName("New reading position"), {
+        firstMessage: Array.from(
+          { length: 40 },
+          (_, index) => `Harbour passage ${index}. The lamp lights the quay.`,
+        ).join("\n\n"),
+      });
+      await setPortraitViaApi(request, characterId, portraitPng("new-reading-position"));
+      await patchSettings(request, { characterId, model: "mock-fast" });
+      await page.goto("/");
+      const arrival = await deletionMessages(page);
+      await expect(page.locator("[data-message][data-greeting]")).toHaveAttribute(
+        "data-status",
+        "complete",
+      );
+      await expect(messages(page)).toHaveCount(1);
+      for (const line of ["First exchange.", "Second exchange."]) {
+        await send(page, line);
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      }
+      const view = page.getByRole("log").locator(":scope > div").first();
+      const original = await deletionMessages(page);
+      const originalIds = original.map((message) => message.id);
+      expect(originalIds).toHaveLength(5);
+      expect(new Set(originalIds).size).toBe(5);
+      expect(originalIds).not.toContain(null);
+      await replyActions(page).getByRole("button", { name: "More actions", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Delete from here", exact: true }).click();
+      const undo = page.getByRole("button", { name: "Undo", exact: true });
+      await expect(undo).toBeFocused();
+      const deleted = await deletionMessages(page);
+      expect(deleted.map((message) => message.id)).toEqual(originalIds.slice(0, -1));
+      const deletedTop = await view.evaluate((node) => node.scrollTop);
+      if (input === "wheel") {
+        await view.hover();
+        await page.mouse.wheel(0, -260);
+      } else if (input === "keyboard") {
+        await view.evaluate((node) => {
+          node.setAttribute("tabindex", "-1");
+          (node as HTMLElement).focus({ preventScroll: true });
+        });
+        await page.keyboard.press("PageUp");
+      } else {
+        const client = await context.newCDPSession(page);
+        await client.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+        const box = await view.boundingBox();
+        if (!box) throw new Error("Missing story bounds");
+        const x = box.x + 30;
+        const y = box.y + 80;
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x, y }],
+        });
+        for (const dy of [40, 100, 180])
+          await client.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: y + dy }],
+          });
+        await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await client.detach();
+      }
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollTop))
+        .toBeLessThan(deletedTop - 40);
+      await view.evaluate(
+        (node) =>
+          new Promise<void>((resolve) => {
+            let top = node.scrollTop;
+            let stable = 0;
+            const settle = () => {
+              stable = top === node.scrollTop ? stable + 1 : 0;
+              top = node.scrollTop;
+              if (stable >= 3) resolve();
+              else requestAnimationFrame(settle);
+            };
+            requestAnimationFrame(settle);
+          }),
+      );
+      const afterInput = await deletionMessages(page);
+      process.stdout.write(
+        `Deletion input identities ${JSON.stringify({ width, input, arrival, original, deleted, afterInput, tombstones: await undo.count() })}\n`,
+      );
+      expect(afterInput.map((message) => message.id)).toEqual(originalIds.slice(0, -1));
+      const anchor = await view.evaluateHandle((node) =>
+        [...node.querySelectorAll(".prose-turn p")].find(
+          (paragraph) =>
+            paragraph.getBoundingClientRect().bottom > node.getBoundingClientRect().top,
+        ),
+      );
+      const before = await anchor.evaluate((node) => node?.getBoundingClientRect().top);
+      if (before === undefined) throw new Error("No visible prose anchor");
+      const composer = page.getByRole("textbox", { name: "Message", exact: true });
+      await composer.evaluate((node) => node.focus({ preventScroll: true }));
+      // Undo without auto-scrolling its off-screen control, with focus deliberately elsewhere.
+      await undo.evaluate((node: HTMLButtonElement) => node.click());
+      const restored = await deletionMessages(page);
+      process.stdout.write(
+        `Deletion Undo identities ${JSON.stringify({ width, input, restored, tombstones: await undo.count() })}\n`,
+      );
+      await expect(messages(page)).toHaveCount(5);
+      expect((await deletionMessages(page)).map((message) => message.id)).toEqual(originalIds);
+      await expect(composer).toBeFocused();
+      await expect
+        .poll(() =>
+          anchor.evaluate(
+            (node, offset) => Math.abs((node?.getBoundingClientRect().top ?? Infinity) - offset),
+            before,
+          ),
+        )
+        .toBeLessThanOrEqual(24);
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeVisible();
+      await expect(page.locator("[data-presence]")).toHaveCount(1);
+      await anchor.dispose();
+    });
+  }
+
+  test(`Latest hides at the physical end without rejoining an escaped view at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openChat(page, "mock-fast");
+    const view = page.getByRole("log").locator(":scope > div").first();
+    const ordering = await view.evaluateHandle((node) => {
+      const events: Record<string, unknown>[] = [];
+      const log = node.closest('[role="log"]');
+      const content = node.firstElementChild;
+      const composer = document.querySelector<HTMLTextAreaElement>("textarea[data-composer]");
+      const snapshot = () => ({
+        top: node.scrollTop,
+        end: node.scrollHeight - node.clientHeight,
+        client: node.clientHeight,
+        content: content?.getBoundingClientRect().height,
+        composer: composer?.getBoundingClientRect().height,
+        anchor: getComputedStyle(node).overflowAnchor,
+        busy: log?.getAttribute("aria-busy"),
+        reply: log
+          ?.querySelector('[data-role="assistant"]:last-child')
+          ?.getAttribute("data-status"),
+        focus:
+          document.activeElement?.getAttribute("aria-label") ?? document.activeElement?.tagName,
+      });
+      const record = (kind: string, detail?: Record<string, unknown>) => {
+        events.push({
+          kind,
+          time: performance.now(),
+          ...snapshot(),
+          ...detail,
+        });
+      };
+      const top = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+      if (!top?.get || !top.set) throw new Error("Missing scrollTop accessor");
+      const own = Object.getOwnPropertyDescriptor(node, "scrollTop");
+      Object.defineProperty(node, "scrollTop", {
+        configurable: true,
+        get: () => top.get?.call(node),
+        set: (value: number) => {
+          record("write", { value, stack: new Error().stack?.split("\n").slice(1, 10) });
+          top.set?.call(node, value);
+          record("written");
+        },
+      });
+      // Observe the existing owner's rejoin/stop calls without adding app hooks.
+      const ownAnchor = Object.getOwnPropertyDescriptor(node.style, "overflowAnchor");
+      Object.defineProperty(node.style, "overflowAnchor", {
+        configurable: true,
+        get: () => node.style.getPropertyValue("overflow-anchor"),
+        set: (value: string) => {
+          node.style.setProperty("overflow-anchor", value);
+          record("anchor:write", { value, stack: new Error().stack?.split("\n").slice(1, 10) });
+        },
+      });
+      const capture = () => record("scroll:capture");
+      const bubble = () => record("scroll:bubble");
+      node.addEventListener("scroll", capture, true);
+      node.addEventListener("scroll", bubble);
+      const types = [
+        "focusin",
+        "focusout",
+        "keydown",
+        "beforeinput",
+        "input",
+        "submit",
+        "wheel",
+        "pointerdown",
+        "touchmove",
+      ] as const;
+      const input = (event: Event) =>
+        record(`input:${event.type}`, {
+          target: event.target instanceof Element ? event.target.tagName : null,
+          trusted: event.isTrusted,
+          key: event instanceof KeyboardEvent ? event.key : undefined,
+          deltaY: event instanceof WheelEvent ? event.deltaY : undefined,
+          length: composer?.value.length,
+        });
+      for (const type of types) document.addEventListener(type, input, true);
+      const observer = new ResizeObserver((entries) =>
+        record("resize", {
+          targets: entries.map((entry) => ({
+            owner:
+              entry.target === node
+                ? "scroller"
+                : entry.target === content
+                  ? "content"
+                  : "composer",
+            height: entry.contentRect.height,
+          })),
+        }),
+      );
+      observer.observe(node);
+      if (content) observer.observe(content);
+      if (composer) observer.observe(composer);
+      const mutations = new MutationObserver(() => record("mutation"));
+      if (log)
+        mutations.observe(log, {
+          subtree: true,
+          childList: true,
+          characterData: true,
+          attributes: true,
+          attributeFilter: ["aria-busy", "data-status"],
+        });
+      let frame = 0;
+      let previous = "";
+      const sample = () => {
+        const current = JSON.stringify(snapshot());
+        if (current !== previous) record("frame");
+        previous = current;
+        frame = requestAnimationFrame(sample);
+      };
+      frame = requestAnimationFrame(sample);
+      record("initial");
+      return {
+        mark: (stage: string) => record(`stage:${stage}`),
+        stop: () => {
+          cancelAnimationFrame(frame);
+          observer.disconnect();
+          mutations.disconnect();
+          node.removeEventListener("scroll", capture, true);
+          node.removeEventListener("scroll", bubble);
+          for (const type of types) document.removeEventListener(type, input, true);
+          if (own) Object.defineProperty(node, "scrollTop", own);
+          else Reflect.deleteProperty(node, "scrollTop");
+          if (ownAnchor) Object.defineProperty(node.style, "overflowAnchor", ownAnchor);
+          else Reflect.deleteProperty(node.style, "overflowAnchor");
+          record("final");
+          return {
+            events,
+            cleanup: {
+              scrollTopRestored:
+                Object.getOwnPropertyDescriptor(node, "scrollTop")?.set === own?.set,
+              anchorRestored:
+                Object.getOwnPropertyDescriptor(node.style, "overflowAnchor")?.set ===
+                ownAnchor?.set,
+              observersDisconnected: true,
+              listenersRemoved: true,
+            },
+          };
+        },
+      };
+    });
+    try {
+      await ordering.evaluate((trace) => trace.mark("before-send"));
+      await send(
+        page,
+        Array.from({ length: 90 }, (_, index) => `Keep the reading intent, passage ${index}.`).join(
+          "\n\n",
+        ),
+      );
+      await ordering.evaluate((trace) => trace.mark("after-send"));
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await ordering.evaluate((trace) => trace.mark("complete"));
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+        .toBeLessThan(1);
+      await ordering.evaluate((trace) => trace.mark("initial-tail"));
+      // Latest also measures on resize/rAF, before a native scroll event may
+      // arrive. Do not reverse this write until the genuine upward event has
+      // reached the scroll owner, or both writes can coalesce into an end event.
+      const upward = await view.evaluate(
+        (node) =>
+          new Promise<{ before: number; after: number }>((resolve, reject) => {
+            const before = node.scrollTop;
+            const onScroll = () => {
+              clearTimeout(deadline);
+              resolve({ before, after: node.scrollTop });
+            };
+            const deadline = window.setTimeout(() => {
+              node.removeEventListener("scroll", onScroll);
+              reject(new Error("One-pixel escape did not dispatch its native scroll event"));
+            }, 2000);
+            node.addEventListener("scroll", onScroll, { once: true });
+            node.scrollTop = before - 1;
+          }),
+      );
+      expect(upward.after).toBe(upward.before - 1);
+      const latest = page.getByRole("button", { name: "Latest", exact: true });
+      await expect(latest).toBeVisible();
+      await ordering.evaluate((trace) => trace.mark("one-pixel-escape"));
+      await view.evaluate((node) => {
+        node.scrollTop = node.scrollHeight - node.clientHeight;
+      });
+      await expect(latest).toBeHidden();
+      const kept = await view.evaluate((node) => node.scrollTop);
+      await page.setViewportSize({ width, height: 480 });
+      await expect(latest).toBeVisible();
+      expect(await view.evaluate((node) => node.scrollTop)).toBe(kept);
+      await ordering.evaluate((trace) => trace.mark("escaped-resize"));
+    } finally {
+      try {
+        const diagnostics = { width, ...(await ordering.evaluate((trace) => trace.stop())) };
+        await test.info().attach("latest-tail-ordering", {
+          body: JSON.stringify(diagnostics, null, 2),
+          contentType: "application/json",
+        });
+        process.stdout.write(
+          `Latest tail cleanup ${JSON.stringify({ width, cleanup: diagnostics.cleanup })}\n`,
+        );
+      } finally {
+        await ordering.dispose();
+      }
+    }
+  });
+
+  for (const reducedMotion of ["reduce", "no-preference"] as const) {
+    for (const { intent, settled } of [
+      { intent: "hover older", settled: false },
+      { intent: "following visible", settled: false },
+      { intent: "following visible", settled: true },
+      { intent: "history", settled: false },
+    ] as const) {
+      test(`older deletion and Undo retain reading intent ${intent}${settled ? " settled" : ""} ${width}/${reducedMotion}`, async ({
+        page,
+        request,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion });
+        const characterId = await createCharacterViaApi(request, uniqueName("Older deletion"), {
+          firstMessage:
+            intent === "following visible"
+              ? "The lamp is lit."
+              : Array.from({ length: 24 }, () => "The lamp lights the harbour.").join("\n\n"),
+        });
+        await setPortraitViaApi(request, characterId, portraitPng("older-deletion"));
+        await patchSettings(request, { characterId, model: "mock-fast" });
+        await page.goto("/");
+        await expect(page.locator("[data-message][data-greeting]")).toHaveAttribute(
+          "data-status",
+          "complete",
+        );
+        const activeArrival =
+          intent === "following visible" &&
+          !settled &&
+          width === 1440 &&
+          reducedMotion === "no-preference";
+        const exchanges = activeArrival
+          ? ["First exchange."]
+          : ["First exchange.", "Second exchange."];
+        for (const line of exchanges) {
+          await send(page, line);
+          await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        }
+        const view = page.getByRole("log").locator(":scope > div").first();
+        await expect
+          .poll(() =>
+            view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+          )
+          .toBeLessThan(1);
+        const target = messages(page).nth(intent === "following visible" ? 3 : 1);
+        const stages: Record<string, unknown> = {};
+        const geometry = () =>
+          target.evaluate((node) => {
+            const view = node.closest('[role="log"]')?.firstElementChild;
+            if (!(view instanceof HTMLElement)) throw new Error("Missing conversation scroller");
+            return {
+              top: view.scrollTop,
+              height: view.scrollHeight,
+              client: view.clientHeight,
+              offset: node.getBoundingClientRect().top - view.getBoundingClientRect().top,
+            };
+          });
+        if (intent === "history") {
+          await view.hover();
+          await page.mouse.wheel(0, -100_000);
+          await expect.poll(() => view.evaluate((node) => node.scrollTop)).toBe(0);
+        }
+        if (!activeArrival) stages.beforeHover = await geometry();
+        if (intent === "hover older") await target.hover();
+        if (!activeArrival) stages.afterHover = await geometry();
+        // The following case uses a target already in view, with no hover auto-scroll.
+        const more = target.getByRole("button", { name: /^More actions/ });
+        if (settled)
+          await expect
+            .poll(() =>
+              target.evaluate((node) =>
+                node.getAnimations().some((animation) => animation.playState === "running"),
+              ),
+            )
+            .toBe(false);
+        let reachablePoint: { x: number; y: number } | undefined;
+        if (intent === "following visible" && !activeArrival) {
+          await expect(target).toBeInViewport();
+          const control = await deletionMoreBounds(more);
+          process.stdout.write(
+            `Following More before click ${JSON.stringify({ width, reducedMotion, settled, control })}\n`,
+          );
+          expect(control.fullyInside).toBe(true);
+          expect(control.hit).toBe(true);
+          reachablePoint = {
+            x: (control.control.left + control.control.right) / 2,
+            y: (control.control.top + control.control.bottom) / 2,
+          };
+        }
+        const prepare = ({ index, activeArrival }: { index: number; activeArrival: boolean }) => {
+          const scroll = document.querySelector('[role="log"]')?.firstElementChild;
+          if (!(scroll instanceof HTMLElement)) throw new Error("Missing More scroller");
+          const turnAt = () => document.querySelectorAll("[data-message]")[index];
+          const buttonAt = () =>
+            turnAt()?.querySelector<HTMLButtonElement>('button[aria-label^="More actions"]');
+          const events: Record<string, unknown>[] = [];
+          const record = (kind: string, event?: Event, extra?: Record<string, unknown>) => {
+            if (events.length >= 100) return;
+            const button = buttonAt();
+            const turn = turnAt();
+            if (!button || !turn) return;
+            const target = event?.target instanceof Element ? event.target : null;
+            const rect = button.getBoundingClientRect();
+            events.push({
+              kind,
+              top: scroll.scrollTop,
+              height: scroll.scrollHeight,
+              client: scroll.clientHeight,
+              time: performance.now(),
+              target: target?.getAttribute("aria-label") ?? target?.tagName ?? null,
+              prevented: event?.defaultPrevented,
+              active: document.activeElement?.getAttribute("aria-label"),
+              focusVisible: button.matches(":focus-visible"),
+              control: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+              translate: getComputedStyle(turn).translate,
+              animations: turn.getAnimations().map((animation) => ({
+                state: animation.playState,
+                time: animation.currentTime,
+                property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+              })),
+              menu: document.querySelector('[role="menu"]') !== null,
+              ...extra,
+            });
+          };
+          const types = ["pointerdown", "mousedown", "focus", "focusin", "mouseup", "click"];
+          const capture = (event: Event) => record(`${event.type}:capture`, event);
+          const bubble = (event: Event) => record(`${event.type}:bubble`, event);
+          const onScroll = (event: Event) => record("scroll", event);
+          for (const type of types) {
+            document.addEventListener(type, capture, true);
+            document.addEventListener(type, bubble);
+          }
+          scroll.addEventListener("scroll", onScroll, true);
+          // Observe writes without changing their native behavior. Default focus
+          // scrolling bypasses these JavaScript methods and the scrollTop setter.
+          const top = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+          if (!top?.get || !top.set) throw new Error("Missing native scrollTop accessor");
+          const ownTop = Object.getOwnPropertyDescriptor(scroll, "scrollTop");
+          let restoreButton = () => {};
+          let attached = false;
+          const attach = () => {
+            const button = buttonAt();
+            if (!button || attached) return;
+            attached = true;
+            const ownFocus = Object.getOwnPropertyDescriptor(button, "focus");
+            const ownReveal = Object.getOwnPropertyDescriptor(button, "scrollIntoView");
+            const focus = button.focus;
+            const reveal = button.scrollIntoView;
+            button.focus = (options) => {
+              record("focus:call", undefined, { options });
+              focus.call(button, options);
+              record("focus:returned");
+            };
+            button.scrollIntoView = (options) => {
+              record("scrollIntoView:call", undefined, { options });
+              reveal.call(button, options);
+              record("scrollIntoView:returned");
+            };
+            restoreButton = () => {
+              if (ownFocus) Object.defineProperty(button, "focus", ownFocus);
+              else Reflect.deleteProperty(button, "focus");
+              if (ownReveal) Object.defineProperty(button, "scrollIntoView", ownReveal);
+              else Reflect.deleteProperty(button, "scrollIntoView");
+            };
+            record("prepared");
+          };
+          Object.defineProperty(scroll, "scrollTop", {
+            configurable: true,
+            get: () => top.get?.call(scroll),
+            set: (value: number) => {
+              record("scrollTop:write", undefined, {
+                value,
+                stack: new Error().stack?.split("\n").slice(1, 6),
+              });
+              top.set?.call(scroll, value);
+              record("scrollTop:written");
+            },
+          });
+          attach();
+          const arrival = Promise.withResolvers<{
+            x: number;
+            y: number;
+            hit: boolean;
+            fullyInside: boolean;
+            geometry: { top: number; height: number; client: number; offset: number };
+            animations: { time: CSSNumberish | null; property: string | null }[];
+          }>();
+          let frame = 0;
+          let deadline = 0;
+          const sampleArrival = () => {
+            const button = buttonAt();
+            const turn = turnAt();
+            if (!button || !turn) return;
+            const animations = turn
+              .getAnimations()
+              .filter(
+                (animation) =>
+                  animation.playState === "running" &&
+                  animation instanceof CSSTransition &&
+                  animation.transitionProperty === "translate",
+              );
+            const complete =
+              document.querySelectorAll(
+                '[data-message][data-role="assistant"][data-status="complete"]',
+              ).length === 3;
+            if (
+              animations.length &&
+              complete &&
+              scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 1
+            ) {
+              const rect = button.getBoundingClientRect();
+              const view = scroll.getBoundingClientRect();
+              const x = (rect.left + rect.right) / 2;
+              const y = (rect.top + rect.bottom) / 2;
+              record("arrival-ready");
+              arrival.resolve({
+                x,
+                y,
+                hit: button.contains(document.elementFromPoint(x, y)),
+                fullyInside:
+                  rect.top >= view.top &&
+                  rect.bottom <= view.bottom &&
+                  rect.left >= view.left &&
+                  rect.right <= view.right,
+                geometry: {
+                  top: scroll.scrollTop,
+                  height: scroll.scrollHeight,
+                  client: scroll.clientHeight,
+                  offset: turn.getBoundingClientRect().top - view.top,
+                },
+                animations: animations.map((animation) => ({
+                  time: animation.currentTime,
+                  property:
+                    animation instanceof CSSTransition ? animation.transitionProperty : null,
+                })),
+              });
+            } else frame = requestAnimationFrame(sampleArrival);
+          };
+          const observer = new MutationObserver(() => {
+            attach();
+            if (activeArrival && attached && !frame) {
+              frame = requestAnimationFrame(sampleArrival);
+              deadline = window.setTimeout(
+                () =>
+                  arrival.reject(
+                    new Error("Natural active More window missed before completed reply/tail"),
+                  ),
+                2000,
+              );
+            }
+            if (document.querySelector('[role="menu"]')) {
+              record("menu:mounted");
+              observer.disconnect();
+            }
+          });
+          observer.observe(document.body, { subtree: true, childList: true });
+          record("before-click");
+          return {
+            arrival: arrival.promise,
+            stop: () => {
+              cancelAnimationFrame(frame);
+              clearTimeout(deadline);
+              observer.disconnect();
+              scroll.removeEventListener("scroll", onScroll, true);
+              for (const type of types) {
+                document.removeEventListener(type, capture, true);
+                document.removeEventListener(type, bubble);
+              }
+              if (ownTop) Object.defineProperty(scroll, "scrollTop", ownTop);
+              else Reflect.deleteProperty(scroll, "scrollTop");
+              restoreButton();
+              record("after-menu");
+              return events;
+            },
+          };
+        };
+        const trace = await page.evaluateHandle(prepare, {
+          index: intent === "following visible" ? 3 : 1,
+          activeArrival,
+        });
+        let pointerAttempted = false;
+        try {
+          if (activeArrival) {
+            await send(page, "Second exchange.");
+            const arrival = await trace.evaluate((value) => value.arrival);
+            await test.info().attach("following-more-arrival", {
+              body: JSON.stringify(arrival, null, 2),
+              contentType: "application/json",
+            });
+            process.stdout.write(`Following More natural arrival ${JSON.stringify(arrival)}\n`);
+            expect(arrival.fullyInside).toBe(true);
+            expect(arrival.hit).toBe(true);
+            stages.beforeHover = arrival.geometry;
+            stages.afterHover = arrival.geometry;
+            reachablePoint = arrival;
+          }
+          // A locator click waits for position stability. Deliver real pointer
+          // input at the verified hit point while this entrance is interruptible.
+          pointerAttempted = true;
+          if (reachablePoint && !settled)
+            await page.mouse.click(reachablePoint.x, reachablePoint.y);
+          else await more.click();
+          await expect(page.getByRole("menu")).toBeVisible();
+        } finally {
+          const events = await trace.evaluate((value) => value.stop());
+          await test.info().attach("more-menu-events", {
+            body: JSON.stringify({ width, reducedMotion, intent, settled, events }, null, 2),
+            contentType: "application/json",
+          });
+          process.stdout.write(
+            `More menu events ${JSON.stringify({ width, reducedMotion, intent, settled, events, control: await deletionMoreBounds(more) })}\n`,
+          );
+          await trace.dispose();
+          if (intent === "following visible" && pointerAttempted) {
+            expect(events.find((event) => event.kind === "focus:capture")?.focusVisible).toBe(
+              false,
+            );
+            if (width === 1440 && reducedMotion === "no-preference" && !settled)
+              expect(
+                events.find((event) => event.kind === "pointerdown:capture")?.animations,
+              ).toEqual(
+                expect.arrayContaining([
+                  expect.objectContaining({ state: "running", property: "translate" }),
+                ]),
+              );
+          }
+        }
+        const beforeDelete = await geometry();
+        stages.beforeDelete = beforeDelete;
+        if (intent === "following visible") {
+          expect(
+            Math.abs(beforeDelete.top - (stages.beforeHover as { top: number }).top),
+          ).toBeLessThan(1);
+        }
+        const readingHistory = intent !== "following visible";
+        await page.getByRole("menuitem", { name: "Delete from here", exact: true }).click();
+        const undo = page.getByRole("button", { name: "Undo", exact: true });
+        await expect(undo).toBeVisible();
+        stages.deleted = await view.evaluate((node) => ({
+          top: node.scrollTop,
+          height: node.scrollHeight,
+          client: node.clientHeight,
+        }));
+        await undo.focus();
+        await page.keyboard.press("Enter");
+        await expect(messages(page)).toHaveCount(5);
+        stages.restored = await geometry();
+        process.stdout.write(
+          `Older deletion stages ${JSON.stringify({ width, reducedMotion, intent, stages })}\n`,
+        );
+        const restoredMore = target.getByRole("button", { name: /^More actions/ });
+        await expect.soft(restoredMore).toBeFocused();
+        await expect(page.locator("[data-presence]")).toHaveCount(1);
+        if (readingHistory) {
+          const line = await target.evaluate((node) =>
+            Number.parseFloat(getComputedStyle(node).lineHeight),
+          );
+          const restored = await geometry();
+          const expectedTop = Math.min(
+            Math.max(0, restored.top + restored.offset - beforeDelete.offset),
+            restored.height - restored.client,
+          );
+          expect.soft(Math.abs(restored.top - expectedTop)).toBeLessThanOrEqual(line);
+        } else {
+          await expect.soft
+            .poll(() =>
+              view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+            )
+            .toBeLessThan(1);
+          await expect.soft(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+          await expect.soft(replyActions(page)).toBeInViewport();
+        }
+      });
+    }
+  }
+}
 
 for (const width of [390, 1440]) {
   for (const reducedMotion of ["reduce", "no-preference"] as const) {
@@ -187,9 +1108,9 @@ function exitFrames(surface: Locator) {
 
 /** Watch the same indicator through the real primitive's arrival or departure. */
 async function indicatorFrames(control: Locator, action: Locator, leaving: boolean) {
-  const sampling = control.evaluate(
-    (root, outgoing) =>
-      new Promise<
+  const sampling = await control.evaluateHandle((root, outgoing) => {
+    const result =
+      Promise.withResolvers<
         {
           scale: string;
           opacity: number;
@@ -198,57 +1119,67 @@ async function indicatorFrames(control: Locator, action: Locator, leaving: boole
           background: string;
           border: string;
         }[]
-      >((resolve) => {
-        let indicator = outgoing ? root.querySelector("span") : null;
-        let finished = false;
-        const frames: {
-          scale: string;
-          opacity: number;
-          ending: boolean;
-          checked: boolean;
-          background: string;
-          border: string;
-        }[] = [];
-        const observer = new MutationObserver(sample);
-        function sample() {
-          indicator ??= root.querySelector("span");
-          if (indicator === null) return;
-          if (!indicator.isConnected) {
-            finished = true;
-            observer.disconnect();
-            resolve(frames);
-            return;
-          }
-          const style = getComputedStyle(indicator);
-          const face = getComputedStyle(root);
-          frames.push({
-            scale: style.scale,
-            opacity: Number.parseFloat(style.opacity),
-            ending: indicator.hasAttribute("data-ending-style"),
-            checked: root.hasAttribute("data-checked"),
-            background: face.backgroundColor,
-            border: face.borderTopColor,
-          });
-          if (!outgoing && frames.length > 2 && Number.parseFloat(style.opacity) === 1) {
-            finished = true;
-            observer.disconnect();
-            resolve(frames);
-          }
-        }
-        observer.observe(root, { attributes: true, childList: true, subtree: true });
-        sample();
-        const tick = () => {
-          sample();
-          if (!finished) {
-            requestAnimationFrame(tick);
-          }
-        };
+      >();
+    let indicator = outgoing ? root.querySelector("span") : null;
+    let finished = false;
+    const frames: {
+      scale: string;
+      opacity: number;
+      ending: boolean;
+      checked: boolean;
+      background: string;
+      border: string;
+    }[] = [];
+    const observer = new MutationObserver(sample);
+    function sample() {
+      indicator ??= root.querySelector("span");
+      if (indicator === null) return;
+      if (!indicator.isConnected) {
+        finished = true;
+        observer.disconnect();
+        result.resolve(frames);
+        return;
+      }
+      const style = getComputedStyle(indicator);
+      const face = getComputedStyle(root);
+      frames.push({
+        scale: style.scale,
+        opacity: Number.parseFloat(style.opacity),
+        ending: indicator.hasAttribute("data-ending-style"),
+        checked: root.hasAttribute("data-checked"),
+        background: face.backgroundColor,
+        border: face.borderTopColor,
+      });
+      if (!outgoing && frames.length > 2 && Number.parseFloat(style.opacity) === 1) {
+        finished = true;
+        observer.disconnect();
+        result.resolve(frames);
+      }
+    }
+    observer.observe(root, { attributes: true, childList: true, subtree: true });
+    sample();
+    const tick = () => {
+      sample();
+      if (!finished) {
         requestAnimationFrame(tick);
-      }),
-    leaving,
-  );
-  await action.click();
-  return sampling;
+      }
+    };
+    requestAnimationFrame(tick);
+    return {
+      finished: result.promise,
+      cancel: () => {
+        finished = true;
+        observer.disconnect();
+      },
+    };
+  }, leaving);
+  try {
+    await action.click();
+    return await sampling.evaluate((value) => value.finished);
+  } finally {
+    await sampling.evaluate((value) => value.cancel());
+    await sampling.dispose();
+  }
 }
 
 test("reduced-motion check and radio indicators keep their size while tints switch instantly", async ({
@@ -283,6 +1214,7 @@ test("reduced-motion check and radio indicators keep their size while tints swit
     expect(new Set(changed.map(({ border }) => border)).size).toBe(1);
   }
   for (const frames of [radioExit, checkExit]) {
+    process.stdout.write(`Indicator exit states ${JSON.stringify(frames)}\n`);
     expect(frames.some(({ ending, opacity }) => ending && opacity > 0 && opacity < 1)).toBe(true);
     expect(new Set(frames.map(({ background }) => background)).size).toBe(2);
     expect(new Set(frames.map(({ border }) => border)).size).toBe(2);
@@ -865,6 +1797,10 @@ test("sheet navigation waits for fresh data on first entry and cached return", a
   await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   await expect(page).not.toHaveURL(new RegExp(`/characters/${id}$`));
   const duplicateId = new URL(page.url()).pathname.split("/").at(-1);
+  // Both sheets share a description; prove the duplicate editor arrived before returning.
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
+    "Motion arrival (copy)",
+  );
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).toHaveValue(
     "Fresh return version.",
   );
@@ -875,6 +1811,9 @@ test("sheet navigation waits for fresh data on first entry and cached return", a
   });
   expect(changed.status()).toBe(200);
   await page.goBack();
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
+    "Motion arrival",
+  );
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).toHaveValue(
     "Fresh direct return.",
   );

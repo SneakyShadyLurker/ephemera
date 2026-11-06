@@ -1344,7 +1344,33 @@ test("scrolling stays anchored while a reply streams", async ({ page }) => {
 
   // Scrolled up, the visible line keeps its place while text keeps arriving.
   await thread.hover();
+  const beforeWheel = await thread.evaluate((node) => node.scrollTop);
   await page.mouse.wheel(0, -600);
+  // Latest describes hidden content, so wait for the actual wheel escape too.
+  await expect.poll(() => thread.evaluate((node) => node.scrollTop)).toBeLessThan(beforeWheel);
+  const settledWheel = await thread.evaluate(
+    (node) =>
+      new Promise<{ top: number; samples: number[] }>((resolve, reject) => {
+        const deadline = performance.now() + 2_000;
+        const samples: number[] = [];
+        let previous = node.scrollTop;
+        let stable = 0;
+        const sample = () => {
+          const top = node.scrollTop;
+          samples.push(top);
+          stable = top === previous ? stable + 1 : 0;
+          previous = top;
+          if (stable >= 3) resolve({ top, samples });
+          else if (performance.now() >= deadline)
+            reject(new Error(`Wheel did not settle: ${JSON.stringify(samples)}`));
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  process.stdout.write(
+    `Streaming wheel settlement ${JSON.stringify({ beforeWheel, ...settledWheel })}\n`,
+  );
   await expect(page.getByRole("button", { name: "Latest" })).toBeVisible();
   const anchor = lastReply(page).locator("p").nth(3);
   const before = await anchor.boundingBox();
@@ -1354,9 +1380,52 @@ test("scrolling stays anchored while a reply streams", async ({ page }) => {
     .toBeGreaterThan(heightBefore + 100);
   expect((await anchor.boundingBox())?.y).toBeCloseTo(before?.y ?? Number.NaN, 0);
 
-  await page.getByRole("button", { name: "Latest" }).click();
-  await expect.poll(gap).toBeLessThan(4);
-  await expect(page.getByRole("button", { name: "Latest" })).toHaveCount(0);
+  const following = await thread.evaluateHandle((node) => {
+    const stages: { top: number; height: number; client: number; gap: number }[] = [];
+    const sample = () => {
+      stages.push({
+        top: node.scrollTop,
+        height: node.scrollHeight,
+        client: node.clientHeight,
+        gap: node.scrollHeight - node.clientHeight - node.scrollTop,
+      });
+      if (stages.length > 24) stages.shift();
+    };
+    node.addEventListener("scroll", sample);
+    sample();
+    return {
+      stop: () => {
+        node.removeEventListener("scroll", sample);
+        sample();
+        return stages;
+      },
+    };
+  });
+  try {
+    await page.getByRole("button", { name: "Latest" }).click();
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(page.getByRole("button", { name: "Latest" })).toHaveCount(0);
+  } finally {
+    const stages = await following.evaluate((value) => value.stop());
+    const latestState = await page
+      .getByRole("button", { name: "Latest", includeHidden: true })
+      .evaluate((button) => {
+        const parent = button.parentElement;
+        return {
+          hidden: parent?.hidden,
+          inert: parent?.inert,
+          display: parent && getComputedStyle(parent).display,
+          opacity: parent && getComputedStyle(parent).opacity,
+          animations: parent?.getAnimations().map((animation) => ({
+            state: animation.playState,
+            time: animation.currentTime,
+            property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+          })),
+        };
+      });
+    process.stdout.write(`Streaming rejoin scroll ${JSON.stringify({ stages, latestState })}\n`);
+    await following.dispose();
+  }
 });
 
 test("sending from a scrolled-away story brings the view back to the new reply", async ({
@@ -1915,6 +1984,9 @@ test("the portrait moves to each new reply as it starts, and stays above an Undo
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
   await expect(presence).toHaveCount(1);
   await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(actions.getByRole("button", { name: "More actions", exact: true })).toBeFocused();
+  await expect(presence).toHaveCount(1);
 });
 
 test("a single greeting has no actions row; its own More holds Edit and Delete by keyboard", async ({

@@ -25,6 +25,8 @@ window, and once the user is back the tab carries on by itself, sending
 the message that was waiting and saving edits made meanwhile. If the tab
 finds itself signed in as someone else, it drops everything it holds and
 reloads as that user.
+The waiting reply says Not sent yet; the notice beside the composer gives
+the sign-in reason and action.
 
 ## What persists and what vanishes
 
@@ -386,6 +388,8 @@ Version 1.0 holds everything below.
 - While the model works and under review the fields are read-only, and
   Chat, Duplicate, Delete, the portrait picker, New art, Open lorebook, the linked
   lorebooks' links and Add alternate wait; Export stays available. Every change starts accepted.
+  The header says Card unchanged in place of Saved until the review ends;
+  an unfinished save or save failure still shows its own status.
 - Apply writes only the accepted changes through the sheet's normal save.
   Undo stays on offer until Done, another rework or leaving the sheet; it
   restores the fields Apply wrote, except any the owner typed in since,
@@ -622,7 +626,9 @@ Version 1.0 holds everything below.
   to delete it. Remember now writes a memory of the open chat with this
   character whatever its size. The header names Memory and the character;
   on phones the switch keeps one status line, with its explanation under
-  What memory keeps. Notebook prose carries an edit cue and saves on Enter
+  What memory keeps. The character sheet uses that same disclosure at every
+  width, including before the character is first saved. Notebook prose
+  carries an edit cue and saves on Enter
   or leaving the field, with Done on touch and save feedback beside the edit.
 - Settings > Memory & cast holds memory's settings: Open new chats where the story left
   off, on by default (off, the card's greeting opens every chat), the
@@ -768,7 +774,8 @@ Version 1.0 holds everything below.
   in a reply (narration, speech, actions, thoughts, the four highlight
   tones and quoted lines), written as a block would ask for it and drawn
   as the chat shows it. On wide screens it stays beside the blocks, as the
-  character sheet's index does; elsewhere it follows them.
+  character sheet's index does; elsewhere it follows them, with the examples
+  folded under Show the marks and the help line always visible.
 - The built-in default prompt preset carries Ephemera's own instructions
   in four blocks: how to play scenario cards as game master and subject
   cards as their subjects with lean narration and outcomes judged without
@@ -837,6 +844,12 @@ Version 1.0 holds everything below.
   Continuing an edited reply keeps the edit literal and fills macros only
   in the new model text. Continue joins the addition without repeating the
   existing reply. An empty composer cannot Send.
+- Deletion and Undo preserve reading intent: a view following the newest
+  text stays at the tail; a view reading history returns to the restored
+  turn's position, unless the owner has moved elsewhere meanwhile. Undo
+  returns keyboard focus to that turn's More control when Undo held focus.
+  Latest appears only when newer content lies below the viewport. Reaching
+  the bottom by scrolling hides it without restarting automatic following.
 - Author's Note owned by the prompt preset: text, an on/off switch,
   placement in the chat at a depth or after the main prompt, role and
   frequency, sent at its frequency for every character while on. The

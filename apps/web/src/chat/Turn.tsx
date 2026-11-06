@@ -44,7 +44,7 @@ function PlainText({ text }: { text: string }) {
 
 const STATUS_NOTE: Partial<Record<MessageStatus, string>> = {
   stopped: "Stopped.",
-  waiting: "Not sent yet: waiting for you to sign in.",
+  waiting: "Not sent yet.",
 };
 
 /**

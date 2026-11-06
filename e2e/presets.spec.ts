@@ -355,15 +355,44 @@ test("the formatting key draws each mark as the chat does, beside the form when 
   for (const { width, inForm } of [
     { width: 1440, inForm: false },
     { width: 820, inForm: true },
+    { width: 390, inForm: true },
   ]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/presets/prompt/${id}`);
+    const reference = page.getByRole("region", { name: "Formatting" });
+    await expect(
+      reference.getByText("What the chat draws in a reply.", { exact: false }),
+    ).toBeVisible();
+    if (inForm) {
+      const disclosure = reference.locator("details");
+      await expect(disclosure).not.toHaveAttribute("open");
+      // Samples stay in the document, including while the native reference is closed.
+      expect(await disclosure.locator("code").count()).toBeGreaterThan(8);
+      const summary = disclosure.locator("summary");
+      await summary.focus();
+      await page.keyboard.press("Enter");
+      await expect(disclosure).toHaveAttribute("open");
+    }
     const marks = page
       .getByRole("region", { name: "Formatting" })
       .getByRole("list", { name: "Marks, as written and as the chat shows them" });
     await expect(marks.locator('[data-tone="rose"]')).toHaveText("rose");
+    await expect(marks.getByRole("listitem")).toHaveCount(9);
     await expect(marks.locator('[data-voice="thought"]')).toHaveText("a thought");
     await expect(marks.getByText(":rose[rose]", { exact: true })).toBeVisible();
+    const code = marks.locator("code").first();
+    await code.click();
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+      .toBe(await code.textContent());
+    await expect(reference.getByText("Marks touch their words:", { exact: false })).toBeVisible();
+    if (inForm) {
+      await reference.locator("summary").click();
+      await page.getByRole("textbox", { name: "Author's Note", exact: true }).focus();
+      await expect(
+        page.getByRole("textbox", { name: "Author's Note", exact: true }),
+      ).toBeInViewport();
+    }
     await expect(
       page.getByRole("form", { name: "Prompt preset" }).getByRole("region", { name: "Formatting" }),
     ).toHaveCount(inForm ? 1 : 0);

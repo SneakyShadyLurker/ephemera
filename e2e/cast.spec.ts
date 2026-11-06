@@ -157,7 +157,75 @@ const inspector = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 async function expectStackFit(page: Page, state: string, names = true) {
   const panel = castPanel(page);
   await panel.scrollIntoViewIfNeeded();
+  const lifecycle = await page.evaluate(() => ({
+    active: document.documentElement.matches(":active-view-transition"),
+    rootAnimations: document.getAnimations().flatMap((animation) => {
+      const effect = animation.effect;
+      if (
+        !(effect instanceof KeyframeEffect) ||
+        !effect.pseudoElement?.startsWith("::view-transition")
+      )
+        return [];
+      return [
+        { pseudo: effect.pseudoElement, state: animation.playState, time: animation.currentTime },
+      ];
+    }),
+  }));
+  if (lifecycle.active) {
+    process.stdout.write(`C document lifecycle ${JSON.stringify({ state, ...lifecycle })}\n`);
+    // Route/theme snapshots intercept the entire document until their native
+    // lifecycle finishes. This is a resting-state contract, not a hit retry.
+    await page.waitForFunction(
+      () => !document.documentElement.matches(":active-view-transition"),
+      undefined,
+      { timeout: 2000 },
+    );
+  }
   const geometry = await panel.evaluate((element) => {
+    const documentMotion = document.getAnimations().map((animation) => ({
+      state: animation.playState,
+      time: animation.currentTime,
+      pseudo: animation.effect instanceof KeyframeEffect ? animation.effect.pseudoElement : null,
+      target: animation.effect instanceof KeyframeEffect ? animation.effect.target?.tagName : null,
+      name: animation instanceof CSSAnimation ? animation.animationName : null,
+      property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+    }));
+    const root = document.documentElement;
+    const documentState = {
+      activeViewTransition: root.matches(":active-view-transition"),
+      animations: documentMotion,
+      modal: [...document.querySelectorAll(":modal")].map((node) => node.outerHTML.slice(0, 300)),
+      rootPseudo: [
+        "::view-transition",
+        "::view-transition-group(root)",
+        "::view-transition-new(root)",
+      ].map((pseudo) => {
+        const style = getComputedStyle(root, pseudo);
+        return { pseudo, pointerEvents: style.pointerEvents, animationName: style.animationName };
+      }),
+    };
+    const bounds = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
+    const describe = (node: Element | null) =>
+      node === null
+        ? null
+        : {
+            tag: node.tagName,
+            role: node.getAttribute("role"),
+            label: node.getAttribute("aria-label") ?? node.textContent?.trim().slice(0, 80),
+            class: node.getAttribute("class"),
+            bounds: bounds(node),
+          };
+    const scroller = element.closest('[role="log"]')?.firstElementChild;
     const column = element.closest("[data-presence]")?.firstElementChild;
     if (!column) throw new Error("Missing portrait column");
     const stack = element.getBoundingClientRect();
@@ -180,6 +248,36 @@ async function expectStackFit(page: Page, state: string, names = true) {
         const range = document.createRange();
         range.selectNodeContents(action);
         const text = range.getBoundingClientRect();
+        const points = [-18, 0, 18].flatMap((x) =>
+          [-18, 0, 18].map((y) => {
+            const at = { x: (left + right) / 2 + x, y: (top + bottom) / 2 + y };
+            const above = document.elementFromPoint(at.x, at.y);
+            return { ...at, hit: action.contains(above), above: describe(above) };
+          }),
+        );
+        const ancestors = [];
+        for (let node: Element | null = action; node !== null; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          const animations = node
+            .getAnimations()
+            .filter((animation) => animation.playState === "running")
+            .map((animation) => ({
+              time: animation.currentTime,
+              property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+              name: animation instanceof CSSAnimation ? animation.animationName : null,
+            }));
+          ancestors.push({
+            node: describe(node),
+            inert: node.hasAttribute("inert"),
+            pointerEvents: style.pointerEvents,
+            visibility: style.visibility,
+            transform: style.transform,
+            translate: style.translate,
+            opacity: style.opacity,
+            overflow: style.overflow,
+            animations,
+          });
+        }
         return {
           label: action.textContent,
           left,
@@ -189,13 +287,24 @@ async function expectStackFit(page: Page, state: string, names = true) {
           width: right - left,
           height: bottom - top,
           controlRight: rect.right,
-          hit: [-18, 0, 18].every((x) =>
-            [-18, 0, 18].every((y) =>
-              action.contains(
-                document.elementFromPoint((left + right) / 2 + x, (top + bottom) / 2 + y),
-              ),
-            ),
-          ),
+          hit: points.every((point) => point.hit),
+          sampled: points.length,
+          failedPoints: points.filter((point) => !point.hit),
+          diagnostics: points.every((point) => point.hit)
+            ? undefined
+            : {
+                control: bounds(action),
+                stack: bounds(element),
+                portrait: bounds(column),
+                scroller: scroller && {
+                  ...bounds(scroller),
+                  top: scroller.scrollTop,
+                  height: scroller.scrollHeight,
+                  client: scroller.clientHeight,
+                },
+                ancestors,
+                documentState,
+              },
           textFits:
             text.left >= rect.left - 1 &&
             text.right <= rect.right + 1 &&
@@ -218,6 +327,7 @@ async function expectStackFit(page: Page, state: string, names = true) {
       actions,
     };
   });
+  process.stdout.write(`C state geometry ${JSON.stringify({ state, ...geometry })}\n`);
   expect(geometry.bottom, state).toBeLessThanOrEqual(geometry.columnBottom + 1);
   if (names) expect(geometry.names.length, state).toBeGreaterThanOrEqual(1);
   for (const height of geometry.names) expect(height, state).toBeLessThanOrEqual(44);
@@ -239,7 +349,6 @@ async function expectStackFit(page: Page, state: string, names = true) {
   }
   await expect(panel.locator("[aria-live]")).toHaveCount(1);
   await expect(panel.locator("[aria-live]")).toHaveAttribute("aria-live", "polite");
-  process.stdout.write(`C state geometry ${JSON.stringify({ state, ...geometry })}\n`);
   return geometry;
 }
 
@@ -349,7 +458,8 @@ test.describe("portrait-side phone cast", () => {
               expect(geometry.rosterLeft - geometry.portraitRight).toBeCloseTo(16, 0);
               expect(geometry.nameScrollWidth).toBeLessThanOrEqual(geometry.nameWidth);
               expect(geometry.rosterHeight).toBeLessThanOrEqual(geometry.columnHeight + 1);
-              expect(geometry.nameHeight).toBeLessThanOrEqual(44);
+              // Translated DOMRect coordinates can add floating-point noise to the height.
+              expect(geometry.nameHeight).toBeLessThanOrEqual(44 + 0.001);
               await expect(castEntry(page, names[0] ?? "")).toHaveAccessibleName(
                 new RegExp(`^${names[0]}`),
               );

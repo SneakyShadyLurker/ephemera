@@ -95,6 +95,8 @@ uses it and flushes the notebook on blur.
 Shared sheet headers show save status below the title on phones and beside
 the actions on wider screens. A phone save failure replaces the title;
 only one save-status subtree and failure announcement renders at a time.
+During a locked Rework, saved card state reads Card unchanged without a
+check or announcement; pending saves and failures retain precedence.
 
 Phone collection headers keep the full title above a labelled action row.
 Character tiles use the portrait and full-width name as the Chat target,
@@ -110,7 +112,9 @@ in place. The phone character sheet groups Sections, Link a lorebook and
 Details below its compact identity.
 
 Memory keeps its title and the character's name in the header; phones fold
-the switch's longer explanation under What memory keeps. The lorebook
+the switch's longer explanation under What memory keeps. `MemorySwitch`
+owns the state line and explanation on both surfaces; the character sheet
+folds the explanation at every width. The lorebook
 editor folds scan depth, budget and Chaining under Book settings, with
 their current values in the summary, so the entries lead the pane.
 
@@ -150,6 +154,13 @@ while following, layout changes keep the tail in view; an upward escape
 restores native history anchoring and survives content or viewport resizing.
 Latest or sending explicitly rejoins, adopting the current scroll origin so
 an already-queued adjustment does not masquerade as a new escape.
+Latest visibility uses the physical scroll gap independently of follow
+intent. `chat/deletion-view.tsx` keeps a transient bookmark in the mounted
+thread around the existing delete and Undo mutations. Successful Undo
+restores the tail or reading offset, respects newer upward input or an
+explicit rejoin, and returns focus only when Undo owned it. A refused Undo
+keeps the bookmark and leaves scroll and focus alone; the bookmark is never
+stored with the chat.
 `portraits/Portrait.tsx` retains the decoded image until its replacement
 decodes, including across sign-in renewal, and supplies an unavailable face
 instead of a broken image.

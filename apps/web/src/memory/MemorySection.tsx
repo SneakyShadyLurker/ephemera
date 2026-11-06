@@ -2,9 +2,11 @@ import { type MemoryState, memoryIsOn } from "@ephemera/core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useFormFactor } from "@/app/form-factor.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { MemoryIcon } from "@/components/icons";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { SwitchField } from "@/components/ui/switch";
 import { useReworkLocked } from "../rework/session.ts";
 import { SHEET_GRID, HELP as SHEET_HELP, sheetLabel } from "../sheet/fields.ts";
@@ -18,6 +20,25 @@ const HELP = SHEET_HELP;
 export const MEMORY_KEPT =
   "Memories are kept with the character, encrypted like its card. The chat itself is never kept. Changing persona continues this character's story under the new player name. Duplicate the character for independent memory.";
 
+const MEMORY_DETAIL = `Turned off, saved memories stay. ${MEMORY_KEPT}`;
+
+function MemoryExplanation({ on, folded }: { on: boolean; folded: boolean }) {
+  const body = (
+    <p className="text-pretty pt-1 pb-1 text-reed text-ui">{on ? MEMORY_DETAIL : MEMORY_KEPT}</p>
+  );
+  return folded ? (
+    <details className="disclosure mt-1">
+      <summary className={SUMMARY_LINE}>
+        What memory keeps
+        <DisclosureChevron />
+      </summary>
+      {body}
+    </details>
+  ) : (
+    body
+  );
+}
+
 /**
  * Memory's one switch, on the sheet and the Memory screen: on for every
  * character until it is turned off here (core `memoryIsOn`). It waits for
@@ -28,7 +49,7 @@ export function MemorySwitch({
   id,
   name,
   state,
-  description,
+  presentation = "folded",
   beforeOff,
   onTurningOff,
 }: {
@@ -36,8 +57,8 @@ export function MemorySwitch({
   name: string;
   /** The notebook row as loaded (null: none yet, so on); undefined while it loads. */
   state: MemoryState | null | undefined;
-  /** What the switch does, said under its label. */
-  description?: string;
+  /** The sheet always folds help; the Memory screen keeps it open above phone width. */
+  presentation?: "folded" | "screen";
   /**
    * Before turning memory off, which closes the notebook's editor: saves its
    * edits, false when they could not be (memory then stays on).
@@ -51,6 +72,7 @@ export function MemorySwitch({
   onTurningOff?: (turning: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const phone = useFormFactor() === "phone";
   const [busy, setBusy] = useState(false);
   // The state a failed change left: memory still on (true) or still off (false).
   const [unchanged, setUnchanged] = useState<boolean | null>(null);
@@ -79,8 +101,11 @@ export function MemorySwitch({
       <SwitchField
         label="Remember the story"
         description={
-          description ??
-          `${name} remembers each chat as it grows. Turned off, new chats are forgotten. ${MEMORY_KEPT}`
+          state === undefined
+            ? "Loading memory."
+            : on
+              ? `On: ${name} remembers every chat as it grows.`
+              : "Off: each chat is forgotten when it ends."
         }
         checked={on}
         disabled={state === undefined || busy}
@@ -95,6 +120,9 @@ export function MemorySwitch({
         <InlineStatus tone="error" as="p" role="alert">
           Memory is still on: the notebook's edits are not saved yet.
         </InlineStatus>
+      )}
+      {state !== undefined && (
+        <MemoryExplanation on={on} folded={presentation === "folded" || phone} />
       )}
     </div>
   );
@@ -113,10 +141,12 @@ export function MemorySection({ id, name }: { id: string | null; name: string })
         Memory
       </h2>
       {id === null ? (
-        <p className={HELP}>
-          Memory starts once {name} is saved, and stays on unless you turn it off here.{" "}
-          {MEMORY_KEPT}
-        </p>
+        <div>
+          <p className={HELP}>
+            Memory starts once {name} is saved and stays on unless you turn it off here.
+          </p>
+          <MemoryExplanation on={false} folded />
+        </div>
       ) : (
         <MemoryControls id={id} name={name} />
       )}

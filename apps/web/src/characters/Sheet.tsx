@@ -377,6 +377,7 @@ function SheetEditor({
         back={BACK}
         title={fields.name.trim() || "New character"}
         status={autosave.status}
+        reviewing={locked}
         creating={creating}
         noun="character"
         frame={wide ? SHEET_FRAME.indexed : SHEET_FRAME.form}

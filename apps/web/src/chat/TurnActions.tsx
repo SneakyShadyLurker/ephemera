@@ -34,6 +34,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { useSignedIn } from "../signin/hooks.ts";
 import { openCast, useCastVisible } from "./cast-ui.ts";
+import { useDeletionView } from "./deletion-view.tsx";
 import { appendAlternate, swipe } from "./Swipe.tsx";
 import { chatStore, useChat } from "./session.ts";
 import { type AssistantMessage, canGenerateAlternate, shownReply } from "./store.ts";
@@ -95,6 +96,8 @@ function MoreMenu({
   className?: string;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
+  const view = useDeletionView();
+  const deleting = (mutate: () => void) => (view ? view.remove(id, mutate) : mutate());
   // Cast takes focus to its own surface; the closing menu must not take it back.
   const toCast = useRef(false);
   const newest = useChat((state) => state.messages.at(-1)?.id === id);
@@ -147,17 +150,17 @@ function MoreMenu({
           </MenuItem>
         )}
         <MenuSeparator />
-        <MenuItem danger onClick={() => remove(id)}>
+        <MenuItem danger onClick={() => deleting(() => remove(id))}>
           <DeleteIcon size={16} />
           Delete
         </MenuItem>
         {alternates && (
-          <MenuItem danger onClick={removeAlternate}>
+          <MenuItem danger onClick={() => deleting(removeAlternate)}>
             <DeleteIcon size={16} />
             Delete this alternate
           </MenuItem>
         )}
-        <MenuItem danger onClick={() => removeFrom(id)}>
+        <MenuItem danger onClick={() => deleting(() => removeFrom(id))}>
           <DeleteIcon size={16} />
           Delete from here
         </MenuItem>
