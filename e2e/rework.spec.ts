@@ -1,4 +1,5 @@
-import type { Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+import type { Locator, Page } from "@playwright/test";
 import { CARD_LIMITS } from "../packages/core/src/card/limits.ts";
 import { PALETTES } from "../packages/core/src/palettes.ts";
 import { uniqueName } from "./support/cards.ts";
@@ -1135,78 +1136,292 @@ const RICH_DESCRIPTION_NEW =
 const richBlock = (field: string, why: string, find: string, replace: string) =>
   `<change>\n<field>${field}</field>\n<why>${why}</why>\n<find>${find}</find>\n<replace>${replace}</replace>\n</change>`;
 
-test("replacement, deletion, insertion and keyword decisions agree with their spoken state and counts", async ({
-  page,
-}) => {
-  const id = await createCharacterViaApi(page.request, "Mara Voss", {
-    description: "Old harbour. The archive stays.",
-    firstMessage: "",
-    creatorNotes: "An aside. Keep this.",
-  });
-  await setLorebookViaApi(page.request, id, {
-    entries: [
-      {
-        keys: ["harbour"],
-        content: "The archive.",
-        enabled: true,
-        insertionOrder: 100,
-        useRegex: false,
-        comment: "Archive",
-      },
-    ],
-  });
-  const answer = [
-    richBlock("description", "The harbour changes.", "Old harbour.", "New harbour."),
-    richBlock("creatorNotes", "The aside can go.", "An aside.", ""),
-    richBlock("firstMessage", "The day opens.", "", "Morning lantern."),
-    richBlock("entry_1_keys", "Follow the new place.", "", "customs"),
-    richBlock("description", "Cannot find this passage.", "Missing passage.", "Unplaced proposal."),
-    "<summary>Four decisions.</summary>",
-  ].join("\n");
-  await page.route("**/api/creator/rework", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/x-ndjson; charset=utf-8",
-      body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
-    }),
+/** Measure the painted fixture, compositing text, grounds and every ancestor's opacity. */
+async function proposalReading(group: Locator, previousTreatment = false) {
+  return group.evaluate(
+    (group, { palettes, previousTreatment }) => {
+      const root = document.documentElement;
+      const original = {
+        theme: root.getAttribute("data-theme"),
+        palette: root.getAttribute("data-palette"),
+      };
+      const nodes = [
+        ...group.querySelectorAll<HTMLElement>(
+          ".tracked-ins, .tracked-chip-ins, .tracked-del, .tracked-chip-del",
+        ),
+      ].filter(
+        (node) =>
+          !node.parentElement?.closest(
+            ".tracked-ins, .tracked-chip-ins, .tracked-del, .tracked-chip-del",
+          ),
+      );
+      const saved = nodes.map((node) => node.getAttribute("style"));
+      const probe = document.createElement("span");
+      document.body.append(probe);
+      type RGBA = [number, number, number, number];
+      const rgba = (value: string): RGBA => {
+        probe.style.color = `color(from ${value} srgb r g b / alpha)`;
+        const channels = (getComputedStyle(probe).color.match(/-?[\d.]+(?:e-?\d+)?/g) ?? []).map(
+          Number,
+        );
+        return [channels[0] ?? 0, channels[1] ?? 0, channels[2] ?? 0, channels[3] ?? 1];
+      };
+      const over = (front: RGBA, back: RGBA): RGBA => {
+        const alpha = front[3] + back[3] * (1 - front[3]);
+        return [0, 1, 2]
+          .map((i) =>
+            alpha === 0
+              ? 0
+              : ((front[i] ?? 0) * front[3] + (back[i] ?? 0) * back[3] * (1 - front[3])) / alpha,
+          )
+          .concat(alpha) as RGBA;
+      };
+      const light = (color: RGBA) =>
+        color
+          .slice(0, 3)
+          .reduce(
+            (sum, channel, i) =>
+              sum +
+              (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4) *
+                ([0.2126, 0.7152, 0.0722][i] ?? 0),
+            0,
+          );
+      const results = [];
+      try {
+        for (const scheme of ["light", "dark"]) {
+          root.dataset.theme = scheme;
+          for (const palette of palettes) {
+            root.dataset.palette = palette;
+            for (const node of nodes) {
+              const added = node.matches(".tracked-ins, .tracked-chip-ins");
+              if (previousTreatment && added) {
+                // Bounded live reapplication of the former resting rejected declarations.
+                node.style.color = "var(--ink)";
+                node.style.opacity = "0.4";
+                node.style.textDecoration = "none";
+              }
+              let foreground = rgba(getComputedStyle(node).color);
+              let background: RGBA = [0, 0, 0, 0];
+              let effectiveOpacity = 1;
+              for (let at: HTMLElement | null = node; at; at = at.parentElement) {
+                // Finish only finite fixture/ancestor transitions; ambient loops are untouched.
+                getComputedStyle(at).color;
+                for (const animation of at.getAnimations()) {
+                  if (animation.effect?.getComputedTiming().iterations !== Infinity)
+                    animation.finish();
+                }
+                const style = getComputedStyle(at);
+                if (at === node) foreground = rgba(style.color);
+                const ground = rgba(style.backgroundColor);
+                foreground = over(foreground, ground);
+                background = over(background, ground);
+                const opacity = Number(style.opacity);
+                effectiveOpacity *= opacity;
+                foreground[3] *= opacity;
+                background[3] *= opacity;
+              }
+              foreground = over(foreground, [1, 1, 1, 1]);
+              background = over(background, [1, 1, 1, 1]);
+              const a = light(foreground);
+              const b = light(background);
+              const style = getComputedStyle(node);
+              results.push({
+                scheme,
+                palette,
+                added,
+                ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+                foreground,
+                background,
+                effectiveOpacity,
+                color: style.color,
+                line: style.textDecorationLine,
+                decoration: style.textDecorationColor,
+                thickness: style.textDecorationThickness,
+                shadow: style.boxShadow,
+                ground: style.backgroundColor,
+                transitions: style.transitionProperty,
+                durations: style.transitionDuration,
+                fontSize: style.fontSize,
+              });
+            }
+          }
+        }
+      } finally {
+        probe.remove();
+        nodes.forEach((node, i) => {
+          const style = saved[i];
+          if (style === null || style === undefined) node.removeAttribute("style");
+          else node.setAttribute("style", style);
+        });
+        for (const [key, value] of Object.entries(original)) {
+          if (value === null) root.removeAttribute(`data-${key}`);
+          else root.setAttribute(`data-${key}`, value);
+        }
+      }
+      return results;
+    },
+    { palettes: PALETTES, previousTreatment },
   );
-  await openSheet(page, id);
-  await openRework(page);
-  await submitRework(page, { request: "Rework the harbour.", model: "mock-fast" });
-  const bar = dock(page);
-  await expect(bar).toContainText("4 changes to apply");
-  await expect(bar.getByText("1 change won't apply", { exact: true })).toBeVisible();
-  await expect(bar.getByText("– / 4", { exact: true })).toHaveCount(0);
-  const replacement = page.getByRole("group", { name: /^Change \d of 4 in Description$/ });
-  const deletion = page.getByRole("group", { name: /^Change \d of 4 in Creator notes$/ });
-  const insertion = page.getByRole("group", { name: /^Change \d of 4 in First message$/ });
-  const keywords = page.getByRole("group", {
-    name: /^Change \d of 4 in Entry 1: Archive, keywords$/,
+}
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`replacement, deletion, insertion and keyword decisions agree with their spoken state and counts (${reducedMotion})`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion });
+    const id = await createCharacterViaApi(page.request, "Mara Voss", {
+      description: "Old harbour. The archive stays.",
+      firstMessage: "",
+      creatorNotes: "An aside. Keep this.",
+    });
+    await setLorebookViaApi(page.request, id, {
+      entries: [
+        {
+          keys: ["harbour"],
+          content: "The archive.",
+          enabled: true,
+          insertionOrder: 100,
+          useRegex: false,
+          comment: "Archive",
+        },
+      ],
+    });
+    const answer = [
+      richBlock("description", "The harbour changes.", "Old harbour.", "New harbour."),
+      richBlock("creatorNotes", "The aside can go.", "An aside.", ""),
+      richBlock("firstMessage", "The day opens.", "", "Morning lantern."),
+      richBlock("entry_1_keys", "Follow the new place.", "", "customs"),
+      richBlock(
+        "description",
+        "Cannot find this passage.",
+        "Missing passage.",
+        "Unplaced proposal.",
+      ),
+      "<summary>Four decisions.</summary>",
+    ].join("\n");
+    await page.route("**/api/creator/rework", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/x-ndjson; charset=utf-8",
+        body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+      }),
+    );
+    await openSheet(page, id);
+    await openRework(page);
+    await submitRework(page, { request: "Rework the harbour.", model: "mock-fast" });
+    const bar = dock(page);
+    await expect(bar).toContainText("4 changes to apply");
+    await expect(bar.getByText("1 change won't apply", { exact: true })).toBeVisible();
+    await expect(bar.getByText("– / 4", { exact: true })).toHaveCount(0);
+    const replacement = page.getByRole("group", { name: /^Change \d of 4 in Description$/ });
+    const deletion = page.getByRole("group", { name: /^Change \d of 4 in Creator notes$/ });
+    const insertion = page.getByRole("group", { name: /^Change \d of 4 in First message$/ });
+    const keywords = page.getByRole("group", {
+      name: /^Change \d of 4 in Entry 1: Archive, keywords$/,
+    });
+    const readings: {
+      state: string;
+      kind: string;
+      samples: Awaited<ReturnType<typeof proposalReading>>;
+    }[] = [];
+    const measure = async (state: "accepted" | "rejected" | "restored") => {
+      for (const [kind, group] of [
+        ["block", replacement],
+        ["keyword", keywords],
+      ] as const) {
+        const samples = await proposalReading(group);
+        expect(samples).toHaveLength(24);
+        for (const sample of samples) {
+          const struck = state === "rejected" ? sample.added : !sample.added;
+          expect(
+            sample.ratio,
+            `${state}/${kind}/${sample.palette}/${sample.scheme}`,
+          ).toBeGreaterThanOrEqual(struck ? 4.5 : 7);
+          expect(sample.effectiveOpacity).toBe(1);
+          if (struck) {
+            expect(sample.line).toBe("line-through");
+            expect(sample.thickness).toBe("1px");
+            expect(sample.decoration).toBe(sample.color);
+          } else if (state === "rejected" && !sample.added) {
+            // Kept originals retain the existing transparent decoration state.
+            expect(sample.decoration).toBe("rgba(0, 0, 0, 0)");
+          } else expect(sample.line).toBe("none");
+          if (sample.added) {
+            expect(sample.shadow === "none").toBe(state === "rejected");
+            const properties = sample.transitions.split(", ");
+            const durations = sample.durations.split(", ");
+            for (const property of [
+              "color",
+              "text-decoration-color",
+              "background-color",
+              "box-shadow",
+            ]) {
+              const duration = Number.parseFloat(durations[properties.indexOf(property)] ?? "NaN");
+              expect(duration).toBe(reducedMotion === "reduce" ? 0 : 0.12);
+            }
+            expect(
+              Number.parseFloat(durations[properties.indexOf("opacity")] ?? "0"),
+            ).toBeGreaterThan(0);
+          }
+        }
+        readings.push({ state, kind, samples });
+      }
+      await replacement.scrollIntoViewIfNeeded();
+      const screenshotPath = testInfo.outputPath(`rework-${state}-${reducedMotion}.png`);
+      await page.screenshot({ path: screenshotPath });
+      await testInfo.attach(`rework-${state}-${reducedMotion}`, {
+        path: screenshotPath,
+        contentType: "image/png",
+      });
+    };
+    await measure("accepted");
+    for (const group of [replacement, deletion, insertion, keywords]) {
+      await group.getByRole("button", { name: /^Reject change/ }).click();
+      await expect(group.getByRole("button", { name: /^Restore change/ })).toBeFocused();
+      await expect(group.locator("del, ins")).toHaveCount(0);
+      await expect(group).not.toContainText(/deleted:|inserted:|removed:|added:/);
+    }
+    for (const group of [replacement, deletion, keywords]) {
+      await expect(group.getByText("Kept", { exact: true })).toBeVisible();
+    }
+    for (const group of [replacement, keywords]) {
+      await expect(group.getByText("Rejected", { exact: true })).toBeVisible();
+    }
+    await expect(insertion.getByText("Not added", { exact: true })).toBeVisible();
+    await expect(insertion.getByText("Morning lantern.", { exact: true })).toBeHidden();
+    await expect(bar).toContainText("Nothing to apply, 4 rejected");
+    await expect(bar.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
+    await measure("rejected");
+    for (const [kind, group] of [
+      ["block", replacement],
+      ["keyword", keywords],
+    ] as const) {
+      const samples = await proposalReading(group, true);
+      expect(samples.filter((sample) => sample.added).every((sample) => sample.ratio < 4.5)).toBe(
+        true,
+      );
+      readings.push({ state: "previous-declarations-live-reapplied", kind, samples });
+    }
+    await keywords.getByRole("button", { name: /^Restore change/ }).click();
+    await expect(keywords.getByRole("button", { name: /^Reject change/ })).toBeFocused();
+    await expect(keywords.getByText("Removed", { exact: true })).toBeVisible();
+    await expect(keywords.getByText("Proposed", { exact: true })).toBeVisible();
+    await expect(keywords.locator("del")).toHaveCount(1);
+    await expect(keywords.locator("ins")).toHaveCount(1);
+    await expect(bar).toContainText("1 change to apply, 3 rejected");
+    await replacement.getByRole("button", { name: /^Restore change/ }).click();
+    await expect(replacement.getByRole("button", { name: /^Reject change/ })).toBeFocused();
+    await expect(bar).toContainText("2 changes to apply, 2 rejected");
+    await measure("restored");
+    const contrastPath = testInfo.outputPath("rework-effective-contrast.json");
+    await writeFile(contrastPath, JSON.stringify(readings, null, 2));
+    await testInfo.attach("rework-effective-contrast", {
+      path: contrastPath,
+      contentType: "application/json",
+    });
   });
-  for (const group of [replacement, deletion, insertion, keywords]) {
-    await group.getByRole("button", { name: /^Reject change/ }).click();
-    await expect(group.getByRole("button", { name: /^Restore change/ })).toBeFocused();
-    await expect(group.locator("del, ins")).toHaveCount(0);
-    await expect(group).not.toContainText(/deleted:|inserted:|removed:|added:/);
-  }
-  for (const group of [replacement, deletion, keywords]) {
-    await expect(group.getByText("Kept", { exact: true })).toBeVisible();
-  }
-  for (const group of [replacement, keywords]) {
-    await expect(group.getByText("Rejected", { exact: true })).toBeVisible();
-  }
-  await expect(insertion.getByText("Not added", { exact: true })).toBeVisible();
-  await expect(insertion.getByText("Morning lantern.", { exact: true })).toBeHidden();
-  await expect(bar).toContainText("Nothing to apply, 4 rejected");
-  await expect(bar.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
-  await keywords.getByRole("button", { name: /^Restore change/ }).click();
-  await expect(keywords.getByRole("button", { name: /^Reject change/ })).toBeFocused();
-  await expect(keywords.getByText("Removed", { exact: true })).toBeVisible();
-  await expect(keywords.getByText("Proposed", { exact: true })).toBeVisible();
-  await expect(keywords.locator("del")).toHaveCount(1);
-  await expect(keywords.locator("ins")).toHaveCount(1);
-  await expect(bar).toContainText("1 change to apply, 3 rejected");
-});
+}
 
 const RICH_ANSWER = [
   richBlock("name", "The request names her family.", "Mara Voss", "Mara Ilse Voss"),
@@ -1272,6 +1487,85 @@ async function createRichCharacter(page: Page) {
     ],
   });
   return id;
+}
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`Reject and Restore keep the new-entry fade while tint respects motion (${reducedMotion})`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion });
+    const id = await createRichCharacter(page);
+    await page.route("**/api/creator/rework", (route) =>
+      route.fulfill({
+        contentType: "application/x-ndjson",
+        body: `${JSON.stringify({ type: "delta", text: RICH_ANSWER })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+      }),
+    );
+    await openSheet(page, id);
+    await openRework(page);
+    await submitRework(page, { request: "Rework for the customs raid.", model: "mock-fast" });
+    const group = page.getByRole("group", { name: "New entry: Harbour master", exact: true });
+    const fold = group.locator(".tracked-fold");
+    await expect(fold).toHaveCSS("opacity", "1");
+    const samples = [];
+    for (const action of ["Reject", "Restore"] as const) {
+      const button = group.getByRole("button", {
+        name: `${action} new entry: Harbour master`,
+        exact: true,
+      });
+      await button.scrollIntoViewIfNeeded();
+      const sample = await button.evaluate((button) => {
+        if (!(button instanceof HTMLButtonElement)) throw new Error("No decision button");
+        const group = button.closest("[data-decision]");
+        const fold = group?.querySelector<HTMLElement>(".tracked-fold");
+        if (!group || !fold) throw new Error("No new-entry fold");
+        getComputedStyle(fold).opacity;
+        return new Promise<{ properties: string[]; halfway: number; final: number }>((resolve) => {
+          button.addEventListener(
+            "click",
+            () =>
+              queueMicrotask(() => {
+                getComputedStyle(fold).opacity;
+                const animations = group
+                  .getAnimations({ subtree: true })
+                  .filter(
+                    (animation): animation is CSSTransition => animation instanceof CSSTransition,
+                  );
+                for (const animation of animations) {
+                  animation.pause();
+                  animation.currentTime = Number(animation.effect?.getTiming().duration) / 2;
+                }
+                const halfway = Number(getComputedStyle(fold).opacity);
+                const properties = animations.map((animation) => animation.transitionProperty);
+                for (const animation of animations) animation.finish();
+                resolve({ properties, halfway, final: Number(getComputedStyle(fold).opacity) });
+              }),
+            { once: true },
+          );
+          button.click();
+        });
+      });
+      expect(sample.properties).toContain("opacity");
+      expect(sample.halfway).toBeGreaterThan(0);
+      expect(sample.halfway).toBeLessThan(1);
+      expect(sample.final).toBe(action === "Reject" ? 0 : 1);
+      for (const property of ["color", "background-color", "box-shadow", "text-decoration-color"]) {
+        if (reducedMotion === "reduce") expect(sample.properties).not.toContain(property);
+      }
+      const next = action === "Reject" ? "Restore" : "Reject";
+      await expect(
+        group.getByRole("button", { name: `${next} new entry: Harbour master`, exact: true }),
+      ).toBeFocused();
+      samples.push({ action, ...sample });
+    }
+    const lifecyclePath = testInfo.outputPath("rework-fold-and-tint-lifecycle.json");
+    await writeFile(lifecyclePath, JSON.stringify(samples, null, 2));
+    await testInfo.attach("rework-fold-and-tint-lifecycle", {
+      path: lifecyclePath,
+      contentType: "application/json",
+    });
+  });
 }
 
 test("after Apply adds an alternate, Remove takes it out and Add opens the next one", async ({

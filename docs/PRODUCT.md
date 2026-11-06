@@ -378,7 +378,9 @@ Version 1.0 holds everything below.
   behind Show removed, and long unchanged stretches folded behind
   "Show N unchanged words". Each change's reason follows it with Reject,
   or Restore once rejected, always visible. Rejected changes label the original
-  Kept and the proposal Rejected, or Not added for a pure insertion. Lorebook
+  Kept and the proposal Rejected, or Not added for a pure insertion. Rejected
+  proposals stay readable in full-strength struck reed; pure insertions fold
+  away. Reduced motion makes tint changes instant while retaining the fold fade. Lorebook
   entries the changes touch, add or remove show above the lorebook's
   summary; a new entry is accepted or rejected whole. A bar under the sheet
   counts the changes to apply and the rejected changes separately,
@@ -467,6 +469,7 @@ Version 1.0 holds everything below.
   An entry's Text comes before its activation controls, so writing comes first.
   Folded rows group Placement and order, Timing, Event pool, Chaining and
   Matching; each entry's order is also named in its list row's description.
+  Matching names inherited scan depth as "Book's last N messages".
 - Import SillyTavern World Info files or standalone card lorebooks and
   convert them to native data. Export and re-import Ephemera lorebook JSON.
   Reports say what was kept, changed and left out.
@@ -633,6 +636,12 @@ Version 1.0 holds everything below.
   width, including before the character is first saved. Notebook prose
   carries an edit cue and saves on Enter
   or leaving the field, with Done on touch and save feedback beside the edit.
+- A Sections menu appears for a visit that starts with memory on and at least
+  one relationship, fact, open thread, cast line or memory. Eligibility stays
+  fixed for that visit; turning memory off hides it. It sits below the heading
+  on phones and before Remember now in wider headers. Choosing a section
+  scrolls to and focuses its labelled group or the Memories heading, without
+  entering an edit or changing navigation history.
 - Settings > Memory & cast holds memory's settings: Open new chats where the story left
   off, on by default (off, the card's greeting opens every chat), the
   model memory calls use (the reply's

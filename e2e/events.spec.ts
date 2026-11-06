@@ -1,13 +1,23 @@
 import { randomBytes } from "node:crypto";
-import type { APIRequestContext, Page } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
+import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   EVENT_DIRECTION,
   EVENT_LIMITS,
   type StoredEvent,
 } from "../packages/core/src/events/event.ts";
+import { PALETTES } from "../packages/core/src/palettes.ts";
 import { eventsResponseSchema } from "../packages/core/src/responses.ts";
 import { uniqueName } from "./support/cards.ts";
-import { chooseCharacter, lastReply, send, upstreamRecords } from "./support/chat.ts";
+import { castEntry, castPanel, castRecord, openRecord } from "./support/cast.ts";
+import { keeperWoman, SHEET_WOMAN } from "./support/cast-fixtures.ts";
+import {
+  chatMenuButton,
+  chooseCharacter,
+  lastReply,
+  send,
+  upstreamRecords,
+} from "./support/chat.ts";
 import {
   createCharacterViaApi,
   createEventViaApi,
@@ -66,6 +76,326 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 }
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
+
+/** Real control colours and composited ground, with opacity asserted rather than assumed. */
+async function removalReading(button: Locator, token: "--reed" | "--ember" | "--text-disabled") {
+  return button.evaluate((node, token) => {
+    for (let at: Element | null = node; at; at = at.parentElement) {
+      getComputedStyle(at).color;
+      for (const animation of at.getAnimations()) {
+        if (animation.effect?.getComputedTiming().iterations !== Infinity) animation.finish();
+      }
+    }
+    const probe = document.createElement("span");
+    document.body.append(probe);
+    const rgb = (color: string) => {
+      probe.style.color = `color(from ${color} srgb r g b / alpha)`;
+      return (getComputedStyle(probe).color.match(/-?[\d.]+(?:e-?\d+)?/g) ?? []).map(Number);
+    };
+    const style = getComputedStyle(node);
+    probe.style.color = `var(${token})`;
+    const expected = getComputedStyle(probe).color;
+    const fg = rgb(style.color);
+    let ground = [0, 0, 0];
+    let remaining = 1;
+    let opacity = 1;
+    for (let at: Element | null = node; at; at = at.parentElement) {
+      const computed = getComputedStyle(at);
+      opacity *= Number(computed.opacity);
+      const bg = rgb(computed.backgroundColor);
+      const alpha = bg[3] ?? 1;
+      ground = ground.map((value, i) => value + (bg[i] ?? 0) * alpha * remaining);
+      remaining *= 1 - alpha;
+    }
+    ground = ground.map((channel) => channel + remaining);
+    const effective = ground.map(
+      (channel, i) => (fg[i] ?? 0) * (fg[3] ?? 1) + channel * (1 - (fg[3] ?? 1)),
+    );
+    const light = (channels: number[]) =>
+      channels.reduce(
+        (sum, channel, i) =>
+          sum +
+          (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4) *
+            ([0.2126, 0.7152, 0.0722][i] ?? 0),
+        0,
+      );
+    const a = light(effective),
+      b = light(ground);
+    probe.remove();
+    return {
+      color: style.color,
+      expected,
+      opacity,
+      ground,
+      ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+      background: style.backgroundColor,
+      border: style.borderTopColor,
+      line: style.textDecorationLine,
+      outline: style.outlineWidth,
+      focusVisible: node.matches(":focus-visible"),
+      box: node.getBoundingClientRect().toJSON(),
+    };
+  }, token);
+}
+
+for (const hasTouch of [false, true]) {
+  test.describe(`Undo removal role touch=${hasTouch}`, () => {
+    test.use({ hasTouch });
+    test("Events keeps disabled colours, target sizes and Undo focus in both surfaces", async ({
+      page,
+      request,
+    }, testInfo) => {
+      test.setTimeout(90_000);
+      const text = "The harbour gate opens.";
+      const id = await createEventViaApi(request, text);
+      await freshChat(request);
+      await createLorebookViaApi(request, uniqueName("Removal"));
+      const readings = [];
+      for (const surface of ["library", "sheet"] as const) {
+        for (const width of [360, 390, 820, 1440]) {
+          await page.setViewportSize({ width, height: 1000 });
+          // Set up each surface at its target width: changing form factor can
+          // remount a drawer's body, which starts with its event rows closed.
+          await page.goto(surface === "library" ? "/lorebooks" : "/");
+          if (surface === "library") await openEvents(page);
+          else {
+            if (width < 768) {
+              await expect(chatMenuButton(page)).toBeVisible();
+              await chatMenuButton(page).click();
+              await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+            } else {
+              const events = page.getByRole("button", { name: "Events", exact: true });
+              await expect(events).toBeVisible();
+              await events.click();
+            }
+          }
+          const row = page.locator(`[data-event="${id}"]`);
+          await row.getByRole("button", { name: text, exact: true }).click();
+          const remove = row.getByRole("button", { name: "Delete event", exact: true });
+          await expect(remove).toBeVisible();
+          expect((await remove.boundingBox())?.height).toBe(hasTouch ? 44 : 36);
+          for (const scheme of ["light", "dark"])
+            for (const palette of PALETTES) {
+              const original = await page.evaluate(
+                ({ scheme, palette }) => {
+                  const root = document.documentElement;
+                  const previous = {
+                    theme: root.getAttribute("data-theme"),
+                    palette: root.getAttribute("data-palette"),
+                  };
+                  root.dataset.theme = scheme;
+                  root.dataset.palette = palette;
+                  return previous;
+                },
+                { scheme, palette },
+              );
+              try {
+                await page.mouse.move(0, 0);
+                await remove.evaluate((node) => node.blur());
+                let sample = await removalReading(remove, "--reed");
+                expect(sample.color).toBe(sample.expected);
+                expect(sample.line).toBe("none");
+                expect(sample.border).toBe("rgba(0, 0, 0, 0)");
+                await remove.hover();
+                sample = await removalReading(remove, hasTouch ? "--reed" : "--ember");
+                expect(sample.color).toBe(sample.expected);
+                expect(sample.opacity).toBe(1);
+                expect(sample.ratio).toBeGreaterThanOrEqual(4.5);
+                readings.push({ surface, width, scheme, palette, state: "hover", ...sample });
+                await remove.focus();
+                await page.keyboard.press("Shift+Tab");
+                await page.keyboard.press("Tab");
+                sample = await removalReading(remove, "--ember");
+                expect(sample.focusVisible).toBe(true);
+                expect(sample.color).toBe(sample.expected);
+                expect(sample.outline).toBe("2px");
+                expect(sample.ratio).toBeGreaterThanOrEqual(4.5);
+                readings.push({ surface, width, scheme, palette, state: "focus", ...sample });
+                // Test both selectors on the actual compiled button, restoring native state.
+                for (const kind of ["native", "base-ui"] as const) {
+                  await remove.evaluate((node, kind) => {
+                    if (kind === "native") (node as HTMLButtonElement).disabled = true;
+                    else node.setAttribute("data-disabled", "");
+                  }, kind);
+                  await remove.hover();
+                  if (kind === "base-ui") await remove.focus();
+                  sample = await removalReading(remove, "--text-disabled");
+                  expect(sample.color).toBe(sample.expected);
+                  expect(sample.background).toBe("rgba(0, 0, 0, 0)");
+                  await remove.evaluate((node) => {
+                    (node as HTMLButtonElement).disabled = false;
+                    node.removeAttribute("data-disabled");
+                  });
+                }
+              } finally {
+                await page.evaluate((original) => {
+                  for (const [key, value] of Object.entries(original)) {
+                    if (value === null) document.documentElement.removeAttribute(`data-${key}`);
+                    else document.documentElement.setAttribute(`data-${key}`, value);
+                  }
+                }, original);
+              }
+            }
+        }
+      }
+      // The actual asynchronous disabled state, then the unchanged removal/Undo owners.
+      let release = () => {};
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(`**/api/events/${id}`, async (route) => {
+        if (route.request().method() !== "DELETE") return route.fallback();
+        await pending;
+        await route.continue();
+      });
+      const remove = page.getByRole("button", { name: "Delete event", exact: true });
+      try {
+        await remove.click();
+        await expect(remove).toHaveAttribute("data-disabled");
+        await remove.hover();
+        await remove.focus();
+        const disabled = await removalReading(remove, "--text-disabled");
+        expect(disabled.color).toBe(disabled.expected);
+        expect(disabled.background).toBe("rgba(0, 0, 0, 0)");
+      } finally {
+        release();
+      }
+      const undo = page.getByRole("button", { name: "Undo", exact: true });
+      await expect(undo).toBeFocused();
+      await undo.click();
+      await expect(page.getByRole("button", { name: text, exact: true })).toBeFocused();
+      const coloursPath = testInfo.outputPath("event-removal-colours.json");
+      await writeFile(coloursPath, JSON.stringify(readings, null, 2));
+      await testInfo.attach("event-removal-colours", {
+        path: coloursPath,
+        contentType: "application/json",
+      });
+      const screenshotPath = testInfo.outputPath("event-removal.png");
+      await page.screenshot({ path: screenshotPath });
+      await testInfo.attach("event-removal", {
+        path: screenshotPath,
+        contentType: "image/png",
+      });
+    });
+    test("Cast removal agrees in present and away rosters and record drawer or popover", async ({
+      page,
+      request,
+    }, testInfo) => {
+      test.setTimeout(120_000);
+      const name = uniqueName("Cast removal");
+      const id = await createCharacterViaApi(request, name, {
+        description: `${name} keeps the lighthouse with her brother.`,
+        firstMessage: `The lamp room is warm. ${name} looks up from the log.`,
+      });
+      await patchSettings(request, { characterId: id, model: "mock-fast", castModel: "mock-cast" });
+      await page.goto("/");
+      const present = keeperWoman([]);
+      await expect(castEntry(page, present)).toBeVisible();
+      const readings: {
+        owner: string;
+        width: number;
+        scheme: string;
+        palette: string;
+        rest: Awaited<ReturnType<typeof removalReading>>;
+        hover: Awaited<ReturnType<typeof removalReading>>;
+        focus: Awaited<ReturnType<typeof removalReading>>;
+      }[] = [];
+      const check = async (button: Locator, owner: string, width: number) => {
+        expect((await button.boundingBox())?.height).toBe(hasTouch ? 44 : 36);
+        for (const scheme of ["light", "dark"])
+          for (const palette of PALETTES) {
+            const original = await page.evaluate(
+              ({ scheme, palette }) => {
+                const root = document.documentElement;
+                const previous = {
+                  theme: root.getAttribute("data-theme"),
+                  palette: root.getAttribute("data-palette"),
+                };
+                root.dataset.theme = scheme;
+                root.dataset.palette = palette;
+                return previous;
+              },
+              { scheme, palette },
+            );
+            try {
+              await page.mouse.move(0, 0);
+              await button.evaluate((node) => node.blur());
+              const rest = await removalReading(button, "--reed");
+              expect(rest.color).toBe(rest.expected);
+              expect(rest.line).toBe("none");
+              expect(rest.border).toBe("rgba(0, 0, 0, 0)");
+              await button.hover();
+              const hover = await removalReading(button, hasTouch ? "--reed" : "--ember");
+              expect(hover.color).toBe(hover.expected);
+              expect(hover.opacity).toBe(1);
+              expect(hover.ratio).toBeGreaterThanOrEqual(4.5);
+              await button.focus();
+              await page.keyboard.press("Shift+Tab");
+              await page.keyboard.press("Tab");
+              await expect(button).toBeFocused();
+              const focus = await removalReading(button, "--ember");
+              expect(focus.color).toBe(focus.expected);
+              expect(focus.outline).toBe("2px");
+              expect(focus.ratio).toBeGreaterThanOrEqual(4.5);
+              readings.push({ owner, width, scheme, palette, rest, hover, focus });
+            } finally {
+              await page.evaluate((original) => {
+                for (const [key, value] of Object.entries(original)) {
+                  if (value === null) document.documentElement.removeAttribute(`data-${key}`);
+                  else document.documentElement.setAttribute(`data-${key}`, value);
+                }
+              }, original);
+            }
+          }
+      };
+      const undo = async (name: string) => {
+        const button = castPanel(page).getByRole("button", { name: `Undo removing ${name}` });
+        await expect(button).toBeFocused();
+        await button.click();
+      };
+      for (const width of [360, 390, 820, 1440]) {
+        await page.setViewportSize({ width, height: 1000 });
+        if (width < 768) {
+          for (const [owner, removed] of [
+            ["present-roster", present],
+            ["away-roster", SHEET_WOMAN],
+          ] as const) {
+            await castPanel(page)
+              .getByRole("button", { name: `and ${SHEET_WOMAN} away` })
+              .click();
+            const roster = castRecord(page, "Cast");
+            let remove: Locator;
+            if (owner === "away-roster") {
+              const away = roster.getByRole("region", { name: "Away" });
+              await away.locator("summary").filter({ hasText: SHEET_WOMAN }).click();
+              remove = away.getByRole("button", { name: "Remove from cast", exact: true });
+            } else
+              remove = roster
+                .getByRole("list", { name: "Present" })
+                .getByRole("button", { name: "Remove from cast", exact: true });
+            await check(remove, owner, width);
+            await remove.click();
+            await expect(roster).toHaveCount(0);
+            await undo(removed);
+          }
+        }
+        const record = await openRecord(page, present);
+        const remove = record.getByRole("button", { name: "Remove from cast", exact: true });
+        await check(remove, width < 768 ? "record-drawer" : "record-popover", width);
+        await remove.click();
+        await expect(record).toHaveCount(0);
+        await undo(present);
+        await expect(castEntry(page, present)).toBeVisible();
+      }
+      const coloursPath = testInfo.outputPath("cast-removal-colours.json");
+      await writeFile(coloursPath, JSON.stringify(readings, null, 2));
+      await testInfo.attach("cast-removal-colours", {
+        path: coloursPath,
+        contentType: "application/json",
+      });
+    });
+  });
+}
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`event summaries wrap closed and keep the open caret still (${reducedMotion})`, async ({

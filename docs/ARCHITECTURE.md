@@ -115,10 +115,20 @@ closes it and reports the named book
 in place. The phone character sheet groups Sections, Link a lorebook and
 Details below its compact identity.
 
+Delete event and Remove from cast share the borderless `remove` button role:
+reed at rest, ember on enabled hover or keyboard focus, with the existing
+focus ring. Native and focusable disabled controls retain disabled colours.
+The bordered danger role remains for actions that cannot be undone.
+
 Memory keeps its title and the character's name in the header; phones fold
 the switch's longer explanation under What memory keeps. `MemorySwitch`
 owns the state line and explanation on both surfaces; the character sheet
-folds the explanation at every width. The lorebook
+folds the explanation at every width. The loaded Memory book latches Sections
+eligibility for the visit; current memory-off state hides the menu.
+`memory/Sections.tsx` owns its typed reading order and resolves current target
+refs after the menu closes. Jumps focus noneditable groups, with the ring on
+their visible labels, or the Memories heading; notebook revision remounts
+reconnect the targets. The lorebook
 editor folds scan depth, budget and Chaining under Book settings, with
 their current values in the summary, so the entries lead the pane.
 

@@ -1233,8 +1233,8 @@ function RosterView({
                   </h3>
                   <RecordText entry={entry} />
                   <Button
-                    variant="link"
-                    className="justify-self-start"
+                    variant="remove"
+                    className="-ml-2 justify-self-start px-2"
                     onClick={() => removeFromCast(entry)}
                   >
                     Remove from cast
@@ -1261,8 +1261,8 @@ function RosterView({
                       <div className="grid gap-3 pt-3">
                         <RecordText entry={entry} />
                         <Button
-                          variant="link"
-                          className="justify-self-start"
+                          variant="remove"
+                          className="-ml-2 justify-self-start px-2"
                           onClick={() => removeFromCast(entry)}
                         >
                           Remove from cast
@@ -1346,9 +1346,9 @@ function RecordView({
       </EditorBody>
       <EditorFooter>
         <Button
-          variant="quiet"
+          variant="remove"
           onClick={() => removeFromCast(entry)}
-          className="-ml-2 justify-self-start px-2 hover:text-ember"
+          className="-ml-2 justify-self-start px-2"
         >
           Remove from cast
         </Button>
