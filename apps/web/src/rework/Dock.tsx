@@ -44,13 +44,21 @@ const UNPLACED: Record<Unplaced, string> = {
 };
 
 /** The changes that could not be placed, as a disclosure: field, reason and the proposed text. */
-function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: ReworkCard | null }) {
+function Unplaceable({
+  changes: all,
+  base,
+  allUnplaced,
+}: {
+  changes: ReviewChange[];
+  base: ReworkCard | null;
+  allUnplaced: boolean;
+}) {
   const unplaced = all.flatMap((change) => (change.ok ? [] : [change]));
   if (unplaced.length === 0) return null;
   return (
-    <details className="disclosure">
+    <details className="disclosure" open={allUnplaced || undefined}>
       <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>
-        {unplaced.length} could not be placed
+        {changes(unplaced.length)} won't apply
         <DisclosureChevron />
       </summary>
       <ul className="mt-2 grid max-h-[30dvh] gap-3 overflow-y-auto border-rush border-l pl-3">
@@ -288,7 +296,12 @@ function DockPresenter({
           {nothing && view.summary !== null && (
             <p className="text-pretty text-note text-reed">{view.summary}</p>
           )}
-          <Unplaceable changes={view.changes} base={view.base} />
+          <Unplaceable
+            key={view.epoch}
+            changes={view.changes}
+            base={view.base}
+            allUnplaced={order.length === 0}
+          />
           <div className="flex items-center justify-between gap-3">
             {nothing ? (
               <>
@@ -389,7 +402,7 @@ function DockPresenter({
                   : line.text}
                 {view.phase === "review" &&
                   (view.ended !== "complete" || line.failure) &&
-                  order.length > 0 && (
+                  view.changes.length > 0 && (
                     <span className="mt-0.5 block font-normal text-meta text-reed">
                       {applyLine}
                     </span>

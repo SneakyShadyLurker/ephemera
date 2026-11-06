@@ -713,10 +713,14 @@ function KeptSettings() {
                 </li>
               ))}
             </ul>
+            {title === "Not saved" && (
+              <p className="text-note text-ink">
+                A reload, closing the tab or Clear ends the chat for good.
+              </p>
+            )}
           </section>
         ))}
       </div>
-      <p className={HINT}>A reload, closing the tab or Clear ends the chat for good.</p>
     </div>
   );
 }

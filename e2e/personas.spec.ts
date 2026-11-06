@@ -7,6 +7,7 @@ import {
   createPersonaViaApi,
   expectNoOverflow,
   openSession,
+  patchSettings,
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
@@ -14,6 +15,44 @@ import { expect, test } from "./support/test.ts";
 
 const card = (page: Page, name: string) =>
   page.getByRole("list", { name: "Personas" }).getByRole("link", { name, exact: false });
+
+for (const width of [360, 390]) {
+  test(`persona identity keeps its full explanation and Undo under the portrait at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const old = await createPersonaViaApi(request, uniqueName("Earlier"));
+    const id = await createPersonaViaApi(request, uniqueName("Current"));
+    await patchSettings(request, { defaultPersonaId: old });
+    await page.goto(`/personas/${id}`);
+    const identity = page.getByRole("region", { name: "Identity" });
+    const control = page.getByRole("switch", { name: "Default persona" });
+    await expect(control).toHaveAccessibleDescription(
+      "New chats start as this persona, unless the character goes with another.",
+    );
+    const layout = await identity.evaluate((node) => {
+      const name = node.querySelector('[aria-label="Name"]')?.getBoundingClientRect();
+      const field = node.firstElementChild?.getBoundingClientRect();
+      const label = node
+        .querySelector('[role="switch"]')
+        ?.closest("label")
+        ?.getBoundingClientRect();
+      return { name: name?.top, portrait: field?.top, bottom: field?.bottom, label: label?.top };
+    });
+    expect(layout.name).toBeCloseTo(layout.portrait ?? NaN, 0);
+    expect(layout.label).toBeGreaterThan(layout.bottom ?? Infinity);
+    await control.click();
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(undo).toBeVisible();
+    expect((await undo.boundingBox())?.y).toBeGreaterThan(
+      (await control.boundingBox())?.y ?? Infinity,
+    );
+    await undo.click();
+    await expect(control).not.toBeChecked();
+    await expectNoOverflow(page);
+  });
+}
 
 async function moreAction(page: Page, action: string) {
   await page.getByRole("button", { name: "More actions" }).click();

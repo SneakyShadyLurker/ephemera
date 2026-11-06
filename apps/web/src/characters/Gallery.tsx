@@ -572,8 +572,8 @@ function EmptyGallery({
           </>
         }
       >
-        Import a character card as PNG or JSON{phone ? "" : ", or drop cards on this page"}.
-        Characters are saved; chats are not.
+        Import a PNG or JSON card{phone ? "" : ", or drop cards on this page"}, start a new one, or
+        create one with AI. Characters are saved; chats are not.
       </EmptyState>
     </div>
   );

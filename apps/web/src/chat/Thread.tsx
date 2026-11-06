@@ -101,6 +101,7 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
   return (
     // Busy while a reply streams, so screen readers announce it once complete, not per fragment.
     <Conversation aria-label="Story" aria-busy={generating}>
+      <FollowWriting />
       <ConversationContent
         // Phones keep no reserved scrollbar gutter, so the story keeps its 20px margins.
         scrollClassName="overscroll-contain [scroll-timeline:--thread] max-tablet:[scrollbar-gutter:auto]!"
@@ -160,8 +161,11 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
           )}
         </div>
       </ConversationContent>
+      <div
+        aria-hidden="true"
+        className="story-top-edge pointer-events-none absolute inset-x-0 top-0 z-(--z-raised) h-3"
+      />
       <ConversationScrollButton onKeyboardUse={() => composer.current?.focus()} />
-      <FollowWriting />
       <NameShown ids={ids} horizon={horizon} shown={shown} />
     </Conversation>
   );
@@ -230,15 +234,19 @@ function NameShown({
       observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (entry.isIntersecting) inView.add(entry.target);
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) inView.add(entry.target);
             else inView.delete(entry.target);
           }
           chat.toggleAttribute("data-name-shown", inView.size > 0);
         },
-        { root: scroller },
+        {
+          root: scroller,
+          rootMargin: `-${Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75}px 0px 0px 0px`,
+          threshold: [0, 0.5],
+        },
       );
       const names = content.querySelectorAll(
-        '[data-message][data-role="assistant"] [data-speaker][data-voice="story"]',
+        '[data-message][data-role="assistant"] [data-speaker][data-voice="story"] .nameplate-name',
       );
       // With nothing to watch the observer never answers, so no name shows.
       if (names.length === 0) chat.removeAttribute("data-name-shown");

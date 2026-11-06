@@ -1256,8 +1256,18 @@ test("Brainstorm: classified, adjusted, switched and picked into Describe, then 
 
   // Feedback keeps 3 and 7 word for word; the rest are fresh.
   const feedback = page.getByRole("textbox", { name: BRAINSTORM_COPY.feedback });
+  const optionsBefore = await page
+    .getByRole("button", { name: "Options", exact: true })
+    .boundingBox();
+  await expect(page.getByRole("button", { name: "New ideas", exact: true })).toHaveCount(2);
+  await feedback.fill("  ");
+  await expect(page.getByRole("button", { name: "New ideas", exact: true })).toHaveCount(2);
   await feedback.fill(`Keep 3 and 7 and make the rest darker. ${mark(base, "tune")}`);
-  await page.getByRole("button", { name: BRAINSTORM_COPY.more }).click();
+  await expect(page.getByRole("button", { name: "Send adjustment", exact: true })).toHaveCount(2);
+  expect((await page.getByRole("button", { name: "Options", exact: true }).boundingBox())?.x).toBe(
+    optionsBefore?.x,
+  );
+  await page.getByRole("button", { name: "Send adjustment", exact: true }).first().click();
   await expect(rows.first()).toContainText(brainstormIdea("scenario", base, 2, 1).pitch);
   await expect(rows).toHaveCount(10);
   await expect(rows.nth(2)).toContainText(first(3));
@@ -1327,7 +1337,7 @@ test("Brainstorm: Stop keeps the ideas that arrived, and New ideas can follow", 
   await expect
     .poll(async () => (await upstreamRecords(mark(base, "ask"))).map((record) => record.aborted))
     .toEqual([false, true]);
-  await expect(page.getByRole("button", { name: BRAINSTORM_COPY.more })).toBeEnabled();
+  await expect(page.getByRole("button", { name: BRAINSTORM_COPY.more }).first()).toBeEnabled();
 });
 
 test("Brainstorm: a short list says so, and a failed round leaves the list listed", async ({
@@ -1344,7 +1354,7 @@ test("Brainstorm: a short list says so, and a failed round leaves the list liste
   await expect(rows).toHaveCount(8);
 
   await choose(page, "Model", "mock-error");
-  await page.getByRole("button", { name: BRAINSTORM_COPY.more }).click();
+  await page.getByRole("button", { name: BRAINSTORM_COPY.more }).first().click();
   await expect(
     page.getByRole("alert").filter({ hasText: BRAINSTORM_COPY.alerts.upstream }),
   ).toBeVisible();

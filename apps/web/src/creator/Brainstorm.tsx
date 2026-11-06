@@ -531,6 +531,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
   const alertRef = useRef<HTMLParagraphElement>(null);
   const [expanded, setExpanded] = useState(false);
   const feedbackId = useId();
+  const adjustmentLabel = feedback.trim() === "" ? "New ideas" : "Send adjustment";
   const feedbackRef = useRef<HTMLTextAreaElement>(null);
   const focusFeedback = useRef(false);
 
@@ -622,7 +623,17 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
           </Button>
           <div className="flex items-center gap-2">
             <Button variant="primary" disabled={running || model.model === null} onClick={adjust}>
-              New ideas
+              <span className="grid">
+                {["New ideas", "Send adjustment"].map((label) => (
+                  <span
+                    key={label}
+                    aria-hidden={label !== adjustmentLabel || undefined}
+                    className={cn("[grid-area:1/1]", label !== adjustmentLabel && "invisible")}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </span>
             </Button>
             <Menu>
               <MenuTrigger render={<Button />}>
@@ -731,7 +742,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
           />
           <SendRow
             model={model}
-            submit="Send adjustment"
+            submit={adjustmentLabel}
             disabled={running || model.model === null}
           />
         </form>

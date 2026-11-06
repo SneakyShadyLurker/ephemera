@@ -187,9 +187,10 @@ Version 1.0 holds everything below.
   editable; Back to ideas returns to the list and remembers the edit. A
   short list, a failure or a request of no clear kind says so, and a
   failed round leaves the list before it. Going back to the tiles keeps
-  the session, unsent text included. New ideas leads the settled list;
-  Options holds Edit request, Start over and Adjust ideas, whose feedback
-  is sent with Send adjustment.
+  the session, unsent text included. The action above the settled list and
+  the one below its feedback both say New ideas when feedback is empty,
+  or Send adjustment when it is filled. Options holds Edit request,
+  Start over and Adjust ideas.
 - The card fills in as the model writes, and Stop ends it. A finished card
   also has an opening (a `> Location:` line, an empty line and one
   sentence, set in that shape even when the model strays): on a Subject
@@ -378,9 +379,10 @@ Version 1.0 holds everything below.
   counts the changes to apply and the rejected changes separately,
   steps through them with Previous and Next and a position counter that
   appears after navigating. Before that, Next starts at the first change and
-  Previous at the last. The bar lists the
-  ones that could not be matched (never applied) and offers Discard and
-  Apply. Stop keeps what arrived for review.
+  Previous at the last. A disclosure says how many changes won't apply
+  and lists the ones that could not be matched. It starts open when none
+  can be placed, otherwise closed. The bar offers Discard and Apply.
+  Stop keeps what arrived for review.
 - While the model works and under review the fields are read-only, and
   Chat, Duplicate, Delete, the portrait picker, New art, Open lorebook, the linked
   lorebooks' links and Add alternate wait; Export stays available. Every change starts accepted.
@@ -456,6 +458,8 @@ Version 1.0 holds everything below.
   The editor's entries lead the pane; scan depth, token budget and Chaining
   wait under Book settings, with their current values in its summary.
   An entry's Text comes before its activation controls, so writing comes first.
+  Folded rows group Placement and order, Timing, Event pool, Chaining and
+  Matching; each entry's order is also named in its list row's description.
 - Import SillyTavern World Info files or standalone card lorebooks and
   convert them to native data. Export and re-import Ephemera lorebook JSON.
   Reports say what was kept, changed and left out.
@@ -740,7 +744,10 @@ Version 1.0 holds everything below.
   record surface's header carries both while open. Beside a phone reply
   portrait, one reserved line holds the status or removal message and one
   action row holds roster access, Try again and Undo as needed. Names fill
-  the remaining height, so feedback does not move the prose below. The
+  the remaining height, so feedback does not move the prose below. While a
+  reply streams, that line can say "As of the previous reply" when the
+  displayed roster is known to come from an earlier shown reply's snapshot;
+  card-only or uncertain mixtures get no freshness caption. The
   other phone band shows only the light, so its names hold still; the
   header's cast control stays still. Under reduced motion the words alone
   say it, the band's included. A failure says so, with Try again, even before
@@ -805,7 +812,8 @@ Version 1.0 holds everything below.
   on every screen, using the same choices as Session. Session lists
   Character and Persona first, then Sampler preset, Prompt preset and Model.
   Explanations fold away; model and reasoning mismatches stay
-  visible. Choosing a sampler that names a model switches to that model.
+  visible. Each sampler choice shows its model and settings summary before
+  selection. Choosing a sampler that names a model switches to that model.
   Remove character starts a chat without one through the usual confirmation.
   Session docks only when the story keeps its readable width beside it;
   otherwise it opens as a sheet.

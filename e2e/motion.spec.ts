@@ -23,7 +23,7 @@ import {
   ideaRows,
   KEEP_WITHOUT_PORTRAIT,
 } from "./support/creator.ts";
-import { keptBase, ownerDescription } from "./support/creator-fixtures.ts";
+import { keptBase, ownerDescription, portraitPng } from "./support/creator-fixtures.ts";
 import {
   createCharacterViaApi,
   createEventViaApi,
@@ -31,12 +31,110 @@ import {
   loreEntry,
   patchSettings,
   setLorebookViaApi,
+  setPortraitViaApi,
 } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { createReworkCharacter, dock, openRework, submitRework } from "./support/rework.ts";
 import { ownerRequest } from "./support/rework-fixtures.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { expect, test, unsafe } from "./support/test.ts";
+
+for (const width of [390, 1440]) {
+  for (const reducedMotion of ["reduce", "no-preference"] as const) {
+    test(`deletion samples start at its mutation and preserve portrait, Undo and tail ${width}/${reducedMotion}`, async ({
+      page,
+      request,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion });
+      const characterId = await createCharacterViaApi(request, uniqueName("Deletion"), {
+        firstMessage: Array.from({ length: 30 }, () => "The lamp lights the harbour.").join("\n\n"),
+      });
+      await setPortraitViaApi(request, characterId, portraitPng("deletion"));
+      await patchSettings(request, { characterId, model: "mock-fast" });
+      await page.goto("/");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await send(page, "The light returns.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      const view = page.getByRole("log").locator(":scope > div").first();
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+        .toBeLessThan(4);
+      const before = await view.evaluate((node) => ({
+        top: node.scrollTop,
+        height: node.scrollHeight,
+      }));
+      const sampling = page.evaluate(
+        () =>
+          new Promise<{
+            start: number;
+            frames: { top: number; height: number; portraits: number }[];
+          }>((resolve) => {
+            const view = document.querySelector<HTMLElement>('[role="log"] > div');
+            if (!view) throw new Error("Missing scroller");
+            const observer = new MutationObserver(() => {
+              if (
+                ![...view.querySelectorAll('[role="status"]')].some((node) =>
+                  node.textContent?.includes("reply was deleted"),
+                )
+              )
+                return;
+              observer.disconnect();
+              const start = view.scrollTop;
+              const frames: { top: number; height: number; portraits: number }[] = [];
+              const sample = () => {
+                frames.push({
+                  top: view.scrollTop,
+                  height: view.scrollHeight,
+                  portraits: view.querySelectorAll("[data-presence]").length,
+                });
+                if (frames.length === 20) resolve({ start, frames });
+                else requestAnimationFrame(sample);
+              };
+              sample();
+            });
+            observer.observe(view, { childList: true, subtree: true });
+          }),
+      );
+      await lastReply(page).hover();
+      await lastReply(page)
+        .getByRole("button", { name: /^More actions/ })
+        .click();
+      const beforeDelete = await page
+        .locator('[role="log"] > div')
+        .first()
+        .evaluate((node) => ({
+          top: node.scrollTop,
+          height: node.scrollHeight,
+        }));
+      await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+      const samples = await sampling;
+      process.stdout.write(
+        `Deletion scroll stages ${JSON.stringify({ width, reducedMotion, beforeMenu: before.top, beforeDelete: beforeDelete.top, mutation: samples.start, preClickDelta: beforeDelete.top - before.top, deletionClamp: samples.start - beforeDelete.top })}\n`,
+      );
+      for (const frame of samples.frames) {
+        expect(frame.portraits).toBe(1);
+        expect(Math.abs(frame.top - beforeDelete.top)).toBeLessThanOrEqual(
+          Math.abs(beforeDelete.height - frame.height) + 2,
+        );
+      }
+      const undo = page.getByRole("button", { name: "Undo", exact: true });
+      await expect(undo).toBeFocused();
+      await expect(undo).toBeInViewport();
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+        .toBeLessThan(4);
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+      await page.keyboard.press("Enter");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expect(page.locator("[data-presence]")).toHaveCount(1);
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+        .toBeLessThan(4);
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+    });
+  }
+}
 
 /** Read the outgoing popup after its primitive enters the closing phase. */
 function closingFrame(popup: Locator) {
@@ -1271,7 +1369,7 @@ test("Rework retains its outgoing snapshot but pagehide clears it during the exi
   await bar.getByRole("button", { name: "Discard", exact: true }).click();
   const after = await cleared;
   expect(after.outgoing).toContain("3 changes to apply");
-  expect(after.outgoing).toContain("1 could not be placed");
+  expect(after.outgoing).toContain("1 change won't apply");
   expect(after.inert).toBe(true);
   expect(after.remains).toBe(false);
   expect(after.html).not.toContain(`${base}-rej`);

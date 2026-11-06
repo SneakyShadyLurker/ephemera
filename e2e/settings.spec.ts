@@ -59,6 +59,27 @@ async function settingSwitch(
 const LIGHT = "rgb(225, 226, 231)";
 const DARK = "rgb(22, 22, 30)";
 
+test("the loss explanation ends the Not saved section in ordinary ink", async ({ page }) => {
+  await openSettings(page, "kept");
+  const section = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Not saved", exact: true }) });
+  const explanation = section.getByText(
+    "A reload, closing the tab or Clear ends the chat for good.",
+    { exact: true },
+  );
+  await expect(explanation).toBeVisible();
+  expect(await explanation.evaluate((node) => node === node.parentElement?.lastElementChild)).toBe(
+    true,
+  );
+  expect(await explanation.evaluate((node) => getComputedStyle(node).color)).toBe(
+    await section
+      .locator("li span")
+      .first()
+      .evaluate((node) => getComputedStyle(node).color),
+  );
+});
+
 test("the theme follows the system unless overridden", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");

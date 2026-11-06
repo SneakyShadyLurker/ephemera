@@ -37,7 +37,7 @@ import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
 import { COMPACT_LABEL, GROUP_HEADING, PROSE_FACE, PROSE_FIELD } from "../sheet/fields.ts";
 import { InlineSave } from "../sheet/InlineSave.tsx";
-import { currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
+import { baseBefore, currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
 import {
   busyOf,
   CAST_FIELD_LABELS,
@@ -61,7 +61,7 @@ import {
   useCastVisible,
 } from "./cast-ui.ts";
 import { chatStore, useChat } from "./session.ts";
-import type { ChatState } from "./store.ts";
+import { type ChatState, shownReply } from "./store.ts";
 
 /*
  * The cast panel: a compact roster under
@@ -176,6 +176,33 @@ function castStatusText(state: ChatState): string {
   if (sheetUnread(state)) return "Couldn't read the cast from the card.";
   if (busyOf(state)) return "";
   return !state.generating && stale(state) ? "As of the previous reply" : "";
+}
+
+/**
+ * A writing caption is justified only by the newest snapshot on the shown
+ * branch, which baseBefore/registerAt use. Card/notebook seeds and hidden
+ * alternates cannot establish scene freshness. Be conservative when the
+ * displayed roster also contains entries not retained from that snapshot.
+ */
+function writingFromPreviousReply(state: ChatState): boolean {
+  if (!state.generating || busyOf(state)) return false;
+  const newest = state.messages.findLastIndex((message) => message.role === "assistant");
+  for (let at = state.messages.length - 1; at >= 0; at--) {
+    const message = state.messages[at];
+    if (message?.role !== "assistant") continue;
+    const snapshot = state.cast.snapshots[shownReply(message).id];
+    if (snapshot === undefined) continue;
+    if (at >= newest || snapshot.register !== baseBefore(state, state.messages.length))
+      return false;
+    const retained = new Set(
+      snapshot.register.entries
+        .filter((entry) => entry.introduced === true && !snapshot.seedOnly?.includes(entry.id))
+        .map((entry) => entry.id),
+    );
+    const visible = listedEntries(discoveredRegister(state));
+    return visible.length > 0 && visible.every((entry) => retained.has(entry.id));
+  }
+  return false;
 }
 
 /**
@@ -617,6 +644,7 @@ function StackRoster({
   const waiting = useChat(sheetWaiting);
   const waitingText = useWaitingText();
   const statusText = useChat(castStatusText);
+  const previousWhileWriting = useChat(writingFromPreviousReply);
   const reduced = useReducedMotion();
   const explanation = failed || unread ? statusText : waiting ? waitingText : statusText;
   const compact =
@@ -634,12 +662,16 @@ function StackRoster({
         ? compact
         : busy
           ? "Updating…"
-          : compact;
+          : previousWhileWriting
+            ? "As of the previous reply"
+            : compact;
   const announcement =
     removal === null
       ? failed || unread
         ? explanation
-        : text
+        : previousWhileWriting && !waiting && !busy && removal === null
+          ? ""
+          : text
       : `${text}${failed || unread ? ` ${explanation}` : ""}`;
   const row = useRef<HTMLDivElement>(null);
   const status = useRef<HTMLDivElement>(null);

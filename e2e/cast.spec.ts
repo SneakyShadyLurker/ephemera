@@ -71,6 +71,37 @@ const SEEDED = keeperWoman([]);
 /** The status line while the shown reply has no snapshot and no call is writing one. */
 const STALE = "As of the previous reply";
 
+test("phone streaming freshness excludes card-only data and a snapshot on a hidden alternate", async ({
+  page,
+  request,
+}) => {
+  page.on("pageerror", (error) => process.stdout.write(`Chat page error: ${error.message}\n`));
+  page.on("console", (message) => {
+    if (message.type() === "error") process.stdout.write(`Chat console error: ${message.text()}\n`);
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { characterId } = await castChat(request, { greeting: false });
+  await setPortraitViaApi(request, characterId, portraitPng("freshness"));
+  await patchSettings(request, { model: "mock-slow" });
+  await page.goto("/");
+  await send(page, "A first scene starts without a shown snapshot.");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect(castPanel(page)).toHaveCount(0);
+  await expect(page.locator("[data-cast-status]").filter({ hasText: STALE })).toHaveCount(0);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await chooseModel(page, "mock-fast");
+  await replyActions(page).getByRole("button", { name: "New reply", exact: true }).click();
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await expect(castEntry(page, SEEDED)).toBeVisible();
+  await replyCounter(page).getByRole("button", { name: "Previous reply", exact: true }).click();
+  await chooseModel(page, "mock-slow");
+  await send(page, "A second scene follows the stopped shown alternate.");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect(page.locator("[data-cast-status]").filter({ hasText: STALE })).toHaveCount(0);
+  await expect(castPanel(page)).toHaveCount(0);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+});
+
 /** A mark the keeper names its woman after, `-in-` turned to `-cast-`; not a canary. */
 function mark(): string {
   const id = crypto.randomUUID();
@@ -357,12 +388,26 @@ test.describe("portrait-side phone cast", () => {
             // Compare in the reply's own coordinates: scrolling the thread is allowed.
             const relative = async () => (await offset()) - ((await group.boundingBox())?.y ?? NaN);
             await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+            if (portrait) {
+              await expect(castStatus(page)).toHaveText(STALE);
+              await expect(panel.locator("[aria-live]")).not.toContainText(STALE);
+            }
             const before = await relative();
             await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
               timeout: 15_000,
             });
             await updating.promise;
             await expect(castUpdating(page)).toBeVisible();
+            await expect
+              .poll(() =>
+                page
+                  .getByRole("log")
+                  .locator(":scope > div")
+                  .first()
+                  .evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+              )
+              .toBeLessThan(4);
+            await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
             expect(await relative()).toBeCloseTo(before, 0);
             if (portrait) await expectStackFit(page, `${width}/${reducedMotion}/held Updating`);
             release.resolve();

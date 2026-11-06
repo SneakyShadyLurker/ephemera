@@ -36,6 +36,71 @@ async function openSheet(page: Page, id: string) {
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).toBeVisible();
 }
 
+for (const count of [0, 1, 5]) {
+  for (const allUnplaced of [false, true]) {
+    test(`unplaced disclosure ${count}/all=${allUnplaced} remains usable at 360px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 780 });
+      const base = canary("unplaced");
+      const id = await createReworkCharacter(page.request, base);
+      const block = (find: string, at: number) =>
+        `<change><field>description</field><why>The passage needs changing ${at}.</why><find>${find}</find><replace>Proposed plain text ${at}.</replace></change>`;
+      const answer = [
+        ...(allUnplaced ? [] : [block(ANCHOR_ONE, 0)]),
+        ...Array.from({ length: count }, (_, at) => block(`Absent passage ${at}`, at + 1)),
+        "<summary>Review these changes.</summary>",
+      ].join("\n");
+      await page.route("**/api/creator/rework", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/x-ndjson; charset=utf-8",
+          body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+        }),
+      );
+      await openSheet(page, id);
+      await openRework(page);
+      await submitRework(page, {
+        request: ownerRequest(base, "kept-unplaced"),
+        model: "mock-fast",
+      });
+      const bar = dock(page);
+      await expect(bar).toContainText(
+        allUnplaced
+          ? count === 0
+            ? "No changes suggested"
+            : "Nothing to apply"
+          : "1 change to apply",
+      );
+      const disclosure = bar.locator("details");
+      if (count === 0) {
+        await expect(disclosure).toHaveCount(0);
+        return;
+      }
+      await expect(disclosure.locator("summary")).toHaveText(
+        `${count} ${count === 1 ? "change" : "changes"} won't apply`,
+      );
+      await expect(disclosure).toHaveJSProperty("open", allUnplaced);
+      await disclosure.locator("summary").click();
+      await expect(disclosure).toHaveJSProperty("open", !allUnplaced);
+      // Navigation changes the ordinary render without changing the result identity.
+      if (!allUnplaced) await bar.getByRole("button", { name: "Next change" }).click();
+      await expect(disclosure).toHaveJSProperty("open", !allUnplaced);
+      if (allUnplaced) await disclosure.locator("summary").click();
+      await expect(disclosure.locator("ul")).toBeVisible();
+      const list = await disclosure.locator("ul").boundingBox();
+      expect(list?.height).toBeLessThanOrEqual(780 * 0.3 + 1);
+      await expect(bar.getByRole("button", { name: "Discard", exact: true })).toBeInViewport();
+      if (!allUnplaced)
+        await expect(
+          bar.getByRole("button", { name: "Apply 1 change", exact: true }),
+        ).toBeInViewport();
+      await disclosure.locator("summary").click();
+      await expect(disclosure).toHaveJSProperty("open", false);
+    });
+  }
+}
+
 test("reasoning follows the model's offered levels and is sent with the rework", async ({
   page,
 }) => {
@@ -102,7 +167,7 @@ test("compose, stream and review: the dock counts the changes and the fields are
   ).toBeFocused();
   await expect(bar.getByText("3 / 3", { exact: true })).toBeVisible();
   await expect(bar.getByRole("button", { name: "Next change" })).toBeDisabled();
-  await expect(bar.getByText("1 could not be placed")).toBeVisible();
+  await expect(bar.getByText("1 change won't apply")).toBeVisible();
   await expect(bar.getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
   // The changed field shows its tracked view; the others stay, read-only.
   await expect(page.getByRole("group", { name: "Description, under review" })).toBeVisible();
@@ -124,7 +189,7 @@ test("compose, stream and review: the dock counts the changes and the fields are
     };
   });
   expect(after.dock).toBe(false);
-  expect(after.html).not.toContain("could not be placed");
+  expect(after.html).not.toContain("won't apply");
   expect(after.html).not.toContain(`${base}-rej`);
   expect(after.html).not.toContain(`${base}-why`);
 });
@@ -789,7 +854,7 @@ test("replacement, deletion, insertion and keyword decisions agree with their sp
   await submitRework(page, { request: "Rework the harbour.", model: "mock-fast" });
   const bar = dock(page);
   await expect(bar).toContainText("4 changes to apply");
-  await expect(bar.getByText("1 could not be placed", { exact: true })).toBeVisible();
+  await expect(bar.getByText("1 change won't apply", { exact: true })).toBeVisible();
   await expect(bar.getByText("– / 4", { exact: true })).toHaveCount(0);
   const replacement = page.getByRole("group", { name: /^Change \d of 4 in Description$/ });
   const deletion = page.getByRole("group", { name: /^Change \d of 4 in Creator notes$/ });
@@ -1093,7 +1158,7 @@ for (const size of SHOTS === undefined ? [] : SIZES) {
       await submitRework(page, { request: ownerRequest(base, "kept-shot"), model: "mock-fast" });
       await expect(dock(page)).toContainText("3 changes to apply");
       await shot("05-review-arrived");
-      await dock(page).getByText("1 could not be placed").click();
+      await dock(page).getByText("1 change won't apply").click();
       await shot("06-review-unmatched");
       await dock(page).getByRole("button", { name: "Next change" }).click();
       await expect(dock(page)).toContainText("Change 1 of 3, Description");

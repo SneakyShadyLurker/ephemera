@@ -588,6 +588,9 @@ test("an empty library invites an import on the populated gallery's edges", asyn
   expect(Math.abs(((await heading.boundingBox())?.x ?? 0) - populated.left)).toBeLessThanOrEqual(1);
   // Import and both quiet creation paths sit together in the empty state.
   const body = page.locator("main [data-skip-target]");
+  await expect(body).toContainText(
+    "Import a PNG or JSON card, or drop cards on this page, start a new one, or create one with AI. Characters are saved; chats are not.",
+  );
   await expect(body.getByRole("button")).toHaveCount(3);
   await expect(body.getByRole("button", { name: "Import", exact: true })).toBeVisible();
   await expect(body.getByRole("button", { name: "Create with AI" })).toBeVisible();

@@ -437,6 +437,7 @@ function Row({
   const settings = entrySettings(entry);
   const cues = entryCues(entry, settings);
   const cuesId = useId();
+  const orderId = useId();
   const poolsId = useId();
   const pools = settings.poolNames;
   return (
@@ -456,13 +457,17 @@ function Row({
         data-row=""
         tabIndex={tabStop ? 0 : -1}
         aria-label={`Edit ${title}`}
-        aria-describedby={pools.length > 0 ? `${poolsId} ${cuesId}` : cuesId}
+        aria-describedby={`${orderId} ${pools.length > 0 ? `${poolsId} ` : ""}${cuesId}`}
         aria-current={open ? "true" : undefined}
         onFocus={() => onFocus(index)}
         onClick={() => onOpen(index)}
         className={cn(rowLayout("entry"), "grid-cols-[2.25rem_minmax(0,1fr)_auto]")}
       >
-        <span className="self-baseline pt-px text-right text-meta text-reed tabular-nums">
+        <span
+          id={orderId}
+          className="self-baseline pt-px text-right text-meta text-reed tabular-nums"
+        >
+          <span className="sr-only">order </span>
           {entry.insertionOrder}
         </span>
         <span className={ROW_CONTENT}>

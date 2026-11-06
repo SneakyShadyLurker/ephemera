@@ -887,6 +887,11 @@
  * canvas (the shadow fills the space above it), and only then lets the text
  * below fade out under it, so the edge never cuts a line in half.
  */
+/* Functional occlusion at the scroll viewport's edge, above the sticky names. */
+@utility story-top-edge {
+  background: linear-gradient(to bottom, var(--color-canvas), transparent);
+}
+
 @utility nameplate {
   position: sticky;
   top: 0.75rem;

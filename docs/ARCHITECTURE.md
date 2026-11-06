@@ -133,9 +133,10 @@ save keeps the mounted editor under its logical saved pathname, so replacing
 `/new` with the created id preserves typing and focus. Search-only book entry
 navigation stays local and does not fetch the book again.
 
-The chat title yields while any character nameplate is visible in the
-story, stuck or not; `Thread` observes them against its scroller and sets
-`data-name-shown`. The latest reply owns the portrait and Cast on every
+The chat title yields while at least half of a character name remains
+readable below the story's 0.75rem top-edge fade, stuck or not; `Thread`
+observes the name text against its scroller and sets `data-name-shown`.
+The latest reply owns the portrait and Cast on every
 screen, including while waiting for text; moving them there does not replay
 their entrance. Focus on the portrait or its viewer holds that placement
 until focus leaves. On phones, the in-reply Cast stack measures the portrait
@@ -144,6 +145,11 @@ status line. Removal, retry and keeper feedback use those slots without
 growing the group; the full roster remains reachable. Reply actions sit below the prose inside the turn,
 ahead of scene pictures, with a reserved row while streaming. Latest has
 its own reserved row on phones and floats over the story from tablet up.
+`Conversation` coordinates native anchoring with the existing scroll library:
+while following, layout changes keep the tail in view; an upward escape
+restores native history anchoring and survives content or viewport resizing.
+Latest or sending explicitly rejoins, adopting the current scroll origin so
+an already-queued adjustment does not masquerade as a new escape.
 `portraits/Portrait.tsx` retains the decoded image until its replacement
 decodes, including across sign-in renewal, and supplies an unavailable face
 instead of a broken image.
@@ -1889,7 +1895,9 @@ AI Rework:
   those labels to Kept and Rejected (Not added for a pure insertion), and
   removes active deletion/insertion semantics from the rejected change.
   The dock counts accepted, placeable changes to apply and rejected changes
-  separately; its disclosure lists changes that could not be placed.
+  separately; its disclosure says which changes won't apply and lists those
+  that could not be placed. It starts open for an entirely unplaced result,
+  closed for a mixed result, and preserves native toggling until a new result.
   Previous and Next focus the change blocks beside a position counter that
   stays blank until navigation; idle Previous starts at the last change and
   Next at the first. Everything renders as text
@@ -2084,7 +2092,8 @@ once and saved in order. A save that fails or is refused is said inline on
 Settings and, wherever else the choice was made, in a notice over the
 content column. A change made before the settings first loaded is laid over
 them once they do. `chat/ChatChoices.tsx` shares the persona selector and
-sampler choice owner with Session; selecting a sampler with a model changes
+sampler choice owner with Session; both selectors describe each sampler with
+the existing model-and-settings summary. Selecting one with a model changes
 both settings together. Session orders Character, Persona, Sampler preset,
 Prompt preset and Model, folding explanations but keeping model and
 reasoning mismatches visible. The palette editor widens its Settings frame

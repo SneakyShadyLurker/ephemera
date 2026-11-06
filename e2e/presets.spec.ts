@@ -2,8 +2,12 @@ import type { Page } from "@playwright/test";
 import { PRESET_LIMITS } from "../packages/core/src/preset/prompt.ts";
 import { uniqueName } from "./support/cards.ts";
 import {
+  closeSession,
   createPresetViaApi,
   expectNoOverflow,
+  openSession,
+  patchSettings,
+  readSettings,
   saved,
   seriousAxeViolations,
 } from "./support/entities.ts";
@@ -30,6 +34,65 @@ const MODEL_DEFAULTS = {
   seed: null,
   reasoning: "provider-default",
 };
+
+test("sampler choices describe the model before selection in composer and Session at 360px", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  const longModel = `model-${"a-very-long-model-name-with-no-breaks".repeat(4)}`;
+  const shortId = await createPresetViaApi(request, "sampler", {
+    name: "Quiet sampler",
+    values: { ...MODEL_DEFAULTS, model: "mock-slow", temperature: 0.7 },
+  });
+  const longId = await createPresetViaApi(request, "sampler", {
+    name: "Long sampler",
+    values: {
+      ...MODEL_DEFAULTS,
+      model: longModel,
+      temperature: 0.9,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+      seed: 42,
+    },
+  });
+  await patchSettings(request, { model: "mock-fast" });
+  await page.goto("/");
+  for (const entry of ["composer", "Session"]) {
+    if (entry === "Session") await openSession(page);
+    const trigger = page.getByRole("combobox", {
+      name: entry === "composer" ? "Sampler" : "Sampler preset",
+      exact: true,
+    });
+    await trigger.click();
+    const short = page.getByRole("option", { name: "Quiet sampler", exact: true });
+    const long = page.getByRole("option", { name: "Long sampler", exact: true });
+    await expect(short).toHaveAccessibleDescription(/Mock-slow, temperature 0.7/);
+    await expect(long).toHaveAccessibleDescription(new RegExp(longModel, "i"));
+    const description = long.locator('[aria-hidden="true"]').first();
+    expect(
+      await description.evaluate(
+        (node) =>
+          node.getBoundingClientRect().height <=
+          Number.parseFloat(getComputedStyle(node).lineHeight) * 2 + 1,
+      ),
+    ).toBe(true);
+    expect(await long.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    if (entry === "composer") await short.click();
+    else await long.click();
+    const id = entry === "composer" ? shortId : longId;
+    const model = entry === "composer" ? "mock-slow" : longModel;
+    await expect
+      .poll(async () => ({
+        id: (await readSettings(request)).samplerPresetId,
+        model: (await readSettings(request)).model,
+      }))
+      .toEqual({ id, model });
+    await expect(trigger).toContainText(entry === "composer" ? "Quiet sampler" : "Long sampler");
+    if (entry === "Session") await closeSession(page);
+  }
+  await expectNoOverflow(page);
+});
 
 const blocks = (page: Page) => page.getByRole("list", { name: "Blocks in send order" });
 const band = (page: Page) => page.getByRole("list", { name: "Blocks inside the chat" });

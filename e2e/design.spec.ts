@@ -22,7 +22,7 @@ import {
   turns,
 } from "./support/chat.ts";
 import { createCard, KEEP_WITHOUT_PORTRAIT } from "./support/creator.ts";
-import { cardName, keptBase, ownerDescription } from "./support/creator-fixtures.ts";
+import { cardName, keptBase, ownerDescription, portraitPng } from "./support/creator-fixtures.ts";
 import {
   closeSession,
   createCharacterViaApi,
@@ -33,6 +33,7 @@ import {
   linkLorebookViaApi,
   loreEntry,
   openSession,
+  patchSettings,
   seriousAxeViolations,
   setLorebookViaApi,
   setPortraitViaApi,
@@ -87,6 +88,11 @@ async function expectComposerAndActionsFit(page: Page, width: number) {
 
 for (const width of [320, 360]) {
   test(`the reply pager and actions fit one row at ${width}px`, async ({ page }) => {
+    page.on("pageerror", (error) => process.stdout.write(`Chat page error: ${error.message}\n`));
+    page.on("console", (message) => {
+      if (message.type() === "error")
+        process.stdout.write(`Chat console error: ${message.text()}\n`);
+    });
     await page.setViewportSize({ width, height: 800 });
     await openChat(page, "mock-fast");
     await send(page, canary("in"));
@@ -915,6 +921,413 @@ test("every action works by keyboard alone, with visible focus", async ({ page }
 
 /** The thread's scroll container, owned by the Conversation component. */
 const scroller = (page: Page) => page.getByRole("log").locator(":scope > div").first();
+
+/** No scrolling to satisfy this assertion: the Conversation owner must reveal the whole row. */
+async function expectFollowedReply(page: Page) {
+  const view = scroller(page);
+  await expect
+    .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+    .toBeLessThan(4);
+  await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+  const actions = await replyActions(page).boundingBox();
+  const bounds = await view.boundingBox();
+  const composer = await page.getByLabel("Message", { exact: true }).boundingBox();
+  expect(actions).not.toBeNull();
+  expect(actions?.y).toBeGreaterThanOrEqual(bounds?.y ?? Infinity);
+  expect((actions?.y ?? Infinity) + (actions?.height ?? 0)).toBeLessThanOrEqual(
+    Math.min((bounds?.y ?? 0) + (bounds?.height ?? 0), composer?.y ?? 0) + 1,
+  );
+}
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`story top edge hands identity to the header at half readability ${width}/${theme}`, async ({
+      page,
+      request,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion: theme === "light" ? "no-preference" : "reduce" });
+      const name = uniqueName("Name at the edge");
+      const characterId = await createCharacterViaApi(request, name, {
+        firstMessage: Array.from({ length: 40 }, () => "The lamp lights the quay.").join("\n\n"),
+      });
+      await patchSettings(request, { characterId, model: "mock-fast", theme });
+      let release = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route("**/api/chat", async (route) => {
+        await held;
+        await route.continue();
+      });
+      try {
+        await page.goto("/");
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        await send(
+          page,
+          Array.from({ length: 60 }, () => "I watch the far side of the harbour.").join("\n\n"),
+        );
+        const view = scroller(page);
+        await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+        const edge = page.locator(".story-top-edge");
+        const edgeGeometry = await edge.evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const root = node.parentElement?.querySelector(":scope > div");
+          return {
+            top: box.top,
+            scrollTop: root?.getBoundingClientRect().top,
+            height: box.height,
+            rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+            pointer: getComputedStyle(node).pointerEvents,
+            position: getComputedStyle(node).position,
+            hidden: node.getAttribute("aria-hidden"),
+            animation: getComputedStyle(node).animationName,
+          };
+        });
+        expect(edgeGeometry.top).toBe(edgeGeometry.scrollTop);
+        expect(edgeGeometry.height).toBe(edgeGeometry.rem * 0.75);
+        expect(edgeGeometry).toMatchObject({
+          pointer: "none",
+          position: "absolute",
+          hidden: "true",
+          animation: "none",
+        });
+        for (const palette of [
+          "tokyo-night",
+          "lamplight",
+          "catppuccin",
+          "rose-pine",
+          "nord",
+          "gruvbox",
+        ]) {
+          const colors = await edge.evaluate((node, palette) => {
+            document.documentElement.dataset.palette = palette;
+            const canvas = getComputedStyle(document.documentElement).backgroundColor;
+            return { canvas, gradient: getComputedStyle(node).backgroundImage };
+          }, palette);
+          expect(colors.gradient).toContain(colors.canvas);
+          expect(colors.gradient).toMatch(/rgba?\([^)]*(?:0\)|\/ 0\))/);
+        }
+        const start = await view.evaluate((node) => {
+          const turn = node.querySelector('[data-role="assistant"]');
+          const heading = turn?.querySelector(".nameplate-name");
+          return (
+            node.scrollTop +
+            (turn?.getBoundingClientRect().bottom ?? 0) -
+            node.getBoundingClientRect().top -
+            (heading?.getBoundingClientRect().height ?? 0) -
+            Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75 -
+            20
+          );
+        });
+        const samples = [];
+        for (let offset = 0; offset <= 60; offset += 2) {
+          samples.push(
+            await view.evaluate(async (node, top) => {
+              node.scrollTop = top;
+              await new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+              );
+              const name = node
+                .querySelector('[data-role="assistant"] .nameplate-name')
+                ?.getBoundingClientRect();
+              const readableTop =
+                node.getBoundingClientRect().top +
+                Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75;
+              const fraction = name
+                ? Math.max(
+                    0,
+                    Math.min(name.bottom, node.getBoundingClientRect().bottom) -
+                      Math.max(name.top, readableTop),
+                  ) / name.height
+                : 0;
+              return { fraction, shown: node.closest("main")?.hasAttribute("data-name-shown") };
+            }, start + offset),
+          );
+        }
+        expect(samples.some(({ fraction }) => fraction > 0 && fraction < 0.5)).toBe(true);
+        for (const sample of samples)
+          expect(sample.shown, JSON.stringify(sample)).toBe(sample.fraction >= 0.5);
+        await expect(page.getByRole("heading", { name, level: 1 })).toHaveCSS("opacity", "1");
+        release();
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        const more = page
+          .locator('[data-message][data-role="assistant"]')
+          .first()
+          .getByRole("button", { name: /^More actions/ });
+        await more.focus();
+        const focus = await more.boundingBox();
+        const viewport = await view.boundingBox();
+        expect(focus?.y).toBeGreaterThanOrEqual((viewport?.y ?? Infinity) + edgeGeometry.height);
+        await expect(more).toBeFocused();
+      } finally {
+        release();
+      }
+    });
+  }
+}
+
+for (const scenario of [
+  {
+    width: 390,
+    height: 844,
+    reducedMotion: "no-preference",
+    theme: "dark",
+    palette: "tokyo-night",
+  },
+  { width: 390, height: 844, reducedMotion: "reduce", theme: "light", palette: "nord" },
+  { width: 360, height: 780, reducedMotion: "no-preference", theme: "light", palette: "rose-pine" },
+  { width: 360, height: 780, reducedMotion: "reduce", theme: "dark", palette: "tokyo-night" },
+  { width: 820, height: 1180, reducedMotion: "no-preference", theme: "light", palette: "nord" },
+  { width: 1440, height: 900, reducedMotion: "reduce", theme: "dark", palette: "rose-pine" },
+] as const) {
+  test(`reply follow survives portrait reparenting and settlement ${scenario.width}/${scenario.reducedMotion}`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(scenario);
+    await page.emulateMedia({ reducedMotion: scenario.reducedMotion });
+    const characterId = await createCharacterViaApi(request, uniqueName("Tail"), {
+      firstMessage: Array.from(
+        { length: 45 },
+        (_, at) => `The harbour light crosses the water ${at}.`,
+      ).join("\n\n"),
+    });
+    await setPortraitViaApi(request, characterId, portraitPng("Tail"));
+    await patchSettings(request, {
+      characterId,
+      model: "mock-fast",
+      theme: scenario.theme,
+      palette: scenario.palette,
+    });
+    let release = () => {};
+    const portrait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let arrived = false;
+    await page.route("**/portrait/image?**", async (route) => {
+      arrived = true;
+      await portrait;
+      await route.continue();
+    });
+    try {
+      await page.goto("/");
+      await expect.poll(() => arrived).toBe(true);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await send(page, "A short reply follows the long greeting.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expectFollowedReply(page);
+      release();
+      await expect(page.locator("[data-presence] img")).toBeVisible();
+      await expectFollowedReply(page);
+      const continueTrace =
+        scenario.width === 390 && scenario.reducedMotion === "no-preference"
+          ? scroller(page).evaluate(
+              (node) =>
+                new Promise<unknown[]>((resolve) => {
+                  const samples: unknown[] = [];
+                  const read = (kind: string) =>
+                    samples.push({
+                      kind,
+                      at: performance.now(),
+                      top: node.scrollTop,
+                      max: node.scrollHeight - node.clientHeight,
+                      height: node.scrollHeight,
+                      anchor: getComputedStyle(node).overflowAnchor,
+                      status: node
+                        .querySelector('[data-message][data-role="assistant"]:last-of-type')
+                        ?.getAttribute("data-status"),
+                      focus: document.activeElement?.getAttribute("aria-label"),
+                    });
+                  const scroll = () => {
+                    read("scroll");
+                  };
+                  const resize = new ResizeObserver(() => {
+                    read("resize");
+                  });
+                  const style = new MutationObserver(() => {
+                    read("style");
+                  });
+                  node.addEventListener("scroll", scroll);
+                  resize.observe(node.firstElementChild ?? node);
+                  style.observe(node, { attributes: true, attributeFilter: ["style"] });
+                  read("before");
+                  setTimeout(() => {
+                    node.removeEventListener("scroll", scroll);
+                    resize.disconnect();
+                    style.disconnect();
+                    resolve(samples);
+                  }, 2000);
+                }),
+            )
+          : null;
+      await replyActions(page).getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      if (continueTrace)
+        process.stdout.write(`Continue scroll trace ${JSON.stringify(await continueTrace)}\n`);
+      await expectFollowedReply(page);
+      await replyActions(page).getByRole("button", { name: "New reply", exact: true }).click();
+      await expect(replyCounter(page)).toContainText("2 / 2");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expectFollowedReply(page);
+      await chooseModel(page, "mock-long");
+      await send(page, "A long reply follows.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+      await expectFollowedReply(page);
+      await send(page, "Stopped reply.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+      await page.getByRole("button", { name: "Stop", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
+      await expectFollowedReply(page);
+      await chooseModel(page, "mock-error");
+      await send(page, "Failed reply.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
+      await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
+      await expectFollowedReply(page);
+    } finally {
+      release();
+    }
+  });
+}
+
+for (const width of [360, 390]) {
+  test(`one pixel stays escaped inside the near-bottom margin through a reasoning collapse at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+    await page.emulateMedia({ reducedMotion: width === 360 ? "reduce" : "no-preference" });
+    const characterId = await createCharacterViaApi(request, uniqueName("One pixel"), {
+      firstMessage: "The lamp lights the harbour.",
+    });
+    await patchSettings(request, { characterId, model: "mock-slow", reasoningOpen: true });
+    await page.goto("/");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const shortView = scroller(page);
+    expect(await shortView.evaluate((node) => node.scrollHeight - node.clientHeight)).toBe(0);
+    await shortView.evaluate((node) => {
+      node.setAttribute("tabindex", "-1");
+      (node as HTMLElement).focus({ preventScroll: true });
+    });
+    await page.keyboard.press("PageUp");
+    await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+    await send(
+      page,
+      Array.from({ length: 35 }, () => "The long quay runs beside the water.").join(" "),
+    );
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expectFollowedReply(page);
+    const view = scroller(page);
+    const before = await view.evaluate((node) => node.scrollTop);
+    await view.evaluate((node) => {
+      node.scrollTop -= 1;
+    });
+    await expect.poll(() => view.evaluate((node) => node.scrollTop)).toBe(before - 1);
+    const latest = page.getByRole("button", { name: "Latest", exact: true });
+    await expect(latest).toBeVisible();
+    expect(
+      await view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+    ).toBeLessThan(4);
+    const details = lastReply(page).locator("details").first();
+    await expect(details).toHaveAttribute("open", "");
+    await details.locator("summary").evaluate((node: HTMLElement) => node.click());
+    await expect(details).not.toHaveAttribute("open");
+    await expect(latest).toBeVisible();
+    await page.setViewportSize({ width, height: 480 });
+    await expect(latest).toBeVisible();
+    await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
+  });
+  for (const escapePath of ["one pixel", "wheel", "keyboard", "touch"] as const) {
+    test(`a ${escapePath} escape survives completion and keyboard-sized shrink at ${width}`, async ({
+      page,
+      request,
+      context,
+    }) => {
+      test.setTimeout(45_000);
+      await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+      await page.emulateMedia({ reducedMotion: width === 360 ? "reduce" : "no-preference" });
+      const characterId = await createCharacterViaApi(request, uniqueName("Escape"), {
+        firstMessage: "The light crosses the water.",
+      });
+      await patchSettings(request, { characterId, model: "mock-long" });
+      await page.goto("/");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await send(page, "Keep my reading position.");
+      const view = scroller(page);
+      await expect.poll(() => view.evaluate((node) => node.scrollTop)).toBeGreaterThan(800);
+      const message = page.getByLabel("Message", { exact: true });
+      if (escapePath === "one pixel")
+        await view.evaluate((node) => {
+          node.scrollTop -= 1;
+        });
+      else if (escapePath === "wheel") {
+        await view.hover();
+        await page.mouse.wheel(0, -300);
+      } else if (escapePath === "keyboard") {
+        // A physical PageUp on a focused native scroller, approximating keyboard history reading.
+        await view.evaluate((node) => {
+          node.setAttribute("tabindex", "-1");
+          (node as HTMLElement).focus({ preventScroll: true });
+        });
+        await page.keyboard.press("PageUp");
+      } else {
+        const client = await context.newCDPSession(page);
+        await client.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+        const bounds = await view.boundingBox();
+        const x = (bounds?.x ?? 0) + 30;
+        const y = (bounds?.y ?? 0) + 80;
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x, y }],
+        });
+        for (const dy of [40, 100, 180])
+          await client.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: y + dy }],
+          });
+        await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await client.detach();
+      }
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeVisible();
+      // Touch/keyboard native scrolling can finish its own motion; then freeze the observed place.
+      if (escapePath === "touch" || escapePath === "keyboard") {
+        await view.evaluate(
+          (node) =>
+            new Promise<void>((resolve) => {
+              let top = node.scrollTop;
+              let stable = 0;
+              const settled = () => {
+                stable = node.scrollTop === top ? stable + 1 : 0;
+                top = node.scrollTop;
+                if (stable >= 3) resolve();
+                else requestAnimationFrame(settled);
+              };
+              requestAnimationFrame(settled);
+            }),
+        );
+      }
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+        .toBeGreaterThan(1);
+      if (escapePath === "one pixel") await expect(message).toBeFocused();
+      const focused = await page.evaluateHandle(() => document.activeElement);
+      await page.setViewportSize({ width, height: 480 });
+      const kept = await view.evaluate((node) => node.scrollTop);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeVisible();
+      expect(await view.evaluate((node) => node.scrollTop)).toBeCloseTo(kept, 0);
+      expect(await page.evaluate((element) => document.activeElement === element, focused)).toBe(
+        true,
+      );
+      await focused.dispose();
+      await page
+        .getByRole("button", { name: "Latest", exact: true })
+        .evaluate((node: HTMLButtonElement) => node.click());
+      await expectFollowedReply(page);
+    });
+  }
+}
 
 test("scrolling stays anchored while a reply streams", async ({ page }) => {
   await openChat(page, "mock-long");
@@ -2460,12 +2873,7 @@ for (const { name, width, height, scheme } of [
 
     // The editor with every row open.
     await list.getByRole("button", { name: "Edit The Grey Lantern" }).click();
-    for (const row of [
-      "Where it goes",
-      "When it goes in",
-      "What brings it in",
-      "What it matches",
-    ]) {
+    for (const row of ["Placement and order", "Timing", "Chaining", "Matching"]) {
       const button = page.getByRole("button", { name: row, exact: true });
       await button.click();
       await expect(button).toHaveAttribute("aria-expanded", "true");
@@ -2482,7 +2890,7 @@ for (const { name, width, height, scheme } of [
     // An in-chat entry reveals depth and role.
     if (name !== "desktop light") await page.getByRole("button", { name: "Entries" }).click();
     await list.getByRole("button", { name: "Edit Gull omen" }).click();
-    await page.getByRole("button", { name: "Where it goes", exact: true }).click();
+    await page.getByRole("button", { name: "Placement and order", exact: true }).click();
     await expect(page.getByRole("combobox", { name: "Role" })).toBeVisible();
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
@@ -2591,7 +2999,7 @@ test("reduced motion keeps the lorebook's rows to fades", async ({ page }) => {
   const id = await createCharacterViaApi(page.request, `Still ${crypto.randomUUID().slice(0, 6)}`);
   await setLorebookViaApi(page.request, id, WORLD_INFO_BOOK);
   await page.goto(`/characters/${id}/lorebook?entry=0`);
-  const button = page.getByRole("button", { name: "Where it goes", exact: true });
+  const button = page.getByRole("button", { name: "Placement and order", exact: true });
   await button.click();
   const motion = await button.evaluate((node) => {
     const panel = document.getElementById(node.getAttribute("aria-controls") ?? "");

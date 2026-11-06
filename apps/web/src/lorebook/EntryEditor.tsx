@@ -214,7 +214,7 @@ export function EntryEditor(props: EntryEditorProps) {
 
       <div className="grid border-rush border-b">
         <SettingsRow
-          label="Where it goes"
+          label="Placement and order"
           answer={placementAnswer(settings, entry.insertionOrder)}
           {...row("where")}
         >
@@ -226,7 +226,7 @@ export function EntryEditor(props: EntryEditorProps) {
           />
         </SettingsRow>
         <SettingsRow
-          label="When it goes in"
+          label="Timing"
           answer={timingAnswer(settings, activation === "keywords" ? settings.chance : null)}
           {...row("when")}
         >
@@ -240,7 +240,7 @@ export function EntryEditor(props: EntryEditorProps) {
           <EventPool settings={settings} pools={props.book.pools} onSettings={onSettings} />
         </SettingsRow>
         <SettingsRow
-          label="What brings it in"
+          label="Chaining"
           answer={chainingAnswer(settings, props.book.chaining)}
           {...row("brings")}
         >
@@ -252,7 +252,7 @@ export function EntryEditor(props: EntryEditorProps) {
           />
         </SettingsRow>
         <SettingsRow
-          label="What it matches"
+          label="Matching"
           answer={matchingAnswer(settings, props.book.depth)}
           {...row("matches")}
         >
