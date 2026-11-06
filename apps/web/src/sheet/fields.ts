@@ -6,6 +6,13 @@ import { cn } from "@/lib/cn";
  * what genuinely differs: size, padding and type, and whether the field is
  * boxed at rest (a sheet field, a chat edit, a request to a model) or open
  * on the page until it is used (a title or a name).
+ *
+ * The surrounding grammars stay distinct: compact list rows put a medium
+ * title over note-sized metadata; sheet forms use semibold group labels
+ * and medium field labels with help under the control; settings rows put
+ * the hint under the label and the control at the trailing edge.
+ * Shared form rhythm: label to control 8px, control to help 8px, fields
+ * inside a group 20px. SheetBody owns the gap between sections.
  */
 const FIELD_FACE =
   "rounded-md border bg-surface text-ink outline-none placeholder:text-reed focus:border-dusk-line focus:shadow-focus";
@@ -13,7 +20,7 @@ const FIELD_FACE =
 /** A boxed field: in the control edge at rest, ringed while focused, growing with its text. */
 const BOXED = cn(
   FIELD_FACE,
-  "w-full resize-none border-control-edge [field-sizing:content] transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade focus:shadow-focus",
+  "w-full resize-none border-control-edge [field-sizing:content] transition-[border-color,box-shadow] duration-(--duration-tint-quick) ease-fade focus:shadow-focus",
 );
 
 /**
@@ -71,7 +78,7 @@ export const TITLE_FIELD = cn(
  */
 export const PROSE_FACE = cn(
   FIELD_FACE,
-  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus touch:min-h-11",
+  "w-full cursor-text border-dotted border-transparent border-b-rush bg-transparent px-2 py-1 transition-[border-color,background-color,color,box-shadow] duration-(--duration-tint-quick) ease-fade hover:border-rush hover:bg-surface-hover focus:border-solid focus:bg-surface focus:shadow-focus touch:min-h-11",
 );
 
 export const PROSE_FIELD = cn(
@@ -81,7 +88,7 @@ export const PROSE_FIELD = cn(
 
 /** The focus of a field made of several parts (tokens, a search box with its icon, the composer). */
 export const FOCUS_WITHIN =
-  "transition-[border-color,box-shadow] duration-(--duration-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-focus";
+  "transition-[border-color,box-shadow] duration-(--duration-tint-quick) ease-fade focus-within:border-dusk-line focus-within:shadow-focus";
 
 /**
  * Where a sheet label's first line meets what it labels: a boxed field's
@@ -114,7 +121,9 @@ export const sheetLabel = (align: keyof typeof LABEL_ALIGN = "field") =>
 
 /** A sheet's help line, under the field it explains. */
 export const HELP = "text-pretty text-note text-reed";
-/** Explanatory sentences in working panels, one step above a compact help line. */
+/** Help below a roomier request field, with a 24px line and the help measure. */
+export const REQUEST_HELP = cn(HELP, "max-w-help leading-6");
+/** Explanatory sentences in working panels use the same type as a help line. */
 export const EXPLANATION = HELP;
 
 /** The sheets' grid: labels hang in a margin beside the fields, like speaker cues. */

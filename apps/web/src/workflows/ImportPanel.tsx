@@ -13,6 +13,7 @@ import {
   type RefObject,
   useEffect,
   useId,
+  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -31,7 +32,7 @@ import { isComposing } from "@/lib/keys.ts";
 import { countOf } from "@/lib/text";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import { FAMILY_NAMES } from "../settings/pictures.ts";
-import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
+import { PANEL_COMMIT, PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { useSetting } from "../settings/settings.ts";
 import { ConflictNotice } from "../sheet/ConflictNotice.tsx";
 import {
@@ -79,6 +80,7 @@ import {
   type SaveFailure,
   type SaveTarget,
   saveCheck,
+  unchosen,
 } from "./panel-state.ts";
 import {
   createWorkflow,
@@ -158,6 +160,7 @@ export function ImportPanel({
   // Closed, the panel stays a moment while it folds away; leaving, it guards nothing.
   const present = useIsPresent();
   const dirty = present && isDirty(state);
+  useAnswerArrival(heading, draft.file, state, present);
 
   // Whether the panel is still on screen and not leaving, for answers that arrive after it closed.
   const mounted = useRef(true);
@@ -418,6 +421,177 @@ export function ImportPanel({
   );
 }
 
+/** One answer arrival per file, relinquished as soon as the owner takes over. */
+function useAnswerArrival(
+  heading: RefObject<HTMLHeadingElement | null>,
+  file: File,
+  state: PanelState,
+  present: boolean,
+) {
+  const arrival = useRef<{
+    initial: PanelState;
+    cancelled: boolean;
+    answered: boolean;
+    update: ((ready: boolean) => void) | null;
+    stop: () => void;
+  } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the file starts an arrival, not each panel state.
+  useLayoutEffect(() => {
+    const title = heading.current;
+    const panel = title?.closest("section");
+    const scroller = panel?.closest<HTMLElement>("[data-skip-target]");
+    if (!present || !title || !panel || !scroller) return;
+    const pending = {
+      initial: state,
+      cancelled: false,
+      answered: false,
+      update: null as ((ready: boolean) => void) | null,
+      stop: () => {},
+    };
+    arrival.current = pending;
+    const slot = panel.parentElement;
+    const padding = slot?.style.paddingBottom ?? "";
+    const cancel = () => {
+      pending.cancelled = true;
+      pending.stop();
+    };
+    const focus = (event: FocusEvent) => {
+      if (event.target instanceof Node && !panel.contains(event.target)) cancel();
+    };
+    const key = (event: KeyboardEvent) => {
+      if (
+        !event.defaultPrevented &&
+        event.target instanceof Element &&
+        !event.target.closest('input, textarea, select, [contenteditable="true"]') &&
+        ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)
+      )
+        cancel();
+    };
+    let scrollbar = false;
+    const pointer = (event: PointerEvent) => {
+      scrollbar =
+        event.target === scroller &&
+        event.clientX >=
+          scroller.getBoundingClientRect().right -
+            Math.max(16, scroller.offsetWidth - scroller.clientWidth);
+    };
+    const release = () => {
+      scrollbar = false;
+    };
+    const scroll = () => {
+      if (scrollbar) cancel();
+    };
+    scroller.addEventListener("wheel", cancel, { passive: true });
+    scroller.addEventListener("touchmove", cancel, { passive: true });
+    scroller.addEventListener("keydown", key);
+    scroller.addEventListener("pointerdown", pointer);
+    scroller.addEventListener("scroll", scroll, { passive: true });
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    document.addEventListener("focusin", focus);
+    return () => {
+      cancel();
+      if (slot) slot.style.paddingBottom = padding;
+      scroller.removeEventListener("wheel", cancel);
+      scroller.removeEventListener("touchmove", cancel);
+      scroller.removeEventListener("keydown", key);
+      scroller.removeEventListener("pointerdown", pointer);
+      scroller.removeEventListener("scroll", scroll);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      document.removeEventListener("focusin", focus);
+    };
+  }, [file, present, heading]);
+
+  useLayoutEffect(() => {
+    const pending = arrival.current;
+    const title = heading.current;
+    const panel = title?.closest("section");
+    const scroller = panel?.closest<HTMLElement>("[data-skip-target]");
+    const answered =
+      state.phase === "inspected" ||
+      state.phase === "refused" ||
+      (state.phase === "failed" && state.stage === "inspect");
+    if (
+      !pending ||
+      pending.initial === state ||
+      pending.cancelled ||
+      pending.answered ||
+      !present ||
+      !title ||
+      !panel ||
+      !scroller
+    )
+      return;
+    // Saving is later work, even if the first arrival had not finished yet.
+    if (state.phase === "saving" || (state.phase === "failed" && state.stage === "save")) {
+      pending.cancelled = true;
+      pending.stop();
+      return;
+    }
+    if (pending.update) {
+      pending.update(answered);
+      return;
+    }
+    if (!answered) return;
+    const slot = panel.parentElement;
+    if (!slot) return;
+    let ready = true;
+    const observer = new ResizeObserver(() => align());
+    const stop = () => observer.disconnect();
+    pending.stop = stop;
+    const align = () => {
+      if (pending.cancelled || !panel.isConnected || panel.closest("[inert]")) return stop();
+      if (!ready) return;
+      // Retry or another render can replace the answer while the slot unfolds.
+      const answer = panel.querySelector<HTMLElement>("[data-workflow-answer]");
+      if (!answer) return;
+      const viewport = scroller.getBoundingClientRect();
+      const start = title.getBoundingClientRect().top;
+      const end = answer.getBoundingClientRect().bottom;
+      // NoticeSlot must have unfolded far enough to paint the answer first.
+      if (slot.getBoundingClientRect().bottom < Math.min(end, viewport.bottom) - 1) return;
+      if (start >= viewport.top && end <= viewport.bottom) {
+        pending.answered = true;
+        return stop();
+      }
+      const spacing = Number.parseFloat(getComputedStyle(panel).rowGap) || 0;
+      const target = Math.max(0, scroller.scrollTop + start - viewport.top - spacing);
+      // The opening slot may not yet provide this range. Observe only this
+      // arrival's expansion, then disconnect before the single scroll.
+      const missing = target - (scroller.scrollHeight - scroller.clientHeight);
+      if (missing > 1) {
+        const padding = Number.parseFloat(getComputedStyle(slot).paddingBottom) || 0;
+        if (
+          slot.getBoundingClientRect().height - padding <
+          panel.getBoundingClientRect().height - 1
+        )
+          return;
+        // A short answer panel still needs enough canvas after it to align
+        // its beginning. Keep this clearance for this file's mounted life;
+        // removing it after arrival would clamp the reader back down.
+        // Follow later keyboard-sized viewport changes without another scroll
+        // or observer: a fixed clearance could push Cancel above a short view.
+        slot.style.paddingBottom = `max(0px, calc(100dvh - ${window.innerHeight - padding - missing}px))`;
+        return;
+      }
+      pending.answered = true;
+      stop();
+      scroller.scrollTo({ top: target, behavior: scrollBehavior() });
+    };
+    pending.update = (answerReady) => {
+      ready = answerReady;
+      align();
+    };
+    observer.observe(slot, { box: "border-box" });
+    observer.observe(panel);
+    observer.observe(scroller);
+    align();
+    // The file effect owns cleanup. A panel-state render must not disconnect
+    // an arrival that is still waiting for NoticeSlot's first usable range.
+  }, [state, present, heading]);
+}
+
 /** What the panel shows for a state: a pure render, so each state can be checked without a DOM. */
 export function PanelView({
   state,
@@ -516,7 +690,7 @@ export function PanelView({
       )}
 
       {refused && (
-        <InlineStatus as="div" role="alert" className="grid gap-1 arrive">
+        <InlineStatus as="div" role="alert" data-workflow-answer="" className="grid gap-1 arrive">
           <h4 className={cn(GROUP_HEADING, "text-pretty break-words text-ember")}>
             Cannot import {state.fileName}
           </h4>
@@ -532,7 +706,7 @@ export function PanelView({
       )}
 
       {(stalled === "busy" || stalled === "unreachable") && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 arrive">
+        <div data-workflow-answer="" className="flex flex-wrap items-center gap-x-3 gap-y-1 arrive">
           <InlineStatus as="p" role="alert" className="text-ink">
             {stalled === "busy" ? INSPECT_BUSY : `The file was not read: ${notReached}.`}
           </InlineStatus>
@@ -542,12 +716,10 @@ export function PanelView({
         </div>
       )}
 
-      {draft !== null && <DraftBody draft={draft} disabled={saving} dispatch={dispatch} />}
-
       {state.phase !== "idle" &&
         !refused &&
         (stalled === null || stalled === "comfyui_required") && (
-          <div className="grid gap-2">
+          <div data-workflow-answer="" className="grid gap-2">
             <h4 className={FIELD_ROW_LABEL}>On your ComfyUI</h4>
             <InlineStatus as="div" role="status" className="grid gap-2">
               {stalled === "comfyui_required" ? (
@@ -575,6 +747,8 @@ export function PanelView({
           </div>
         )}
 
+      {draft !== null && <DraftBody draft={draft} disabled={saving} dispatch={dispatch} />}
+
       {draft !== null && (
         <Fields draft={draft} names={names} disabled={saving} dispatch={dispatch} />
       )}
@@ -594,29 +768,30 @@ export function PanelView({
       {check.unchosen > 0 && <p className={HELP}>{unchosenSummary(check.unchosen)}</p>}
 
       <div className={PANEL_FOOTER}>
-        <span className="flex-1" />
         {(refused || stalled === "busy" || stalled === "unreachable") && (
           <Button variant="outline" onClick={onChooseFile}>
             Choose another file
           </Button>
         )}
-        <Button variant="quiet" disabled={saving} onClick={onCancel}>
-          Cancel
-        </Button>
-        {!refused && (
-          <Button variant="primary" disabled={!check.enabled} onClick={() => onSave()}>
-            {saving ? (
-              <>
-                <SavingIcon size={16} />
-                Saving
-              </>
-            ) : replace !== null ? (
-              "Replace file"
-            ) : (
-              "Save workflow"
-            )}
+        <div className={PANEL_COMMIT}>
+          <Button variant="quiet" disabled={saving} onClick={onCancel}>
+            Cancel
           </Button>
-        )}
+          {!refused && (
+            <Button variant="primary" disabled={!check.enabled} onClick={() => onSave()}>
+              {saving ? (
+                <>
+                  <SavingIcon size={16} />
+                  Saving
+                </>
+              ) : replace !== null ? (
+                "Replace file"
+              ) : (
+                "Save workflow"
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       {children}
     </section>
@@ -636,13 +811,35 @@ function DraftBody({
   const report = reportOf(draft);
   const problem = choiceProblem(draft);
   const blocked = blockedGroups(draft);
+  const rows = mappingRows(draft);
+  const settled =
+    draft.final.ok &&
+    problem === null &&
+    blocked.length === 0 &&
+    unchosen(draft).length === 0 &&
+    rows.every((row) => row.choice === null && row.targets.length > 0);
+  const mapping = (
+    <MappingList
+      rows={rows}
+      disabled={disabled}
+      showHeading={!settled}
+      onChoose={(place, node) => dispatch({ type: "choose", place, node })}
+    />
+  );
   return (
     <>
-      <MappingList
-        rows={mappingRows(draft)}
-        disabled={disabled}
-        onChoose={(place, node) => dispatch({ type: "choose", place, node })}
-      />
+      {settled ? (
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            Ephemera fills these four places
+            <span className="font-normal text-reed">All found in this file</span>
+            <DisclosureChevron />
+          </summary>
+          <div className="pt-2">{mapping}</div>
+        </details>
+      ) : (
+        mapping
+      )}
       {problem !== null && (
         <div className="grid gap-1">
           <InlineStatus tone="error" as="p" role="alert">
@@ -650,19 +847,6 @@ function DraftBody({
           </InlineStatus>
           <NodesInvolved nodes={problem.nodes} />
         </div>
-      )}
-      <OtherNodes nodes={otherNodes(draft)} />
-      {report.changed.length + report.skipped.length > 0 && (
-        <details className="disclosure">
-          <summary className={SUMMARY_LINE}>
-            Import details
-            <DisclosureChevron />
-          </summary>
-          <div className="grid gap-3 pt-2 text-ui">
-            <ReportGroup title="Changed" items={report.changed} heading="h4" />
-            <ReportGroup title="Left out" items={report.skipped} heading="h4" />
-          </div>
-        </details>
       )}
       {blocked.length > 0 && (
         <div className="grid gap-2">
@@ -689,6 +873,19 @@ function DraftBody({
             ))}
           </div>
         </div>
+      )}
+      <OtherNodes nodes={otherNodes(draft)} />
+      {report.changed.length + report.skipped.length > 0 && (
+        <details className="disclosure">
+          <summary className={SUMMARY_LINE}>
+            Import details
+            <DisclosureChevron />
+          </summary>
+          <div className="grid gap-3 pt-2 text-ui">
+            <ReportGroup title="Changed" items={report.changed} heading="h4" />
+            <ReportGroup title="Left out" items={report.skipped} heading="h4" />
+          </div>
+        </details>
       )}
     </>
   );

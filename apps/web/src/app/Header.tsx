@@ -11,6 +11,9 @@ export type BackTarget =
   | { to: "/"; label: "Chat" }
   | { label: string; onBack: () => void; iconOnly?: boolean };
 
+/** Labelled phone actions below a collection or sheet title. */
+export const PHONE_TOOLBAR = "gap-2 px-4 pb-2 [&>button]:px-2.5";
+
 /** Back links and local back steps keep their existing destinations and accessible names. */
 export function BackControl({ back }: { back: BackTarget }) {
   const phone = useFormFactor() === "phone";

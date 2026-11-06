@@ -175,7 +175,7 @@ export function useNotebook(characterId: string, state: MemoryState, onSeen: (n:
 const PROSE_FIELD = cn(OPEN_PROSE, "font-story text-ink text-turn");
 
 const MARGIN_LABEL = sheetLabel("line");
-const HELP = cn(SHEET_HELP, "text-turn");
+const HELP = SHEET_HELP;
 
 /** Line breaks of any kind: a relationship, a fact, a thread or a cast line is one line. */
 const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;

@@ -76,7 +76,8 @@ async function review(page: Page, label: RowLabel) {
   });
   const sent = await sendRework(page, label, "mock-fast");
   const { base } = sent;
-  await expect(dock(page)).toContainText("3 changes to apply, 1 left out");
+  await expect(dock(page).getByRole("status")).toHaveText("3 changes to apply");
+  await expect(dock(page).locator("summary")).toHaveText("1 change won't apply");
   await expect(page.locator("main")).toContainText(`${base}-rej`);
   await expect(page.locator("main")).toContainText(`${base}-why`);
   expect(stream).toContain(`${base}-sum`);

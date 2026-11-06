@@ -43,6 +43,7 @@ export function NewArtButton({
   return (
     <>
       <Button
+        variant="outline"
         size="text"
         ref={triggerRef}
         disabled={disabled}

@@ -1,10 +1,19 @@
 import { randomBytes } from "node:crypto";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { EVENT_DIRECTION, type StoredEvent } from "../packages/core/src/events/event.ts";
+import {
+  EVENT_DIRECTION,
+  EVENT_LIMITS,
+  type StoredEvent,
+} from "../packages/core/src/events/event.ts";
 import { eventsResponseSchema } from "../packages/core/src/responses.ts";
 import { uniqueName } from "./support/cards.ts";
 import { chooseCharacter, lastReply, send, upstreamRecords } from "./support/chat.ts";
-import { createCharacterViaApi, createEventViaApi, patchSettings } from "./support/entities.ts";
+import {
+  createCharacterViaApi,
+  createEventViaApi,
+  createLorebookViaApi,
+  patchSettings,
+} from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { expect, test, unsafe } from "./support/test.ts";
 
@@ -57,6 +66,322 @@ async function exchange(page: Page, line: string): Promise<string[]> {
 }
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`event summaries wrap closed and keep the open caret still (${reducedMotion})`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const text =
+      "The harbour lantern dims as the keeper crosses the reading room, then brightens when she opens the northern window and hears footsteps approaching along the quay.";
+    const id = await createEventViaApi(request, text);
+    // A populated library keeps this field clear of the empty gallery's tall engraving.
+    await createLorebookViaApi(request, uniqueName("Event geometry"));
+    await page.goto("/lorebooks");
+    await openEvents(page);
+    const row = page.locator(`[data-event="${id}"]`);
+    const disclosure = row.locator("[data-disclosure]");
+    for (const width of [390, 820, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const closed = await disclosure.locator("span[title]").evaluate((node) => ({
+        clamp: getComputedStyle(node).webkitLineClamp,
+        height: node.getBoundingClientRect().height,
+        line: Number.parseFloat(getComputedStyle(node).lineHeight),
+        title: node.getAttribute("title"),
+        text: node.textContent,
+      }));
+      expect(closed.clamp).toBe("2");
+      expect(closed.height).toBeLessThanOrEqual(2 * closed.line);
+      expect(closed.text).toBe(text);
+      expect(closed.title).toBe(text);
+      await expect(disclosure).toHaveAccessibleName(text);
+      await disclosure.click();
+      const instruction = row.getByRole("textbox", { name: "Instruction", exact: true });
+      await expect(instruction).toBeVisible();
+      await instruction.fill("The lamp waits.");
+      await expect(row.locator("[data-inline-save]")).toHaveText("Saved");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              document
+                .getAnimations()
+                .filter(
+                  (animation) =>
+                    animation.playState === "running" &&
+                    animation.effect?.getComputedTiming().iterations !== Infinity &&
+                    animation.timeline === document.timeline,
+                ).length,
+          ),
+        )
+        .toBe(0);
+      const before = await instruction.boundingBox();
+      await instruction.press("End");
+      await page.keyboard.type(` ${text}`);
+      const after = await instruction.boundingBox();
+      expect(after?.y).toBe(before?.y);
+      const open = await disclosure.locator("span[title]").evaluate((node) => ({
+        height: node.getBoundingClientRect().height,
+        line: Number.parseFloat(getComputedStyle(node).lineHeight),
+        overflow: getComputedStyle(node).textOverflow,
+      }));
+      expect(open.height).toBe(open.line);
+      expect(open.overflow).toBe("ellipsis");
+      process.stdout.write(
+        `R8 event geometry ${JSON.stringify({ width, reducedMotion, closed, open, before, after })}\n`,
+      );
+      await instruction.fill(text);
+      await expect(row.locator("[data-inline-save]")).toHaveText("Saved");
+      await disclosure.click();
+      await expect(instruction).toBeHidden();
+    }
+  });
+}
+
+test.describe("phone More > New event", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  const sheet = (page: Page) => page.getByRole("dialog", { name: "Events", exact: true });
+  const openNew = async (page: Page) => {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    const menu = page.getByRole("menu", { name: "Chat actions" });
+    await expect(menu.getByRole("menuitem")).toHaveText([
+      "Events",
+      "New event",
+      "Prompt",
+      "Clear chat",
+    ]);
+    await expect(menu.getByRole("menuitem", { name: "New event", exact: true })).toHaveAttribute(
+      "aria-haspopup",
+      "dialog",
+    );
+    await menu.getByRole("menuitem", { name: "New event", exact: true }).click();
+  };
+
+  for (const phase of ["cached", "delayed", "retry", "closed"] as const) {
+    test(`${phase}: consumes one local draft and preserves closing focus`, async ({
+      page,
+      request,
+    }) => {
+      let fail = phase === "retry";
+      const release = Promise.withResolvers<void>();
+      const seen = Promise.withResolvers<void>();
+      let gets = 0;
+      let creates = 0;
+      if (phase === "cached") await createEventViaApi(request, "The cached lantern turns.");
+      const initial = await storedEvents(request);
+      page.on("request", (sent) => {
+        if (sent.url().endsWith("/api/events") && sent.method() === "POST") creates++;
+      });
+      await page.route("**/api/events", async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        gets++;
+        seen.resolve();
+        if (phase === "delayed" || phase === "closed") await release.promise;
+        if (fail) return route.fulfill({ status: 503, json: { error: "unavailable" } });
+        return route.fulfill({ json: { events: initial } });
+      });
+      try {
+        await page.goto("/");
+        if (phase === "cached") {
+          await page.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length);
+          await page.keyboard.press("Escape");
+          await expect(sheet(page)).toHaveCount(0);
+          // The cached list remains usable while the next visit's stale refetch fails.
+          fail = true;
+        }
+        await openNew(page);
+        await seen.promise;
+        if (phase === "closed") {
+          await page.keyboard.press("Escape");
+          await expect(sheet(page)).toHaveCount(0);
+          release.resolve();
+          await expect(page.getByRole("button", { name: "More", exact: true })).toBeFocused();
+          await page.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+          await expect(sheet(page).getByText("No events yet.", { exact: false })).toBeVisible();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(0);
+        } else {
+          if (phase === "delayed") {
+            await expect(
+              sheet(page).getByRole("textbox", { name: "Instruction", exact: true }),
+            ).toHaveCount(0);
+            await expect(
+              sheet(page).getByRole("heading", { name: "Events", exact: true }),
+            ).toBeFocused();
+            release.resolve();
+          }
+          if (phase === "retry") {
+            await expect(sheet(page).getByText("The events could not be loaded.")).toBeVisible({
+              timeout: 15_000,
+            });
+            fail = false;
+            await sheet(page).getByRole("button", { name: "Try again", exact: true }).click();
+          }
+          const instruction = sheet(page).getByRole("textbox", {
+            name: "Instruction",
+            exact: true,
+          });
+          await expect(instruction).toBeFocused();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length + 1);
+          if (phase === "cached") {
+            await expect(sheet(page).getByText("The events could not be refreshed.")).toBeVisible({
+              timeout: 15_000,
+            });
+            await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length + 1);
+            await expect(instruction).toBeFocused();
+          }
+          expect(creates).toBe(0);
+          expect(await storedEvents(request)).toEqual(initial);
+          await page.keyboard.press("Escape");
+          await expect(sheet(page)).toHaveCount(0);
+          await expect(page.getByRole("button", { name: "More", exact: true })).toBeFocused();
+          await page.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("menuitem", { name: "Events", exact: true }).click();
+          if (initial.length === 0)
+            await expect(sheet(page).getByText("No events yet.", { exact: false })).toBeVisible();
+          await expect(sheet(page).locator("[data-event]")).toHaveCount(initial.length);
+        }
+        expect(gets).toBeGreaterThan(0);
+        expect(creates).toBe(0);
+      } finally {
+        release.resolve();
+      }
+    });
+  }
+
+  test("at the limit the existing focusable New event explains the limit", async ({
+    page,
+    request,
+  }) => {
+    const id = await createEventViaApi(request, "The lantern turns.");
+    const [event] = await storedEvents(request);
+    await page.route("**/api/events", (route) =>
+      route.request().method() === "GET"
+        ? route.fulfill({
+            json: {
+              events: Array.from({ length: EVENT_LIMITS.events }, (_, index) => ({
+                ...event,
+                id: index === 0 ? id : crypto.randomUUID(),
+              })),
+            },
+          })
+        : route.continue(),
+    );
+    await page.goto("/");
+    await openNew(page);
+    const button = sheet(page).getByRole("button", { name: "New event", exact: true });
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(sheet(page).getByText(/200 events is the most/)).toBeVisible();
+    await expect(
+      sheet(page).getByRole("textbox", { name: "Instruction", exact: true }),
+    ).toHaveCount(0);
+    expect(await storedEvents(request)).toHaveLength(1);
+  });
+});
+
+for (const entry of ["Lorebooks", "chat"] as const) {
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`${entry} event feedback follows saves only during the edited open visit (${reducedMotion})`, async ({
+      page,
+      request,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await freshChat(request);
+      await page.goto("/lorebooks");
+      await openEvents(page);
+      if (entry === "chat") {
+        await page.getByRole("link", { name: "Events in chat", exact: true }).click();
+      }
+      const scope =
+        entry === "chat"
+          ? page.getByRole("dialog", { name: "Events", exact: true })
+          : page.locator("main");
+      await scope.getByRole("button", { name: "New event", exact: true }).click();
+      const row = scope.locator("li[data-event]").first();
+      const feedback = row.locator("[data-inline-save]");
+      const hint = row.getByText("Write the instruction to save this event.");
+      await expect(hint).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+      const hintHeight = (await hint.locator("..").boundingBox())?.height;
+      const instruction = row.getByRole("textbox", { name: "Instruction", exact: true });
+      const text = "The lantern dims.";
+      await instruction.fill(text);
+      await expect(feedback).toHaveText("Saved");
+      expect((await feedback.locator("..").boundingBox())?.height).toBe(hintHeight);
+      const saved = (await storedEvents(request))[0];
+      if (saved === undefined) throw new Error("event did not save");
+
+      // A real save held in flight supplies Saving; the presentation owns no timer or save.
+      const held = await holdAnswer(page, saved.id, "PATCH");
+      try {
+        await instruction.fill("The lantern brightens.");
+        await held.committed;
+        await expect(feedback).toHaveText("Saving");
+      } finally {
+        held.release();
+      }
+      await expect(feedback).toHaveText("Saved");
+      const disclosure = row.locator("[data-disclosure]");
+      await disclosure.click();
+      await expect(feedback).toHaveCount(0);
+      await disclosure.click();
+      await expect(instruction).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+
+      // Failed edits keep the existing single failure and Retry hierarchy.
+      await page.route("**/api/events/*", (route) =>
+        route.request().method() === "PATCH" ? route.abort() : route.fallback(),
+      );
+      await instruction.fill("The lantern goes dark.");
+      await instruction.press("Tab");
+      await expect(row.getByRole("alert")).toContainText("Not saved");
+      await expect(row.getByRole("alert")).toHaveCount(1);
+      await expect(feedback).toHaveCount(0);
+      await page.unroute("**/api/events/*");
+      await row.getByRole("button", { name: "Retry", exact: true }).click();
+      await expect(feedback).toHaveText("Saved");
+      await instruction.fill("");
+      await expect(hint).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+      await instruction.fill(text);
+      await expect(feedback).toHaveText("Saved");
+
+      // Keep both rule sentences on one line, isolating save feedback from metadata wrapping.
+      await row.getByText("Advanced", { exact: true }).click();
+      const chance = row.getByRole("textbox", { name: "Chance per reply in percent" });
+      const quiet = row.getByRole("textbox", { name: "Quiet afterwards in replies" });
+      await chance.fill("0");
+      await chance.press("Tab");
+      await quiet.fill("0");
+      await quiet.press("Tab");
+      await expect
+        .poll(async () => (await storedEvents(request))[0])
+        .toMatchObject({
+          chance: 0,
+          cooldown: 0,
+        });
+      await expect(feedback).toHaveText("Saved");
+
+      // A closed switch never acquires feedback or changes the closed row's height.
+      await disclosure.click();
+      await expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      await expect(instruction).toBeHidden();
+      const height = (await row.boundingBox())?.height;
+      await row.getByRole("switch").click();
+      await expect.poll(async () => (await storedEvents(request))[0]?.enabled).toBe(false);
+      expect((await row.boundingBox())?.height).toBe(height);
+      await expect(feedback).toHaveCount(0);
+      await disclosure.click();
+      await expect(instruction).toBeVisible();
+      await expect(feedback).toHaveCount(0);
+    });
+  }
+}
 
 test("closing Events saves edits made while its close save is waiting", async ({
   page,

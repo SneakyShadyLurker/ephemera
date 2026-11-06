@@ -123,9 +123,14 @@ function SelectItem({
   className,
   children,
   description,
+  descriptionClassName,
   aside,
   ...props
-}: SelectPrimitive.Item.Props & { description?: string; aside?: string }) {
+}: SelectPrimitive.Item.Props & {
+  description?: string;
+  descriptionClassName?: string;
+  aside?: string;
+}) {
   const descriptionId = useId();
   if (aside !== undefined) {
     return (
@@ -180,7 +185,11 @@ function SelectItem({
     >
       <span className="grid min-w-0 gap-0.5">
         <SelectPrimitive.ItemText className="text-ui">{children}</SelectPrimitive.ItemText>
-        <span id={descriptionId} aria-hidden="true" className="text-pretty text-note text-reed">
+        <span
+          id={descriptionId}
+          aria-hidden="true"
+          className={cn("text-pretty text-note text-reed", descriptionClassName)}
+        >
           {description}
         </span>
       </span>

@@ -1,6 +1,11 @@
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
 import { formatCount } from "../apps/web/src/lib/text.ts";
+import {
+  castSheetResponseSchema,
+  castUpdateResponseSchema,
+} from "../packages/core/src/cast/api.ts";
 import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
+import { PALETTES } from "../packages/core/src/palettes.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
 import {
@@ -34,7 +39,14 @@ import {
   send,
   upstreamRecords,
 } from "./support/chat.ts";
-import { createCharacterViaApi, patchSettings, readSettings, saved } from "./support/entities.ts";
+import { portraitPng } from "./support/creator-fixtures.ts";
+import {
+  createCharacterViaApi,
+  patchSettings,
+  readSettings,
+  saved,
+  setPortraitViaApi,
+} from "./support/entities.ts";
 import { expect, test } from "./support/test.ts";
 import {
   MOCK_OUTPUT_TOKENS,
@@ -62,6 +74,37 @@ const FACTORS = [
 const SEEDED = keeperWoman([]);
 /** The status line while the shown reply has no snapshot and no call is writing one. */
 const STALE = "As of the previous reply";
+
+test("phone streaming freshness excludes card-only data and a snapshot on a hidden alternate", async ({
+  page,
+  request,
+}) => {
+  page.on("pageerror", (error) => process.stdout.write(`Chat page error: ${error.message}\n`));
+  page.on("console", (message) => {
+    if (message.type() === "error") process.stdout.write(`Chat console error: ${message.text()}\n`);
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { characterId } = await castChat(request, { greeting: false });
+  await setPortraitViaApi(request, characterId, portraitPng("freshness"));
+  await patchSettings(request, { model: "mock-slow" });
+  await page.goto("/");
+  await send(page, "A first scene starts without a shown snapshot.");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect(castPanel(page)).toHaveCount(0);
+  await expect(page.locator("[data-cast-status]").filter({ hasText: STALE })).toHaveCount(0);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await chooseModel(page, "mock-fast");
+  await replyActions(page).getByRole("button", { name: "New reply", exact: true }).click();
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  await expect(castEntry(page, SEEDED)).toBeVisible();
+  await replyCounter(page).getByRole("button", { name: "Previous reply", exact: true }).click();
+  await chooseModel(page, "mock-slow");
+  await send(page, "A second scene follows the stopped shown alternate.");
+  await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+  await expect(page.locator("[data-cast-status]").filter({ hasText: STALE })).toHaveCount(0);
+  await expect(castPanel(page)).toHaveCount(0);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+});
 
 /** A mark the keeper names its woman after, `-in-` turned to `-cast-`; not a canary. */
 function mark(): string {
@@ -113,6 +156,769 @@ async function seeded(page: Page) {
 }
 
 const inspector = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
+
+/** Read the actual pseudo hit plates, rather than treating glyph boxes as targets. */
+async function expectStackFit(page: Page, state: string, names = true) {
+  const panel = castPanel(page);
+  await panel.scrollIntoViewIfNeeded();
+  const lifecycle = await page.evaluate(() => ({
+    active: document.documentElement.matches(":active-view-transition"),
+    rootAnimations: document.getAnimations().flatMap((animation) => {
+      const effect = animation.effect;
+      if (
+        !(effect instanceof KeyframeEffect) ||
+        !effect.pseudoElement?.startsWith("::view-transition")
+      )
+        return [];
+      return [
+        { pseudo: effect.pseudoElement, state: animation.playState, time: animation.currentTime },
+      ];
+    }),
+  }));
+  if (lifecycle.active) {
+    process.stdout.write(`C document lifecycle ${JSON.stringify({ state, ...lifecycle })}\n`);
+    // Route/theme snapshots intercept the entire document until their native
+    // lifecycle finishes. This is a resting-state contract, not a hit retry.
+    await page.waitForFunction(
+      () => !document.documentElement.matches(":active-view-transition"),
+      undefined,
+      { timeout: 2000 },
+    );
+  }
+  const geometry = await panel.evaluate((element) => {
+    const documentMotion = document.getAnimations().map((animation) => ({
+      state: animation.playState,
+      time: animation.currentTime,
+      pseudo: animation.effect instanceof KeyframeEffect ? animation.effect.pseudoElement : null,
+      target: animation.effect instanceof KeyframeEffect ? animation.effect.target?.tagName : null,
+      name: animation instanceof CSSAnimation ? animation.animationName : null,
+      property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+    }));
+    const root = document.documentElement;
+    const documentState = {
+      activeViewTransition: root.matches(":active-view-transition"),
+      animations: documentMotion,
+      modal: [...document.querySelectorAll(":modal")].map((node) => node.outerHTML.slice(0, 300)),
+      rootPseudo: [
+        "::view-transition",
+        "::view-transition-group(root)",
+        "::view-transition-new(root)",
+      ].map((pseudo) => {
+        const style = getComputedStyle(root, pseudo);
+        return { pseudo, pointerEvents: style.pointerEvents, animationName: style.animationName };
+      }),
+    };
+    const bounds = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
+    const describe = (node: Element | null) =>
+      node === null
+        ? null
+        : {
+            tag: node.tagName,
+            role: node.getAttribute("role"),
+            label: node.getAttribute("aria-label") ?? node.textContent?.trim().slice(0, 80),
+            class: node.getAttribute("class"),
+            bounds: bounds(node),
+          };
+    const scroller = element.closest('[role="log"]')?.firstElementChild;
+    const column = element.closest("[data-presence]")?.firstElementChild;
+    if (!column) throw new Error("Missing portrait column");
+    const stack = element.getBoundingClientRect();
+    const portrait = column.getBoundingClientRect();
+    const actions = [...element.querySelectorAll<HTMLElement>("[data-slot=button]")].map(
+      (action) => {
+        const rect = action.getBoundingClientRect();
+        const style = getComputedStyle(action);
+        const after = getComputedStyle(action, "::after");
+        const left =
+          rect.left + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(after.left);
+        const top =
+          rect.top + Number.parseFloat(style.borderTopWidth) + Number.parseFloat(after.top);
+        const right =
+          rect.right - Number.parseFloat(style.borderRightWidth) - Number.parseFloat(after.right);
+        const bottom =
+          rect.bottom -
+          Number.parseFloat(style.borderBottomWidth) -
+          Number.parseFloat(after.bottom);
+        const range = document.createRange();
+        range.selectNodeContents(action);
+        const text = range.getBoundingClientRect();
+        const points = [-18, 0, 18].flatMap((x) =>
+          [-18, 0, 18].map((y) => {
+            const at = { x: (left + right) / 2 + x, y: (top + bottom) / 2 + y };
+            const above = document.elementFromPoint(at.x, at.y);
+            return { ...at, hit: action.contains(above), above: describe(above) };
+          }),
+        );
+        const ancestors = [];
+        for (let node: Element | null = action; node !== null; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          const animations = node
+            .getAnimations()
+            .filter((animation) => animation.playState === "running")
+            .map((animation) => ({
+              time: animation.currentTime,
+              property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+              name: animation instanceof CSSAnimation ? animation.animationName : null,
+            }));
+          ancestors.push({
+            node: describe(node),
+            inert: node.hasAttribute("inert"),
+            pointerEvents: style.pointerEvents,
+            visibility: style.visibility,
+            transform: style.transform,
+            translate: style.translate,
+            opacity: style.opacity,
+            overflow: style.overflow,
+            animations,
+          });
+        }
+        return {
+          label: action.textContent,
+          left,
+          top,
+          right,
+          bottom,
+          width: right - left,
+          height: bottom - top,
+          controlRight: rect.right,
+          hit: points.every((point) => point.hit),
+          sampled: points.length,
+          failedPoints: points.filter((point) => !point.hit),
+          diagnostics: points.every((point) => point.hit)
+            ? undefined
+            : {
+                control: bounds(action),
+                stack: bounds(element),
+                portrait: bounds(column),
+                scroller: scroller && {
+                  ...bounds(scroller),
+                  top: scroller.scrollTop,
+                  height: scroller.scrollHeight,
+                  client: scroller.clientHeight,
+                },
+                ancestors,
+                documentState,
+              },
+          textFits:
+            text.left >= rect.left - 1 &&
+            text.right <= rect.right + 1 &&
+            text.top >= rect.top - 1 &&
+            text.bottom <= rect.bottom + 1,
+        };
+      },
+    );
+    return {
+      width: stack.width,
+      budget: portrait.height,
+      height: stack.height,
+      bottom: stack.bottom,
+      columnBottom: portrait.bottom,
+      left: stack.left,
+      // Layout height avoids coordinate cancellation in a translated ancestor.
+      names: [...element.querySelectorAll<HTMLElement>("[data-cast-name]")].map(
+        (name) => name.offsetHeight,
+      ),
+      actions,
+    };
+  });
+  process.stdout.write(`C state geometry ${JSON.stringify({ state, ...geometry })}\n`);
+  expect(geometry.bottom, state).toBeLessThanOrEqual(geometry.columnBottom + 1);
+  if (names) expect(geometry.names.length, state).toBeGreaterThanOrEqual(1);
+  for (const height of geometry.names) expect(height, state).toBeLessThanOrEqual(44);
+  for (const [index, action] of geometry.actions.entries()) {
+    expect(action.width, `${state}: ${action.label}`).toBeGreaterThanOrEqual(44);
+    expect(action.height, `${state}: ${action.label}`).toBeGreaterThanOrEqual(44);
+    expect(action.left, `${state}: ${action.label}`).toBeGreaterThanOrEqual(geometry.left);
+    expect(action.controlRight, `${state}: ${action.label}`).toBeLessThanOrEqual(
+      geometry.left + geometry.width,
+    );
+    expect(action.hit, `${state}: ${action.label}`).toBe(true);
+    expect(action.textFits, `${state}: ${action.label}`).toBe(true);
+    for (const other of geometry.actions.slice(index + 1)) {
+      expect(
+        Math.min(action.right, other.right) - Math.max(action.left, other.left),
+        state,
+      ).toBeLessThanOrEqual(-4);
+    }
+  }
+  await expect(panel.locator("[aria-live]")).toHaveCount(1);
+  await expect(panel.locator("[aria-live]")).toHaveAttribute("aria-live", "polite");
+  return geometry;
+}
+
+test.describe("portrait-side phone cast", () => {
+  test.use({ hasTouch: true });
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["reduce", "no-preference"] as const) {
+      test(`single long away name falls back without clamping ${width}/${reducedMotion}`, async ({
+        page,
+        request,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion });
+        const { characterId } = await castChat(request);
+        await setPortraitViaApi(request, characterId, portraitPng("long-away"));
+        const name = "AlexandrineMargueriteDeLaRochefortDuChateau".slice(0, 40);
+        await page.route("**/api/cast/sheets/**", async (route) => {
+          const response = await route.fetch();
+          const body = castSheetResponseSchema.parse(await response.json());
+          if (body.sheet)
+            body.sheet.entries = body.sheet.entries.map((entry) => ({
+              ...entry,
+              anchor: {
+                ...entry.anchor,
+                name: entry.anchor.name === SHEET_WOMAN ? name : entry.anchor.name,
+              },
+            }));
+          await route.fulfill({ response, json: body });
+        });
+        await page.route("**/api/cast/update", async (route) => {
+          const response = await route.fetch();
+          const body = castUpdateResponseSchema.parse(await response.json());
+          const away = body.changes.cast[SHEET_WOMAN];
+          if (!away) throw new Error("Missing away fixture");
+          delete body.changes.cast[SHEET_WOMAN];
+          body.changes.cast[name] = away;
+          await route.fulfill({ response, json: body });
+        });
+        await page.goto("/");
+        await expect(castEntry(page, SEEDED)).toBeVisible();
+        const tail = castPanel(page).locator("[data-cast-tail]");
+        await expect(tail).toHaveText("1 away");
+        await expect(tail).toHaveAccessibleName("1 away");
+        await expectStackFit(page, `${width}/${reducedMotion}/long-away`);
+        await tail.click();
+        await expect(
+          page.getByRole("dialog", { name: "Cast", exact: true }).getByText(name, { exact: false }),
+        ).toBeVisible();
+      });
+      test(`single away identity fits after names ${width}/${reducedMotion}`, async ({
+        page,
+        request,
+        comfy,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion });
+        if (width === 360) await comfy();
+        const { characterId } = await castChat(request);
+        await setPortraitViaApi(request, characterId, portraitPng("single-away"));
+        let failKeeper = false;
+        let addPresent = false;
+        await page.route("**/api/cast/update", async (route) => {
+          if (failKeeper) return route.fulfill({ json: { error: "cast_failed" } });
+          if (!addPresent) return route.continue();
+          const response = await route.fetch();
+          const body = castUpdateResponseSchema.parse(await response.json());
+          const template = body.changes.cast[SEEDED];
+          if (!template) throw new Error("Missing present fixture");
+          body.changes.cast.Beatriz = template;
+          await route.fulfill({ response, json: body });
+        });
+        await page.goto("/");
+        await expect(castEntry(page, SEEDED)).toBeVisible();
+        const tail = () => castPanel(page).locator("[data-cast-tail]");
+        await expect(tail()).toHaveText(`and ${SHEET_WOMAN} away`);
+        await expect(tail()).toHaveAccessibleName(`and ${SHEET_WOMAN} away`);
+        await expect(castPanel(page).locator("[data-cast-name]")).toHaveCount(1);
+        await expectStackFit(page, `${width}/${reducedMotion}/single-away`);
+        await page.setViewportSize({ width: width === 360 ? 390 : 360, height: 844 });
+        await expect(tail()).toHaveText(`and ${SHEET_WOMAN} away`);
+        await expectStackFit(page, `${width}/${reducedMotion}/resized-away`);
+        await page.setViewportSize({ width, height: 844 });
+        // Keep one present name after removal so retry and Undo retain their
+        // ordinary roster owner, rather than removing the last present woman.
+        addPresent = true;
+        await exchange(page, "A friend joins the lamp room.");
+        await expect(castPanel(page).locator("[data-cast-tail]")).toHaveText(
+          width === 390 ? "and 2 more" : `and ${SHEET_WOMAN} away`,
+        );
+        failKeeper = true;
+        await exchange(page, "The lamp dims.");
+        await expect(
+          castPanel(page).getByRole("button", { name: "Try again to update the cast" }),
+        ).toBeVisible();
+        await expectStackFit(page, `${width}/${reducedMotion}/away-retry`);
+        await castEntry(page, SEEDED).click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "Remove from cast", exact: true })
+          .click();
+        await expect(
+          castPanel(page).getByRole("button", { name: "Try again to update the cast" }),
+        ).toBeVisible();
+        await expect(tail()).toHaveText(`and ${SHEET_WOMAN} away`);
+        const wrapped = await tail()
+          .locator("span")
+          .evaluate((node) => ({
+            height: node.getBoundingClientRect().height,
+            scrollHeight: node.scrollHeight,
+            line: Number.parseFloat(getComputedStyle(node).lineHeight),
+            textWidth: node.getBoundingClientRect().width,
+          }));
+        process.stdout.write(
+          `C named away with three actions ${JSON.stringify({ width, reducedMotion, ...wrapped })}\n`,
+        );
+        expect(wrapped.line).toBe(20);
+        expect(wrapped.height).toBe(2 * wrapped.line);
+        expect(wrapped.scrollHeight).toBeLessThanOrEqual(wrapped.height);
+        await expectStackFit(page, `${width}/${reducedMotion}/away-retry-undo`);
+        const undo = castPanel(page).getByRole("button", { name: /Undo removing/ });
+        await expect(undo).toBeFocused();
+        await undo.click();
+        await expect(castEntry(page, SEEDED)).toBeVisible();
+      });
+    }
+  }
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["reduce", "no-preference"] as const) {
+      test(`${width}px ${reducedMotion}: portrait stack waiting uses zero name rows`, async ({
+        page,
+        request,
+        comfy,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ reducedMotion, colorScheme: width === 360 ? "light" : "dark" });
+        if (width === 360) await comfy();
+        const characterId = await createCharacterViaApi(request, uniqueName("Waiting cast"), {
+          firstMessage: "The lamp waits.",
+        });
+        await setPortraitViaApi(request, characterId, portraitPng("waiting-cast"));
+        await patchSettings(request, { characterId });
+        await page.goto("/");
+        await expect(castPanel(page)).toHaveAttribute("data-cast-stack", "");
+        await expect(castStatus(page)).toHaveText("Choose a model to load the cast.");
+        await expect(castPanel(page).locator("[data-cast-name]")).toHaveCount(0);
+        await expectStackFit(page, `${width}/${reducedMotion}/waiting`, false);
+      });
+      for (const portrait of [true, false]) {
+        test(`${width}px ${reducedMotion} portrait=${portrait}: fit, status, roster and Undo stay reachable`, async ({
+          page,
+          request,
+          comfy,
+        }) => {
+          test.setTimeout(90_000);
+          await page.setViewportSize({ width, height: 844 });
+          await page.emulateMedia({ reducedMotion, colorScheme: width === 360 ? "light" : "dark" });
+          // Exercise both the portrait-only and the portrait-plus-scene budgets.
+          if (width === 360) await comfy();
+          const { characterId } = await castChat(request);
+          if (portrait) await setPortraitViaApi(request, characterId, portraitPng("cast-band"));
+          const names = [
+            "Alexandrine Marguerite de la Rochefort du Château de Saint Clair",
+            "Beatriz",
+            "Cecilia",
+            "Dorothea",
+            "Eleanor",
+          ];
+          let calls = 0;
+          let failKeeper = false;
+          let awayOnly = false;
+          let updating = Promise.withResolvers<void>();
+          let release = Promise.withResolvers<void>();
+          let holdKeeper = true;
+          let geometryTrace: string | undefined;
+          await page.route("**/api/cast/update", async (route) => {
+            if (failKeeper) {
+              if (holdKeeper) {
+                updating.resolve();
+                await release.promise;
+              }
+              return route.fulfill({ json: { error: "cast_failed" } });
+            }
+            const response = await route.fetch();
+            const body = castUpdateResponseSchema.parse(await response.json());
+            const template = body.changes.cast[SEEDED];
+            if (template === undefined) throw new Error("Missing keeper fixture");
+            const cast = { ...body.changes.cast };
+            delete cast[SEEDED];
+            for (const name of names)
+              cast[name] = awayOnly
+                ? { ...template, state: { ...template.state, present: false } }
+                : template;
+            if (++calls > 1 && holdKeeper) {
+              updating.resolve();
+              await release.promise;
+            }
+            await route.fulfill({
+              response,
+              json: { ...body, changes: { ...body.changes, cast } },
+            });
+          });
+          try {
+            await page.goto("/");
+            await expect(castEntry(page, names[0] ?? "")).toBeVisible();
+            const panel = castPanel(page);
+            if (portrait) {
+              await expect(panel).toHaveAttribute("data-cast-stack", "");
+              const geometry = await panel.evaluate((element) => {
+                const group = element.closest<HTMLElement>("[data-presence]");
+                const column = group?.firstElementChild;
+                const name = element.querySelector<HTMLElement>("[data-cast-name]");
+                const label = name?.querySelector<HTMLElement>(
+                  "[data-cast-entry] > span:last-child",
+                );
+                if (!group || !column || !name || !label)
+                  throw new Error("Missing portrait grouping");
+                return {
+                  groupHeight:
+                    group.clientHeight - Number.parseFloat(getComputedStyle(group).paddingBottom),
+                  columnHeight: column.getBoundingClientRect().height,
+                  rosterHeight: element.getBoundingClientRect().height,
+                  nameHeight: name.getBoundingClientRect().height,
+                  nameScrollWidth: label.scrollWidth,
+                  nameWidth: label.clientWidth,
+                  portraitRight: column.getBoundingClientRect().right,
+                  rosterLeft: element.getBoundingClientRect().left,
+                };
+              });
+              expect(geometry.rosterLeft - geometry.portraitRight).toBeCloseTo(16, 0);
+              expect(geometry.nameScrollWidth).toBeLessThanOrEqual(geometry.nameWidth);
+              expect(geometry.rosterHeight).toBeLessThanOrEqual(geometry.columnHeight + 1);
+              // Translated DOMRect coordinates can add floating-point noise to the height.
+              expect(geometry.nameHeight).toBeLessThanOrEqual(44 + 0.001);
+              await expect(castEntry(page, names[0] ?? "")).toHaveAccessibleName(
+                new RegExp(`^${names[0]}`),
+              );
+              const clamp = await panel
+                .locator("[data-cast-name]")
+                .first()
+                .locator("[data-cast-entry] > span:last-child")
+                .evaluate((element) => ({
+                  clamp: getComputedStyle(element).webkitLineClamp,
+                  scroll: element.scrollHeight,
+                  height: element.getBoundingClientRect().height,
+                }));
+              expect(clamp.clamp).toBe("2");
+              expect(clamp.scroll).toBeGreaterThan(clamp.height);
+              const normal = await expectStackFit(page, `${width}/${reducedMotion}/normal`);
+              expect(normal.width).toBe(width === 360 ? 208 : 238);
+              expect(normal.budget).toBe(width === 360 ? 196 : 144);
+              expect(normal.height).toBe(width === 360 ? 189 : 141);
+              await expect(panel.locator("[data-cast-tail]")).toHaveText(
+                width === 360 ? "and 4 more" : "and 5 more",
+              );
+              expect(await panel.locator("[data-cast-name]").count()).toBeGreaterThanOrEqual(1);
+              await panel.locator("[data-cast-tail]").click();
+              const roster = page.getByRole("dialog", { name: "Cast", exact: true });
+              for (const name of names)
+                await expect(roster.getByRole("heading", { name: new RegExp(name) })).toBeVisible();
+              await expect(roster.getByText(SHEET_WOMAN, { exact: false })).toBeVisible();
+              await page.keyboard.press("Escape");
+            } else {
+              await expect(panel).not.toHaveAttribute("data-cast-stack");
+            }
+            await chooseModel(page, "mock-slow");
+            geometryTrace = await page.evaluate(() => {
+              const samples: unknown[] = [];
+              const phases = new Map<
+                string,
+                { phase: string; min: number; max: number; frames: number }
+              >();
+              let frame = 0;
+              let previous = "";
+              const sample = () => {
+                const turn = [...document.querySelectorAll('[data-role="assistant"]')].at(-1);
+                const group = turn?.querySelector("[data-presence]");
+                const prose = turn?.querySelector(".prose-turn");
+                if (group && prose) {
+                  const box = (element: Element | null | undefined) =>
+                    element?.getBoundingClientRect().toJSON();
+                  const state = {
+                    turn: turn?.querySelector("[data-edit-for]")?.getAttribute("data-edit-for"),
+                    status: turn?.getAttribute("data-status"),
+                    text: turn?.querySelector("[data-prose]")?.textContent?.slice(0, 20),
+                    relative: prose.getBoundingClientRect().top - group.getBoundingClientRect().top,
+                    group: box(group),
+                    column: box(group.firstElementChild),
+                    portrait: box(group.querySelector('[aria-label^="Portrait of"]')),
+                    scene: box(group.querySelector('[aria-label^="Picture"]')),
+                    stack: box(group.querySelector("[data-cast-stack]")),
+                    rows: [
+                      ...group.querySelectorAll(
+                        "[data-cast-name], [data-cast-status], [data-cast-tail]",
+                      ),
+                    ].map(box),
+                    prose: box(prose),
+                    thought: box(prose.querySelector("details")),
+                    open: prose.querySelector("details")?.open,
+                    animations: [turn, group, prose, prose.querySelector("details")].flatMap(
+                      (element) =>
+                        element
+                          ? element.getAnimations().map((animation) => ({
+                              owner: element.className,
+                              state: animation.playState,
+                              time: animation.currentTime,
+                              property:
+                                animation instanceof CSSTransition
+                                  ? animation.transitionProperty
+                                  : null,
+                              translate: getComputedStyle(element).translate,
+                            }))
+                          : [],
+                    ),
+                  };
+                  const current = JSON.stringify(state);
+                  const phase = `${document.querySelectorAll('[data-role="assistant"]').length}/${state.status}/${state.text?.startsWith("Reply:")}/${group.querySelector("[data-cast-status]")?.textContent}`;
+                  const prior = phases.get(phase);
+                  phases.set(phase, {
+                    phase,
+                    min: Math.min(prior?.min ?? state.relative, state.relative),
+                    max: Math.max(prior?.max ?? state.relative, state.relative),
+                    frames: (prior?.frames ?? 0) + 1,
+                  });
+                  if (current !== previous && samples.length < 2000)
+                    samples.push({ at: performance.now(), ...state });
+                  previous = current;
+                }
+                frame = requestAnimationFrame(sample);
+              };
+              frame = requestAnimationFrame(sample);
+              const key = `castGeometry${Math.random()}`;
+              Reflect.set(window, key, () => {
+                cancelAnimationFrame(frame);
+                return { samples, phases: [...phases.values()] };
+              });
+              return key;
+            });
+            await send(page, "The lamp is steady.");
+            const prose = lastReply(page).locator(".prose-turn").first();
+            // Compare in the reply's own coordinates: scrolling the thread is allowed.
+            // Both rectangles must come from the same frame of a live stream.
+            const relative = () =>
+              prose.evaluate((element) => {
+                const group = element.closest("[data-message]")?.querySelector("[data-presence]");
+                if (!group) return NaN;
+                return element.getBoundingClientRect().top - group.getBoundingClientRect().top;
+              });
+            await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+            if (portrait) {
+              await expect(castStatus(page)).toHaveText(STALE);
+              await expect(panel.locator("[aria-live]")).not.toContainText(STALE);
+            }
+            const before = await relative();
+            await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
+              timeout: 15_000,
+            });
+            await updating.promise;
+            await expect(castUpdating(page)).toBeVisible();
+            await expect
+              .poll(() =>
+                page
+                  .getByRole("log")
+                  .locator(":scope > div")
+                  .first()
+                  .evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+              )
+              .toBeLessThan(4);
+            await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+            expect(await relative()).toBeCloseTo(before, 0);
+            if (portrait) await expectStackFit(page, `${width}/${reducedMotion}/held Updating`);
+            release.resolve();
+            await expect(castUpdating(page)).toHaveCount(0);
+            expect(await relative()).toBeCloseTo(before, 0);
+            await expect(prose.locator("summary")).toBeVisible();
+            if (portrait) {
+              await castEntry(page, names[0] ?? "").click();
+              const record = page.getByRole("dialog");
+              await record.getByRole("button", { name: "Remove from cast", exact: true }).click();
+              await expect(
+                page.getByRole("button", { name: `Undo removing ${names[0]}` }),
+              ).toBeVisible();
+              await expect(record).toBeHidden();
+              const undo = () =>
+                castPanel(page).getByRole("button", { name: `Undo removing ${names[0]}` });
+              await expect(undo()).toBeFocused();
+              await expectStackFit(page, `${width}/${reducedMotion}/removal`);
+              const removalText = castPanel(page).locator("[data-cast-removed] > span").first();
+              await expect(removalText).toHaveText(names[0] ?? "");
+              expect(
+                await removalText.evaluate((element) => element.scrollWidth > element.clientWidth),
+              ).toBe(true);
+              await expect(castPanel(page).locator("[aria-live]")).toContainText(
+                `${names[0]} removed.`,
+              );
+              expect(await relative()).toBeCloseTo(before, 0);
+              await undo().click();
+              await expect(castEntry(page, names[0] ?? "")).toBeVisible();
+              expect(await relative()).toBeCloseTo(before, 0);
+              {
+                await chooseModel(page, "mock-fast");
+                failKeeper = true;
+                updating = Promise.withResolvers<void>();
+                release = Promise.withResolvers<void>();
+                const phraseSamples = page.evaluate(async () => {
+                  const samples: string[][] = [];
+                  const start = performance.now();
+                  while (performance.now() - start < 10_000) {
+                    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+                    const phrases = [
+                      ...document.querySelectorAll<HTMLElement>(
+                        "[data-cast-stack] [data-cast-status]",
+                      ),
+                    ];
+                    samples.push(
+                      phrases
+                        .filter(
+                          (element) => Number.parseFloat(getComputedStyle(element).opacity) > 0.05,
+                        )
+                        .map((element) => element.textContent ?? ""),
+                    );
+                    if (
+                      phrases.some(
+                        (element) =>
+                          element.textContent === "Couldn't update." &&
+                          Number.parseFloat(getComputedStyle(element).opacity) > 0.99,
+                      )
+                    )
+                      break;
+                  }
+                  return samples;
+                });
+                await exchange(page, "The lamp falters.");
+                await updating.promise;
+                await expect(castUpdating(page)).toBeVisible();
+                await expect
+                  .poll(() =>
+                    castUpdating(page).evaluate((element) =>
+                      Number.parseFloat(getComputedStyle(element).opacity),
+                    ),
+                  )
+                  .toBeGreaterThan(0.99);
+                release.resolve();
+                const again = castPanel(page).getByRole("button", {
+                  name: "Try again to update the cast",
+                });
+                await expect(again).toBeVisible();
+                const failureOffset = await relative();
+                await expectStackFit(page, `${width}/${reducedMotion}/failure`);
+                await expect(castStatus(page)).toHaveText("Couldn't update.");
+                await expect(castPanel(page).locator("[aria-live]")).toHaveText(
+                  "Cast couldn't update.",
+                );
+                const samples = await phraseSamples;
+                expect(samples.every((phrases) => phrases.length <= 1)).toBe(true);
+                expect(samples.some((phrases) => phrases.includes("Updating…"))).toBe(true);
+                expect(samples.some((phrases) => phrases.includes("Couldn't update."))).toBe(true);
+                await castEntry(page, names[0] ?? "").click();
+                await page
+                  .getByRole("dialog")
+                  .getByRole("button", { name: "Remove from cast", exact: true })
+                  .click();
+                await expect(undo()).toBeFocused();
+                await expect(again).toBeVisible();
+                await expectStackFit(page, `${width}/${reducedMotion}/removal+failure`);
+                await expect(castStatus(page)).toHaveText(`${names[0]} removed.`);
+                expect(await relative()).toBeCloseTo(failureOffset, 0);
+                await undo().click();
+                await expect(castStatus(page)).toHaveText("Couldn't update.");
+                failKeeper = false;
+                updating = Promise.withResolvers<void>();
+                release = Promise.withResolvers<void>();
+                await again.click();
+                await updating.promise;
+                await expect(castUpdating(page)).toBeVisible();
+                await expectStackFit(page, `${width}/${reducedMotion}/Retry Updating`);
+                expect(await relative()).toBeCloseTo(failureOffset, 0);
+                release.resolve();
+                await expect(again).toHaveCount(0);
+                await expect(castUpdating(page)).toHaveCount(0);
+                expect(await relative()).toBeCloseTo(failureOffset, 0);
+
+                // A removal may stand into the next reply and disappear on its keeper snapshot.
+                await castEntry(page, names[0] ?? "").click();
+                await page
+                  .getByRole("dialog")
+                  .getByRole("button", { name: "Remove from cast", exact: true })
+                  .click();
+                await expect(undo()).toBeFocused();
+                updating = Promise.withResolvers<void>();
+                release = Promise.withResolvers<void>();
+                await chooseModel(page, "mock-slow");
+                await send(page, "The lamp keeps its place.");
+                await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+                const standingOffset = await relative();
+                await expectStackFit(page, `${width}/${reducedMotion}/standing removal streaming`);
+                await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
+                  timeout: 15_000,
+                });
+                await updating.promise;
+                await expect(undo()).toBeVisible();
+                expect(await relative()).toBeCloseTo(standingOffset, 0);
+                release.resolve();
+                await expect(undo()).toHaveCount(0);
+                await expectStackFit(page, `${width}/${reducedMotion}/keeper cleared removal`);
+                expect(await relative()).toBeCloseTo(standingOffset, 0);
+
+                // Remove another present member while a mock-slow reply is still writing.
+                holdKeeper = false;
+                await send(page, "The lamp is still writing.");
+                await expect(lastReply(page).locator("[data-prose]")).toContainText("Reply:");
+                await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+                const streamingOffset = await relative();
+                await castEntry(page, names[1] ?? "").click();
+                await page
+                  .getByRole("dialog")
+                  .getByRole("button", { name: "Remove from cast", exact: true })
+                  .click();
+                await expectStackFit(page, `${width}/${reducedMotion}/removal during stream`);
+                expect(await relative()).toBeCloseTo(streamingOffset, 0);
+                await expect(lastReply(page)).toHaveAttribute("data-status", "complete", {
+                  timeout: 15_000,
+                });
+                await expect(castUpdating(page)).toHaveCount(0);
+                expect(await relative()).toBeCloseTo(streamingOffset, 0);
+                awayOnly = true;
+                await chooseModel(page, "mock-fast");
+                await exchange(page, "The lamp room empties.");
+                await expect(castPanel(page).locator("[data-cast-name]")).toHaveCount(0);
+                await expectStackFit(page, `${width}/${reducedMotion}/away-only`, false);
+                await expect(castPanel(page).locator("[data-cast-tail]")).toHaveText("4 away");
+                await castPanel(page).locator("[data-cast-tail]").click();
+                await expect(page.getByRole("dialog", { name: "Cast", exact: true })).toBeVisible();
+                await page.keyboard.press("Escape");
+              }
+            }
+          } finally {
+            release.resolve();
+            if (geometryTrace) {
+              const samples = await page.evaluate((key) => {
+                const stop = Reflect.get(window, key) as
+                  | (() => {
+                      samples: unknown[];
+                      phases: { phase: string; min: number; max: number; frames: number }[];
+                    })
+                  | undefined;
+                Reflect.deleteProperty(window, key);
+                return stop?.();
+              }, geometryTrace);
+              await test.info().attach("cast-shared-frame-geometry", {
+                body: JSON.stringify(samples, null, 2),
+                contentType: "application/json",
+              });
+              process.stdout.write(
+                `C shared-frame evidence ${JSON.stringify({ width, reducedMotion, portrait, ...samples })}\n`,
+              );
+              if (portrait)
+                for (const phase of samples?.phases ?? [])
+                  if (phase.phase.includes("/streaming/true/"))
+                    expect(phase.max - phase.min, phase.phase).toBeLessThan(0.5);
+            }
+          }
+        });
+      }
+    }
+  }
+});
 
 /** Holds every request to `url` until the returned release is called. */
 async function hold(page: Page, url: string) {
@@ -243,6 +1049,140 @@ test("on a first run, a model without a known context window folds the story's m
   await expect(step).toHaveCount(0);
 });
 
+for (const factor of [...FACTORS, { name: "stack", width: 390, height: 844 }]) {
+  test(`cast name cue keeps its budget across every palette (${factor.name})`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(factor);
+    const { characterId } = await castChat(request);
+    if (factor.name !== "phone") await setPortraitViaApi(request, characterId, portraitPng("cue"));
+    await seeded(page);
+    const entry = castEntry(page, SEEDED);
+    const name = entry.locator(":scope > span:nth-child(2) > span:first-child");
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    const messageNode = await message.elementHandle();
+    // Include the inert closing surface: aria-expanded=false alone does not finish its exit.
+    const record = page.getByRole("dialog", { includeHidden: true }).filter({
+      has: page.getByRole("heading", { name: SEEDED, includeHidden: true }),
+    });
+    const observations: unknown[] = [];
+    let context = { scheme: "", palette: "" };
+    const capture = async (stage: string) => {
+      const state = await name.evaluate(
+        (node, { message, recordName }) => {
+          const entry = node.closest("[data-cast-entry]");
+          const active = document.activeElement;
+          const style = getComputedStyle(node);
+          const records = [...document.querySelectorAll('[role="dialog"]')].filter((surface) =>
+            [...surface.querySelectorAll("h1,h2,h3,[role=heading]")].some((heading) =>
+              heading.textContent?.includes(recordName),
+            ),
+          );
+          return {
+            activeElement: {
+              tag: active?.tagName,
+              role: active?.getAttribute("role"),
+              label: active?.getAttribute("aria-label"),
+              isEntry: active === entry,
+              isMessage: active === message,
+            },
+            hovered: entry?.matches(":hover"),
+            focusVisible: entry?.matches(":focus-visible"),
+            expanded: entry?.getAttribute("aria-expanded"),
+            color: style.textDecorationColor,
+            ink: style.color,
+            line: style.textDecorationLine,
+            records: records.map((surface) => ({
+              connected: surface.isConnected,
+              inert: surface.hasAttribute("inert"),
+              ending: surface.hasAttribute("data-ending-style"),
+              animations: surface.getAnimations({ subtree: true }).map((animation) => ({
+                state: animation.playState,
+                currentTime: animation.currentTime,
+              })),
+            })),
+          };
+        },
+        { message: messageNode, recordName: SEEDED },
+      );
+      const observation = { factor: factor.name, ...context, stage, ...state };
+      observations.push(observation);
+      process.stdout.write(`R8 cast cue state ${JSON.stringify(observation)}\n`);
+      return state;
+    };
+    const baseline = await entry.boundingBox();
+    try {
+      for (const scheme of ["light", "dark"] as const) {
+        for (const palette of PALETTES) {
+          context = { scheme, palette };
+          await page.evaluate(
+            ({ scheme, palette }) => {
+              document.documentElement.dataset.theme = scheme;
+              document.documentElement.dataset.palette = palette;
+            },
+            { scheme, palette },
+          );
+          await message.click();
+          await expect(message).toBeFocused();
+          await expect
+            .poll(() =>
+              entry.evaluate((node) => ({
+                hovered: node.matches(":hover"),
+                focusVisible: node.matches(":focus-visible"),
+              })),
+            )
+            .toEqual({ hovered: false, focusVisible: false });
+          await expect(name).toHaveCSS("text-decoration-line", "underline");
+          // Sample interaction state and both colors together, without polling for a favorable color.
+          const quiet = await capture("quiet");
+          expect(quiet.activeElement.isMessage).toBe(true);
+          expect(quiet.hovered).toBe(false);
+          expect(quiet.focusVisible).toBe(false);
+          expect(quiet.expanded).toBe("false");
+          expect(quiet.records).toHaveLength(0);
+          expect(quiet.color).not.toBe(quiet.ink);
+          await entry.hover();
+          await expect(name).toHaveCSS("text-decoration-color", quiet.ink);
+          const hover = await capture("hover");
+          expect(hover.color).toBe(hover.ink);
+          const box = await entry.boundingBox();
+          expect(box?.width).toBeCloseTo(baseline?.width ?? NaN, 3);
+          expect(box?.height).toBeCloseTo(baseline?.height ?? NaN, 3);
+          await entry.click();
+          await expect(entry).toHaveAttribute("aria-expanded", "true");
+          await expect(record).toBeVisible();
+          await capture("open");
+          await expect(name).toHaveCSS("text-decoration-color", "rgba(0, 0, 0, 0)");
+          await page.keyboard.press("Escape");
+          await expect(entry).toHaveAttribute("aria-expanded", "false");
+          await capture("closing");
+          await expect(record).toHaveCount(0);
+          await expect(entry).toBeFocused();
+          await capture("closed-returned");
+          process.stdout.write(
+            `R8 cast cue ${JSON.stringify({ factor: factor.name, scheme, palette, box })}\n`,
+          );
+        }
+      }
+    } finally {
+      await capture("final").catch((error: unknown) => {
+        observations.push({
+          factor: factor.name,
+          ...context,
+          stage: "final",
+          error: String(error),
+        });
+      });
+      await test.info().attach("cast-cue-interaction-states", {
+        body: JSON.stringify(observations, null, 2),
+        contentType: "application/json",
+      });
+    }
+  });
+}
+
 for (const factor of FACTORS) {
   test(`the cast seeds from the card's sheet and the greeting, lists women only, and opens each record (${factor.name})`, async ({
     page,
@@ -338,6 +1278,89 @@ test("an update starting under the phone's band lights its hairline and says Upd
   release();
   await expect(drift).toHaveCount(0);
   await expect(castUpdating(page)).toHaveCount(0);
+});
+
+test("reduced-motion phone Cast names hold their place through streaming and Updating", async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await castChat(request);
+  await seeded(page);
+  await chooseModel(page, "mock-slow");
+  const release = await hold(page, "**/api/cast/update");
+  const sampling = page.evaluate(
+    () =>
+      new Promise<
+        {
+          x: number;
+          y: number;
+          headingWidth: number;
+          streaming: boolean;
+          updating: boolean;
+          stale: boolean;
+        }[]
+      >((resolve) => {
+        const frames: {
+          x: number;
+          y: number;
+          headingWidth: number;
+          streaming: boolean;
+          updating: boolean;
+          stale: boolean;
+        }[] = [];
+        const start = performance.now();
+        const sample = () => {
+          const panel = [...document.querySelectorAll<HTMLElement>("[data-cast]")].find(
+            (node) => node.getBoundingClientRect().width > 0,
+          );
+          const name = panel?.querySelector("[data-cast-name]");
+          const heading = panel?.firstElementChild?.firstElementChild;
+          const reply = [...document.querySelectorAll('[data-message][data-role="assistant"]')].at(
+            -1,
+          );
+          if (panel && name && heading) {
+            const bounds = panel.getBoundingClientRect();
+            const rect = name.getBoundingClientRect();
+            const frame = {
+              x: rect.left - bounds.left,
+              y: rect.top - bounds.top,
+              headingWidth: heading.getBoundingClientRect().width,
+              streaming: reply?.getAttribute("data-status") === "streaming",
+              updating: panel.querySelector("[data-cast-updating]") !== null,
+              stale: panel.textContent?.includes("As of the previous reply") ?? false,
+            };
+            frames.push(frame);
+            if (frame.updating) return resolve(frames);
+          }
+          if (performance.now() - start > 15_000) return resolve(frames);
+          requestAnimationFrame(sample);
+        };
+        sample();
+      }),
+  );
+  try {
+    // No marker: the keeper returns the same names before and after this reply.
+    await send(page, "Lamp without a marker.");
+    const frames = await sampling;
+    const streaming = frames.filter((frame) => frame.streaming);
+    expect(streaming.length).toBeGreaterThan(2);
+    expect(streaming.some((frame) => frame.stale)).toBe(false);
+    expect(frames.some((frame) => frame.updating)).toBe(true);
+    expect(new Set(frames.map(({ x, y, headingWidth }) => `${x},${y},${headingWidth}`)).size).toBe(
+      1,
+    );
+    await expect(castUpdating(page)).toBeVisible();
+    const before = await castPanel(page).locator("[data-cast-name]").first().boundingBox();
+    release();
+    await expect(castUpdating(page)).toHaveCount(0);
+    const after = await castPanel(page).locator("[data-cast-name]").first().boundingBox();
+    expect(after?.x).toBe(before?.x);
+    expect(after?.y).toBe(before?.y);
+  } finally {
+    release();
+  }
 });
 
 test("the narrator is sent the whole cast, and the inspector shows its block, its state line, the counts and the keeper", async ({
@@ -997,6 +2020,85 @@ test("a value corrects where it stands, Escape and leaving unchanged keep it, an
   await expect(field("hair")).toContainText("long copper-red hair in a braid");
   await expect(field("hair")).not.toHaveAttribute("data-cast-corrected");
   await expect(record.getByRole("button", { name: "Revert hair" })).toHaveCount(0);
+});
+
+test.describe("narrow cast correction", () => {
+  test.use({ hasTouch: true });
+
+  for (const width of [360, 390]) {
+    test(`${width}px outfit edits use the record width and preserve completion keys`, async ({
+      page,
+      request,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await castChat(request);
+      await seeded(page);
+      const record = await openRecord(page, SEEDED);
+      const outfit = record.locator('[data-cast-edit="outfit"]');
+      const row = record
+        .locator("dt")
+        .filter({ hasText: /^Outfit$/ })
+        .locator("..");
+      const label = row.locator("dt");
+      const labelX = (await label.boundingBox())?.x;
+      const box = record.getByRole("textbox", { name: "Outfit", exact: true });
+      const long =
+        "A rain-dark wool coat over a long linen dress, sturdy boots and a loosely tied red scarf.";
+      await outfit.click();
+      await box.fill(long);
+      await expect(box).toBeFocused();
+      expect((await label.boundingBox())?.x).toBe(labelX);
+      const fieldBox = await box.boundingBox();
+      const rowBox = await row.boundingBox();
+      const labelBox = await label.boundingBox();
+      expect(fieldBox?.y).toBeGreaterThanOrEqual((labelBox?.y ?? 0) + (labelBox?.height ?? 0));
+      expect(fieldBox?.width).toBeGreaterThanOrEqual(rowBox?.width ?? Infinity);
+
+      // Composition and Shift+Enter keep editing; Escape cancels without closing the record.
+      await box.dispatchEvent("keydown", { key: "Enter", code: "Enter", isComposing: true });
+      await expect(box).toBeFocused();
+      await box.press("End");
+      await box.press("Shift+Enter");
+      await expect(box).toHaveValue(`${long}\n`);
+      await box.press("Escape");
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toBeFocused();
+      await expect(outfit).toContainText(KEEPER_WOMAN_OUTFIT);
+
+      await outfit.click();
+      await box.fill(`  ${long}  `);
+      // Reduced viewport height approximates keyboard room, not a native keyboard.
+      await page.setViewportSize({ width, height: 480 });
+      await box.scrollIntoViewIfNeeded();
+      const done = record.getByRole("button", { name: "Done", exact: true });
+      await done.scrollIntoViewIfNeeded();
+      for (const control of [box, done]) {
+        const bounds = await control.boundingBox();
+        expect(bounds?.y).toBeGreaterThanOrEqual(0);
+        expect((bounds?.y ?? Infinity) + (bounds?.height ?? Infinity)).toBeLessThanOrEqual(480);
+      }
+      await done.click();
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toBeFocused();
+      await expect(outfit).toContainText(long);
+      await expect(row.locator("[data-inline-save]")).toHaveText("Saved");
+      await expect(row.getByRole("button", { name: "Revert outfit" })).toBeVisible();
+
+      await outfit.click();
+      await box.fill("a blue scarf");
+      await box.press("Enter");
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toBeFocused();
+      await expect(outfit).toContainText("a blue scarf");
+      await outfit.click();
+      await box.fill("a green scarf");
+      await record.getByRole("heading", { name: SEEDED }).click();
+      await expect(box).toHaveCount(0);
+      await expect(outfit).toContainText("a green scarf");
+      await row.getByRole("button", { name: "Revert outfit" }).click();
+      await expect(outfit).toContainText(KEEPER_WOMAN_OUTFIT);
+    });
+  }
 });
 
 test("an empty More details correction moves with focus and Saved feedback", async ({

@@ -13,6 +13,7 @@ import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/cn";
 import { isNotFound } from "../api.ts";
 import { charactersQuery } from "../characters/queries.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
@@ -230,13 +231,17 @@ function PersonaEditor({
               if (id !== null) void refreshPersonas(queryClient, id);
             }}
           />
-          <div className="grid content-start gap-5">
-            <NameField
-              value={fields.name}
-              maxLength={CARD_LIMITS.nameLength}
-              onChange={(name) => edit({ name })}
-            />
-            {id !== null && <DefaultSwitch id={id} name={fields.name} />}
+          <div className="grid content-start gap-5 max-tablet:contents">
+            <div className="min-w-0 max-tablet:col-start-2 max-tablet:row-start-1 max-tablet:self-start">
+              <NameField
+                value={fields.name}
+                maxLength={CARD_LIMITS.nameLength}
+                onChange={(name) => edit({ name })}
+              />
+            </div>
+            {id !== null && (
+              <DefaultSwitch id={id} name={fields.name} className="max-tablet:col-span-full" />
+            )}
           </div>
         </section>
 
@@ -285,7 +290,7 @@ function UndoLine({ children, onUndo }: { children: ReactNode; onUndo: () => voi
 }
 
 /** The default persona is a setting; turning it on here replaces the previous default. */
-function DefaultSwitch({ id, name }: { id: string; name: string }) {
+function DefaultSwitch({ id, name, className }: { id: string; name: string; className?: string }) {
   const phone = useFormFactor() === "phone";
   const defaultPersonaId = useSetting((settings) => settings.defaultPersonaId);
   const updateSettings = useUpdateSettings();
@@ -293,7 +298,7 @@ function DefaultSwitch({ id, name }: { id: string; name: string }) {
   const [replaced, setReplaced] = useState<PersonaSummary | null>(null);
   const hintId = useId();
   return (
-    <div className="grid gap-2">
+    <div className={cn("grid gap-2", className)}>
       <label className="flex cursor-pointer items-start gap-3">
         <Switch
           className="mt-0.5"

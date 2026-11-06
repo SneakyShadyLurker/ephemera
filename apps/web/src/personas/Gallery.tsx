@@ -135,10 +135,12 @@ function Cast({ list }: { list: PersonaSummary[] }) {
                 )
               }
               caption={
-                <>
-                  {isDefault && <span className="block font-sans text-reed">Default</span>}
-                  {bound.length > 0 && `With ${andList(bound)}`}
-                </>
+                isDefault || bound.length > 0 ? (
+                  <>
+                    {isDefault && <span className="block font-sans text-reed">Default</span>}
+                    {bound.length > 0 && `With ${andList(bound)}`}
+                  </>
+                ) : null
               }
             />
           </li>

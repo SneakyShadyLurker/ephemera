@@ -18,7 +18,7 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "group/switch relative inline-flex shrink-0 items-center rounded-full border border-control-edge bg-surface-hover p-0.5 transition-[background-color,border-color] duration-(--duration-quick) ease-fade after:absolute after:-inset-x-2 after:-inset-y-3 data-checked:border-ink data-checked:bg-ink data-disabled:cursor-default data-disabled:border-rush data-disabled:bg-rush touch:after:-inset-3.5",
+        "group/switch relative inline-flex shrink-0 items-center rounded-full border border-control-edge bg-surface-hover p-0.5 transition-[background-color,border-color] duration-(--duration-tint-quick) ease-fade after:absolute after:-inset-x-2 after:-inset-y-3 data-checked:border-ink data-checked:bg-ink data-disabled:cursor-default data-disabled:border-rush data-disabled:bg-rush touch:after:-inset-3.5",
         size === "sm" ? "h-4 w-7" : "h-5 w-9",
         className,
       )}
@@ -27,7 +27,7 @@ function Switch({
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
         className={cn(
-          "pointer-events-none block rounded-full bg-control-edge transition-[translate,background-color] duration-(--duration-arrive) ease-spring motion-reduce:transition-[background-color] data-checked:bg-canvas group-data-disabled/switch:bg-text-disabled",
+          "pointer-events-none block rounded-full bg-control-edge transition-[translate,background-color] duration-(--duration-arrive) ease-spring motion-reduce:transition-[background-color] motion-reduce:duration-(--duration-tint-arrive) data-checked:bg-canvas group-data-disabled/switch:bg-text-disabled",
           size === "sm"
             ? "size-2.5 data-checked:translate-x-3"
             : "size-3.5 data-checked:translate-x-4",

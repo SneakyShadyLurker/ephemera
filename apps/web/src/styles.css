@@ -241,7 +241,7 @@
   --surface-pressed: var(--surface-pressed-base);
   --surface-selected: var(--surface-selected-base);
   --rush: var(--rush-base);
-  /* The dusk wash on what an AI Rework writes: its insertions and the fields it just filled. */
+  /* The dusk wash on fields an AI Rework just filled. Insertions use the selected surface. */
   --dusk-wash: color-mix(in oklab, var(--dusk) 18%, transparent);
 
   --radius: 0.5rem;
@@ -291,8 +291,12 @@
   --reveal-gap: 80ms;
   --duration-press: 80ms;
   --duration-release: 140ms;
-  /* A colour, border or brightness change on hover and press: a fade, so reduced motion keeps it. */
+  /* Colour, border and brightness feedback applies instantly under reduced motion. */
   --duration-tint: 100ms;
+  --duration-tint-quick: 120ms;
+  --duration-tint-arrive: 180ms;
+  --duration-tint-panel: 240ms;
+  --ease-step-end: step-end;
   --duration-quick: 120ms;
   --duration-arrive: 180ms;
   --duration-panel-in: 240ms;
@@ -306,7 +310,7 @@
   --duration-swipe-out: 400ms;
   /* The glow on fields an AI Rework just wrote: a fade, so reduced motion keeps it. */
   --duration-settle: 700ms;
-  /* The dusk wash on what the cast's newest snapshot changed: a fade. */
+  /* The cast snapshot's wash: a fade normally, a hold then clear under reduced motion. */
   --duration-wash: 1200ms;
   --rise: 4px;
   --panel-shift: 12px;
@@ -340,8 +344,8 @@
 
 :root {
   transition:
-    --tint-mix var(--duration-panel-in) var(--ease-fade),
-    --tint-h var(--duration-panel-in) var(--ease-fade);
+    --tint-mix var(--duration-tint-panel) var(--ease-fade),
+    --tint-h var(--duration-tint-panel) var(--ease-fade);
 }
 
 :root[data-atmosphere] {
@@ -389,6 +393,10 @@
     --ease-spring: var(--ease-fade);
     --duration-press: 0ms;
     --duration-release: 0ms;
+    --duration-tint: 0ms;
+    --duration-tint-quick: 0ms;
+    --duration-tint-arrive: 0ms;
+    --duration-tint-panel: 0ms;
     --duration-arrive: var(--duration-quick);
     --duration-panel-in: var(--duration-quick);
     --duration-panel-out: var(--duration-quick);
@@ -452,6 +460,14 @@
   --portrait-tallest: 46dvh;
   /* Between the floating portrait and the prose beside it, from desktop or a story wide enough for a column. */
   --gap-presence: 2.5rem;
+  /* The shared outer chat frame, including its desktop insets. */
+  --container-script: calc(
+    var(--container-portrait) +
+    var(--gap-presence) +
+    var(--container-story) +
+    var(--inset-story-start) +
+    var(--inset-story-end)
+  );
   /*
    * From this story width the prose beside the portrait keeps a column of its
    * own: the measure, the gap and the portrait's narrowest (10rem) column.
@@ -471,6 +487,10 @@
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
   --font-display: "Marcellus", serif;
   --font-story: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
+
+  --font-weight-story-night: 420;
+  --font-weight-speech: 460;
+  --font-weight-speech-night: 480;
 
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -493,6 +513,7 @@
 
   /*
    * Corners by role, so the same role is drawn the same everywhere:
+   * - tracked (2px): insertions in tracked changes.
    * - xs (4px): marks and thumbnails: a checkbox, a swatch, a chip in a
    *   line of text, a portrait leaf.
    * - sm (6px): a small control inside another: a menu or select item, a
@@ -506,6 +527,7 @@
    * - full: pills, dots and round thumbs.
    * A layer drawn over another (a clip, an edge) takes `rounded-[inherit]`.
    */
+  --radius-tracked: 2px;
   --radius-xs: calc(var(--radius) * 0.5);
   --radius-sm: calc(var(--radius) * 0.75);
   --radius-md: var(--radius);
@@ -613,7 +635,8 @@
  */
 /*
  * A highlight is its tone's ink on a faint wash of it, which fades in as it
- * arrives: the story's highlights and the cast record's toned fields.
+ * arrives, instantly under reduced motion: the story's highlights and the
+ * cast record's toned fields.
  * `data-tone` picks the tone, rose unless sage or iris.
  */
 @utility tone-wash {
@@ -625,7 +648,7 @@
   padding-inline: 0.15em;
   color: var(--tone);
   box-decoration-break: clone;
-  transition: background-color var(--duration-arrive) var(--ease-fade);
+  transition: background-color var(--duration-tint-arrive) var(--ease-fade);
   @starting-style {
     background-color: transparent;
   }
@@ -697,7 +720,7 @@
   font-feature-settings: "onum" 0;
   text-wrap: pretty;
   @variant dark {
-    font-weight: 420;
+    font-weight: var(--font-weight-story-night);
   }
 }
 
@@ -723,9 +746,9 @@
   & [data-voice="speech"] {
     --ink-em: var(--ink);
     color: var(--ink);
-    font-weight: 460;
+    font-weight: var(--font-weight-speech);
     @variant dark {
-      font-weight: 480;
+      font-weight: var(--font-weight-speech-night);
     }
   }
   /*
@@ -872,6 +895,11 @@
  * canvas (the shadow fills the space above it), and only then lets the text
  * below fade out under it, so the edge never cuts a line in half.
  */
+/* Functional occlusion at the scroll viewport's edge, above the sticky names. */
+@utility story-top-edge {
+  background: linear-gradient(to bottom, var(--color-canvas), transparent);
+}
+
 @utility nameplate {
   position: sticky;
   top: 0.75rem;
@@ -1208,7 +1236,7 @@
 /* Words in a creator field the lamp listens to light the mark's lamp faintly, without movement. */
 @utility lamplight-mark {
   & [data-lamp] {
-    transition: filter var(--duration-panel-in) var(--ease-fade);
+    transition: filter var(--duration-tint-panel) var(--ease-fade);
   }
 }
 :root:has(textarea[data-lamp-field]:focus:not(:placeholder-shown)) .lamplight-mark [data-lamp] {
@@ -1313,18 +1341,29 @@ details[open] > summary .disclosure-chevron {
 /* The header hairline appears once the screen's content scrolls beneath it. */
 @keyframes hairline {
   from {
-    border-bottom-color: transparent;
+    opacity: 0;
   }
   to {
-    border-bottom-color: var(--rush);
+    opacity: 1;
   }
 }
 
 @utility header-hairline {
   border-bottom-color: transparent;
-  animation: hairline linear both;
-  animation-timeline: --thread;
-  animation-range: 0 3rem;
+  &::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    /* Cover the retained border, before the header's positioned edge slot. */
+    bottom: -1px;
+    height: 1px;
+    background: var(--rush);
+    opacity: 0;
+    pointer-events: none;
+    animation: hairline linear both;
+    animation-timeline: --thread;
+    animation-range: 0 3rem;
+  }
 }
 
 /*
@@ -1684,8 +1723,8 @@ details[open] > summary .disclosure-chevron {
 }
 
 /*
- * AI Rework's tracked changes. Insertions: ink on the dusk wash with a
- * dusk-line underline. Deletions: full-strength ember, struck through
+ * AI Rework's tracked changes. Insertions: ink on the selected surface with a
+ * dusk-line underline. Deletions: full-strength reed, struck through
  * once. Wash and colour back up <ins>, <del> and their spoken prefixes.
  * A rejected change (`data-decision="rejected"` on its group) swaps
  * emphasis in place: the original returns to ink, the proposal fades to
@@ -1694,18 +1733,18 @@ details[open] > summary .disclosure-chevron {
 @utility ins-wash {
   color: var(--ink);
   text-decoration: none;
-  background-color: var(--dusk-wash);
-  box-shadow: inset 0 -1px var(--dusk-line);
+  background-color: var(--surface-selected);
+  box-shadow: inset 0 -2px var(--dusk-line);
 }
 
 @utility tracked-ins {
   @apply ins-wash;
-  border-radius: 2px;
+  border-radius: var(--radius-tracked);
   box-decoration-break: clone;
   transition:
     opacity var(--duration-quick) var(--ease-fade),
-    background-color var(--duration-quick) var(--ease-fade),
-    box-shadow var(--duration-quick) var(--ease-fade),
+    background-color var(--duration-tint-quick) var(--ease-fade),
+    box-shadow var(--duration-tint-quick) var(--ease-fade),
     display var(--duration-quick) allow-discrete;
 }
 
@@ -1715,29 +1754,39 @@ details[open] > summary .disclosure-chevron {
   text-decoration-thickness: 1px;
   text-decoration-color: currentColor;
   transition:
-    color var(--duration-quick) var(--ease-fade),
-    text-decoration-color var(--duration-quick) var(--ease-fade);
+    color var(--duration-tint-quick) var(--ease-fade),
+    text-decoration-color var(--duration-tint-quick) var(--ease-fade);
 }
 
-/* A keyword or tag the change removes: struck ember on the error surface. */
+/* Decision-aware runs keep their painted wrapper while del/ins semantics change.
+ * Only the wrapper paints the mark, so its transitions survive Reject and Restore. */
+.tracked-ins > ins.tracked-ins {
+  background-color: transparent;
+  box-shadow: none;
+}
+.tracked-del > del.tracked-del {
+  text-decoration: none;
+}
+
+/* A keyword or tag the change removes: struck reed on the selected surface. */
 @utility tracked-chip-del {
   color: var(--reed);
   background-color: var(--surface-selected);
   text-decoration-line: line-through;
   text-decoration-thickness: 1px;
   transition:
-    color var(--duration-quick) var(--ease-fade),
-    background-color var(--duration-quick) var(--ease-fade),
-    text-decoration-color var(--duration-quick) var(--ease-fade);
+    color var(--duration-tint-quick) var(--ease-fade),
+    background-color var(--duration-tint-quick) var(--ease-fade),
+    text-decoration-color var(--duration-tint-quick) var(--ease-fade);
 }
 
-/* A keyword or tag the change adds: on the dusk wash. */
+/* A keyword or tag the change adds: on the selected surface. */
 @utility tracked-chip-ins {
   @apply ins-wash;
   transition:
     opacity var(--duration-quick) var(--ease-fade),
-    background-color var(--duration-quick) var(--ease-fade),
-    box-shadow var(--duration-quick) var(--ease-fade);
+    background-color var(--duration-tint-quick) var(--ease-fade),
+    box-shadow var(--duration-tint-quick) var(--ease-fade);
 }
 
 /*
@@ -1795,7 +1844,7 @@ details[open] > summary .disclosure-chevron {
   scroll-margin-block: 6rem;
   box-decoration-break: clone;
   box-shadow: inset 2px 0 transparent;
-  transition: box-shadow var(--duration-quick) var(--ease-fade);
+  transition: box-shadow var(--duration-tint-quick) var(--ease-fade);
   &[data-current] {
     box-shadow: inset 2px 0 var(--dusk-line);
   }
@@ -1841,9 +1890,10 @@ details[open] > summary .disclosure-chevron {
 
 /*
  * The cast panel. What the newest snapshot changed holds the dusk wash, then
- * settles to nothing over --duration-settle, once (a fade, so reduced motion
- * keeps it); a layer over a toned field's own wash, line by line. A field
- * the owner corrected carries a dusk hairline at its start.
+ * settles to nothing over --duration-wash, once. Reduced motion holds the
+ * wash until that deadline, then clears it instantly; a layer over a toned
+ * field's own wash, line by line. A field the owner corrected carries a dusk
+ * hairline at its start.
  */
 @property --cast-wash {
   syntax: "<color>";
@@ -1867,6 +1917,9 @@ details[open] > summary .disclosure-chevron {
   background-image: linear-gradient(var(--cast-wash), var(--cast-wash));
   box-decoration-break: clone;
   animation: cast-settle var(--duration-wash) var(--ease-fade) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation-timing-function: var(--ease-step-end);
+  }
 }
 
 [data-cast-corrected] {

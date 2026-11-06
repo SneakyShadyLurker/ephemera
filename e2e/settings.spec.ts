@@ -1,3 +1,5 @@
+import type { Locator } from "@playwright/test";
+import { BUILT_IN_NAMES, ROLE_LABELS } from "../apps/web/src/palettes/roles.ts";
 import {
   type CustomPaletteInput,
   PALETTE_ROLES,
@@ -56,6 +58,27 @@ async function settingSwitch(
 /** Tokyo Night, the default palette: its canvas by day and by night. */
 const LIGHT = "rgb(225, 226, 231)";
 const DARK = "rgb(22, 22, 30)";
+
+test("the loss explanation ends the Not saved section in ordinary ink", async ({ page }) => {
+  await openSettings(page, "kept");
+  const section = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Not saved", exact: true }) });
+  const explanation = section.getByText(
+    "A reload, closing the tab or Clear ends the chat for good.",
+    { exact: true },
+  );
+  await expect(explanation).toBeVisible();
+  expect(await explanation.evaluate((node) => node === node.parentElement?.lastElementChild)).toBe(
+    true,
+  );
+  expect(await explanation.evaluate((node) => getComputedStyle(node).color)).toBe(
+    await section
+      .locator("li span")
+      .first()
+      .evaluate((node) => getComputedStyle(node).color),
+  );
+});
 
 test("the theme follows the system unless overridden", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -302,6 +325,442 @@ test("a theme and palette chosen before the saved settings load stay once they d
 /** The editor's hex field for a colour, by its label. */
 const hexField = (page: import("@playwright/test").Page, label: string) =>
   page.getByRole("textbox", { name: `${label}, hex`, exact: true });
+
+/** All nine interior hit targets must reach the control, including near its edges. */
+async function expectPaletteControlPainted(control: Locator) {
+  await expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.top >= 0 &&
+          rect.bottom <= window.innerHeight &&
+          rect.left >= 0 &&
+          rect.right <= window.innerWidth &&
+          [0.1, 0.5, 0.9].every((x) =>
+            [0.1, 0.5, 0.9].every((y) =>
+              element.contains(
+                document.elementFromPoint(rect.left + rect.width * x, rect.top + rect.height * y),
+              ),
+            ),
+          )
+        );
+      }),
+    )
+    .toBe(true);
+}
+
+test.describe("palette phone actions in the flow", () => {
+  test.use({ hasTouch: true });
+
+  for (const width of [390, 360]) {
+    for (const scheme of ["dark", "light"] as const) {
+      test(`${width}px ${scheme}: focused Background and saved actions stay uncovered`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto("/settings?section=appearance");
+        await page.waitForLoadState("networkidle");
+        await page.getByRole("button", { name: /^Your palettes/ }).click();
+        await page.getByRole("button", { name: "New palette" }).click();
+        await page.getByRole("menuitem", { name: /^Tokyo Night\b/ }).click();
+        const name = uniqueName("Phone palette");
+        let editor = page.getByRole("region", { name: "New palette" });
+        await editor.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+
+        for (const saved of [false, true]) {
+          // The enclosing slot folds in; measure end-of-scroll only after its height settles.
+          const slot = editor.locator("xpath=..");
+          await expect
+            .poll(() =>
+              slot.evaluate((element) =>
+                Math.abs(
+                  element.getBoundingClientRect().height -
+                    (element.firstElementChild?.getBoundingClientRect().height ?? Infinity),
+                ),
+              ),
+            )
+            .toBeLessThan(1);
+          const cancel = editor.getByRole("button", { name: "Cancel", exact: true });
+          const save = editor.getByRole("button", { name: "Save palette", exact: true });
+          const remove = editor.getByRole("button", { name: "Delete", exact: true });
+          await expect(remove).toHaveCount(saved ? 1 : 0);
+          for (const height of [844, 480]) {
+            // A shallow viewport approximates keyboard space, not a native software keyboard.
+            await page.setViewportSize({ width, height });
+            const swatch = editor.getByLabel("Background", { exact: true });
+            await swatch.evaluate((element) =>
+              element.scrollIntoView({ block: "end", behavior: "instant" }),
+            );
+            await swatch.focus();
+            await page.keyboard.press("Tab");
+            await expect(hexField(page, "Background")).toBeFocused();
+            await expectPaletteControlPainted(hexField(page, "Background"));
+
+            if (height === 844 && !saved) {
+              const upper = hexField(page, "Background");
+              const summary = editor
+                .getByRole("status")
+                .filter({ hasText: /Every colour|may be hard to read/ });
+              const measureReach = async (kind: string, value: string, shortfalls: number) => {
+                const upperBox = await upper.boundingBox();
+                const saveBefore = await save.boundingBox();
+                const distance = (saveBefore?.y ?? NaN) - (upperBox?.y ?? NaN);
+                await save.scrollIntoViewIfNeeded();
+                await expectPaletteControlPainted(save);
+                process.stdout.write(
+                  `I palette Save reach ${JSON.stringify({ kind, scheme, width, height, background: value, shortfalls, distancePx: distance, distanceVh: distance / height, allColours: "closed", unresolved: kind === "warning-free" && distance > height })}\n`,
+                );
+              };
+              await expect(editor.getByRole("button", { name: /^All colours/ })).toHaveAttribute(
+                "aria-expanded",
+                "false",
+              );
+              if (scheme === "light") {
+                await upper.fill("#24283b");
+                await upper.press("Tab");
+                await expect(summary).toContainText("may be hard to read");
+                const shortfalls = await summary.getByRole("button").count();
+                expect(shortfalls).toBeGreaterThan(0);
+                await measureReach("warning-heavy", "#24283b", shortfalls);
+              }
+              // #e5e6eb leaves Muted text and Error below their floors by day;
+              // use Tokyo Night's actual day background for this warning-free fixture.
+              const value = scheme === "dark" ? "#24283b" : "#e1e2e7";
+              await upper.fill(value);
+              await upper.press("Tab");
+              await expect(summary).toHaveText("Every colour reads clearly by day and by night.");
+              await measureReach("warning-free", value, 0);
+            }
+
+            await page.locator("[data-skip-target]").evaluate((scroller) => {
+              scroller.scrollTop = scroller.scrollHeight;
+            });
+            await expectPaletteControlPainted(cancel);
+            await expectPaletteControlPainted(save);
+            if (saved) await expectPaletteControlPainted(remove);
+            const cancelBox = await cancel.boundingBox();
+            const saveBox = await save.boundingBox();
+            expect(cancelBox?.y).toBeCloseTo(saveBox?.y ?? Infinity, 0);
+            expect((cancelBox?.x ?? Infinity) + (cancelBox?.width ?? Infinity)).toBeLessThan(
+              saveBox?.x ?? 0,
+            );
+            const lastField = await editor.locator("input").last().boundingBox();
+            const firstAction = await (saved ? remove : cancel).boundingBox();
+            expect((lastField?.y ?? Infinity) + (lastField?.height ?? Infinity)).toBeLessThan(
+              firstAction?.y ?? 0,
+            );
+            if (saved && width === 360) {
+              const deleteBox = await remove.boundingBox();
+              expect((deleteBox?.y ?? Infinity) + (deleteBox?.height ?? Infinity)).toBeLessThan(
+                cancelBox?.y ?? 0,
+              );
+            }
+            const rowRight = await save.evaluate(
+              (element) => element.parentElement?.parentElement?.getBoundingClientRect().right,
+            );
+            expect(saveBox?.x).toBeDefined();
+            expect((saveBox?.x ?? 0) + (saveBox?.width ?? 0)).toBeCloseTo(rowRight ?? 0, 0);
+            await expectNoOverflow(page);
+            expect(
+              await editor.evaluate((element) => element.scrollWidth - element.clientWidth),
+            ).toBeLessThanOrEqual(0);
+            await cancel.focus();
+            await page.keyboard.press("Tab");
+            await expect(save).toBeFocused();
+            await expectPaletteControlPainted(save);
+          }
+          if (!saved) {
+            await save.click();
+            await expect(editor).toBeHidden();
+            await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
+            editor = page.getByRole("region", { name: `Edit ${name}`, exact: true });
+          } else {
+            await cancel.click();
+            await expect(editor).toBeHidden();
+            // Editing replaces its Edit button, so the existing owner returns to the row trigger.
+            await expect(page.getByRole("button", { name: /^Your palettes/ })).toBeFocused();
+          }
+        }
+      });
+    }
+  }
+});
+
+for (const width of [390, 834]) {
+  test(`at ${width}px palette roles wrap and the live sample carries all four highlights`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1112 });
+    await page.goto("/settings?section=appearance");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("button", { name: /^Your palettes/ }).click();
+    await page.getByRole("button", { name: "New palette" }).click();
+    await page.getByRole("menuitem", { name: /^Tokyo Night\b/ }).click();
+    const editor = page.getByRole("region", { name: "New palette" });
+    const sample = editor.getByRole("figure", { name: "Sample scene" }).filter({ visible: true });
+    await expect(sample).toHaveCount(1);
+    await expect(sample).toContainText("She sets the lantern down.");
+    for (const text of ["Mind the tin", "the stair creaks", "A gull cries.", "The light turns."]) {
+      await expect(sample.getByText(text, { exact: true })).toBeVisible();
+    }
+    await expect(sample).toContainText("I'm coming in.");
+    await expect(sample.locator(":scope > div").first()).toContainText("You");
+    await expect(sample.locator("[inert]")).toHaveCount(0);
+    await expect(sample.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
+    await expect(editor.getByRole("button", { name: "Preview", exact: true })).toBeVisible();
+    await editor.getByRole("button", { name: "Preview", exact: true }).click();
+    const full = page
+      .getByRole("dialog", { name: "Palette preview", exact: true })
+      .getByRole("figure", { name: "Sample scene" });
+    await expect(full.locator("[inert]")).toHaveCount(2);
+    await expect(full.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
+    await expect(full.locator("[data-tone]")).toHaveCount(4);
+    await expect(full.locator("[inert]").last()).toContainText("Send");
+    await page.keyboard.press("Escape");
+    await editor.getByRole("button", { name: /^All colours/ }).click();
+    for (const scheme of ["Day", "Night"]) {
+      await editor
+        .getByRole("group", { name: "Editing scheme" })
+        .getByRole("button", { name: scheme })
+        .click();
+      for (const role of PALETTE_ROLES) {
+        const input = hexField(page, ROLE_LABELS[role]);
+        await expect(input).toBeVisible();
+        const fit = await input.evaluate((element) => {
+          const node = element as HTMLInputElement;
+          const label = node.labels?.[0];
+          const row = node.parentElement;
+          if (!label || !row) throw new Error("No colour label or row");
+          const rect = row.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(label);
+          const lines = [...text.getClientRects()];
+          return {
+            clipped: label.scrollWidth > label.clientWidth,
+            contained: lines.every(
+              (line) => line.left >= rect.left && line.right <= rect.right + 1,
+            ),
+            hexWidth: node.getBoundingClientRect().width,
+            labelRight: label.getBoundingClientRect().right,
+            hexLeft: node.getBoundingClientRect().left,
+          };
+        });
+        expect(fit.clipped, ROLE_LABELS[role]).toBe(false);
+        expect(fit.contained, ROLE_LABELS[role]).toBe(true);
+        expect(fit.labelRight).toBeLessThanOrEqual(fit.hexLeft);
+        expect(fit.hexWidth).toBe(92);
+      }
+      const room = await editor.getByLabel("Background", { exact: true }).boundingBox();
+      const panels = await editor.getByLabel("Panels", { exact: true }).boundingBox();
+      expect(panels?.x).toBe(room?.x);
+      expect(panels?.y).toBeGreaterThan(room?.y ?? Infinity);
+    }
+    await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  });
+}
+
+test("the full palette scene stays inert and fits 900px in every palette and scheme", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/settings?section=appearance");
+  await page.getByRole("button", { name: /^Your palettes/ }).click();
+  const evidence: unknown[] = [];
+  try {
+    for (const name of Object.values(BUILT_IN_NAMES)) {
+      await page.getByRole("button", { name: "New palette", exact: true }).click();
+      await page.getByRole("menuitem", { name: new RegExp(`^${name}\\b`) }).click();
+      const editor = page.getByRole("region", { name: "New palette", exact: true });
+      const sample = editor.getByRole("figure", { name: "Sample scene" }).filter({ visible: true });
+      const measure = (settle: boolean) =>
+        sample.evaluate(async (figure, settle) => {
+          const panel = figure.closest("section[aria-labelledby]");
+          const scroller = figure.closest("[data-skip-target]");
+          const heading = panel?.querySelector("h3");
+          if (!(scroller instanceof HTMLElement) || !panel || !heading) {
+            throw new Error("Missing Settings scroller, editor or heading");
+          }
+          const rect = (node: Element) => {
+            const box = node.getBoundingClientRect();
+            return {
+              x: box.x,
+              y: box.y,
+              top: box.top,
+              bottom: box.bottom,
+              width: box.width,
+              height: box.height,
+            };
+          };
+          const read = () => {
+            const sampleBox = rect(figure);
+            const scrollerBox = rect(scroller);
+            const availableTop = Math.max(0, scrollerBox.top + scroller.clientTop);
+            const availableBottom = Math.min(
+              innerHeight,
+              scrollerBox.top + scroller.clientTop + scroller.clientHeight,
+            );
+            const animations = document.getAnimations().filter((animation) => {
+              const effect = animation.effect;
+              return (
+                effect instanceof KeyframeEffect &&
+                effect.target instanceof Element &&
+                effect.target.contains(figure) &&
+                Number.isFinite(effect.getComputedTiming().endTime) &&
+                (animation.pending || animation.playState === "running")
+              );
+            });
+            const ancestorScroll = [];
+            for (let node = figure.parentElement; node; node = node.parentElement) {
+              if (
+                node === document.scrollingElement ||
+                /auto|scroll/.test(getComputedStyle(node).overflowY)
+              ) {
+                ancestorScroll.push({
+                  tag: node.tagName,
+                  scrollTop: node.scrollTop,
+                  scrollLeft: node.scrollLeft,
+                  scrollHeight: node.scrollHeight,
+                  clientHeight: node.clientHeight,
+                  scrollBehavior: getComputedStyle(node).scrollBehavior,
+                });
+              }
+            }
+            return {
+              sample: sampleBox,
+              editor: rect(panel),
+              heading: rect(heading),
+              scroller: scrollerBox,
+              availableTop,
+              availableBottom,
+              visibleTop: Math.max(sampleBox.top, availableTop),
+              visibleBottom: Math.min(sampleBox.bottom, availableBottom),
+              ancestorScroll,
+              finiteAncestorAnimationCount: animations.length,
+              finiteAncestorAnimations: animations.slice(0, 30).map((animation) => {
+                const effect = animation.effect as KeyframeEffect;
+                return {
+                  target: (effect.target as Element).tagName,
+                  type: animation.constructor.name,
+                  property:
+                    animation instanceof CSSTransition ? animation.transitionProperty : null,
+                  state: animation.playState,
+                  pending: animation.pending,
+                  currentTime: animation.currentTime,
+                  endTime: effect.getComputedTiming().endTime,
+                };
+              }),
+            };
+          };
+          let latest = read();
+          if (!settle) return { ...latest, settled: false, frames: 0 };
+          let frame = 0;
+          let timer = 0;
+          let frames = 0;
+          let stable = 0;
+          let previous = "";
+          try {
+            return await new Promise<typeof latest & { settled: boolean; frames: number }>(
+              (resolve) => {
+                timer = window.setTimeout(
+                  () => resolve({ ...latest, settled: false, frames }),
+                  3000,
+                );
+                const tick = () => {
+                  latest = read();
+                  frames++;
+                  const signature = JSON.stringify([
+                    latest.sample,
+                    latest.editor,
+                    latest.heading,
+                    latest.scroller,
+                    latest.ancestorScroll,
+                  ]);
+                  stable =
+                    signature === previous && latest.finiteAncestorAnimationCount === 0
+                      ? stable + 1
+                      : 0;
+                  previous = signature;
+                  if (stable >= 3 || frames >= 180) {
+                    resolve({ ...latest, settled: stable >= 3, frames });
+                  } else {
+                    frame = requestAnimationFrame(tick);
+                  }
+                };
+                frame = requestAnimationFrame(tick);
+              },
+            );
+          } finally {
+            clearTimeout(timer);
+            cancelAnimationFrame(frame);
+          }
+        }, settle);
+      evidence.push({ palette: name, phase: "arrival", measurement: await measure(false) });
+      for (const scheme of ["Day", "Night"]) {
+        await editor
+          .getByRole("group", { name: "Editing scheme" })
+          .getByRole("button", { name: scheme, exact: true })
+          .click();
+        evidence.push({
+          palette: name,
+          scheme,
+          phase: "before-fit",
+          intendedReveal:
+            scheme === "Day"
+              ? "one scrollIntoView: start, nearest, auto"
+              : "none; editor already revealed",
+          measurement: await measure(false),
+        });
+        // Arrival only reveals the inline heading. Fit is measured after one normal scene reveal.
+        if (scheme === "Day") {
+          await sample.evaluate((figure) =>
+            figure.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" }),
+          );
+        }
+        await expect(sample.locator(":scope > div").first()).toContainText("You");
+        await expect(sample).toContainText("Mara");
+        for (const tone of ["rose", "sage", "iris", "mist"]) {
+          await expect(sample.locator(`[data-tone="${tone}"]`)).toBeVisible();
+        }
+        await expect(sample).toContainText("Older than his letters made him sound.");
+        const decoration = sample.locator("[inert]");
+        await expect(decoration).toHaveCount(2);
+        await expect(decoration.first()).toHaveText("New replyContinue");
+        await expect(decoration.last()).toContainText("I'll mind the stair.Send");
+        await expect(sample.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
+        expect(
+          await decoration.evaluateAll((nodes) =>
+            nodes.every(
+              (node) =>
+                node.getAttribute("aria-hidden") === "true" &&
+                getComputedStyle(node).pointerEvents === "none",
+            ),
+          ),
+        ).toBe(true);
+        const geometry = await measure(true);
+        evidence.push({ palette: name, scheme, phase: "fit", measurement: geometry });
+        expect(geometry.settled, "scroll and layout settled within three seconds").toBe(true);
+        const box = geometry.sample;
+        expect(box?.y).toBeGreaterThanOrEqual(0);
+        expect((box?.y ?? Infinity) + (box?.height ?? Infinity)).toBeLessThanOrEqual(900);
+        expect(box.top).toBeGreaterThanOrEqual(geometry.availableTop);
+        expect(box.bottom).toBeLessThanOrEqual(geometry.availableBottom);
+        expect(box.height).toBeLessThanOrEqual(geometry.availableBottom - geometry.availableTop);
+      }
+      await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+    }
+  } finally {
+    process.stdout.write(`Palette fit geometry ${JSON.stringify(evidence)}\n`);
+    await test.info().attach("palette-fit-geometry", {
+      body: JSON.stringify(evidence, null, 2),
+      contentType: "application/json",
+    });
+  }
+});
 
 /** A full custom palette for the API: every role one colour, the text another. */
 function plainPalette(name: string): CustomPaletteInput {

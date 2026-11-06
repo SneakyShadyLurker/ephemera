@@ -129,8 +129,8 @@ interface EntryEditorProps {
 }
 
 /**
- * One entry: title and Enabled, how it goes in (always, on keywords or by
- * chance), the keywords, the secondary condition, the text, then closed rows that
+ * One entry: title and Enabled, the text, how it goes in (always, on keywords or by
+ * chance), the keywords, the secondary condition, then closed rows that
  * answer where it goes, when it goes in, which event pool it is in, what
  * brings it in and what it matches, and last what the card holds that Ephemera keeps but does not use.
  * Every change goes to the book at once; the layout follows the editor's own
@@ -177,6 +177,23 @@ export function EntryEditor(props: EntryEditorProps) {
         </div>
       </div>
 
+      <div className="grid gap-1.5">
+        <label htmlFor={contentId} className={LABEL}>
+          Text
+        </label>
+        <textarea
+          id={contentId}
+          value={entry.content}
+          rows={4}
+          maxLength={CARD_LIMITS.textLength}
+          onChange={(event) => onChange({ content: event.target.value })}
+          className={FIELD}
+        />
+        <p className={HELP}>
+          What the model reads when the entry goes in. Macros such as {"{{char}}"} work.
+        </p>
+      </div>
+
       <div className="grid gap-4">
         <GoesIn
           entry={entry}
@@ -195,26 +212,9 @@ export function EntryEditor(props: EntryEditorProps) {
         <SecondaryCondition entry={entry} settings={settings} onSettings={onSettings} />
       </div>
 
-      <div className="grid gap-1.5">
-        <label htmlFor={contentId} className={LABEL}>
-          Text
-        </label>
-        <textarea
-          id={contentId}
-          value={entry.content}
-          rows={4}
-          maxLength={CARD_LIMITS.textLength}
-          onChange={(event) => onChange({ content: event.target.value })}
-          className={FIELD}
-        />
-        <p className={HELP}>
-          What the model reads when the entry goes in. Macros such as {"{{char}}"} work.
-        </p>
-      </div>
-
       <div className="grid border-rush border-b">
         <SettingsRow
-          label="Where it goes"
+          label="Placement and order"
           answer={placementAnswer(settings, entry.insertionOrder)}
           {...row("where")}
         >
@@ -226,7 +226,7 @@ export function EntryEditor(props: EntryEditorProps) {
           />
         </SettingsRow>
         <SettingsRow
-          label="When it goes in"
+          label="Timing"
           answer={timingAnswer(settings, activation === "keywords" ? settings.chance : null)}
           {...row("when")}
         >
@@ -240,7 +240,7 @@ export function EntryEditor(props: EntryEditorProps) {
           <EventPool settings={settings} pools={props.book.pools} onSettings={onSettings} />
         </SettingsRow>
         <SettingsRow
-          label="What brings it in"
+          label="Chaining"
           answer={chainingAnswer(settings, props.book.chaining)}
           {...row("brings")}
         >
@@ -252,7 +252,7 @@ export function EntryEditor(props: EntryEditorProps) {
           />
         </SettingsRow>
         <SettingsRow
-          label="What it matches"
+          label="Matching"
           answer={matchingAnswer(settings, props.book.depth)}
           {...row("matches")}
         >

@@ -1,6 +1,13 @@
-import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
-import { useUi } from "@/app/ui.ts";
+import { uiStore, useUi } from "@/app/ui.ts";
 import { InspectIcon, StopIcon, WriteForMeIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -8,14 +15,16 @@ import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { MODEL_BUSY } from "@/lib/text";
 import { useContextWindow } from "../api.ts";
-import { useSettings } from "../settings/settings.ts";
+import { currentSettings, useSettings } from "../settings/settings.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
 import { useSignedIn } from "../signin/hooks.ts";
+import { signIn } from "../signin/signin.ts";
 import { ChatChoices } from "./ChatChoices.tsx";
 import { useChatCharacter, useChatPersona } from "./character.ts";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { retryGreeting } from "./greetings.ts";
 import { focusModelNotice, MODEL_NOTICE_BODY, useModelBlocker } from "./ModelNotice.tsx";
+import { registerNewChatFocus } from "./new-chat-focus.ts";
 import { IMPERSONATION_REFUSAL, REFUSAL_NOTE } from "./refusal.ts";
 import { chatStore, useChat } from "./session.ts";
 import { awaitsGreeting, type ImpersonationNote, type MacroNotice } from "./store.ts";
@@ -64,6 +73,7 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
   const sendable = model !== null && window !== null && signedIn;
   // While the notice above says why Send cannot work, the field and Send are described by it.
   const blocked = useModelBlocker().blocker !== null;
+  const arrivalReady = !blocked && model !== null && window !== null && window !== "loading";
   const describedBy = blocked ? MODEL_NOTICE_BODY : undefined;
   // An empty draft goes too when the prompt preset sends its Send If Empty text instead.
   const canSend = useChat((state) => state.draft.trim() !== "") && sendable;
@@ -71,6 +81,43 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
   const character = useChatCharacter();
   const empty = useChat((state) => state.messages.length === 0);
   const { setDraft, send, stop, impersonate, startEdit } = chatStore.getState();
+  useLayoutEffect(
+    () =>
+      registerNewChatFocus((arrival) => {
+        const node = field.current;
+        const state = chatStore.getState();
+        const current = currentSettings();
+        const ui = uiStore.getState();
+        const active = document.activeElement;
+        if (
+          !matchMedia("(pointer: fine)").matches ||
+          state.epoch !== arrival.epoch ||
+          current.characterId !== arrival.characterId ||
+          settings.characterId !== arrival.characterId ||
+          current.model !== model ||
+          signIn.store.getState().phase !== "active" ||
+          !arrivalReady ||
+          state.generating ||
+          ui.navOpen ||
+          ui.inspectorOpen ||
+          ui.eventsOpen ||
+          !node?.isConnected ||
+          node.disabled ||
+          !node.checkVisibility({ visibilityProperty: true }) ||
+          node.closest('[inert], [hidden], [aria-hidden="true"]') ||
+          (active !== null && active !== document.body && active.isConnected)
+        )
+          return;
+        // Closing surfaces retain focus ownership until they unmount, including inert popups.
+        const surfaces = document.querySelectorAll<HTMLElement>(
+          ':modal, :popover-open, dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="drawer-popup"], [data-portrait-viewer]',
+        );
+        if ([...surfaces].some((surface) => surface.checkVisibility({ visibilityProperty: true })))
+          return;
+        node.focus({ preventScroll: true });
+      }),
+    [field, settings.characterId, model, arrivalReady],
+  );
   // When Stop leaves the slot while it has focus, focus goes back to the field, not the page.
   const slotHadFocus = useRef(false);
   useEffect(() => {

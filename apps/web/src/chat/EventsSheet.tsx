@@ -15,12 +15,16 @@ export function EventsSheet({
   open,
   onOpenChange,
   returnTo,
+  newEvent = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   returnTo: () => HTMLElement | null;
+  newEvent?: boolean;
 }) {
   const phone = useFormFactor() === "phone";
+  const title = useRef<HTMLHeadingElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const saving = useRef<ReturnType<typeof leaveGuardOf>>(null);
   const closing = useRef(false);
   const [warned, setWarned] = useState(false);
@@ -52,15 +56,35 @@ export function EventsSheet({
       keyboardAware={phone}
     >
       <DrawerContent
+        initialFocus={
+          newEvent
+            ? () =>
+                [
+                  ...(body.current?.querySelectorAll<HTMLElement>(
+                    '[data-event] textarea, button[aria-disabled="true"]',
+                  ) ?? []),
+                ].find(
+                  (control) => control.checkVisibility() && control.closest("[inert]") === null,
+                ) ?? title.current
+            : undefined
+        }
         finalFocus={returnTo}
         className="data-[swipe-axis=x]:[--drawer-content-width:min(30rem,calc(100vw-6rem))]"
       >
         <EditorHeader
-          title={<DrawerTitle>Events</DrawerTitle>}
+          title={
+            <DrawerTitle ref={title} tabIndex={-1}>
+              Events
+            </DrawerTitle>
+          }
           close={<DrawerCloseIcon label="Close Events" />}
         />
-        <EditorBody className="pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <EventsSection inSheet onSavingChange={reportSaving} />
+        <EditorBody ref={body} className="pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <EventsSection
+            inSheet
+            newEventRequested={open && newEvent}
+            onSavingChange={reportSaving}
+          />
         </EditorBody>
         <ConfirmDialog
           open={warned}

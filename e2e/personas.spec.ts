@@ -7,13 +7,131 @@ import {
   createPersonaViaApi,
   expectNoOverflow,
   openSession,
+  patchSettings,
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
-import { expect, test } from "./support/test.ts";
+import { expect, test, unsafe } from "./support/test.ts";
 
 const card = (page: Page, name: string) =>
   page.getByRole("list", { name: "Personas" }).getByRole("link", { name, exact: false });
+
+for (const hasTouch of [false, true]) {
+  test.describe(`persona content rhythm touch=${hasTouch}`, () => {
+    test.use({ hasTouch });
+    test("absent, default and bound captions stay with their own actions", async ({
+      page,
+      request,
+    }) => {
+      const plain = uniqueName("A long northern harbour persona without metadata");
+      const defaultName = uniqueName("Default keeper");
+      const boundName = uniqueName("Bound keeper");
+      const characterName = uniqueName(
+        "Alexandrine Marguerite of the northern harbour reading room",
+      );
+      const plainId = await createPersonaViaApi(request, plain);
+      const defaultId = await createPersonaViaApi(request, defaultName);
+      const boundId = await createPersonaViaApi(request, boundName);
+      const characterId = await createCharacterViaApi(request, characterName);
+      const binding = await request.put(`/api/personas/bindings/${characterId}`, {
+        headers: unsafe(),
+        data: { personaId: boundId },
+      });
+      expect(binding.ok()).toBe(true);
+      await patchSettings(request, { defaultPersonaId: defaultId });
+      // A saved portrait and a missing portrait both use the same identity/action grammar.
+      const portrait = await request.put(`/api/personas/${boundId}/portrait`, {
+        headers: { Origin: new URL(test.info().project.use.baseURL ?? "").origin },
+        multipart: { file: await imageFile("persona-rhythm.png") },
+      });
+      expect(portrait.ok()).toBe(true);
+      await page.goto("/personas");
+      for (const width of [360, 390, 820, 1440]) {
+        await page.setViewportSize({ width, height: 1000 });
+        const plainLink = card(page, plain);
+        await expect(plainLink).not.toHaveAttribute("aria-describedby");
+        await expect(card(page, defaultName)).toHaveAccessibleDescription("Default");
+        await expect(card(page, boundName)).toHaveAccessibleDescription(`With ${characterName}`);
+        for (const id of [plainId, defaultId, boundId]) {
+          const tile = page.locator(`[data-persona="${id}"]`);
+          const link = tile.getByRole("link");
+          const action = tile.getByRole("button", { name: "Make default" });
+          if (id === defaultId) {
+            await expect(action).toHaveCount(0);
+          } else {
+            const layout = await tile.evaluate((node) => {
+              const link = node.querySelector("a");
+              const caption = document.getElementById(link?.getAttribute("aria-describedby") ?? "");
+              const previous = caption?.parentElement ?? link;
+              const action = node.querySelector("button");
+              return {
+                preceding: previous?.getBoundingClientRect().bottom,
+                action: action?.getBoundingClientRect().toJSON(),
+                name: link?.lastElementChild?.getBoundingClientRect().toJSON(),
+                minHeight: caption && getComputedStyle(caption.parentElement ?? caption).minHeight,
+              };
+            });
+            expect(layout.action?.y).toBeCloseTo(layout.preceding ?? NaN, 0);
+            expect(layout.action?.height).toBe(hasTouch ? 44 : 32);
+            expect(layout.minHeight).not.toBe("40px");
+            await link.focus();
+            await page.keyboard.press("Tab");
+            await expect(action).toBeFocused();
+            process.stdout.write(
+              `R8 persona geometry ${JSON.stringify({ width, hasTouch, id, ...layout })}\n`,
+            );
+          }
+        }
+        await expectNoOverflow(page);
+      }
+      const makeDefault = page
+        .locator(`[data-persona="${plainId}"]`)
+        .getByRole("button", { name: "Make default" });
+      await makeDefault.focus();
+      await page.keyboard.press("Enter");
+      await expect(card(page, plain)).toBeFocused();
+      await expect(card(page, plain)).toHaveAccessibleDescription("Default");
+    });
+  });
+}
+
+for (const width of [360, 390]) {
+  test(`persona identity keeps its full explanation and Undo under the portrait at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const old = await createPersonaViaApi(request, uniqueName("Earlier"));
+    const id = await createPersonaViaApi(request, uniqueName("Current"));
+    await patchSettings(request, { defaultPersonaId: old });
+    await page.goto(`/personas/${id}`);
+    const identity = page.getByRole("region", { name: "Identity" });
+    const control = page.getByRole("switch", { name: "Default persona" });
+    await expect(control).toHaveAccessibleDescription(
+      "New chats start as this persona, unless the character goes with another.",
+    );
+    const layout = await identity.evaluate((node) => {
+      const name = node.querySelector('[aria-label="Name"]')?.getBoundingClientRect();
+      const field = node.firstElementChild?.getBoundingClientRect();
+      const label = node
+        .querySelector('[role="switch"]')
+        ?.closest("label")
+        ?.getBoundingClientRect();
+      return { name: name?.top, portrait: field?.top, bottom: field?.bottom, label: label?.top };
+    });
+    expect(layout.name).toBeCloseTo(layout.portrait ?? NaN, 0);
+    expect(layout.label).toBeGreaterThan(layout.bottom ?? Infinity);
+    await control.click();
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(undo).toBeVisible();
+    expect((await undo.boundingBox())?.y).toBeGreaterThan(
+      (await control.boundingBox())?.y ?? Infinity,
+    );
+    await undo.click();
+    await expect(control).not.toBeChecked();
+    await expectNoOverflow(page);
+  });
+}
 
 async function moreAction(page: Page, action: string) {
   await page.getByRole("button", { name: "More actions" }).click();

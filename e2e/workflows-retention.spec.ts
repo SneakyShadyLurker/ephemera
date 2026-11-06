@@ -29,6 +29,12 @@ import {
 async function expectPromptShown(page: Page, panelName: string, text: string) {
   const panel = importPanel(page, panelName);
   await expect(panel.getByRole("status")).toHaveText("Every node and model file is there.");
+  const mapping = panel.locator("details").filter({
+    has: page.locator("summary").filter({ hasText: "Ephemera fills these four places" }),
+  });
+  if (!(await mapping.evaluate((node) => (node as HTMLDetailsElement).open)))
+    await mapping.locator("summary").click();
+  await expect(mappingRows(panel).nth(0)).toBeVisible();
   await expect(mappingRows(panel).nth(0)).toContainText(text);
   return panel;
 }

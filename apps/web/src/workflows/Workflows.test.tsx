@@ -87,7 +87,12 @@ function render({
   }
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <Workflows importRef={createRef()} onImport={() => {}} onReplace={() => {}} />
+      <Workflows
+        importRef={createRef()}
+        onImport={() => {}}
+        onReplace={() => {}}
+        onEditAddress={() => {}}
+      />
     </QueryClientProvider>,
   );
 }
@@ -137,7 +142,8 @@ describe("the workflows list in Settings > Pictures", () => {
     });
     expect(rowOf(off, "Flux Dev Portrait")).toContain("Selected");
     expect(rowOf(off, "Flux Dev Portrait")).toContain("Cannot run");
-    expect(rowOf(off, "Flux Dev Portrait")).toContain("Choose another");
+    expect(rowOf(off, "Flux Dev Portrait")).toContain("Add the address");
+    expect(rowOf(off, "Flux Dev Portrait")).not.toContain("Choose another");
     expect(rowOf(off, "Moss Studio")).toContain("Unchecked");
     expect(rowOf(off, "Krea 2 Gonzalomo")).toContain("Unchecked");
     const asking = render({ statuses: {} });

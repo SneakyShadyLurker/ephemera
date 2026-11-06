@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { boundPersona, personasQuery } from "../personas/queries.ts";
 import { currentSettings, useUpdateSettings } from "../settings/settings.ts";
+import { focusNewChat } from "./new-chat-focus.ts";
 import { DiscardChatDialog } from "./RememberEnding.tsx";
 import { chatStore } from "./session.ts";
 import { contentChangedSince, hasChatContent } from "./store.ts";
@@ -76,7 +77,16 @@ export function useStartChat() {
     if ((contentChangedSince(decided, now) && hasChatContent(now)) || now.epoch !== decided.epoch)
       return;
     switchChat(id, personas, updateSettings);
-    void navigate({ to: "/" });
+    const epoch = chatStore.getState().epoch;
+    await navigate({ to: "/" });
+    if (
+      latest() &&
+      chatStore.getState().epoch === epoch &&
+      currentSettings().characterId === id &&
+      location.pathname === "/"
+    ) {
+      focusNewChat({ epoch, characterId: id });
+    }
   };
 
   const start = (id: string | null, name: string) => {

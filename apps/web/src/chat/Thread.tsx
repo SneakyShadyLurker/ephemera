@@ -17,6 +17,7 @@ import { cn } from "@/lib/cn";
 import { charactersQuery } from "../characters/queries.ts";
 import { useSetting } from "../settings/settings.ts";
 import { useChatCharacter } from "./character.ts";
+import { DeletionView } from "./deletion-view.tsx";
 import { SCRIPT_FRAME } from "./frame.ts";
 import { SeamSlot, seamIndex } from "./MemorySeam.tsx";
 import { ModelStep } from "./ModelNotice.tsx";
@@ -101,68 +102,74 @@ export function Thread({ composer }: { composer: RefObject<HTMLTextAreaElement |
   return (
     // Busy while a reply streams, so screen readers announce it once complete, not per fragment.
     <Conversation aria-label="Story" aria-busy={generating}>
-      <ConversationContent
-        // Phones keep no reserved scrollbar gutter, so the story keeps its 20px margins.
-        scrollClassName="overscroll-contain [scroll-timeline:--thread] max-tablet:[scrollbar-gutter:auto]!"
-        className={cn(SCRIPT_FRAME, "min-h-full pt-6 pb-8")}
-      >
-        {/*
-         * A flow root, so a portrait floated beside an empty story stays inside it, and the
-         * story's container: its prose measure and the portrait's column follow its width.
-         */}
-        <div className="@container/story flow-root">
-          {presenceAt === -1 && <Presence placement={phone ? "band" : "float"} />}
-          {ids.length === 0 ? (
-            deletedAt === null && <EmptyStory composer={composer} />
-          ) : (
-            <MotionScope>
-              {/* The one column never grows past the story's width, whatever a turn holds. */}
-              <ol className="grid grid-cols-[minmax(0,1fr)] gap-8 tablet:gap-10">
-                {ids.map((id, index) => (
-                  <Fragment key={id}>
-                    {deletedAt === index && <Tombstone />}
-                    <SeamSlot here={seam === index} />
-                    {shown && foldEnd === index && <FoldLine />}
-                    {trim?.before === id && <TrimMarker count={trim.count} />}
-                    {(index >= horizon || shown) && (
-                      <>
-                        <Turn
-                          id={id}
-                          index={index}
-                          enter={settled}
-                          last={index === ids.length - 1}
-                          folded={index < horizon}
-                          locked={index < locked}
-                          presence={index === presenceAt}
-                        />
-                        {/* The newest message's pictures follow its actions, below. */}
-                        {index < ids.length - 1 && <SceneItems anchorId={id} enter={settled} />}
-                      </>
-                    )}
-                  </Fragment>
-                ))}
-                <SeamSlot here={seam !== null && seam >= ids.length} />
-                {(ids.length - 1 >= horizon || shown) && (
-                  <SceneItems anchorId={ids.at(-1) ?? ""} enter={settled} />
+      <DeletionView>
+        <FollowWriting />
+        <ConversationContent
+          // Phones keep no reserved scrollbar gutter, so the story keeps its 20px margins.
+          scrollClassName="overscroll-contain [scroll-timeline:--thread] max-tablet:[scrollbar-gutter:auto]!"
+          className={cn(SCRIPT_FRAME, "min-h-full pt-6 pb-8")}
+        >
+          {/*
+           * A flow root, so a portrait floated beside an empty story stays inside it, and the
+           * story's container: its prose measure and the portrait's column follow its width.
+           */}
+          <div className="@container/story flow-root">
+            {presenceAt === -1 && <Presence placement={phone ? "band" : "float"} />}
+            {ids.length === 0 ? (
+              deletedAt === null && <EmptyStory composer={composer} />
+            ) : (
+              <MotionScope>
+                {/* The one column never grows past the story's width, whatever a turn holds. */}
+                <ol className="grid grid-cols-[minmax(0,1fr)] gap-8 tablet:gap-10">
+                  {ids.map((id, index) => (
+                    <Fragment key={id}>
+                      {deletedAt === index && <Tombstone />}
+                      <SeamSlot here={seam === index} />
+                      {shown && foldEnd === index && <FoldLine />}
+                      {trim?.before === id && <TrimMarker count={trim.count} />}
+                      {(index >= horizon || shown) && (
+                        <>
+                          <Turn
+                            id={id}
+                            index={index}
+                            enter={settled}
+                            last={index === ids.length - 1}
+                            folded={index < horizon}
+                            locked={index < locked}
+                            presence={index === presenceAt}
+                          />
+                          {/* The newest message's pictures follow its actions, below. */}
+                          {index < ids.length - 1 && <SceneItems anchorId={id} enter={settled} />}
+                        </>
+                      )}
+                    </Fragment>
+                  ))}
+                  <SeamSlot here={seam !== null && seam >= ids.length} />
+                  {(ids.length - 1 >= horizon || shown) && (
+                    <SceneItems anchorId={ids.at(-1) ?? ""} enter={settled} />
+                  )}
+                </ol>
+              </MotionScope>
+            )}
+            {trailingTombstone && (
+              <ol
+                className={cn(
+                  "grid grid-cols-[minmax(0,1fr)] gap-8 tablet:gap-10",
+                  ids.length > 0 && "mt-8 tablet:mt-10",
                 )}
+              >
+                <Tombstone />
               </ol>
-            </MotionScope>
-          )}
-          {trailingTombstone && (
-            <ol
-              className={cn(
-                "grid grid-cols-[minmax(0,1fr)] gap-8 tablet:gap-10",
-                ids.length > 0 && "mt-8 tablet:mt-10",
-              )}
-            >
-              <Tombstone />
-            </ol>
-          )}
-        </div>
-      </ConversationContent>
-      <ConversationScrollButton onKeyboardUse={() => composer.current?.focus()} />
-      <FollowWriting />
-      <NameShown ids={ids} horizon={horizon} shown={shown} />
+            )}
+          </div>
+        </ConversationContent>
+        <div
+          aria-hidden="true"
+          className="story-top-edge pointer-events-none absolute inset-x-0 top-0 z-(--z-raised) h-3"
+        />
+        <ConversationScrollButton onKeyboardUse={() => composer.current?.focus()} />
+        <NameShown ids={ids} horizon={horizon} shown={shown} />
+      </DeletionView>
     </Conversation>
   );
 }
@@ -230,15 +237,19 @@ function NameShown({
       observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
-            if (entry.isIntersecting) inView.add(entry.target);
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) inView.add(entry.target);
             else inView.delete(entry.target);
           }
           chat.toggleAttribute("data-name-shown", inView.size > 0);
         },
-        { root: scroller },
+        {
+          root: scroller,
+          rootMargin: `-${Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75}px 0px 0px 0px`,
+          threshold: [0, 0.5],
+        },
       );
       const names = content.querySelectorAll(
-        '[data-message][data-role="assistant"] [data-speaker][data-voice="story"]',
+        '[data-message][data-role="assistant"] [data-speaker][data-voice="story"] .nameplate-name',
       );
       // With nothing to watch the observer never answers, so no name shows.
       if (names.length === 0) chat.removeAttribute("data-name-shown");

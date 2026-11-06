@@ -20,10 +20,10 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { m } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
-import { useCanDock, useFormFactor } from "@/app/form-factor.ts";
+import { useCanDock } from "@/app/form-factor.ts";
 import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { scrollBehavior } from "@/app/reduced-motion.ts";
-import { ChatIcon, MoreIcon, PlusIcon } from "@/components/icons";
+import { MoreIcon, PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Unfold } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
@@ -159,7 +159,6 @@ function PromptPresetEditor({
   onReload: () => Promise<void>;
 }) {
   const queryClient = useQueryClient();
-  const phone = useFormFactor() === "phone";
   // Wide enough for the formatting key beside the form, as the character sheet's index.
   const wide = useCanDock();
   const [fields, setFields] = useState(preset);
@@ -252,7 +251,7 @@ function PromptPresetEditor({
   const chat = inChat(fields.blocks);
   const customCount = fields.blocks.filter((block) => block.kind === "custom").length;
   const addButton = (
-    <div className="flex shrink-0 flex-wrap gap-2">
+    <div className="-ml-3.5 flex shrink-0 flex-wrap gap-2 touch:-ml-4">
       {missingOptional(fields.blocks).map((id) => (
         <Button
           key={id}
@@ -407,9 +406,9 @@ function PromptPresetEditor({
             Blocks
           </h2>
           <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-            <div className="flex min-h-9 items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <p className={HELP}>Sent top to bottom. Switch a block off to leave it out.</p>
-              {!phone && addButton}
+              {addButton}
             </div>
             <ol
               aria-label="Blocks in send order"
@@ -445,7 +444,6 @@ function PromptPresetEditor({
                 ),
               )}
             </ol>
-            {phone && <div>{addButton}</div>}
             {removed !== null && (
               <InlineStatus as="p" role="status" className="flex items-center gap-2 arrive">
                 {blockName(removed.block)} removed.
@@ -722,13 +720,19 @@ function ChatHistoryBand({
       className="relative border-control-edge border-y py-1 pl-3 before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-control-edge dark:bg-surface"
     >
       <div className="flex min-h-12 items-center gap-3 pr-1 pl-1">
-        <span className="grid w-7 place-items-center text-reed" aria-hidden="true">
-          <ChatIcon size={16} />
+        <span className="grid w-7 place-items-center">
+          <Switch
+            size="sm"
+            checked={enabled}
+            aria-label="Send Chat history"
+            aria-describedby="chat-history-help"
+            onCheckedChange={onToggle}
+          />
         </span>
         <span className="grid min-w-0 flex-1">
           <span
             className={cn(
-              "font-medium text-ui italic transition-colors duration-(--duration-quick) ease-fade",
+              "font-medium text-ui italic transition-colors duration-(--duration-tint-quick) ease-fade",
               enabled ? "text-ink" : "text-reed",
             )}
           >
@@ -740,14 +744,6 @@ function ChatHistoryBand({
               : "Off: no messages of the chat are sent, nor the blocks and notes inside it."}
           </span>
         </span>
-        {/* At the end of the band, so the blocks inside stay aligned with its name. */}
-        <Switch
-          size="sm"
-          checked={enabled}
-          aria-label="Send Chat history"
-          aria-describedby="chat-history-help"
-          onCheckedChange={onToggle}
-        />
       </div>
       {hasBlocks && (
         <>
@@ -847,7 +843,7 @@ function BlockRow(props: RowProps) {
               <span className="grid min-w-0 flex-1 items-center gap-x-3 tablet:grid-cols-[13rem_minmax(0,1fr)]">
                 <span
                   className={cn(
-                    "truncate font-medium text-ui transition-colors duration-(--duration-quick) ease-fade",
+                    "truncate font-medium text-ui transition-colors duration-(--duration-tint-quick) ease-fade",
                     enabled ? "text-ink" : "text-reed",
                   )}
                 >
@@ -855,7 +851,7 @@ function BlockRow(props: RowProps) {
                 </span>
                 <span
                   className={cn(
-                    "truncate text-note transition-colors duration-(--duration-quick) ease-fade",
+                    "truncate text-note transition-colors duration-(--duration-tint-quick) ease-fade",
                     enabled && block.kind !== "source" && meta !== "Empty"
                       ? "text-narration"
                       : "text-reed",

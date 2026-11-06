@@ -23,12 +23,12 @@ function Radio({ className, ...props }: RadioPrimitive.Root.Props) {
     <RadioPrimitive.Root
       data-slot="radio"
       className={cn(
-        "relative grid size-4 shrink-0 place-items-center rounded-full border border-control-edge bg-surface transition-colors duration-(--duration-quick) ease-fade after:absolute after:-inset-2.5 data-checked:border-ink data-checked:bg-ink data-disabled:border-rush data-disabled:bg-rush touch:size-5 touch:after:-inset-3",
+        "relative grid size-4 shrink-0 place-items-center rounded-full border border-control-edge bg-surface transition-colors duration-(--duration-tint-quick) ease-fade after:absolute after:-inset-2.5 data-checked:border-ink data-checked:bg-ink data-disabled:border-rush data-disabled:bg-rush touch:size-5 touch:after:-inset-3",
         className,
       )}
       {...props}
     >
-      <RadioPrimitive.Indicator className="size-1.5 rounded-full bg-canvas transition-[opacity,scale] duration-(--duration-quick) ease-spring motion-reduce:transition-opacity data-ending-style:scale-50 data-ending-style:opacity-0 data-starting-style:scale-50 data-starting-style:opacity-0 touch:size-2" />
+      <RadioPrimitive.Indicator className="size-1.5 rounded-full bg-canvas transition-[opacity,scale] duration-(--duration-quick) ease-spring motion-reduce:scale-100 motion-reduce:transition-opacity data-ending-style:scale-50 data-ending-style:opacity-0 data-starting-style:scale-50 data-starting-style:opacity-0 motion-reduce:data-ending-style:scale-100 motion-reduce:data-starting-style:scale-100 touch:size-2" />
     </RadioPrimitive.Root>
   );
 }

@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
-import { COMPACT_LABEL, PASSAGE_FACE } from "@/sheet/fields.ts";
+import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import type { Run, Segment } from "./tracked.ts";
 
 /*
@@ -15,22 +15,53 @@ import type { Run, Segment } from "./tracked.ts";
 export type Decision = "accepted" | "rejected";
 
 /** A struck run of the original, spoken as a deletion where the element alone is not. */
-export function Deleted({ text, className }: { text: string; className?: string | undefined }) {
-  return (
+export function Deleted({
+  text,
+  className,
+  decision,
+}: {
+  text: string;
+  className?: string | undefined;
+  decision?: Decision;
+}) {
+  const deletion = (
     <del className={cn("tracked-del", className)}>
       <span className="sr-only">deleted: </span>
       {text}
     </del>
   );
+  // Keep the painted run mounted when its semantic state changes, so its tint can settle.
+  return decision === undefined ? (
+    deletion
+  ) : (
+    <span className={cn("tracked-del", className)}>
+      {decision === "rejected" ? text : deletion}
+    </span>
+  );
 }
 
 /** An inserted run, spoken as an insertion. */
-export function Inserted({ text, className }: { text: string; className?: string | undefined }) {
-  return (
+export function Inserted({
+  text,
+  className,
+  decision,
+}: {
+  text: string;
+  className?: string | undefined;
+  decision?: Decision;
+}) {
+  const insertion = (
     <ins className={cn("tracked-ins", className)}>
       <span className="sr-only">inserted: </span>
       {text}
     </ins>
+  );
+  return decision === undefined ? (
+    insertion
+  ) : (
+    <span className={cn("tracked-ins", className)}>
+      {decision === "rejected" ? text : insertion}
+    </span>
   );
 }
 
@@ -173,6 +204,7 @@ export function ChangeRuns({
   children?: ReactNode;
 }) {
   const pure = isPureInsertion(change.runs);
+  const rejected = decision === "rejected";
   const longRemoved = change.find.length > 160 || /[\r\n]/.test(change.find);
   return (
     // biome-ignore lint/a11y/useSemanticElements: a change inside running text; a fieldset would break the line.
@@ -185,32 +217,34 @@ export function ChangeRuns({
       data-decision={decision}
       data-pure={pure ? "" : undefined}
       className={cn(
-        "change-mark change-arrive group/change my-3 block border-rush border-b pb-2 pl-3",
+        "change-mark change-arrive group/change my-3 block border-rush border-y py-2.5 pl-3",
       )}
     >
       {change.find !== "" && (
-        <span className={cn(PASSAGE_FACE, "block font-normal font-sans tracking-normal")}>
-          <span className={cn(COMPACT_LABEL, "mb-1 block")}>Removed</span>
+        <span className="block font-normal font-sans text-turn tracking-normal">
+          <span className={cn(COMPACT_LABEL, "mb-1 block")}>{rejected ? "Kept" : "Removed"}</span>
           {longRemoved ? (
             <details className="disclosure group/removed">
               <summary className={cn(SUMMARY_LINE, "flex min-w-0 gap-2 text-turn")}>
                 <span className="min-w-0 flex-1 truncate group-open/removed:hidden">
-                  <Deleted text={change.find} />
+                  <Deleted text={change.find} decision={decision} />
                 </span>
                 <DisclosureChevron />
-                <span className="shrink-0">Show removed</span>
+                <span className="shrink-0">{rejected ? "Show kept" : "Show removed"}</span>
               </summary>
-              <Deleted text={change.find} />
+              <Deleted text={change.find} decision={decision} />
             </details>
           ) : (
-            <Deleted text={change.find} />
+            <Deleted text={change.find} decision={decision} />
           )}
         </span>
       )}
       {change.replace !== "" && (
-        <span className={cn(PASSAGE_FACE, "mt-2 block font-normal font-sans tracking-normal")}>
-          <span className={cn(COMPACT_LABEL, "mb-1 block")}>Proposed</span>
-          <Inserted text={change.replace} />
+        <span className="mt-2 block font-normal font-sans text-turn tracking-normal">
+          <span className={cn(COMPACT_LABEL, "mb-1 block")}>
+            {rejected ? (pure ? "Not added" : "Rejected") : "Proposed"}
+          </span>
+          <Inserted text={change.replace} decision={decision} />
         </span>
       )}
       {children}

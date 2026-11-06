@@ -35,7 +35,7 @@ export function MoreButton({
     >
       <span
         className={cn(
-          "grid place-items-center rounded-sm border border-rush bg-surface transition-colors duration-(--duration-quick) ease-fade group-hover/more:bg-surface-hover group-data-popup-open/more:bg-surface-hover",
+          "grid place-items-center rounded-sm border border-rush bg-surface transition-colors duration-(--duration-tint-quick) ease-fade group-hover/more:bg-surface-hover group-data-popup-open/more:bg-surface-hover",
           mark === undefined ? "h-6 w-7" : "size-8",
         )}
       >
@@ -43,7 +43,7 @@ export function MoreButton({
       </span>
       {/* Beside the plate, never on it: the mark stays alone in its frame. */}
       {cue !== undefined && (
-        <span className="-ml-1 text-reed transition-colors duration-(--duration-quick) ease-fade group-hover/more:text-ink">
+        <span className="-ml-1 text-reed transition-colors duration-(--duration-tint-quick) ease-fade group-hover/more:text-ink">
           {cue}
         </span>
       )}

@@ -73,8 +73,8 @@ export function SheetActions({
   cannotDelete?: string;
   locked?: boolean;
   /**
-   * On phones, a header action that shows only as its glyph there, given
-   * again first in this sheet under its name (AI Rework).
+   * On phones, a header action also offered first in this sheet under
+   * its name (AI Rework).
    */
   phoneLead?: {
     label: string;

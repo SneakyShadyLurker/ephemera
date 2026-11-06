@@ -13,7 +13,7 @@ import { SCROLL_GUTTERS } from "@/app/Screen.tsx";
 import { MoreIcon } from "@/components/icons";
 import { ConfirmDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron, SUMMARY_LINE, Unfold } from "@/components/ui/disclosure";
+import { Unfold } from "@/components/ui/disclosure";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
@@ -51,7 +51,7 @@ import { type OpenEpisode, reloadMemory, useEpisodeEditor } from "./EpisodeEdito
 import { EpisodeList } from "./EpisodeList.tsx";
 import { MemoryFailureAction } from "./FailureAction.tsx";
 import { failureNote } from "./failure.ts";
-import { MEMORY_KEPT, MemorySwitch } from "./MemorySection.tsx";
+import { MemorySwitch } from "./MemorySection.tsx";
 import { countsText, rememberable, rememberNowHeld, rowAfterDelete } from "./memory.ts";
 import { NotebookEditor, useNotebook } from "./Notebook.tsx";
 import { forgetMemory, MEMORY_KEY, memoryQuery, refreshMemory } from "./queries.ts";
@@ -271,9 +271,6 @@ function MemoryFrame({
   );
 }
 
-/** What turning memory off does, and what it keeps, after the line that says it is on. */
-const MEMORY_DETAIL = `Turned off, saved memories stay. ${MEMORY_KEPT}`;
-
 /** "What Mira remembers", set as the character's name is in the story, with its rule to the edge. */
 function Heading({ id, name, children }: { id: string; name: string; children?: ReactNode }) {
   const chosen = useSetting((settings) => settings.characterId) === id;
@@ -358,7 +355,6 @@ function Book({
   // Off, the notebook stays only while its edits are on their way or could not be saved.
   const holding = notebook !== null && notebook.status.kind !== "saved";
   const [now] = useState(Date.now);
-  const phone = useFormFactor() === "phone";
   return (
     <MemoryFrame
       id={id}
@@ -394,30 +390,10 @@ function Book({
               id={id}
               name={name}
               state={memory.state}
-              description={
-                phone
-                  ? on
-                    ? `On: ${name} remembers every chat as it grows.`
-                    : "Off: each chat is forgotten when it ends."
-                  : on
-                    ? `On: ${name} remembers every chat as it grows. ${MEMORY_DETAIL}`
-                    : MEMORY_KEPT
-              }
+              presentation="screen"
               beforeOff={saveNotebook}
               onTurningOff={setClosing}
             />
-            {/* Phones keep the switch and its one line; the rest waits a tap away, so the notes start higher. */}
-            {phone && (
-              <details className="disclosure mt-1">
-                <summary className={SUMMARY_LINE}>
-                  What memory keeps
-                  <DisclosureChevron />
-                </summary>
-                <p className="text-pretty pt-1 pb-1 text-reed text-ui">
-                  {on ? MEMORY_DETAIL : MEMORY_KEPT}
-                </p>
-              </details>
-            )}
           </div>
           <Unfold show={!on && memory.episodes.length > 0}>
             <p className="max-w-help pt-5 text-reed text-ui">

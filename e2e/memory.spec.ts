@@ -151,6 +151,75 @@ async function expectOpening(page: Page, persona: string) {
 
 const episodeEditor = (page: Page) => page.getByRole("dialog", { name: "Edit the memory" });
 
+test.describe("memory help on touch", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test("the closed disclosure has a 44px target and never toggles its adjacent switch", async ({
+    page,
+    request,
+  }) => {
+    const id = await createCharacterViaApi(request, uniqueName("Touch memory"));
+    await page.goto(`/characters/${id}`);
+    const section = page.locator("#s-memory");
+    const summary = section.locator("summary");
+    await summary.scrollIntoViewIfNeeded();
+    expect((await summary.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await summary.tap();
+    await expect(section.locator("details")).toHaveAttribute("open");
+    await expect(section.getByRole("switch")).toBeChecked();
+  });
+});
+
+for (const width of [390, 820, 1440]) {
+  test(`memory explains its immediate consequence and folds adjacent help at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const name = uniqueName("Memory help");
+    const id = await createCharacterViaApi(request, name);
+    await page.goto(`/characters/${id}`);
+    const section = page.locator("#s-memory");
+    const remember = section.getByRole("switch", { name: "Remember the story" });
+    await expect(remember).toHaveAccessibleDescription(
+      `On: ${name} remembers every chat as it grows.`,
+    );
+    const detail = section.locator("details");
+    await expect(detail).not.toHaveAttribute("open");
+    await detail.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(detail).toHaveAttribute("open");
+    await expect(detail).toContainText("Turned off, saved memories stay.");
+    await expect(remember).toBeChecked();
+    await remember.click();
+    await expect(remember).not.toBeChecked();
+    await expect(remember).toHaveAccessibleDescription("Off: each chat is forgotten when it ends.");
+    await expect(detail).not.toContainText("Turned off, saved memories stay.");
+    await expect(detail).toContainText("Duplicate the character for independent memory.");
+    await expect(section.getByRole("link", { name: "Open memory" })).toHaveCount(0);
+    await page.goto(`/characters/${id}/memory`);
+    const screenSwitch = page.getByRole("switch", { name: "Remember the story" });
+    await expect(screenSwitch).toHaveAccessibleDescription(
+      "Off: each chat is forgotten when it ends.",
+    );
+    const explanation = page
+      .locator("details")
+      .filter({ has: page.locator("summary", { hasText: "What memory keeps" }) });
+    await expect(explanation).toHaveCount(width === 390 ? 1 : 0);
+    if (width === 390) await expect(explanation).not.toHaveAttribute("open");
+    else
+      await expect(
+        page.getByText("Memories are kept with the character, encrypted like its card.", {
+          exact: false,
+        }),
+      ).toBeVisible();
+    await page.goto("/characters/new");
+    const unsaved = page.locator("#s-memory");
+    await expect(unsaved).toContainText("is saved and stays on unless you turn it off here.");
+    await expect(unsaved.locator("details")).not.toHaveAttribute("open");
+    await expect(unsaved.locator("details")).toContainText("The chat itself is never kept.");
+  });
+}
+
 test("turning memory off in the sheet unfolds the chat and stops its injection and writes", async ({
   page,
   request,
@@ -166,8 +235,11 @@ test("turning memory off in the sheet unfolds the chat and stops its injection a
   const section = page.locator("#s-memory");
   const remember = section.getByRole("switch", { name: "Remember the story" });
   await expect(remember).toBeChecked();
+  await expect(section.locator("details")).not.toHaveAttribute("open");
   await remember.click();
   await expect(remember).not.toBeChecked();
+  await expect(section.getByRole("link", { name: "Open memory" })).toBeVisible();
+  await expect(section).toContainText("Kept while memory is off.");
   await expect
     .poll(async () => (await storedMemory(request, characterId)).state?.enabled)
     .toBe(false);

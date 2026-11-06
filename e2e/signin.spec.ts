@@ -11,6 +11,7 @@ import {
   createCharacterViaApi,
   expectNoOverflow,
   FORM_FACTORS,
+  patchSettings,
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { APP_ORIGIN, CANARY_MARKER, canary } from "./support/env.ts";
@@ -23,6 +24,42 @@ import { expect, test } from "./support/test.ts";
  */
 
 test.describe("sign-in expiry", () => {
+  test("new-chat arrival drops during sign-in and preserves renewal's own focus return", async ({
+    page,
+    context,
+    request,
+  }) => {
+    const name = `Signed-out arrival ${crypto.randomUUID().slice(0, 6)}`;
+    await createCharacterViaApi(request, name, { firstMessage: "The lamp waits." });
+    await patchSettings(request, { model: "mock-fast", characterId: null });
+    await page.goto("/characters");
+    // Let the gallery's mounted refresh and code preloads finish before expiring the session.
+    await page.waitForLoadState("networkidle");
+    const composerFocus = await page.evaluateHandle(() => {
+      const calls: { preventScroll: boolean }[] = [];
+      const focus = HTMLElement.prototype.focus;
+      HTMLElement.prototype.focus = function (options) {
+        if (this.matches("textarea[data-composer]"))
+          calls.push({ preventScroll: options?.preventScroll === true });
+        focus.call(this, options);
+      };
+      return calls;
+    });
+    await expire(context);
+    await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).click();
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    await expect(notice(page)).toContainText("Your sign-in has expired");
+    await expect(message).toBeVisible();
+    await expect(message).not.toBeFocused();
+    expect(await composerFocus.evaluate((calls) => calls)).toEqual([]);
+    await signInThroughPortal(page, context);
+    await expect(notice(page)).toContainText("Signed in again");
+    // SignInDock's existing bare focus() is legitimate restoration, not the arrival's preventScroll attempt.
+    await expect(message).toBeFocused();
+    expect(await composerFocus.evaluate((calls) => calls)).toEqual([{ preventScroll: false }]);
+    await expect(notice(page)).toHaveCount(0, { timeout: 15_000 });
+    expect(await composerFocus.evaluate((calls) => calls)).toEqual([{ preventScroll: false }]);
+  });
   test("expiry mid-send keeps the chat and stores nothing", async ({ page, context }) => {
     await openChat(page, "mock-fast");
     const start = page.url();
@@ -37,7 +74,10 @@ test.describe("sign-in expiry", () => {
     const line = canary("in");
     await send(page, line);
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
-    await expect(lastReply(page)).toContainText("Not sent yet: waiting for you to sign in.");
+    await expect(lastReply(page)).toContainText("Not sent yet.");
+    await expect(lastReply(page)).not.toContainText("sign in");
+    await expect(lastReply(page).locator(".caret, .lamplight-edge")).toHaveCount(0);
+    await expect(notice(page)).toHaveCount(1);
     await expect(notice(page)).toContainText("Your sign-in has expired");
     await expect(notice(page)).toContainText("Your message is kept");
     // The owner keeps writing; nothing more can be sent until the session is back.
@@ -206,15 +246,20 @@ test.describe("sign-in expiry", () => {
     expect(console.join("\n")).not.toContain("Inspector-");
   });
 
-  test("a screen whose code cannot load says so and never reloads the tab", async ({
+  test("a failed screen returns to the story and reloads only with the owner's guarded action", async ({
     page,
     context,
   }) => {
     // Hashed chunk names change with every build: the Settings screen's is the one with its copy.
+    let blockChunk = true;
+    let failedFetches = 0;
     await context.route(`${APP_ORIGIN}/assets/settings-*.js`, async (route) => {
       const response = await route.fetch();
       const body = await response.text();
-      if (body.includes("Starting a chat")) return route.abort();
+      if (blockChunk && body.includes("Starting a chat")) {
+        failedFetches++;
+        return route.abort();
+      }
       return route.fulfill({ response, body });
     });
     await openChat(page, "mock-fast");
@@ -222,23 +267,46 @@ test.describe("sign-in expiry", () => {
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await page.evaluate(() => Object.assign(window, { kept: true }));
     let dialogs = 0;
+    let allowReload = false;
     page.on("dialog", (dialog) => {
       dialogs++;
-      void dialog.dismiss();
+      expect(dialog.type()).toBe("beforeunload");
+      void (allowReload ? dialog.accept() : dialog.dismiss());
     });
     const main = page.getByRole("navigation", { name: "Main" });
     await main.getByRole("link", { name: "Settings" }).click();
     // The browser keeps a failed module fetch until a reload, so nothing offers a futile retry.
     await expect(page.getByRole("alert")).toContainText(
-      "a reload brings the screen back and ends the chat",
+      "Its code did not arrive, and only a reload brings it back. Your chat is still here.",
     );
     await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
     await expect(main).toBeVisible();
     expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBe(true);
     expect(await page.evaluate(() => sessionStorage.length)).toBe(0);
     expect(dialogs).toBe(0);
-    await main.getByRole("link", { name: "Chat" }).click();
+    const fetchesBeforeRecovery = failedFetches;
+    await page.getByRole("link", { name: "Back to the story" }).click();
     await expect(turns(page)).toHaveCount(2);
+    expect(dialogs).toBe(0);
+    await main.getByRole("link", { name: "Settings" }).click();
+    const reload = page.getByRole("button", { name: "Reload and end the chat" });
+    await expect(reload).toBeVisible();
+    expect(failedFetches).toBe(fetchesBeforeRecovery);
+    // Cancelling the existing unload guard keeps the tab and its chat untouched.
+    await reload.click();
+    await expect.poll(() => dialogs).toBe(1);
+    expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBe(true);
+    await page.getByRole("link", { name: "Back to the story" }).click();
+    await expect(turns(page)).toHaveCount(2);
+    await main.getByRole("link", { name: "Settings" }).click();
+    blockChunk = false;
+    allowReload = true;
+    await reload.click();
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+    expect(dialogs).toBe(2);
+    expect(await page.evaluate(() => (window as { kept?: boolean }).kept)).toBeUndefined();
+    await main.getByRole("link", { name: "Chat" }).click();
+    await expect(turns(page)).toHaveCount(0);
   });
 
   test("a tab from an earlier build offers a reload and keeps the chat", async ({
@@ -353,9 +421,39 @@ test.describe("sign-in expiry", () => {
   test("a retry refused again says so and never loops", async ({ page, context }) => {
     await page.clock.install();
     await openChat(page, "mock-fast");
+    const line = canary("in");
+    const message = page.getByLabel("Message", { exact: true });
+    // Retain only public request paths and draft matches, never HTTP headers or bodies.
+    const requests: { path: string; draftMatches: boolean }[] = [];
+    const diagnostic = (phase: string, details: Record<string, number> = {}) =>
+      test.info().attach(`signin-retry-${phase}`, {
+        body: JSON.stringify({ phase, ...details, requests }),
+        contentType: "application/json",
+      });
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path === "/api/chat" || path === "/api/chat/preview")
+        requests.push({
+          path,
+          draftMatches: (request.postData() ?? "").includes(line),
+        });
+    });
+    const previewed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/chat/preview" &&
+        (response.request().postData() ?? "").includes(line) &&
+        response.ok(),
+    );
+    // Prepare the draft while signed in so the first refusal belongs to Send, not preview.
+    await message.fill(line);
+    const preview = await previewed;
+    await diagnostic("authenticated-preview", { status: preview.status() });
     const routes = await expire(context);
-    await send(page, canary("in"));
+    await diagnostic("expiry-installed");
+    await message.press("Enter");
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+    expect(routes.chat()).toBe(1);
+    await diagnostic("first-refusal-waiting", { refusedChats: routes.chat() });
     // A renewal is announced, as the tab's own user, but the session is still gone (another
     // window's sign-in failed).
     await page.evaluate(() =>
@@ -366,12 +464,15 @@ test.describe("sign-in expiry", () => {
     );
     await expect(notice(page)).toContainText("Still signed out");
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+    await diagnostic("second-refusal-waiting", { refusedChats: routes.chat() });
     // One attempt, one retry after the announcement, and nothing on its own after that,
     // past the longest a renewal waits (RENEWAL_PASS_MS, 15 s).
     await page.clock.runFor(16_000);
     expect(routes.chat()).toBe(2);
+    await diagnostic("after-16000ms", { refusedChats: routes.chat() });
     await signInThroughPortal(page, context);
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    await diagnostic("actual-signin-complete", { refusedChats: routes.chat() });
   });
 
   test("sheet edits made while signed out are saved once the session is back", async ({
@@ -433,6 +534,9 @@ for (const { name, width, height, scheme } of FORM_FACTORS) {
     await expire(context);
     await send(page, canary("in"));
     await expect(notice(page)).toContainText("Your sign-in has expired");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
+    await expect(lastReply(page)).toContainText("Not sent yet.");
+    await expect(notice(page)).toHaveCount(1);
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
     // Reachable by keyboard, between the thread and the composer.

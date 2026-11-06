@@ -1,4 +1,5 @@
 import { HIGHLIGHT_TONES, THOUGHT_MARK } from "@ephemera/core";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { cn } from "@/lib/cn";
 import { CardProse } from "../creator/CardLayout.tsx";
 import { GROUP_HEADING, HELP } from "../sheet/fields.ts";
@@ -70,5 +71,24 @@ export function FormattingKey({ placement }: { placement: "aside" | "section" })
       </section>
     );
   }
-  return help;
+  return (
+    <>
+      <p className={HELP}>
+        What the chat draws in a reply. Ask for the marks you want in any block, such as Formatting.
+      </p>
+      <details className="disclosure">
+        <summary className={SUMMARY_LINE}>
+          Show the marks
+          <DisclosureChevron />
+        </summary>
+        <div className="grid gap-4 pt-2">
+          {marks}
+          <p className={HELP}>
+            Marks touch their words: <code className={MARK}>*smiles*</code>, never{" "}
+            <code className={MARK}>* smiles *</code>.
+          </p>
+        </div>
+      </details>
+    </>
+  );
 }

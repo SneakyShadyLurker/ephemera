@@ -17,12 +17,12 @@ import { EXPLANATION, FIELD_LABEL, SECTION_HEADING } from "@/sheet/fields.ts";
 export const HINT = EXPLANATION;
 
 /**
- * A Settings panel's actions (Save, Cancel), stuck to the bottom of the
- * scroller on phones above the home indicator, in the flow from tablets on.
- * The panel pads 1rem, which the footer spans.
+ * A Settings panel's actions, in the flow at its end on every screen.
+ * An optional leading action stays at the start; Cancel and the primary
+ * share PANEL_COMMIT at the end, wrapping together below it at narrow widths.
  */
-export const PANEL_FOOTER =
-  "sticky bottom-0 -mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-rush border-t bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] tablet:static tablet:mx-0 tablet:mb-0 tablet:border-0 tablet:bg-transparent tablet:p-0";
+export const PANEL_FOOTER = "flex flex-wrap items-center gap-2";
+export const PANEL_COMMIT = "ms-auto flex shrink-0 items-center gap-2";
 
 /** Where a row's control sits: see the row grammar above. */
 type RowControl = "single" | "choices" | "panel";

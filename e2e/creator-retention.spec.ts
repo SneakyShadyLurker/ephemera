@@ -277,7 +277,7 @@ matrixRow(
     // The classifier and the list each got the request.
     expect(await upstreamRecords(mark(base, "ask"))).toHaveLength(2);
     await feedback.fill(`Make them darker. ${mark(base, "tune")}`);
-    await page.getByRole("button", { name: BRAINSTORM_COPY.more }).click();
+    await page.getByRole("button", { name: "Send adjustment", exact: true }).first().click();
     await expect(rows.first()).toContainText(brainstormIdea("scenario", base, 2, 1).pitch);
     await expect(complete).toBeVisible();
     // A brainstorm call is recorded by its request; the feedback follows in its messages.

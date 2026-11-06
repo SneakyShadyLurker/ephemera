@@ -22,16 +22,18 @@ import {
   turns,
 } from "./support/chat.ts";
 import { createCard, KEEP_WITHOUT_PORTRAIT } from "./support/creator.ts";
-import { cardName, keptBase, ownerDescription } from "./support/creator-fixtures.ts";
+import { cardName, keptBase, ownerDescription, portraitPng } from "./support/creator-fixtures.ts";
 import {
   closeSession,
   createCharacterViaApi,
   createLorebookViaApi,
+  createPersonaViaApi,
   expectNoOverflow,
   FORM_FACTORS,
   linkLorebookViaApi,
   loreEntry,
   openSession,
+  patchSettings,
   seriousAxeViolations,
   setLorebookViaApi,
   setPortraitViaApi,
@@ -40,6 +42,491 @@ import {
 import { canary } from "./support/env.ts";
 import { illustrationFile } from "./support/illustration.ts";
 import { expect, test } from "./support/test.ts";
+
+/** Ordinary resting settlement, without revealing a target or writing scroll state. */
+async function settleReading(page: Page) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await Promise.all([...document.images].map((image) => image.decode().catch(() => {})));
+    const started = performance.now();
+    let changed = started;
+    let previous = "";
+    await new Promise<void>((resolve) => {
+      const sample = () => {
+        const node = document.querySelector('[role="log"] > div');
+        const state = node ? `${node.scrollTop}|${node.scrollHeight}|${node.clientHeight}` : "";
+        const moving = document
+          .getAnimations()
+          .some(
+            (animation) =>
+              animation.playState === "running" &&
+              animation.effect?.getComputedTiming().iterations !== Infinity &&
+              animation.timeline === document.timeline,
+          );
+        if (state !== previous || moving) changed = performance.now();
+        previous = state;
+        if (performance.now() - changed >= 400 || performance.now() - started > 6000) resolve();
+        else requestAnimationFrame(sample);
+      };
+      sample();
+    });
+  });
+}
+
+test.describe("public phone send arrival", () => {
+  test.use({ hasTouch: true });
+  for (const width of [390, 360]) {
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      for (const submission of ["tap", "Enter"] as const) {
+        test(`T1 resting tail ${width}/${reducedMotion}/${submission}`, async ({
+          page,
+          request,
+        }) => {
+          await page.setViewportSize({ width, height: width === 390 ? 844 : 780 });
+          await page.emulateMedia({ reducedMotion });
+          // T1's original character, greeting and first public input. No chat state injection.
+          const name = "Maren Holt";
+          const id = await createCharacterViaApi(request, name, {
+            description:
+              "Maren Holt is a 38-year-old archivist who keeps the harbour records in a slate town on the northern coast. She is patient, dry-humoured and exact, and she has worked the reading room for twelve years. Her younger colleague, Elin Varga, runs the map room next door.",
+            firstMessage:
+              '*The reading room smells of salt and old paper. Maren looks up from the ledger and sets her pencil down.*\n\n"You\'re late for the tide tables," she says, not unkindly. "Sit. The lamp is warm and the kettle is nearly there."',
+            tags: ["drama", "slice of life", "coastal"],
+          });
+          await setPortraitViaApi(request, id, portraitPng("Maren"));
+          await patchSettings(request, {
+            characterId: null,
+            model: "mock-fast",
+            castModel: "mock-cast",
+          });
+          await page.goto("/characters");
+          await page.getByRole("button", { name: `Chat with ${name}`, exact: true }).tap();
+          await expect(messages(page)).toHaveCount(1);
+          await settleReading(page);
+          const view = scroller(page);
+          const trace = await view.evaluate((node) => {
+            const samples: unknown[] = [];
+            const read = (kind: string, detail?: unknown) => {
+              if (samples.length >= 800) return;
+              const rect = node.getBoundingClientRect();
+              const actions = node.querySelector("[data-reply-actions]")?.getBoundingClientRect();
+              samples.push({
+                kind,
+                detail,
+                at: performance.now(),
+                top: node.scrollTop,
+                height: node.scrollHeight,
+                client: node.clientHeight,
+                contentHeight: node.firstElementChild?.getBoundingClientRect().height,
+                turns: [...node.querySelectorAll<HTMLElement>("[data-message]")].map((turn) => ({
+                  height: turn.offsetHeight,
+                  top: turn.offsetTop,
+                  rect: turn.getBoundingClientRect().toJSON(),
+                  translate: getComputedStyle(turn).translate,
+                })),
+                anchor: getComputedStyle(node).overflowAnchor,
+                view: { top: rect.top, bottom: rect.bottom },
+                actions: actions && { top: actions.top, bottom: actions.bottom },
+                focus:
+                  document.activeElement?.getAttribute("aria-label") ??
+                  document.activeElement?.tagName,
+              });
+            };
+            const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+            if (!descriptor?.get || !descriptor.set) throw new Error("Missing native scrollTop");
+            Object.defineProperty(node, "scrollTop", {
+              configurable: true,
+              get: () => descriptor.get?.call(node),
+              set: (top: number) => {
+                read("write", { top, stack: new Error().stack?.split("\n").slice(1, 6) });
+                descriptor.set?.call(node, top);
+                read("written", { requested: top });
+              },
+            });
+            const focus = HTMLElement.prototype.focus;
+            const reveal = Element.prototype.scrollIntoView;
+            const scroll = Element.prototype.scrollTo;
+            const targetOf = (element: Element) => ({
+              tag: element.tagName,
+              name: element.getAttribute("aria-label") ?? element.textContent?.trim().slice(0, 40),
+            });
+            HTMLElement.prototype.focus = function (options) {
+              read("focus-call", {
+                target: targetOf(this),
+                options,
+                stack: new Error().stack?.split("\n").slice(1, 6),
+              });
+              focus.call(this, options);
+            };
+            Element.prototype.scrollIntoView = function (options) {
+              read("reveal-call", {
+                target: targetOf(this),
+                options,
+                stack: new Error().stack?.split("\n").slice(1, 6),
+              });
+              reveal.call(this, options);
+            };
+            Element.prototype.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
+              read("scroll-call", {
+                target: targetOf(this),
+                options,
+                y,
+                stack: new Error().stack?.split("\n").slice(1, 6),
+              });
+              Reflect.apply(
+                scroll,
+                this,
+                typeof options === "number" ? [options, y ?? 0] : [options],
+              );
+            };
+            const input = (event: Event) =>
+              read(event.type, {
+                trusted: event.isTrusted,
+                target: (event.target as Element)?.getAttribute?.("aria-label"),
+              });
+            const events = [
+              "scroll",
+              "wheel",
+              "touchstart",
+              "touchmove",
+              "pointerdown",
+              "keydown",
+              "focusin",
+              "click",
+            ];
+            for (const event of events) document.addEventListener(event, input, true);
+            const resize = new ResizeObserver(() => read("resize"));
+            resize.observe(node);
+            if (node.firstElementChild) resize.observe(node.firstElementChild);
+            const style = new MutationObserver(() => read("intent/style"));
+            style.observe(node, { attributes: true, attributeFilter: ["style"] });
+            const content = new MutationObserver(() => read("content:mutation"));
+            content.observe(node, { childList: true, characterData: true, subtree: true });
+            let frame = 0;
+            const sample = () => {
+              read("frame");
+              frame = requestAnimationFrame(sample);
+            };
+            frame = requestAnimationFrame(sample);
+            const stop = () => {
+              read("final");
+              cancelAnimationFrame(frame);
+              resize.disconnect();
+              style.disconnect();
+              content.disconnect();
+              for (const event of events) document.removeEventListener(event, input, true);
+              Reflect.deleteProperty(node, "scrollTop");
+              HTMLElement.prototype.focus = focus;
+              Element.prototype.scrollIntoView = reveal;
+              Element.prototype.scrollTo = scroll;
+              return samples;
+            };
+            const key = `tailTrace${Math.random()}`;
+            Reflect.set(window, key, stop);
+            read("initial");
+            return key;
+          });
+          try {
+            const field = page.getByLabel("Message", { exact: true });
+            await field.tap();
+            await field.fill(
+              '*I hang my wet coat by the door.* "Sorry. The ferry was slow. What are we looking for tonight?"',
+            );
+            if (submission === "tap") {
+              const target = page.getByRole("button", { name: "Send", exact: true });
+              // Match the harness's conditional target reveal, including its potential scroll input.
+              const outside = await target.evaluate((element) => {
+                const box = element.getBoundingClientRect();
+                if (box.top < 0 || box.bottom > innerHeight) return true;
+                for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                  if (!/(auto|scroll|hidden|clip)/.test(getComputedStyle(parent).overflowY))
+                    continue;
+                  const clip = parent.getBoundingClientRect();
+                  if (box.top < clip.top - 1 || box.bottom > clip.bottom + 1) return true;
+                }
+                return false;
+              });
+              process.stdout.write(
+                `B Send target reveal ${JSON.stringify({ width, reducedMotion, outside })}\n`,
+              );
+              if (outside) await target.scrollIntoViewIfNeeded();
+              await target.tap();
+            } else await field.press("Enter");
+            await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+            await expect(messages(page)).toHaveCount(3);
+            await settleReading(page);
+            const geometry = await view.evaluate((node) => ({
+              top: node.scrollTop,
+              height: node.scrollHeight,
+              client: node.clientHeight,
+              gap: node.scrollHeight - node.clientHeight - node.scrollTop,
+              actions: node.querySelector("[data-reply-actions]")?.getBoundingClientRect().toJSON(),
+              viewport: node.getBoundingClientRect().toJSON(),
+              focus: document.activeElement?.getAttribute("aria-label"),
+            }));
+            process.stdout.write(
+              `B T1 geometry ${JSON.stringify({ width, reducedMotion, submission, ...geometry })}\n`,
+            );
+            await test.info().attach("T1-resting.png", {
+              body: await page.screenshot(),
+              contentType: "image/png",
+            });
+            expect(geometry.gap).toBeLessThanOrEqual(0.5);
+            await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+            await expect(field).toBeFocused();
+          } finally {
+            const samples = await page.evaluate((key) => {
+              const stop = Reflect.get(window, key) as (() => unknown[]) | undefined;
+              Reflect.deleteProperty(window, key);
+              return stop?.();
+            }, trace);
+            await test.info().attach("T1-scroll-trace.json", {
+              body: JSON.stringify(samples, null, 2),
+              contentType: "application/json",
+            });
+            process.stdout.write(
+              `T1 scroll evidence ${JSON.stringify({ width, reducedMotion, submission, samples })}\n`,
+            );
+          }
+        });
+      }
+    }
+  }
+});
+
+for (const size of [
+  { width: 390, height: 844 },
+  { width: 820, height: 1180 },
+  { width: 1440, height: 900 },
+  { width: 2560, height: 1440 },
+  { width: 3840, height: 2160 },
+]) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`bounded script alignment ${size.width}/${theme}`, async ({ page, request }) => {
+      await page.setViewportSize(size);
+      const id = await createCharacterViaApi(request, uniqueName("Bounded"), {
+        firstMessage: "The lamp lights the quay.",
+      });
+      await setPortraitViaApi(request, id, portraitPng("Bounded"));
+      await patchSettings(request, { characterId: id, model: "mock-fast", theme });
+      await page.goto("/");
+      await send(page, "Keep both voices together.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      const toggle = page.getByRole("button", { name: "Session", exact: true });
+      for (const docked of size.width >= 1440 ? [false, true] : [false]) {
+        if (((await toggle.getAttribute("aria-pressed")) === "true") !== docked)
+          await toggle.click();
+        if (docked) await expect(page.locator("[data-session-dock]")).toBeVisible();
+        else await expect(page.locator("[data-session-dock]")).toHaveCount(0);
+        await settleReading(page);
+        const frames = await page.evaluate(() => {
+          const root = document.documentElement;
+          const rem = Number.parseFloat(getComputedStyle(root).fontSize);
+          const token = (name: string) =>
+            Number.parseFloat(getComputedStyle(root).getPropertyValue(name)) * rem;
+          const cap = [
+            "--container-portrait",
+            "--gap-presence",
+            "--container-story",
+            "--inset-story-start",
+            "--inset-story-end",
+          ].reduce((sum, name) => sum + token(name), 0);
+          const column = document.querySelector("main")?.getBoundingClientRect();
+          const frameNodes = [
+            ...document.querySelectorAll<HTMLElement>('[class*="max-w-(--container-script)"]'),
+          ];
+          return {
+            rem,
+            cap,
+            column: column?.toJSON(),
+            frames: frameNodes.map((node) => {
+              const rect = node.getBoundingClientRect();
+              const parent = node.parentElement?.getBoundingClientRect();
+              return {
+                tag: node.tagName,
+                left: rect.left,
+                right: rect.right,
+                width: rect.width,
+                parentLeft: parent?.left ?? 0,
+                parentRight: parent?.right ?? 0,
+                prose: [...node.querySelectorAll(".prose-turn")].map(
+                  (prose) => prose.getBoundingClientRect().width,
+                ),
+              };
+            }),
+            measure: token("--container-story"),
+          };
+        });
+        process.stdout.write(
+          `A frame geometry ${JSON.stringify({ size, theme, docked, ...frames })}\n`,
+        );
+        expect(frames.frames.length).toBeGreaterThanOrEqual(3);
+        const reference = frames.frames[0];
+        for (const frame of frames.frames) {
+          expect(frame.width).toBeLessThanOrEqual(frames.cap + 1);
+          expect(frame.left).toBeCloseTo(reference?.left ?? NaN, 0);
+          expect(frame.right).toBeCloseTo(reference?.right ?? NaN, 0);
+          expect(frame.left - frame.parentLeft).toBeCloseTo(frame.parentRight - frame.right, 0);
+          for (const prose of frame.prose) expect(prose).toBeLessThanOrEqual(frames.measure + 1);
+        }
+        if (size.width >= 2560) expect(reference?.width).toBeCloseTo(frames.cap, 0);
+        await expectNoOverflow(page);
+      }
+    });
+  }
+}
+
+for (const hasTouch of [false, true]) {
+  test.describe(`two-line tile captions touch=${hasTouch}`, () => {
+    test.use({ hasTouch });
+    for (const width of [360, 390]) {
+      test(`gallery captions reserve equal rows ${width}`, async ({ page, request }) => {
+        await page.setViewportSize({ width, height: 844 });
+        const names = [
+          "A long northern harbour character name",
+          "A long northern harbour character twin",
+        ];
+        for (const [at, name] of names.entries())
+          await createCharacterViaApi(request, name, {
+            tags: at === 0 ? ["drama", "slice of life", "comedy"] : [],
+          });
+        await page.goto("/characters");
+        const rows = [];
+        for (const name of names) {
+          const chat = page.getByRole("button", { name: `Chat with ${name}`, exact: true });
+          const edit = page.getByRole("link", { name: `Edit ${name}`, exact: true });
+          await expect(chat).toHaveAccessibleDescription(
+            name === names[0] ? "drama, slice of life, comedy" : "",
+          );
+          const geometry = await chat.evaluate((node) => {
+            const caption = document.getElementById(node.getAttribute("aria-describedby") ?? "");
+            const row = caption?.parentElement;
+            const style = caption && getComputedStyle(caption);
+            return {
+              chat: node.getBoundingClientRect().toJSON(),
+              row: row?.getBoundingClientRect().toJSON(),
+              caption: caption?.getBoundingClientRect().toJSON(),
+              line: Number.parseFloat(style?.lineHeight ?? "0"),
+              clamp: style?.webkitLineClamp,
+            };
+          });
+          expect(geometry.clamp).toBe("2");
+          expect(geometry.row?.height).toBeGreaterThanOrEqual(2 * geometry.line);
+          const editBox = await edit.boundingBox();
+          expect(editBox?.width).toBe(hasTouch ? 44 : 32);
+          expect(editBox?.height).toBe(hasTouch ? 44 : 32);
+          expect(editBox?.y).toBeGreaterThanOrEqual(geometry.chat.bottom);
+          expect(geometry.caption?.right ?? Infinity).toBeLessThanOrEqual(editBox?.x ?? 0);
+          rows.push(geometry.row?.height);
+        }
+        expect(rows[0]).toBe(rows[1]);
+        const persona = "A long northern harbour persona name";
+        await createPersonaViaApi(request, persona);
+        await page.goto("/personas");
+        const link = page.getByRole("link", { name: persona, exact: true });
+        await expect(link).toBeVisible();
+        await expect(link).not.toHaveAttribute("aria-describedby");
+        const action = link.locator("xpath=..").getByRole("button", { name: "Make default" });
+        const nameBox = await link.locator("span").last().boundingBox();
+        expect((await action.boundingBox())?.y).toBeCloseTo(
+          (nameBox?.y ?? NaN) + (nameBox?.height ?? NaN),
+          0,
+        );
+        await expectNoOverflow(page);
+      });
+    }
+  });
+}
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`reply actions keep their origin and keyboard owner with 120 alternates (${reducedMotion})`, async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    await page.emulateMedia({ reducedMotion });
+    await openChat(page, "mock-fast");
+    await send(page, canary("stable-actions"));
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const widths = [360, 390, 820, 1440, 2560];
+    const origins = new Map<number, number[]>();
+    const geometry = async (width: number, count: number) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await settleReading(page);
+      const row = replyActions(page).locator(":scope > div");
+      const measured = await row.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          row: bounds.toJSON(),
+          buttons: [...element.querySelectorAll("button")].map((button) => ({
+            name: button.getAttribute("aria-label") ?? button.textContent?.trim(),
+            ...button.getBoundingClientRect().toJSON(),
+          })),
+          counter: element.querySelector("fieldset > span")?.getBoundingClientRect().width,
+        };
+      });
+      process.stdout.write(
+        `R8 reply geometry ${JSON.stringify({ width, count, reducedMotion, ...measured })}\n`,
+      );
+      expect(measured.row.height).toBe(44);
+      for (const button of measured.buttons) {
+        expect(button.width).toBeGreaterThanOrEqual(44);
+        expect(button.height).toBe(44);
+        expect(button.y).toBe(measured.buttons[0]?.y);
+        expect(button.right).toBeLessThanOrEqual(measured.row.right + 0.5);
+      }
+      const leading = measured.buttons.slice(0, 3).map((button) => button.x);
+      if (count === 1) origins.set(width, leading);
+      else expect(leading).toEqual(origins.get(width));
+      return measured;
+    };
+    for (const width of widths) await geometry(width, 1);
+    const newReply = () =>
+      replyActions(page).getByRole("button", { name: "New reply", exact: true });
+    await newReply().focus();
+    await page.keyboard.press("Enter");
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(newReply()).toBeFocused();
+    for (const width of widths) await geometry(width, 2);
+    const previous = replyActions(page).getByRole("button", { name: "Previous reply" });
+    const next = replyActions(page).getByRole("button", { name: "Next reply" });
+    await previous.focus();
+    await page.keyboard.press("Enter");
+    await expect(replyCounter(page)).toContainText("1 / 2");
+    await expect(previous).toBeFocused();
+    await expect(previous).toHaveAttribute("aria-disabled", "true");
+    await page.keyboard.press("Tab");
+    await expect(next).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(replyCounter(page)).toContainText("2 / 2");
+    await expect(next).toBeFocused();
+    await expect(next).toHaveAttribute("aria-disabled", "true");
+    for (let count = 3; count <= 120; count++) {
+      await newReply().click();
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expect(replyCounter(page)).toContainText(`${count} / ${count}`);
+      if (count === 12 || count === 120) {
+        for (const width of widths) await geometry(width, count);
+        const counter = replyCounter(page).locator(":scope > span");
+        const before = (await counter.boundingBox())?.width;
+        await previous.click();
+        await expect(replyCounter(page)).toContainText(`${count - 1} / ${count}`);
+        expect((await counter.boundingBox())?.width).toBe(before);
+        await next.click();
+      }
+    }
+    await chooseModel(page, "mock-slow");
+    await newReply().focus();
+    await page.keyboard.press("Enter");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+    const message = page.getByRole("textbox", { name: "Message", exact: true });
+    await message.focus();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expect(message).toBeFocused();
+    await newReply().click();
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expect(newReply()).not.toBeFocused();
+  });
+}
 
 /**
  * The page clips what overflows, so the composer is measured against the
@@ -86,6 +573,11 @@ async function expectComposerAndActionsFit(page: Page, width: number) {
 
 for (const width of [320, 360]) {
   test(`the reply pager and actions fit one row at ${width}px`, async ({ page }) => {
+    page.on("pageerror", (error) => process.stdout.write(`Chat page error: ${error.message}\n`));
+    page.on("console", (message) => {
+      if (message.type() === "error")
+        process.stdout.write(`Chat console error: ${message.text()}\n`);
+    });
     await page.setViewportSize({ width, height: 800 });
     await openChat(page, "mock-fast");
     await send(page, canary("in"));
@@ -422,6 +914,90 @@ test.describe("on a touch phone", () => {
     );
   });
 });
+
+for (const hasTouch of [false, true]) {
+  test.describe(`portrait action rows with ${hasTouch ? "coarse" : "fine"} pointer`, () => {
+    test.use({ hasTouch });
+
+    test("character and persona actions stay on one row at every sheet width", async ({ page }) => {
+      const id = await createCharacterViaApi(page.request, uniqueName("Portrait row"), {
+        tags: ["lighthouse", "harbour", "lantern", "fog", "letters", "tides", "island"],
+      });
+      const png = solidPng([90, 110, 130]);
+      await setPortraitViaApi(page.request, id, png);
+      const persona = await createPersonaViaApi(page.request, uniqueName("Portrait persona"));
+      for (const width of [360, 390, 820, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/characters/${id}`);
+        const identity = page.locator("#s-identity");
+        const portrait = identity.locator('img[src*="/portrait/image"]');
+        const art = identity.getByRole("button", { name: "New art", exact: true });
+        const more = identity.getByRole("button", { name: "Portrait actions", exact: true });
+        await expect(portrait).toBeVisible();
+        await expect(more).toBeVisible();
+        const frame = await portrait.boundingBox();
+        const artBox = await art.boundingBox();
+        const moreBox = await more.boundingBox();
+        expect(frame?.width).toBe(width < 720 ? 88 : 112);
+        expect(
+          Math.abs(
+            (artBox?.y ?? 0) +
+              (artBox?.height ?? 0) / 2 -
+              (moreBox?.y ?? Infinity) -
+              (moreBox?.height ?? 0) / 2,
+          ),
+        ).toBeLessThanOrEqual(2);
+        if (width >= 720) {
+          expect(artBox?.x).toBe(frame?.x);
+          expect(artBox?.y).toBeGreaterThanOrEqual((frame?.y ?? 0) + (frame?.height ?? 0));
+        }
+        const name = identity.getByRole("textbox", { name: "Name", exact: true });
+        await name.focus();
+        await page.keyboard.press("Tab");
+        await expect(art).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(more).toBeFocused();
+        await page.keyboard.press("Tab");
+        await expect(
+          identity.getByRole("button", { name: "Remove tag lighthouse", exact: true }),
+        ).toBeFocused();
+        await tabTo(page, identity.getByRole("textbox", { name: "Tags", exact: true }));
+        await expect(identity.getByRole("textbox", { name: "Tags", exact: true })).toBeFocused();
+        await expectNoOverflow(page);
+
+        await page.goto(`/personas/${persona}`);
+        const personal = page.getByRole("region", { name: "Identity", exact: true });
+        if (width === 360) {
+          await expect(
+            personal.getByRole("button", { name: "Add portrait", exact: true }),
+          ).toBeVisible();
+          await personal.locator('input[type="file"]').setInputFiles({
+            name: "portrait.png",
+            mimeType: "image/png",
+            buffer: png,
+          });
+        }
+        const replace = personal.getByRole("button", { name: "Replace", exact: true });
+        const remove = personal.getByRole("button", { name: "Remove portrait", exact: true });
+        await expect(replace).toBeVisible();
+        const replaceBox = await replace.boundingBox();
+        const removeBox = await remove.boundingBox();
+        expect(
+          Math.abs(
+            (replaceBox?.y ?? 0) +
+              (replaceBox?.height ?? 0) / 2 -
+              (removeBox?.y ?? Infinity) -
+              (removeBox?.height ?? 0) / 2,
+          ),
+        ).toBeLessThanOrEqual(2);
+        const image = await personal.locator('img[src*="/portrait/image"]').boundingBox();
+        expect(image?.width).toBe(width < 720 ? 120 : 112);
+        expect((removeBox?.x ?? 0) + (removeBox?.width ?? Infinity)).toBeLessThanOrEqual(width);
+        await expectNoOverflow(page);
+      }
+    });
+  });
+}
 
 /** The computed type of the first element `selector` matches inside `scope`. */
 const typeOf = (scope: Locator, selector: string) =>
@@ -831,6 +1407,448 @@ test("every action works by keyboard alone, with visible focus", async ({ page }
 /** The thread's scroll container, owned by the Conversation component. */
 const scroller = (page: Page) => page.getByRole("log").locator(":scope > div").first();
 
+/** No scrolling to satisfy this assertion: the Conversation owner must reveal the whole row. */
+async function expectFollowedReply(page: Page) {
+  const view = scroller(page);
+  await expect
+    .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+    .toBeLessThan(4);
+  await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+  const actions = await replyActions(page).boundingBox();
+  const bounds = await view.boundingBox();
+  const composer = await page.getByLabel("Message", { exact: true }).boundingBox();
+  expect(actions).not.toBeNull();
+  expect(actions?.y).toBeGreaterThanOrEqual(bounds?.y ?? Infinity);
+  expect((actions?.y ?? Infinity) + (actions?.height ?? 0)).toBeLessThanOrEqual(
+    Math.min((bounds?.y ?? 0) + (bounds?.height ?? 0), composer?.y ?? 0) + 1,
+  );
+}
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`story top edge hands identity to the header at half readability ${width}/${theme}`, async ({
+      page,
+      request,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion: theme === "light" ? "no-preference" : "reduce" });
+      const name = uniqueName("Name at the edge");
+      const characterId = await createCharacterViaApi(request, name, {
+        firstMessage: Array.from({ length: 40 }, () => "The lamp lights the quay.").join("\n\n"),
+      });
+      await patchSettings(request, { characterId, model: "mock-fast", theme });
+      let release = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route("**/api/chat", async (route) => {
+        await held;
+        await route.continue();
+      });
+      try {
+        await page.goto("/");
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        await send(
+          page,
+          Array.from({ length: 60 }, () => "I watch the far side of the harbour.").join("\n\n"),
+        );
+        const view = scroller(page);
+        await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+        const edge = page.locator(".story-top-edge");
+        const edgeGeometry = await edge.evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const root = node.parentElement?.querySelector(":scope > div");
+          return {
+            top: box.top,
+            scrollTop: root?.getBoundingClientRect().top,
+            height: box.height,
+            rem: Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+            pointer: getComputedStyle(node).pointerEvents,
+            position: getComputedStyle(node).position,
+            hidden: node.getAttribute("aria-hidden"),
+            animation: getComputedStyle(node).animationName,
+          };
+        });
+        expect(edgeGeometry.top).toBe(edgeGeometry.scrollTop);
+        expect(edgeGeometry.height).toBe(edgeGeometry.rem * 0.75);
+        expect(edgeGeometry).toMatchObject({
+          pointer: "none",
+          position: "absolute",
+          hidden: "true",
+          animation: "none",
+        });
+        for (const palette of [
+          "tokyo-night",
+          "lamplight",
+          "catppuccin",
+          "rose-pine",
+          "nord",
+          "gruvbox",
+        ]) {
+          const colors = await edge.evaluate((node, palette) => {
+            document.documentElement.dataset.palette = palette;
+            const canvas = getComputedStyle(document.documentElement).backgroundColor;
+            return { canvas, gradient: getComputedStyle(node).backgroundImage };
+          }, palette);
+          expect(colors.gradient).toContain(colors.canvas);
+          expect(colors.gradient).toMatch(/rgba?\([^)]*(?:0\)|\/ 0\))/);
+        }
+        const start = await view.evaluate((node) => {
+          const turn = node.querySelector('[data-role="assistant"]');
+          const heading = turn?.querySelector(".nameplate-name");
+          return (
+            node.scrollTop +
+            (turn?.getBoundingClientRect().bottom ?? 0) -
+            node.getBoundingClientRect().top -
+            (heading?.getBoundingClientRect().height ?? 0) -
+            Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75 -
+            20
+          );
+        });
+        const samples = [];
+        for (let offset = 0; offset <= 60; offset += 2) {
+          samples.push(
+            await view.evaluate(async (node, top) => {
+              node.scrollTop = top;
+              const names = [
+                ...node.querySelectorAll(
+                  '[data-message][data-role="assistant"] [data-speaker][data-voice="story"] .nameplate-name',
+                ),
+              ];
+              // Wait for an observable intersection delivery at this edge,
+              // then read all names together with the production observer's state.
+              await new Promise<void>((resolve, reject) => {
+                const deadline = window.setTimeout(() => {
+                  observer.disconnect();
+                  reject(new Error("Name readability observer did not deliver"));
+                }, 2000);
+                const observer = new IntersectionObserver(
+                  () => {
+                    observer.disconnect();
+                    clearTimeout(deadline);
+                    requestAnimationFrame(() => resolve());
+                  },
+                  {
+                    root: node,
+                    rootMargin: `-${Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75}px 0px 0px 0px`,
+                    threshold: [0, 0.5],
+                  },
+                );
+                for (const name of names) observer.observe(name);
+              });
+              const readableTop =
+                node.getBoundingClientRect().top +
+                Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75;
+              const fractions = names.map((element) => {
+                const name = element.getBoundingClientRect();
+                return (
+                  Math.max(
+                    0,
+                    Math.min(name.bottom, node.getBoundingClientRect().bottom) -
+                      Math.max(name.top, readableTop),
+                  ) / name.height
+                );
+              });
+              return {
+                fraction: fractions[0] ?? 0,
+                fractions,
+                names: names.map((name) => name.getBoundingClientRect().toJSON()),
+                shown: node.closest("main")?.hasAttribute("data-name-shown"),
+              };
+            }, start + offset),
+          );
+        }
+        expect(samples.some(({ fraction }) => fraction > 0 && fraction < 0.5)).toBe(true);
+        await test.info().attach("name-readability-edges", {
+          body: JSON.stringify(samples, null, 2),
+          contentType: "application/json",
+        });
+        process.stdout.write(`Header readability ${JSON.stringify({ width, theme, samples })}\n`);
+        for (const sample of samples)
+          expect(sample.shown, JSON.stringify(sample)).toBe(
+            sample.fractions.some((fraction) => fraction >= 0.5),
+          );
+        await expect(page.getByRole("heading", { name, level: 1 })).toHaveCSS("opacity", "1");
+        release();
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        const more = page
+          .locator('[data-message][data-role="assistant"]')
+          .first()
+          .getByRole("button", { name: /^More actions/ });
+        await more.focus();
+        const focus = await more.boundingBox();
+        const viewport = await view.boundingBox();
+        expect(focus?.y).toBeGreaterThanOrEqual((viewport?.y ?? Infinity) + edgeGeometry.height);
+        await expect(more).toBeFocused();
+      } finally {
+        release();
+      }
+    });
+  }
+}
+
+for (const scenario of [
+  {
+    width: 390,
+    height: 844,
+    reducedMotion: "no-preference",
+    theme: "dark",
+    palette: "tokyo-night",
+  },
+  { width: 390, height: 844, reducedMotion: "reduce", theme: "light", palette: "nord" },
+  { width: 360, height: 780, reducedMotion: "no-preference", theme: "light", palette: "rose-pine" },
+  { width: 360, height: 780, reducedMotion: "reduce", theme: "dark", palette: "tokyo-night" },
+  { width: 820, height: 1180, reducedMotion: "no-preference", theme: "light", palette: "nord" },
+  { width: 1440, height: 900, reducedMotion: "reduce", theme: "dark", palette: "rose-pine" },
+] as const) {
+  test(`reply follow survives portrait reparenting and settlement ${scenario.width}/${scenario.reducedMotion}`, async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize(scenario);
+    await page.emulateMedia({ reducedMotion: scenario.reducedMotion });
+    const characterId = await createCharacterViaApi(request, uniqueName("Tail"), {
+      firstMessage: Array.from(
+        { length: 45 },
+        (_, at) => `The harbour light crosses the water ${at}.`,
+      ).join("\n\n"),
+    });
+    await setPortraitViaApi(request, characterId, portraitPng("Tail"));
+    await patchSettings(request, {
+      characterId,
+      model: "mock-fast",
+      theme: scenario.theme,
+      palette: scenario.palette,
+    });
+    let release = () => {};
+    const portrait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let arrived = false;
+    await page.route("**/portrait/image?**", async (route) => {
+      arrived = true;
+      await portrait;
+      await route.continue();
+    });
+    try {
+      await page.goto("/");
+      await expect.poll(() => arrived).toBe(true);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await send(page, "A short reply follows the long greeting.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expectFollowedReply(page);
+      release();
+      await expect(page.locator("[data-presence] img")).toBeVisible();
+      await expectFollowedReply(page);
+      const continueTrace =
+        scenario.width === 390 && scenario.reducedMotion === "no-preference"
+          ? scroller(page).evaluate(
+              (node) =>
+                new Promise<unknown[]>((resolve) => {
+                  const samples: unknown[] = [];
+                  const read = (kind: string) =>
+                    samples.push({
+                      kind,
+                      at: performance.now(),
+                      top: node.scrollTop,
+                      max: node.scrollHeight - node.clientHeight,
+                      height: node.scrollHeight,
+                      anchor: getComputedStyle(node).overflowAnchor,
+                      status: node
+                        .querySelector('[data-message][data-role="assistant"]:last-of-type')
+                        ?.getAttribute("data-status"),
+                      focus: document.activeElement?.getAttribute("aria-label"),
+                    });
+                  const scroll = () => {
+                    read("scroll");
+                  };
+                  const resize = new ResizeObserver(() => {
+                    read("resize");
+                  });
+                  const style = new MutationObserver(() => {
+                    read("style");
+                  });
+                  node.addEventListener("scroll", scroll);
+                  resize.observe(node.firstElementChild ?? node);
+                  style.observe(node, { attributes: true, attributeFilter: ["style"] });
+                  read("before");
+                  setTimeout(() => {
+                    node.removeEventListener("scroll", scroll);
+                    resize.disconnect();
+                    style.disconnect();
+                    resolve(samples);
+                  }, 2000);
+                }),
+            )
+          : null;
+      await replyActions(page).getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      if (continueTrace)
+        process.stdout.write(`Continue scroll trace ${JSON.stringify(await continueTrace)}\n`);
+      await expectFollowedReply(page);
+      await replyActions(page).getByRole("button", { name: "New reply", exact: true }).click();
+      await expect(replyCounter(page)).toContainText("2 / 2");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await expectFollowedReply(page);
+      await chooseModel(page, "mock-long");
+      await send(page, "A long reply follows.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+      await expectFollowedReply(page);
+      await send(page, "Stopped reply.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "streaming");
+      await page.getByRole("button", { name: "Stop", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
+      await expectFollowedReply(page);
+      await chooseModel(page, "mock-error");
+      await send(page, "Failed reply.");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "failed");
+      await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
+      await expectFollowedReply(page);
+    } finally {
+      release();
+    }
+  });
+}
+
+for (const width of [360, 390]) {
+  test(`one pixel stays escaped inside the near-bottom margin through a reasoning collapse at ${width}`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+    await page.emulateMedia({ reducedMotion: width === 360 ? "reduce" : "no-preference" });
+    const characterId = await createCharacterViaApi(request, uniqueName("One pixel"), {
+      firstMessage: "The lamp lights the harbour.",
+    });
+    await patchSettings(request, { characterId, model: "mock-slow", reasoningOpen: true });
+    await page.goto("/");
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+    const shortView = scroller(page);
+    expect(await shortView.evaluate((node) => node.scrollHeight - node.clientHeight)).toBe(0);
+    await shortView.evaluate((node) => {
+      node.setAttribute("tabindex", "-1");
+      (node as HTMLElement).focus({ preventScroll: true });
+    });
+    await page.keyboard.press("PageUp");
+    await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+    await send(
+      page,
+      Array.from({ length: 35 }, () => "The long quay runs beside the water.").join(" "),
+    );
+    await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+    await expectFollowedReply(page);
+    const view = scroller(page);
+    const before = await view.evaluate((node) => node.scrollTop);
+    await view.evaluate((node) => {
+      node.scrollTop -= 1;
+    });
+    await expect.poll(() => view.evaluate((node) => node.scrollTop)).toBe(before - 1);
+    const latest = page.getByRole("button", { name: "Latest", exact: true });
+    await expect(latest).toBeVisible();
+    expect(
+      await view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+    ).toBeLessThan(4);
+    const details = lastReply(page).locator("details").first();
+    await expect(details).toHaveAttribute("open", "");
+    await details.locator("summary").evaluate((node: HTMLElement) => node.click());
+    await expect(details).not.toHaveAttribute("open");
+    await expect(latest).toBeVisible();
+    await page.setViewportSize({ width, height: 480 });
+    await expect(latest).toBeVisible();
+    await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
+  });
+  for (const escapePath of ["one pixel", "wheel", "keyboard", "touch"] as const) {
+    test(`a ${escapePath} escape survives completion and keyboard-sized shrink at ${width}`, async ({
+      page,
+      request,
+      context,
+    }) => {
+      test.setTimeout(45_000);
+      await page.setViewportSize({ width, height: width === 360 ? 780 : 844 });
+      await page.emulateMedia({ reducedMotion: width === 360 ? "reduce" : "no-preference" });
+      const characterId = await createCharacterViaApi(request, uniqueName("Escape"), {
+        firstMessage: "The light crosses the water.",
+      });
+      await patchSettings(request, { characterId, model: "mock-long" });
+      await page.goto("/");
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+      await send(page, "Keep my reading position.");
+      const view = scroller(page);
+      await expect.poll(() => view.evaluate((node) => node.scrollTop)).toBeGreaterThan(800);
+      const message = page.getByLabel("Message", { exact: true });
+      if (escapePath === "one pixel")
+        await view.evaluate((node) => {
+          node.scrollTop -= 1;
+        });
+      else if (escapePath === "wheel") {
+        await view.hover();
+        await page.mouse.wheel(0, -300);
+      } else if (escapePath === "keyboard") {
+        // A physical PageUp on a focused native scroller, approximating keyboard history reading.
+        await view.evaluate((node) => {
+          node.setAttribute("tabindex", "-1");
+          (node as HTMLElement).focus({ preventScroll: true });
+        });
+        await page.keyboard.press("PageUp");
+      } else {
+        const client = await context.newCDPSession(page);
+        await client.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+        const bounds = await view.boundingBox();
+        const x = (bounds?.x ?? 0) + 30;
+        const y = (bounds?.y ?? 0) + 80;
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x, y }],
+        });
+        for (const dy of [40, 100, 180])
+          await client.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: y + dy }],
+          });
+        await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await client.detach();
+      }
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeVisible();
+      // Touch/keyboard native scrolling can finish its own motion; then freeze the observed place.
+      if (escapePath === "touch" || escapePath === "keyboard") {
+        await view.evaluate(
+          (node) =>
+            new Promise<void>((resolve) => {
+              let top = node.scrollTop;
+              let stable = 0;
+              const settled = () => {
+                stable = node.scrollTop === top ? stable + 1 : 0;
+                top = node.scrollTop;
+                if (stable >= 3) resolve();
+                else requestAnimationFrame(settled);
+              };
+              requestAnimationFrame(settled);
+            }),
+        );
+      }
+      await expect
+        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
+        .toBeGreaterThan(1);
+      if (escapePath === "one pixel") await expect(message).toBeFocused();
+      const focused = await page.evaluateHandle(() => document.activeElement);
+      await page.setViewportSize({ width, height: 480 });
+      const kept = await view.evaluate((node) => node.scrollTop);
+      await expect(lastReply(page)).toHaveAttribute("data-status", "complete", { timeout: 15_000 });
+      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeVisible();
+      expect(await view.evaluate((node) => node.scrollTop)).toBeCloseTo(kept, 0);
+      expect(await page.evaluate((element) => document.activeElement === element, focused)).toBe(
+        true,
+      );
+      await focused.dispose();
+      await page
+        .getByRole("button", { name: "Latest", exact: true })
+        .evaluate((node: HTMLButtonElement) => node.click());
+      await expectFollowedReply(page);
+    });
+  }
+}
+
 test("scrolling stays anchored while a reply streams", async ({ page }) => {
   await openChat(page, "mock-long");
   await send(page, canary("in"));
@@ -846,7 +1864,33 @@ test("scrolling stays anchored while a reply streams", async ({ page }) => {
 
   // Scrolled up, the visible line keeps its place while text keeps arriving.
   await thread.hover();
+  const beforeWheel = await thread.evaluate((node) => node.scrollTop);
   await page.mouse.wheel(0, -600);
+  // Latest describes hidden content, so wait for the actual wheel escape too.
+  await expect.poll(() => thread.evaluate((node) => node.scrollTop)).toBeLessThan(beforeWheel);
+  const settledWheel = await thread.evaluate(
+    (node) =>
+      new Promise<{ top: number; samples: number[] }>((resolve, reject) => {
+        const deadline = performance.now() + 2_000;
+        const samples: number[] = [];
+        let previous = node.scrollTop;
+        let stable = 0;
+        const sample = () => {
+          const top = node.scrollTop;
+          samples.push(top);
+          stable = top === previous ? stable + 1 : 0;
+          previous = top;
+          if (stable >= 3) resolve({ top, samples });
+          else if (performance.now() >= deadline)
+            reject(new Error(`Wheel did not settle: ${JSON.stringify(samples)}`));
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
+  process.stdout.write(
+    `Streaming wheel settlement ${JSON.stringify({ beforeWheel, ...settledWheel })}\n`,
+  );
   await expect(page.getByRole("button", { name: "Latest" })).toBeVisible();
   const anchor = lastReply(page).locator("p").nth(3);
   const before = await anchor.boundingBox();
@@ -856,9 +1900,52 @@ test("scrolling stays anchored while a reply streams", async ({ page }) => {
     .toBeGreaterThan(heightBefore + 100);
   expect((await anchor.boundingBox())?.y).toBeCloseTo(before?.y ?? Number.NaN, 0);
 
-  await page.getByRole("button", { name: "Latest" }).click();
-  await expect.poll(gap).toBeLessThan(4);
-  await expect(page.getByRole("button", { name: "Latest" })).toHaveCount(0);
+  const following = await thread.evaluateHandle((node) => {
+    const stages: { top: number; height: number; client: number; gap: number }[] = [];
+    const sample = () => {
+      stages.push({
+        top: node.scrollTop,
+        height: node.scrollHeight,
+        client: node.clientHeight,
+        gap: node.scrollHeight - node.clientHeight - node.scrollTop,
+      });
+      if (stages.length > 24) stages.shift();
+    };
+    node.addEventListener("scroll", sample);
+    sample();
+    return {
+      stop: () => {
+        node.removeEventListener("scroll", sample);
+        sample();
+        return stages;
+      },
+    };
+  });
+  try {
+    await page.getByRole("button", { name: "Latest" }).click();
+    await expect.poll(gap).toBeLessThan(4);
+    await expect(page.getByRole("button", { name: "Latest" })).toHaveCount(0);
+  } finally {
+    const stages = await following.evaluate((value) => value.stop());
+    const latestState = await page
+      .getByRole("button", { name: "Latest", includeHidden: true })
+      .evaluate((button) => {
+        const parent = button.parentElement;
+        return {
+          hidden: parent?.hidden,
+          inert: parent?.inert,
+          display: parent && getComputedStyle(parent).display,
+          opacity: parent && getComputedStyle(parent).opacity,
+          animations: parent?.getAnimations().map((animation) => ({
+            state: animation.playState,
+            time: animation.currentTime,
+            property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+          })),
+        };
+      });
+    process.stdout.write(`Streaming rejoin scroll ${JSON.stringify({ stages, latestState })}\n`);
+    await following.dispose();
+  }
 });
 
 test("sending from a scrolled-away story brings the view back to the new reply", async ({
@@ -1207,15 +2294,24 @@ for (const { name, width, height, portrait } of [
     }
     if (name === "desktop") {
       // With the docked Session closed the chat column is wide: the portrait grows into the
-      // width the prose's measure leaves, up to its widest, and the story spans the column but
-      // for its padding.
+      // width the prose's measure leaves, within the shared natural frame.
       await page.getByRole("button", { name: "Session", exact: true }).click();
       await expect.poll(async () => (await image.boundingBox())?.width).toBeGreaterThan(160);
       expect((await image.boundingBox())?.width).toBeLessThanOrEqual(320);
       const column = await thread.boundingBox();
       const turn = await lastReply(page).boundingBox();
       if (!column || !turn) throw new Error("the story is not laid out");
-      expect(turn.width).toBeGreaterThan(column.width - 180);
+      const expected = await thread.evaluate((node) => {
+        const frame = node.querySelector<HTMLElement>('[class*="--container-script"]');
+        if (!frame) throw new Error("Missing script frame");
+        const style = getComputedStyle(frame);
+        return (
+          frame.getBoundingClientRect().width -
+          Number.parseFloat(style.paddingLeft) -
+          Number.parseFloat(style.paddingRight)
+        );
+      });
+      expect(turn.width).toBeCloseTo(expected, 0);
     }
     // A new pending reply takes the same-sized slot before its first streamed words.
     await chooseModel(page, "mock-stall");
@@ -1371,13 +2467,61 @@ for (const { name, width, height } of [FORM_FACTORS[1], FORM_FACTORS[2]]) {
     await expect(greeting).toContainText("The lamp turns overhead.");
     const image = greeting.locator("[data-presence] img");
     await expect(image).toHaveJSProperty("complete", true);
-    const art = await image.boundingBox();
-    const prose = await greeting.locator('[data-prose][data-voice="story"] p').evaluate((node) => {
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const box = range.getBoundingClientRect();
-      return { x: box.left, y: box.top };
-    });
+    await image.evaluate((node: HTMLImageElement) => node.decode());
+    await page.evaluate(() => document.fonts.ready);
+    const sample = () =>
+      greeting.evaluate((turn) => {
+        // Query inside this evaluation: the plain-text fallback may be replaced
+        // by Markdown between a locator's resolution and its evaluation.
+        const node = turn.querySelector('[data-prose][data-voice="story"] p');
+        const image = turn.querySelector<HTMLImageElement>("[data-presence] img");
+        const range = document.createRange();
+        if (node) range.selectNodeContents(node);
+        const rects = Array.from(range.getClientRects(), (rect) => rect.toJSON());
+        const ancestors = [];
+        const animations = [];
+        for (let element = node; element; element = element.parentElement) {
+          const style = getComputedStyle(element);
+          ancestors.push({
+            tag: element.tagName,
+            visibility: style.visibility,
+            display: style.display,
+            opacity: style.opacity,
+            contentVisibility: style.contentVisibility,
+          });
+          for (const animation of element.getAnimations())
+            if (animation.effect?.getComputedTiming().endTime !== Infinity)
+              animations.push({ state: animation.playState, time: animation.currentTime });
+        }
+        const box = range.getBoundingClientRect();
+        return {
+          text: node?.textContent,
+          rects,
+          ancestors,
+          animations,
+          decoded: image?.complete && image.naturalWidth > 0,
+          art: image?.getBoundingClientRect().toJSON(),
+          prose: { x: box.left, y: box.top },
+          ready:
+            node?.isConnected &&
+            rects.some((rect) => rect.width > 0 && rect.height > 0) &&
+            ancestors.every(
+              (style) =>
+                style.display !== "none" &&
+                style.visibility === "visible" &&
+                Number(style.opacity) > 0 &&
+                style.contentVisibility !== "hidden",
+            ) &&
+            animations.every((animation) => animation.state === "finished"),
+        };
+      });
+    const initial = await sample();
+    // Rendered text, rather than textContent or the image's network completion,
+    // is the precondition. The beside/level geometry is asserted only afterwards.
+    await expect.poll(async () => (await sample()).ready).toBe(true);
+    const measured = await sample();
+    process.stdout.write(`P3 greeting ${JSON.stringify({ name, initial, measured })}\n`);
+    const { art, prose } = measured;
     if (!art) throw new Error("the portrait is not laid out");
     expect(prose.x).toBeGreaterThan(art.x + art.width);
     expect(Math.abs(art.y - prose.y)).toBeLessThanOrEqual(8);
@@ -1417,6 +2561,9 @@ test("the portrait moves to each new reply as it starts, and stays above an Undo
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
   await expect(presence).toHaveCount(1);
   await expect(lastReply(page).locator("[data-presence]")).toHaveCount(1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(actions.getByRole("button", { name: "More actions", exact: true })).toBeFocused();
+  await expect(presence).toHaveCount(1);
 });
 
 test("a single greeting has no actions row; its own More holds Edit and Delete by keyboard", async ({
@@ -1543,34 +2690,316 @@ test("the first run asks for a model first, in the empty story, and once it is c
 }) => {
   await page.goto("/");
   const story = page.getByRole("log", { name: "Story" });
-  const step = story.getByRole("status").filter({ hasText: "Choose a model to begin" });
-  await expect(step).toBeVisible();
-  // One composition: the model's step comes first, then the invitation and the character.
-  // An empty library: the way forward is the gallery.
-  await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
-  const said = await story.evaluate((node) =>
-    // What the story shows: Latest waits hidden while the story is at its end.
-    [...node.querySelectorAll("p, button, a")]
-      .filter((element) => element.closest("[hidden]") === null)
-      .map((element) => element.textContent?.trim() ?? "")
-      .filter((text) => text !== ""),
-  );
-  expect(said[0]).toBe("Choose a model to begin");
-  expect(said.slice(-2)).toEqual([
-    "Write the first line, or choose a character.",
-    "Create a character",
-  ]);
-  // The story holds the step, so no notice over the composer repeats it.
-  await expect(page.locator("[data-model-notice]")).toHaveCount(1);
-  const invitation = story.getByText("Write the first line, or choose a character.");
-  const before = await invitation.boundingBox();
-  const picker = story.getByRole("combobox", { name: "Chat model", exact: true });
-  await picker.click();
-  await page.getByRole("option", { name: "mock-fast", exact: true }).click();
-  await expect(step).toHaveCount(0);
-  await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
-  expect(await invitation.boundingBox()).toEqual(before);
-  await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
+  const geometry = await story.evaluateHandle((node) => {
+    const scroll = node.firstElementChild;
+    if (!(scroll instanceof HTMLElement)) throw new Error("Story has no scroller");
+    const samples: unknown[] = [];
+    let finished = false;
+    const rect = (element: Element | null | undefined) => {
+      if (!element) return null;
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    };
+    const label = (element: Element | null) =>
+      element && `${element.tagName} ${element.getAttribute("aria-label") ?? element.className}`;
+    const read = (kind: string, detail?: unknown) => {
+      const invitation = [...node.querySelectorAll("p")].find((element) =>
+        element.textContent?.startsWith("Write the first line, or"),
+      );
+      const welcome = invitation?.parentElement;
+      const room = invitation?.previousElementSibling;
+      const notice = node.querySelector("[data-model-notice]");
+      const message = document.querySelector("[data-composer]");
+      const form = message?.closest("form");
+      const ancestors = [];
+      for (
+        let element: Element | null = invitation ?? null;
+        element;
+        element = element.parentElement
+      ) {
+        const style = getComputedStyle(element);
+        ancestors.push({
+          element: label(element),
+          rect: rect(element),
+          transform: style.transform,
+          translate: style.translate,
+          font: style.font,
+          animations: element.getAnimations().map((animation) => ({
+            name: animation instanceof CSSAnimation ? animation.animationName : animation.id,
+            state: animation.playState,
+            time: animation.currentTime,
+            timing: animation.effect?.getComputedTiming(),
+          })),
+        });
+      }
+      const sample = {
+        kind,
+        detail,
+        at: performance.now(),
+        invitation: rect(invitation),
+        scroll: {
+          rect: rect(scroll),
+          top: scroll.scrollTop,
+          height: scroll.scrollHeight,
+          client: scroll.clientHeight,
+          windowY: window.scrollY,
+        },
+        content: rect(scroll.firstElementChild),
+        welcome: rect(welcome),
+        room: { rect: rect(room), min: room ? getComputedStyle(room).minHeight : null },
+        notice: { rect: rect(notice), inert: notice?.hasAttribute("inert") },
+        status: rect(notice?.firstElementChild),
+        illustration: rect(node.querySelector("[data-illustration]")),
+        gallery: rect(welcome?.querySelector('a[href="/characters"]')),
+        picker: rect(node.querySelector('[role="combobox"]')),
+        message: rect(message),
+        composer: rect(form),
+        rows: form?.parentElement
+          ? [...form.parentElement.querySelectorAll("p, form > div > div")].map((element) => ({
+              element: label(element),
+              rect: rect(element),
+              text: element.textContent?.slice(0, 180),
+            }))
+          : [],
+        active: label(document.activeElement),
+        fonts: {
+          status: document.fonts.status,
+          faces: [...document.fonts].map((font) => ({
+            family: font.family,
+            status: font.status,
+          })),
+        },
+        images: [...document.images].map((image) => ({
+          src: image.currentSrc,
+          complete: image.complete,
+          width: image.naturalWidth,
+          rect: rect(image),
+        })),
+        ancestors,
+      };
+      if (!finished && samples.length < 800) samples.push(sample);
+      return sample;
+    };
+    const restore: (() => void)[] = [];
+    const ownTop = Object.getOwnPropertyDescriptor(scroll, "scrollTop");
+    let owner: object | null = scroll;
+    while (owner && !Object.getOwnPropertyDescriptor(owner, "scrollTop"))
+      owner = Object.getPrototypeOf(owner);
+    const top = owner && Object.getOwnPropertyDescriptor(owner, "scrollTop");
+    if (!top?.get || !top.set) throw new Error("scrollTop has no native accessor");
+    Object.defineProperty(scroll, "scrollTop", {
+      configurable: true,
+      get() {
+        return top.get?.call(this);
+      },
+      set(value: number) {
+        read("scrollTop:before", { value, stack: new Error().stack });
+        top.set?.call(this, value);
+        read("scrollTop:after", { value });
+      },
+    });
+    restore.push(() => {
+      if (ownTop) Object.defineProperty(scroll, "scrollTop", ownTop);
+      else Reflect.deleteProperty(scroll, "scrollTop");
+    });
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (options) {
+      read("focus:before", { target: label(this), options });
+      focus.call(this, options);
+      read("focus:after", { target: label(this) });
+    };
+    restore.push(() => {
+      HTMLElement.prototype.focus = focus;
+    });
+    const scrollTo = Element.prototype.scrollTo;
+    Element.prototype.scrollTo = function (
+      ...args: [options?: ScrollToOptions | undefined] | [number, number]
+    ) {
+      read("scrollTo:before", { target: label(this), args, stack: new Error().stack });
+      Reflect.apply(scrollTo, this, args);
+      read("scrollTo:after");
+    };
+    restore.push(() => {
+      Element.prototype.scrollTo = scrollTo;
+    });
+    const intoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (options) {
+      read("scrollIntoView:before", { target: label(this), options });
+      intoView.call(this, options);
+      read("scrollIntoView:after");
+    };
+    restore.push(() => {
+      Element.prototype.scrollIntoView = intoView;
+    });
+    const event = (event: Event) =>
+      read(event.type, {
+        target: event.target instanceof Element ? label(event.target) : null,
+        trusted: event.isTrusted,
+      });
+    for (const type of [
+      "pointerdown",
+      "click",
+      "focusin",
+      "scroll",
+      "transitionend",
+      "animationend",
+    ])
+      document.addEventListener(type, event, true);
+    const fonts = () => read("fonts:done");
+    document.fonts.addEventListener("loadingdone", fonts);
+    void document.fonts.ready.then(() => read("fonts:ready"));
+    let present = !!node.querySelector('[role="status"]');
+    const observer = new MutationObserver(() => {
+      const next = !!node.querySelector('[role="status"]:not([aria-hidden])');
+      if (next !== present) {
+        present = next;
+        read("step:departure");
+      }
+    });
+    observer.observe(node, { subtree: true, childList: true, attributes: true });
+    let frame = 0;
+    let readinessFrame = 0;
+    const deadline = performance.now() + 8000;
+    const sample = () => {
+      read("frame");
+      if (performance.now() < deadline && samples.length < 800)
+        frame = requestAnimationFrame(sample);
+    };
+    frame = requestAnimationFrame(sample);
+    read("installed");
+    return {
+      read,
+      ready: async () => {
+        let fontsReady = false;
+        let imagesReady = false;
+        void document.fonts.ready.then(() => {
+          fontsReady = true;
+        });
+        void Promise.all([...document.images].map((image) => image.decode())).then(
+          () => {
+            imagesReady = true;
+          },
+          () => {},
+        );
+        const deadline = performance.now() + 6000;
+        let previous = "";
+        return new Promise<ReturnType<typeof read>>((resolve, reject) => {
+          const settled = () => {
+            const current = read("readiness");
+            const notice = node.querySelector<HTMLElement>("[data-model-notice]");
+            // Measure the script-driven spring's full content and picker bounds in this
+            // frame, allowing only subpixel rounding; finite CSS entrances must finish too.
+            const entering =
+              !notice ||
+              notice.closest("[inert]") !== null ||
+              getComputedStyle(notice).opacity !== "1" ||
+              [current.status, current.picker].some(
+                (box) =>
+                  !box ||
+                  !current.notice.rect ||
+                  box.width <= 0 ||
+                  box.height <= 0 ||
+                  box.x < current.notice.rect.x - 0.5 ||
+                  box.y < current.notice.rect.y - 0.5 ||
+                  box.x + box.width > current.notice.rect.x + current.notice.rect.width + 0.5 ||
+                  box.y + box.height > current.notice.rect.y + current.notice.rect.height + 0.5,
+              ) ||
+              node.getAnimations({ subtree: true }).some((animation) => {
+                const timing = animation.effect?.getComputedTiming();
+                return animation.playState === "running" && timing?.iterations !== Infinity;
+              });
+            const layout = JSON.stringify([
+              current.invitation,
+              current.scroll,
+              current.content,
+              current.room,
+              current.gallery,
+              current.composer,
+              current.rows,
+            ]);
+            if (fontsReady && imagesReady && !entering && layout === previous) {
+              resolve(read("baseline"));
+              return;
+            }
+            previous = fontsReady && imagesReady && !entering ? layout : "";
+            if (performance.now() >= deadline) {
+              reject(new Error("First-run fonts, images, entrance or layout did not settle"));
+              return;
+            }
+            readinessFrame = requestAnimationFrame(settled);
+          };
+          readinessFrame = requestAnimationFrame(settled);
+        });
+      },
+      finish: () => {
+        read("finally");
+        finished = true;
+        cancelAnimationFrame(frame);
+        cancelAnimationFrame(readinessFrame);
+        observer.disconnect();
+        for (const type of [
+          "pointerdown",
+          "click",
+          "focusin",
+          "scroll",
+          "transitionend",
+          "animationend",
+        ])
+          document.removeEventListener(type, event, true);
+        document.fonts.removeEventListener("loadingdone", fonts);
+        for (const undo of restore.reverse()) undo();
+        return samples;
+      },
+    };
+  });
+  try {
+    const step = story.getByRole("status").filter({ hasText: "Choose a model to begin" });
+    await expect(step).toBeVisible();
+    // One composition: the model's step comes first, then the invitation and the character.
+    // An empty library: the way forward is the gallery.
+    await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
+    const said = await story.evaluate((node) =>
+      // What the story shows: Latest waits hidden while the story is at its end.
+      [...node.querySelectorAll("p, button, a")]
+        .filter((element) => element.closest("[hidden]") === null)
+        .map((element) => element.textContent?.trim() ?? "")
+        .filter((text) => text !== ""),
+    );
+    expect(said[0]).toBe("Choose a model to begin");
+    expect(said.slice(-2)).toEqual([
+      "Write the first line, or choose a character.",
+      "Create a character",
+    ]);
+    // The story holds the step, so no notice over the composer repeats it.
+    await expect(page.locator("[data-model-notice]")).toHaveCount(1);
+    const invitation = story.getByText("Write the first line, or choose a character.");
+    // The old baseline preceded NoticeSlot's entry completion. Locator reveal then
+    // changed the scroll origin before the native picker click, before any choice.
+    const baseline = await geometry.evaluate((trace) => trace.ready());
+    const before = await invitation.boundingBox();
+    const picker = story.getByRole("combobox", { name: "Chat model", exact: true });
+    await picker.click();
+    await geometry.evaluate((trace) => trace.read("picker:open"));
+    await page.getByRole("option", { name: "mock-fast", exact: true }).click();
+    await expect(step).toHaveCount(0);
+    await expect(page.getByLabel("Message", { exact: true })).toBeFocused();
+    // A hidden outgoing status is absent from the role tree before its slot has left.
+    await expect(page.locator("[data-model-notice]")).toHaveCount(0);
+    const settled = await geometry.evaluate((trace) => trace.read("settled"));
+    expect(await invitation.boundingBox()).toEqual(before);
+    expect(settled.invitation).toEqual(baseline.invitation);
+    expect(settled.gallery).toEqual(baseline.gallery);
+    expect(settled.illustration).toEqual(baseline.illustration);
+    await expect(story.getByRole("link", { name: "Create a character" })).toBeVisible();
+  } finally {
+    const samples = await geometry.evaluate((trace) => trace.finish());
+    await test.info().attach("first-run-geometry.json", {
+      body: JSON.stringify(samples),
+      contentType: "application/json",
+    });
+    process.stdout.write(`FIRST_RUN_GEOMETRY ${JSON.stringify(samples)}\n`);
+    await geometry.dispose();
+  }
 });
 
 test("with no characters saved, the empty story and Session both lead to the gallery", async ({
@@ -2375,12 +3804,7 @@ for (const { name, width, height, scheme } of [
 
     // The editor with every row open.
     await list.getByRole("button", { name: "Edit The Grey Lantern" }).click();
-    for (const row of [
-      "Where it goes",
-      "When it goes in",
-      "What brings it in",
-      "What it matches",
-    ]) {
+    for (const row of ["Placement and order", "Timing", "Chaining", "Matching"]) {
       const button = page.getByRole("button", { name: row, exact: true });
       await button.click();
       await expect(button).toHaveAttribute("aria-expanded", "true");
@@ -2397,7 +3821,7 @@ for (const { name, width, height, scheme } of [
     // An in-chat entry reveals depth and role.
     if (name !== "desktop light") await page.getByRole("button", { name: "Entries" }).click();
     await list.getByRole("button", { name: "Edit Gull omen" }).click();
-    await page.getByRole("button", { name: "Where it goes", exact: true }).click();
+    await page.getByRole("button", { name: "Placement and order", exact: true }).click();
     await expect(page.getByRole("combobox", { name: "Role" })).toBeVisible();
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
@@ -2506,7 +3930,7 @@ test("reduced motion keeps the lorebook's rows to fades", async ({ page }) => {
   const id = await createCharacterViaApi(page.request, `Still ${crypto.randomUUID().slice(0, 6)}`);
   await setLorebookViaApi(page.request, id, WORLD_INFO_BOOK);
   await page.goto(`/characters/${id}/lorebook?entry=0`);
-  const button = page.getByRole("button", { name: "Where it goes", exact: true });
+  const button = page.getByRole("button", { name: "Placement and order", exact: true });
   await button.click();
   const motion = await button.evaluate((node) => {
     const panel = document.getElementById(node.getAttribute("aria-controls") ?? "");
@@ -3050,7 +4474,7 @@ test("an address that leads nowhere says so and leads back to the story", async 
   await expect(page.getByRole("textbox", { name: "Message", exact: true })).toBeVisible();
 });
 
-for (const width of [390, 1280]) {
+for (const width of [360, 390, 1280]) {
   test(`at ${width}px a sheet's header title rises in once the name scrolls away and never rests half faded`, async ({
     page,
   }) => {
@@ -3086,6 +4510,15 @@ for (const width of [390, 1280]) {
     }
     await scrollTo(400);
     await expect.poll(opacity).toBe(1);
+    const status = page.locator("header").getByText("Saved", { exact: true });
+    await expect(status).toHaveCount(1);
+    await expect(status).toBeVisible();
+    const fit = await title.evaluate((node) => {
+      const row = node.closest("header")?.firstElementChild?.getBoundingClientRect();
+      const rect = node.getBoundingClientRect();
+      return !!row && rect.top >= row.top && rect.bottom <= row.bottom;
+    });
+    expect(fit).toBe(true);
     await scrollTo(0);
     await expect.poll(opacity).toBe(0);
   });

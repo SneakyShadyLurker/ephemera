@@ -558,14 +558,14 @@ test("in a library book, By chance and a keyword entry's chance show their marke
   );
 
   await entries(page).getByRole("button", { name: "Edit Fog" }).click();
-  await page.getByRole("button", { name: "When it goes in", exact: true }).click();
+  await page.getByRole("button", { name: "Timing", exact: true }).click();
   const chance = page
     .locator("section[aria-labelledby='entry-title']")
     .getByRole("textbox", { name: "Chance in percent" });
   await chance.fill("40");
   await chance.press("Tab");
   await expect(
-    page.getByRole("button", { name: "When it goes in", exact: true }),
+    page.getByRole("button", { name: "Timing", exact: true }),
   ).toHaveAccessibleDescription(/^40% chance when it matches/);
   await expect(entries(page).getByRole("button", { name: "Edit Fog" })).toContainText("40% chance");
   await expect

@@ -21,7 +21,7 @@ import {
   toggleSession,
   useUi,
 } from "@/app/ui.ts";
-import { ClearIcon, EventsIcon, InspectIcon, SessionIcon } from "@/components/icons";
+import { ClearIcon, EventsIcon, InspectIcon, PlusIcon, SessionIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/ui/menu";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -129,6 +129,13 @@ function ChatHeader({
   const character = useChatCharacter();
   const phone = useFormFactor() === "phone";
   const eventsOpen = useUi((state) => state.eventsOpen);
+  const [newEvent, setNewEvent] = useState(false);
+  // Route-driven closure clears the local intent too, including during the sheet's exit.
+  if (!eventsOpen && newEvent) setNewEvent(false);
+  const openEvents = (create = false) => {
+    setNewEvent(create);
+    setEventsOpen(true);
+  };
   // Navigation closes the sheet, as the header's former local state did.
   useEffect(() => () => setEventsOpen(false), []);
   const eventsButton = useRef<HTMLButtonElement>(null);
@@ -156,7 +163,8 @@ function ChatHeader({
               composer={composer}
               empty={empty}
               trigger={menuButton}
-              onEvents={() => setEventsOpen(true)}
+              onEvents={() => openEvents()}
+              onNewEvent={() => openEvents(true)}
             />
             <Tooltip label="Session" shortcut="Ctrl ." side="bottom">
               <Button
@@ -179,7 +187,7 @@ function ChatHeader({
               label="Events"
               icon={EventsIcon}
               aria-haspopup="dialog"
-              onClick={() => setEventsOpen(true)}
+              onClick={() => openEvents()}
             />
             <ClearChat
               composer={composer}
@@ -202,6 +210,7 @@ function ChatHeader({
       </div>
       <EventsSheet
         open={eventsOpen}
+        newEvent={newEvent}
         onOpenChange={setEventsOpen}
         returnTo={() => (phone ? menuButton.current : eventsButton.current)}
       />
@@ -222,11 +231,13 @@ function ChatMenu({
   empty,
   trigger,
   onEvents,
+  onNewEvent,
 }: {
   composer: RefObject<HTMLTextAreaElement | null>;
   empty: boolean;
   trigger: RefObject<HTMLButtonElement | null>;
   onEvents: () => void;
+  onNewEvent: () => void;
 }) {
   const figures = useMeterFigures();
   const clear = useClearChatDialog({ composer, returnTo: trigger });
@@ -240,6 +251,10 @@ function ChatMenu({
           <MenuItem aria-haspopup="dialog" onClick={onEvents}>
             <EventsIcon size={16} />
             Events
+          </MenuItem>
+          <MenuItem aria-haspopup="dialog" onClick={onNewEvent}>
+            <PlusIcon size={16} />
+            New event
           </MenuItem>
           <MenuItem
             aria-describedby={figures === null ? undefined : METER_ID}

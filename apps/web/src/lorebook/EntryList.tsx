@@ -93,10 +93,12 @@ function BookSettings({ book, onBook }: Pick<ListProps, "book" | "onBook">) {
   const answer = `Last ${countOf(shownDepth, "message")}, ${budget === null ? "default budget" : `${formatCount(budget)} tokens`}, chaining ${chaining ? "on" : "off"}`;
   return (
     <details className={cn(LIST_X, "disclosure pt-2")}>
-      <summary className="flex min-h-12 w-fit max-w-full cursor-pointer list-none items-center gap-2 text-ink text-ui [&::-webkit-details-marker]:hidden">
-        <span className="font-medium">Book settings</span>
-        <DisclosureChevron className="text-reed" />
-        <span className="min-w-0 truncate pl-1 text-meta text-reed">{answer}</span>
+      <summary className="flex min-h-12 w-fit max-w-full cursor-pointer list-none flex-wrap items-baseline gap-x-2 gap-y-0.5 text-ink text-ui [&::-webkit-details-marker]:hidden">
+        <span className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap font-medium">
+          Book settings
+          <DisclosureChevron className="text-reed" />
+        </span>
+        <span className="min-w-0 text-pretty text-meta text-reed">{answer}</span>
       </summary>
       <section aria-label="How the book is read" className="grid gap-3 pt-1 pb-4">
         <div className="grid gap-3 tablet:grid-cols-2">
@@ -435,6 +437,7 @@ function Row({
   const settings = entrySettings(entry);
   const cues = entryCues(entry, settings);
   const cuesId = useId();
+  const orderId = useId();
   const poolsId = useId();
   const pools = settings.poolNames;
   return (
@@ -454,19 +457,23 @@ function Row({
         data-row=""
         tabIndex={tabStop ? 0 : -1}
         aria-label={`Edit ${title}`}
-        aria-describedby={pools.length > 0 ? `${poolsId} ${cuesId}` : cuesId}
+        aria-describedby={`${orderId} ${pools.length > 0 ? `${poolsId} ` : ""}${cuesId}`}
         aria-current={open ? "true" : undefined}
         onFocus={() => onFocus(index)}
         onClick={() => onOpen(index)}
         className={cn(rowLayout("entry"), "grid-cols-[2.25rem_minmax(0,1fr)_auto]")}
       >
-        <span className="self-baseline pt-px text-right text-meta text-reed tabular-nums">
+        <span
+          id={orderId}
+          className="self-baseline pt-px text-right text-meta text-reed tabular-nums"
+        >
+          <span className="sr-only">order </span>
           {entry.insertionOrder}
         </span>
         <span className={ROW_CONTENT}>
           <span
             className={cn(
-              "truncate text-ui transition-colors duration-(--duration-quick) ease-fade",
+              "truncate text-ui transition-colors duration-(--duration-tint-quick) ease-fade",
               entry.enabled ? "text-ink" : "text-reed",
             )}
           >

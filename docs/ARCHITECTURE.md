@@ -92,21 +92,33 @@ delaying the pending word for fast saves. `sheet/ProseField.tsx` owns the
 open prose edit cue and Enter or blur to finish, with Done on touch; memory
 uses it and flushes the notebook on blur.
 
+Shared sheet headers show save status below the title on phones and beside
+the actions on wider screens. A phone save failure replaces the title;
+only one save-status subtree and failure announcement renders at a time.
+During a locked Rework, saved card state reads Card unchanged without a
+check or announcement; pending saves and failures retain precedence.
+
 Phone collection headers keep the full title above a labelled action row.
 Character tiles use the portrait and full-width name as the Chat target,
-with Edit always visible beside the metadata below. The phone navigation
+with Edit always visible beside a reserved two-line metadata row below.
+Persona tiles show wrapping metadata only when present, without reserved
+caption height; Make default follows the name and metadata. The phone navigation
 sheet includes theme and Appearance controls. In chat, Memory is a direct
 header action and More holds Events, Prompt and Clear chat; Events opens
 `chat/EventsSheet.tsx`, reusing `events/EventsSection.tsx` in a side sheet or
 phone bottom sheet. Links open the same Events list in chat or Lorebooks.
-The event editor leads with the instruction and folds timing and scope
-under Advanced. Character lorebook linking uses the shared choice picker's
-Link and Unlink row actions; success closes it and reports the named book
+Closed event summaries show up to two lines; open summaries truncate to one
+line so typing does not move the editor below. The event editor leads with
+the instruction and folds timing and scope under Advanced. Character lorebook
+linking uses the shared choice picker's Link and Unlink row actions; success
+closes it and reports the named book
 in place. The phone character sheet groups Sections, Link a lorebook and
 Details below its compact identity.
 
 Memory keeps its title and the character's name in the header; phones fold
-the switch's longer explanation under What memory keeps. The lorebook
+the switch's longer explanation under What memory keeps. `MemorySwitch`
+owns the state line and explanation on both surfaces; the character sheet
+folds the explanation at every width. The lorebook
 editor folds scan depth, budget and Chaining under Book settings, with
 their current values in the summary, so the entries lead the pane.
 
@@ -129,14 +141,44 @@ save keeps the mounted editor under its logical saved pathname, so replacing
 `/new` with the created id preserves typing and focus. Search-only book entry
 navigation stays local and does not fetch the book again.
 
-The chat title yields while any character nameplate is visible in the
-story, stuck or not; `Thread` observes them against its scroller and sets
-`data-name-shown`. The latest reply owns the portrait and Cast on every
+`chat/frame.ts` shares one centred, bounded frame between thread, composer,
+header and notices. Its outer maximum is the portrait column, presence gap,
+prose measure and story insets together, derived once in `styles.css` from
+their rem tokens; below that maximum it fills the available chat column.
+The owner's slips keep its trailing edge, while the prose keeps its measure
+and the portrait keeps its growth and height cap.
+
+The chat title yields while at least half of a character name remains
+readable below the story's 0.75rem top-edge fade, stuck or not; `Thread`
+observes the name text against its scroller and sets `data-name-shown`.
+The latest reply owns the portrait and Cast on every
 screen, including while waiting for text; moving them there does not replay
 their entrance. Focus on the portrait or its viewer holds that placement
-until focus leaves. Reply actions sit below the prose inside the turn,
-ahead of scene pictures, with a reserved row while streaming. Latest has
+until focus leaves. On phones, the in-reply Cast stack measures the portrait
+column before paint and fits names around a shared action row and a reserved
+status line. Once all present names fit, a single away woman's name is used
+only when its full phrase fits two note lines beside retry and Undo;
+otherwise the tail keeps its count. Removal, retry and keeper feedback use
+those slots without growing the group; the full roster remains reachable.
+Reply actions sit below the prose inside the turn,
+ahead of scene pictures, with a reserved row while streaming. New reply,
+Continue and More lead the alternate pager, keeping their positions when
+the first alternate arrives. Pager endpoints retain keyboard focus; after
+a keyboard New reply, focus returns there only if no newer input or focus
+owner has taken over. Latest has
 its own reserved row on phones and floats over the story from tablet up.
+`Conversation` coordinates native anchoring with the existing scroll library:
+while following, layout changes keep the tail in view; an upward escape
+restores native history anchoring and survives content or viewport resizing.
+Latest or sending explicitly rejoins, adopting the current scroll origin so
+an already-queued adjustment does not masquerade as a new escape.
+Latest visibility uses the physical scroll gap independently of follow
+intent. `chat/deletion-view.tsx` keeps a transient bookmark in the mounted
+thread around the existing delete and Undo mutations. Successful Undo
+restores the tail or reading offset, respects newer upward input or an
+explicit rejoin, and returns focus only when Undo owned it. A refused Undo
+keeps the bookmark and leaves scroll and focus alone; the bookmark is never
+stored with the chat.
 `portraits/Portrait.tsx` retains the decoded image until its replacement
 decodes, including across sign-in renewal, and supplies an unavailable face
 instead of a broken image.
@@ -1390,7 +1432,12 @@ content's path: the tab's memory and one request in the server.
   workflows and hosts the import panel (`apps/web/src/workflows/`), which
   holds the file, the inspection and the choices in component state and
   sends graphs through plain request functions, so no query cache holds
-  one.
+  one. Its mounted presentation aligns the heading and first inspection
+  answer once per file when they are outside the settings scrollport,
+  waiting for the opening slot's scroll range and retaining only the trailing
+  canvas needed to align a short panel for that file. Wheel, touch, scroll keys,
+  scrollbar input or focus outside the panel relinquish that arrival;
+  replacements get a new opportunity, and saving never starts one.
 - **`POST /api/scene`** (`apps/server/src/scene.ts`): Picture this scene.
   The tab sends the model (Settings' image prompt model, else the chat's,
   taken at the press; no effort), the workflow, the character's
@@ -1874,13 +1921,20 @@ AI Rework:
   ignores every call and the fields are read-only. Tracked views
   (`tracked.ts`) cut each field's original text at its changes and fold
   unchanged runs over 60 words to the sentences beside a change.
-  `ChangeRuns` shows Removed and Proposed passages on separate field faces;
+  `ChangeRuns` shows Removed and Proposed passages within one field frame;
   a removal over 160 characters or containing a line break folds behind
   Show removed. Each reason follows its proposal with one always-visible
   Reject or Restore action; new changes start accepted. Tags and keys group
-  their removed and proposed chips under the same labels. The dock counts
-  accepted, placeable changes to apply and unplaceable changes left out,
-  and Previous and Next focus the change blocks. Everything renders as text
+  their removed and proposed chips under the same labels. Rejection changes
+  those labels to Kept and Rejected (Not added for a pure insertion), and
+  removes active deletion/insertion semantics from the rejected change.
+  The dock counts accepted, placeable changes to apply and rejected changes
+  separately; its disclosure says which changes won't apply and lists those
+  that could not be placed. It starts open for an entirely unplaced result,
+  closed for a mixed result, and preserves native toggling until a new result.
+  Previous and Next focus the change blocks beside a position counter that
+  stays blank until navigation; idle Previous starts at the last change and
+  Next at the first. Everything renders as text
   nodes. Apply writes the
   accepted changes into the sheet's draft (the lorebook included) and the
   autosave saves them; Undo restores the fields Apply wrote, skipping any
@@ -2038,8 +2092,10 @@ again, the preview and portraits load again. Every code chunk loads in the
 first idle moment after the first paint. A chunk that still fails stays
 failed for the page's life (the browser's module map keeps it), so the
 router's lazy route component, which would reload the tab, is replaced
-(`src/app/router-package.ts`) by one that shows a calm error saying a
-reload ends the chat. Exports confirm the session with a request Ephemera
+(`src/app/router-package.ts`) by one that shows a calm error. A failed screen
+offers Back to the story when away from the story route, retaining the chat,
+and Reload and end the chat, which uses the existing unload guard. Nothing
+reloads automatically. Exports confirm the session with a request Ephemera
 must answer before they download, because Chromium follows a redirected
 download as a navigation.
 
@@ -2070,13 +2126,17 @@ once and saved in order. A save that fails or is refused is said inline on
 Settings and, wherever else the choice was made, in a notice over the
 content column. A change made before the settings first loaded is laid over
 them once they do. `chat/ChatChoices.tsx` shares the persona selector and
-sampler choice owner with Session; selecting a sampler with a model changes
-both settings together. Session orders Character, Persona, Sampler preset,
+sampler choice owner with Session; the inline sampler popup uses up to
+20rem within its positioner's available width. Both selectors describe each
+sampler with the existing model-and-settings summary. Selecting one with a
+model changes both settings together. Session orders Character, Persona, Sampler preset,
 Prompt preset and Model, folding explanations but keeping model and
 reasoning mismatches visible. The palette editor widens its Settings frame
 on desktop for a sticky sample beside the fields, offers Preview on smaller
-screens and a compact live sample on phones, using the chat's nameplates,
-prose and slip. The server sets the saved theme and palette on the app
+screens and a compact live sample on phones and tablets, using the chat's
+nameplates, prose and slip. The full sample's reply actions and composer
+are inert decorations, without focusable controls or event handlers.
+The server sets the saved theme and palette on the app
 shell's `<html>` (`data-theme`, `data-palette`) with Bun's `HTMLRewriter`,
 and links the requester's custom palettes as `/api/palettes.css` when there
 are any (the policy allows no inline style), so a reload paints them before

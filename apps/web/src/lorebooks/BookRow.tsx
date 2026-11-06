@@ -37,7 +37,7 @@ const NAME =
 /** Who carries a book: a few portraits and the count, or "Not linked". */
 function Linked({ characters, className }: { characters: LinkedCharacter[]; className?: string }) {
   return (
-    <span className={cn("flex min-w-0 items-center gap-2 text-meta", className)}>
+    <span className={cn("flex min-w-0 items-center gap-2", className)}>
       <Leaves characters={characters} small />
       <span className={characters.length === 0 ? "text-reed" : "text-ink"}>
         {linkedText(characters.length)}

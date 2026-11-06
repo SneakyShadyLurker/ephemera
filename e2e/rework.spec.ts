@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { CARD_LIMITS } from "../packages/core/src/card/limits.ts";
+import { PALETTES } from "../packages/core/src/palettes.ts";
 import { uniqueName } from "./support/cards.ts";
 import { beacons, expectUpstreamAborted, upstreamRecords } from "./support/chat.ts";
 import { portraitPng } from "./support/creator-fixtures.ts";
@@ -33,6 +34,378 @@ import { expect, test } from "./support/test.ts";
 async function openSheet(page: Page, id: string) {
   await page.goto(`/characters/${id}`);
   await expect(page.getByRole("textbox", { name: "Description", exact: true })).toBeVisible();
+}
+
+for (const scenario of [
+  "none",
+  "before-wheel",
+  "before-touch",
+  "before-key",
+  "frame-wheel",
+  "frame-touch",
+  "frame-key",
+  "new-run",
+  "failed",
+] as const) {
+  test(`a single-batch Rework answer reveals once, arrival=${scenario}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const base = canary("terminal-batch");
+    const id = await createReworkCharacter(page.request, base);
+    const answer = `<change><field>description</field><why>Show the new wording.</why><find>${ANCHOR_ONE}</find><replace>A proposed arrival passage.</replace></change><summary>One change.</summary>`;
+    let release = () => {};
+    const response = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requests = 0;
+    await page.route("**/api/creator/rework", async (route) => {
+      requests += 1;
+      await response;
+      await route.fulfill({
+        contentType: "application/x-ndjson",
+        body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: scenario === "failed" ? ["incomplete"] : [] })}\n`,
+      });
+    });
+    await openSheet(page, id);
+    await page.evaluate((scenario) => {
+      const original = Element.prototype.scrollIntoView;
+      const nativeFrame = window.requestAnimationFrame;
+      const nativeCancel = window.cancelAnimationFrame;
+      const calls: unknown[] = [];
+      const events: { kind: string; time: number; [key: string]: unknown }[] = [];
+      const record = (kind: string, detail = {}) => {
+        events.push({
+          kind,
+          time: performance.now(),
+          pending: Array.from(document.querySelectorAll('[aria-label="AI Rework"] button')).some(
+            (button) => button.textContent?.trim() === "Stop",
+          ),
+          ...detail,
+        });
+      };
+      const input = (event: Event) =>
+        record(event.type, {
+          trusted: event.isTrusted,
+          target: (event.target as Element)?.tagName,
+        });
+      for (const type of ["wheel", "touchmove", "keydown"])
+        window.addEventListener(type, input, { capture: true });
+      const observer = new MutationObserver(() => {
+        if (document.querySelector("[data-change-at]")) record("change-painted");
+      });
+      observer.observe(document.querySelector("main") ?? document.body, {
+        childList: true,
+        subtree: true,
+      });
+      let stale: FrameRequestCallback | undefined;
+      let captured = false;
+      window.requestAnimationFrame = (callback) => {
+        if (!callback.toString().includes("data-change-at")) return nativeFrame(callback);
+        record("reveal-scheduled");
+        if (scenario === "new-run" && !captured) {
+          captured = true;
+          stale = callback;
+          // Keep a cancelled callback callable, as if already dequeued. It is
+          // delivered on a native frame after a public replacement run starts.
+          return nativeFrame(() => record("old-frame-dequeued"));
+        }
+        return nativeFrame((time) => {
+          record("reveal-frame");
+          if (scenario.startsWith("frame-")) {
+            const target = document.querySelector("main [data-skip-target]");
+            const type = scenario.slice(6);
+            target?.dispatchEvent(
+              type === "key"
+                ? new KeyboardEvent("keydown", { key: "PageUp", bubbles: true })
+                : type === "wheel"
+                  ? new WheelEvent("wheel", { deltaY: -90, bubbles: true })
+                  : new Event("touchmove", { bubbles: true }),
+            );
+          }
+          callback(time);
+          record("reveal-delivered");
+        });
+      };
+      window.cancelAnimationFrame = (id) => {
+        record("frame-cancelled", { id });
+        nativeCancel(id);
+      };
+      Element.prototype.scrollIntoView = function (options) {
+        if (this.hasAttribute("data-change-at")) {
+          const call = {
+            at: this.getAttribute("data-change-at"),
+            options,
+            time: performance.now(),
+          };
+          calls.push(call);
+          record("reveal-scroll", call);
+        }
+        original.call(this, options);
+      };
+      Reflect.set(window, "readArrivalTrace", () => ({ events, calls }));
+      Reflect.set(window, "markArrival", record);
+      Reflect.set(
+        window,
+        "deliverStaleArrival",
+        () =>
+          new Promise<void>((resolve) => {
+            nativeFrame((time) => {
+              record("old-frame-delivered-in-new-run");
+              stale?.(time);
+              resolve();
+            });
+          }),
+      );
+      Reflect.set(window, "stopArrivalTrace", () => {
+        observer.disconnect();
+        window.requestAnimationFrame = nativeFrame;
+        window.cancelAnimationFrame = nativeCancel;
+        for (const type of ["wheel", "touchmove", "keydown"])
+          window.removeEventListener(type, input, { capture: true });
+        Element.prototype.scrollIntoView = original;
+        return { events, calls };
+      });
+    }, scenario);
+    try {
+      await openRework(page);
+      await submitRework(page, { request: ownerRequest(base, "batch"), model: "mock-fast" });
+      await expect.poll(() => requests).toBe(1);
+      await page.evaluate(() =>
+        (Reflect.get(window, "markArrival") as (kind: string) => void)("run-1-pending"),
+      );
+      if (scenario.startsWith("before-")) {
+        const view = page.locator("main [data-skip-target]");
+        if (scenario === "before-wheel") {
+          const box = await view.boundingBox();
+          await page.mouse.move((box?.x ?? 0) + 40, (box?.y ?? 0) + 100);
+          await page.mouse.wheel(0, 90);
+        } else if (scenario === "before-key") {
+          await view.press("PageUp");
+        } else {
+          await view.dispatchEvent("touchmove");
+        }
+        const type =
+          scenario === "before-key"
+            ? "keydown"
+            : scenario === "before-wheel"
+              ? "wheel"
+              : "touchmove";
+        await expect
+          .poll(() =>
+            page.evaluate(
+              (type) =>
+                (
+                  Reflect.get(window, "readArrivalTrace") as () => { events: { kind: string }[] }
+                )().events.some((event) => event.kind === type),
+              type,
+            ),
+          )
+          .toBe(true);
+      }
+      await page.evaluate(() =>
+        (Reflect.get(window, "markArrival") as (kind: string) => void)("answer-released"),
+      );
+      release();
+      await expect(dock(page)).toContainText("1 change to apply");
+      await expect(changes(page)).toHaveCount(1);
+      if (scenario === "new-run") {
+        await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
+        await openRework(page);
+        await submitRework(page, {
+          request: ownerRequest(base, "replacement"),
+          model: "mock-fast",
+        });
+        await expect.poll(() => requests).toBe(2);
+        await expect(dock(page)).toContainText("1 change to apply");
+        await page.evaluate(() =>
+          (Reflect.get(window, "deliverStaleArrival") as () => Promise<void>)(),
+        );
+      }
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      const evidence = await page.evaluate(() => ({
+        change: document.querySelector("[data-change-at]")?.getBoundingClientRect().toJSON(),
+        view: document.querySelector("main [data-skip-target]")?.getBoundingClientRect().toJSON(),
+        focus: document.activeElement?.getAttribute("aria-label"),
+      }));
+      const { calls, events } = await page.evaluate(() =>
+        (
+          Reflect.get(window, "readArrivalTrace") as () => {
+            calls: unknown[];
+            events: { kind: string; time: number; pending: boolean }[];
+          }
+        )(),
+      );
+      process.stdout.write(
+        `G terminal batch ${JSON.stringify({ scenario, requests, calls, events, ...evidence })}\n`,
+      );
+      expect(calls).toHaveLength(scenario === "none" || scenario === "new-run" ? 1 : 0);
+      if (scenario.startsWith("before-")) {
+        const type =
+          scenario === "before-key"
+            ? "keydown"
+            : scenario === "before-wheel"
+              ? "wheel"
+              : "touchmove";
+        expect(events.find((event) => event.kind === type)?.time).toBeLessThan(
+          events.find((event) => event.kind === "answer-released")?.time ?? -Infinity,
+        );
+        expect(events.find((event) => event.kind === type)?.pending).toBe(true);
+      }
+      if (scenario.startsWith("frame-")) {
+        const type =
+          scenario === "frame-key" ? "keydown" : scenario === "frame-wheel" ? "wheel" : "touchmove";
+        const input = events.find((event) => event.kind === type);
+        expect(input?.time).toBeGreaterThanOrEqual(
+          events.find((event) => event.kind === "reveal-scheduled")?.time ?? Infinity,
+        );
+        expect(input?.time).toBeLessThanOrEqual(
+          events.find((event) => event.kind === "reveal-delivered")?.time ?? -Infinity,
+        );
+      }
+      if (scenario === "new-run") {
+        expect(events.some((event) => event.kind === "old-frame-dequeued")).toBe(true);
+        expect(events.some((event) => event.kind === "old-frame-delivered-in-new-run")).toBe(true);
+      }
+      if (scenario === "none" || scenario === "new-run") {
+        expect(evidence.change?.top).toBeGreaterThanOrEqual(evidence.view?.top ?? Infinity);
+        expect(evidence.change?.bottom).toBeLessThanOrEqual(evidence.view?.bottom ?? -Infinity);
+      }
+      await expect(dock(page).getByText("1 / 1", { exact: true })).toHaveCount(0);
+    } finally {
+      release();
+      const diagnostic = await page.evaluate(() => {
+        const trace = (Reflect.get(window, "readArrivalTrace") as (() => unknown) | undefined)?.();
+        (Reflect.get(window, "stopArrivalTrace") as (() => unknown) | undefined)?.();
+        for (const name of [
+          "stopArrivalTrace",
+          "readArrivalTrace",
+          "markArrival",
+          "deliverStaleArrival",
+        ])
+          Reflect.deleteProperty(window, name);
+        return trace;
+      });
+      process.stdout.write(`P1 arrival ${JSON.stringify({ scenario, requests, diagnostic })}\n`);
+      await testInfo.attach("arrival-ordering.json", {
+        body: JSON.stringify(diagnostic),
+        contentType: "application/json",
+      });
+    }
+  });
+}
+
+for (const width of [390, 1440]) {
+  test(`Rework never describes pending or failed earlier edits as unchanged at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const base = canary("rw-save-precedence");
+    const id = await createReworkCharacter(page.request, base);
+    await openSheet(page, id);
+    const header = page.locator("header");
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/api/characters/${id}`, async (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback();
+      await pending;
+      return route.abort();
+    });
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("Unsaved name");
+    await openRework(page);
+    await submitRework(page, { request: ownerRequest(base, "kept-pending"), model: "mock-fast" });
+    await expect(dock(page)).toContainText("3 changes to apply");
+    await expect(header.getByText("Saving", { exact: true })).toBeVisible();
+    await expect(header.getByText("Card unchanged", { exact: true })).toHaveCount(0);
+    release();
+    const failure = "Not saved: can't reach Ephemera. Retrying";
+    await expect(header.getByText(failure, { exact: true }).first()).toBeVisible();
+    await expect(header.locator('[role="alert"]')).toHaveCount(1);
+    await expect(header.getByRole("alert")).toHaveText(failure);
+    await expect(header.getByText("Card unchanged", { exact: true })).toHaveCount(0);
+    await page.unroute(`**/api/characters/${id}`);
+    await expect(header.getByText("Card unchanged", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
+    await expect(header.getByText("Saved", { exact: true })).toBeVisible();
+  });
+}
+
+for (const count of [0, 1, 5]) {
+  for (const allUnplaced of [false, true]) {
+    test(`unplaced disclosure ${count}/all=${allUnplaced} remains usable at 360px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 780 });
+      const base = canary("unplaced");
+      const id = await createReworkCharacter(page.request, base);
+      const block = (find: string, at: number) =>
+        `<change><field>description</field><why>The passage needs changing ${at}.</why><find>${find}</find><replace>Proposed plain text ${at}.</replace></change>`;
+      const answer = [
+        ...(allUnplaced ? [] : [block(ANCHOR_ONE, 0)]),
+        ...Array.from({ length: count }, (_, at) => block(`Absent passage ${at}`, at + 1)),
+        "<summary>Review these changes.</summary>",
+      ].join("\n");
+      await page.route("**/api/creator/rework", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/x-ndjson; charset=utf-8",
+          body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+        }),
+      );
+      await openSheet(page, id);
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+      await openRework(page);
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+      await submitRework(page, {
+        request: ownerRequest(base, "kept-unplaced"),
+        model: "mock-fast",
+      });
+      const bar = dock(page);
+      await expect(
+        page.locator("header").getByText("Card unchanged", { exact: true }),
+      ).toBeVisible();
+      await expect(page.locator("header").getByText("Saved", { exact: true })).toHaveCount(0);
+      await expect(bar).toContainText(
+        allUnplaced
+          ? count === 0
+            ? "No changes suggested"
+            : "Nothing to apply"
+          : "1 change to apply",
+      );
+      const disclosure = bar.locator("details");
+      if (count === 0) {
+        await expect(disclosure).toHaveCount(0);
+        return;
+      }
+      await expect(disclosure.locator("summary")).toHaveText(
+        `${count} ${count === 1 ? "change" : "changes"} won't apply`,
+      );
+      await expect(disclosure).toHaveJSProperty("open", allUnplaced);
+      await disclosure.locator("summary").click();
+      await expect(disclosure).toHaveJSProperty("open", !allUnplaced);
+      // Navigation changes the ordinary render without changing the result identity.
+      if (!allUnplaced) await bar.getByRole("button", { name: "Next change" }).click();
+      await expect(disclosure).toHaveJSProperty("open", !allUnplaced);
+      if (allUnplaced) await disclosure.locator("summary").click();
+      await expect(disclosure.locator("ul")).toBeVisible();
+      const list = await disclosure.locator("ul").boundingBox();
+      expect(list?.height).toBeLessThanOrEqual(780 * 0.3 + 1);
+      await expect(bar.getByRole("button", { name: "Discard", exact: true })).toBeInViewport();
+      if (!allUnplaced)
+        await expect(
+          bar.getByRole("button", { name: "Apply 1 change", exact: true }),
+        ).toBeInViewport();
+      await disclosure.locator("summary").click();
+      await expect(disclosure).toHaveJSProperty("open", false);
+    });
+  }
 }
 
 test("reasoning follows the model's offered levels and is sent with the rework", async ({
@@ -91,8 +464,17 @@ test("compose, stream and review: the dock counts the changes and the fields are
   await submitRework(page, { request: ownerRequest(base, "kept-flow"), model: "mock-fast" });
 
   const bar = dock(page);
-  await expect(bar).toContainText("3 changes to apply, 1 left out");
-  await expect(bar.getByText("1 could not be placed")).toBeVisible();
+  await expect(bar).toContainText("3 changes to apply");
+  await expect(bar).not.toContainText("left out");
+  await expect(bar.getByText("– / 3", { exact: true })).toHaveCount(0);
+  expect(await bar.getByRole("status").textContent()).toBe("3 changes to apply");
+  await bar.getByRole("button", { name: "Previous change" }).click();
+  await expect(
+    page.getByRole("group", { name: "Change 3 of 3 in Entry 1: The harbour ledger" }),
+  ).toBeFocused();
+  await expect(bar.getByText("3 / 3", { exact: true })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Next change" })).toBeDisabled();
+  await expect(bar.getByText("1 change won't apply")).toBeVisible();
   await expect(bar.getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
   // The changed field shows its tracked view; the others stay, read-only.
   await expect(page.getByRole("group", { name: "Description, under review" })).toBeVisible();
@@ -114,7 +496,7 @@ test("compose, stream and review: the dock counts the changes and the fields are
     };
   });
   expect(after.dock).toBe(false);
-  expect(after.html).not.toContain("could not be placed");
+  expect(after.html).not.toContain("won't apply");
   expect(after.html).not.toContain(`${base}-rej`);
   expect(after.html).not.toContain(`${base}-why`);
 });
@@ -134,6 +516,59 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
   await expect(description.locator("ins").first()).toContainText(`Replaced one ${kept}-acc.`);
   await expect(description.locator("del").first()).toContainText(ANCHOR_ONE);
 
+  // Measure the actual proposal, including its painted ground, across every built-in theme.
+  const insertion = description.locator("ins").first().locator("..");
+  await expect(insertion).toBeVisible();
+  const contrasts = await insertion.evaluate((node, palettes) => {
+    const root = document.documentElement;
+    const original = {
+      theme: root.getAttribute("data-theme"),
+      palette: root.getAttribute("data-palette"),
+    };
+    const luminance = (color: string) => {
+      const probe = document.createElement("span");
+      probe.style.color = `color(from ${color} srgb r g b)`;
+      document.body.append(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      const [r = 0, g = 0, b = 0] = (value.match(/-?[\d.]+(e-?\d+)?/g) ?? [])
+        .slice(0, 3)
+        .map(Number)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const results = [];
+    try {
+      for (const scheme of ["light", "dark"]) {
+        root.dataset.theme = scheme;
+        for (const palette of palettes) {
+          root.dataset.palette = palette;
+          // Flush styles, then settle this insertion's ground transition before measuring.
+          for (const animation of node.getAnimations()) animation.finish();
+          const style = getComputedStyle(node);
+          const foreground = luminance(style.color);
+          const background = luminance(style.backgroundColor);
+          results.push({
+            palette,
+            scheme,
+            ratio:
+              (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+          });
+        }
+      }
+    } finally {
+      for (const [key, value] of Object.entries(original)) {
+        if (value === null) root.removeAttribute(`data-${key}`);
+        else root.setAttribute(`data-${key}`, value);
+      }
+    }
+    return results;
+  }, PALETTES);
+  expect(contrasts).toHaveLength(12);
+  for (const { palette, scheme, ratio } of contrasts) {
+    expect(ratio, `${palette} ${scheme}: rendered insertion`).toBeGreaterThanOrEqual(7);
+  }
+
   // Long unchanged runs are folded; opening one reveals its words in place and keeps it open.
   const folds = description.getByText(/^Show \d+ unchanged words$/);
   await expect(folds).toHaveCount(2);
@@ -147,9 +582,20 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
   await page.getByRole("button", { name: "Reject change 2 of 3" }).click();
   await expect(page.getByRole("button", { name: "Restore change 2 of 3" })).toBeFocused();
   await expect(dock(page).getByRole("button", { name: "Apply 2 changes" })).toBeEnabled();
+  const rejected = page.getByRole("group", { name: "Change 2 of 3 in Description", exact: true });
+  await expect(rejected.getByText("Kept", { exact: true })).toBeVisible();
+  await expect(rejected.getByText("Rejected", { exact: true })).toBeVisible();
+  await expect(rejected.locator("del, ins")).toHaveCount(0);
+  await expect(rejected).not.toContainText("deleted:");
+  await expect(rejected).not.toContainText("inserted:");
+  await expect(dock(page)).toContainText("2 changes to apply, 1 rejected");
   await page.getByRole("button", { name: "Restore change 2 of 3" }).click();
   await expect(page.getByRole("button", { name: "Reject change 2 of 3" })).toBeFocused();
   await expect(dock(page).getByRole("button", { name: "Apply 3 changes" })).toBeEnabled();
+  await expect(rejected.getByText("Removed", { exact: true })).toBeVisible();
+  await expect(rejected.getByText("Proposed", { exact: true })).toBeVisible();
+  await expect(rejected.locator("del")).toHaveCount(1);
+  await expect(rejected.locator("ins")).toHaveCount(1);
   await page.getByRole("button", { name: "Reject change 2 of 3" }).click();
 
   // The lorebook's entry under review, above its summary; the screen stays closed meanwhile.
@@ -177,6 +623,9 @@ test("review in place: a folded run opens, Reject hands focus to Restore, Apply 
     )
     .toContain(`${kept}-lore`);
   await expect(lorebook.getByRole("link", { name: "Open lorebook" })).toBeVisible();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+  await dock(page).getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 });
 
 test("a model without a context window reopens the composer with what to do", async ({ page }) => {
@@ -282,6 +731,7 @@ test("after typing in an applied field, Undo leaves it and says so", async ({ pa
   );
   await expect(page.getByRole("button", { name: "AI Rework", exact: true })).toBeFocused();
   await expect(description).toHaveValue(/kept-undo-acc.* More\.$/s);
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
 });
 
 test("the portrait switch follows what the model reads", async ({ page }) => {
@@ -412,6 +862,7 @@ test("Stop keeps what arrived and aborts the upstream", async ({ page }) => {
   await openRework(page);
   await submitRework(page, { request: ownerRequest(base, "kept-stop"), model: "mock-slow" });
   await expect(dock(page)).toContainText("Reworking with mock-slow");
+  await expect(page.locator("header").getByText("Card unchanged", { exact: true })).toBeVisible();
   await expect(changes(page)).toHaveCount(1, { timeout: 15_000 });
   await dock(page).getByRole("button", { name: "Stop" }).click();
   await expect(dock(page)).toContainText("Stopped. 1 change arrived.");
@@ -431,11 +882,13 @@ test("an upstream error ends the run in ember and echoes nothing", async ({ page
   const line = dock(page).getByText("The model stopped before it finished.").first();
   await expect(line).toBeVisible();
   await expect(line).toHaveClass(/text-ember/);
+  await expect(page.locator("header").getByText("Card unchanged", { exact: true })).toBeVisible();
   expect(await upstreamRecords(`${base}-req`)).toHaveLength(1);
   expect(await page.content()).not.toContain(`${base}-req`);
 });
 
 for (const size of [
+  { name: "narrow phone", width: 360, height: 844, drawer: true },
   { name: "phone", width: 390, height: 844, drawer: true },
   { name: "tablet", width: 820, height: 1180, drawer: false },
 ] as const) {
@@ -446,6 +899,26 @@ for (const size of [
     const base = canary(`rw${size.name}`);
     const id = await createReworkCharacter(page.request, base, { portrait: true });
     await openSheet(page, id);
+    const toolbar = page.getByRole("toolbar", { name: "Sheet actions", exact: true });
+    const chat = page.locator("header").getByRole("button", { name: "Chat", exact: true });
+    const chatBefore = await chat.boundingBox();
+    if (size.drawer) {
+      await expect(toolbar).toBeVisible();
+      await expect(toolbar.getByRole("button", { name: "Chat", exact: true })).toHaveText("Chat");
+      await expect(toolbar.getByRole("button", { name: "AI Rework", exact: true })).toHaveText(
+        "AI Rework",
+      );
+      await expect(toolbar.getByRole("button")).toHaveCount(2);
+      const firstRow = await page
+        .getByRole("button", { name: "More actions", exact: true })
+        .boundingBox();
+      const secondRow = await toolbar.boundingBox();
+      expect(firstRow).not.toBeNull();
+      expect(secondRow).not.toBeNull();
+      expect(secondRow?.y).toBeGreaterThanOrEqual((firstRow?.y ?? 0) + (firstRow?.height ?? 0));
+    } else {
+      await expect(toolbar).toHaveCount(0);
+    }
     await openRework(page);
     // The same header close in the phone drawer and the wider popover.
     await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(size.drawer ? 1 : 0);
@@ -455,6 +928,12 @@ for (const size of [
 
     const bar = dock(page);
     await expect(bar).toContainText("3 changes to apply");
+    await expect(page.locator("header").getByText("Card unchanged", { exact: true })).toBeVisible();
+    expect((await chat.boundingBox())?.x).toBe(chatBefore?.x);
+    const memory = page.locator("#s-memory");
+    await expect(memory.getByRole("switch")).toBeEnabled();
+    await expect(memory.getByRole("button", { name: "Open memory" })).toBeDisabled();
+    await expect(memory.locator("details")).not.toHaveAttribute("open");
     // The unmatched change waits behind its disclosure, closed, on every form factor.
     const unmatched = bar.locator("details");
     await expect(unmatched).toHaveCount(1);
@@ -464,6 +943,21 @@ for (const size of [
     const box = await bar.boundingBox();
     expect(box).not.toBeNull();
     expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(size.height + 0.5);
+    if (size.width === 360) {
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? Infinity)).toBeLessThanOrEqual(360);
+      const previous = bar.getByRole("button", { name: "Previous change" });
+      const next = bar.getByRole("button", { name: "Next change" });
+      for (const button of [previous, next]) {
+        const target = await button.boundingBox();
+        expect(target?.height).toBeGreaterThanOrEqual(44);
+        expect(target?.width).toBeGreaterThanOrEqual(44);
+      }
+      await next.click();
+      await expect(page.getByRole("group", { name: "Change 1 of 3 in Description" })).toBeFocused();
+      await expect(previous).toBeDisabled();
+      await expect(bar.getByText("1 / 3", { exact: true })).toBeVisible();
+    }
   });
 }
 
@@ -535,7 +1029,8 @@ test("the keyboard alone opens, sends, navigates, rejects and reaches Apply", as
   await page.keyboard.press("Enter");
   const first = page.getByRole("group", { name: "Change 1 of 3 in Description" });
   await expect(first).toBeFocused();
-  await expect(bar).toContainText("Change 1 of 3, Description");
+  await expect(bar.getByText("1 / 3", { exact: true })).toBeVisible();
+  await expect(bar.getByRole("status")).toContainText("Change 1 of 3, Description");
   const reject = page.getByRole("button", { name: "Reject change 1 of 3" });
   await tabTo(page, reject, { limit: 3 });
   await page.keyboard.press("Enter");
@@ -639,6 +1134,79 @@ const RICH_DESCRIPTION_NEW =
 
 const richBlock = (field: string, why: string, find: string, replace: string) =>
   `<change>\n<field>${field}</field>\n<why>${why}</why>\n<find>${find}</find>\n<replace>${replace}</replace>\n</change>`;
+
+test("replacement, deletion, insertion and keyword decisions agree with their spoken state and counts", async ({
+  page,
+}) => {
+  const id = await createCharacterViaApi(page.request, "Mara Voss", {
+    description: "Old harbour. The archive stays.",
+    firstMessage: "",
+    creatorNotes: "An aside. Keep this.",
+  });
+  await setLorebookViaApi(page.request, id, {
+    entries: [
+      {
+        keys: ["harbour"],
+        content: "The archive.",
+        enabled: true,
+        insertionOrder: 100,
+        useRegex: false,
+        comment: "Archive",
+      },
+    ],
+  });
+  const answer = [
+    richBlock("description", "The harbour changes.", "Old harbour.", "New harbour."),
+    richBlock("creatorNotes", "The aside can go.", "An aside.", ""),
+    richBlock("firstMessage", "The day opens.", "", "Morning lantern."),
+    richBlock("entry_1_keys", "Follow the new place.", "", "customs"),
+    richBlock("description", "Cannot find this passage.", "Missing passage.", "Unplaced proposal."),
+    "<summary>Four decisions.</summary>",
+  ].join("\n");
+  await page.route("**/api/creator/rework", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/x-ndjson; charset=utf-8",
+      body: `${JSON.stringify({ type: "delta", text: answer })}\n${JSON.stringify({ type: "result", problems: [] })}\n`,
+    }),
+  );
+  await openSheet(page, id);
+  await openRework(page);
+  await submitRework(page, { request: "Rework the harbour.", model: "mock-fast" });
+  const bar = dock(page);
+  await expect(bar).toContainText("4 changes to apply");
+  await expect(bar.getByText("1 change won't apply", { exact: true })).toBeVisible();
+  await expect(bar.getByText("– / 4", { exact: true })).toHaveCount(0);
+  const replacement = page.getByRole("group", { name: /^Change \d of 4 in Description$/ });
+  const deletion = page.getByRole("group", { name: /^Change \d of 4 in Creator notes$/ });
+  const insertion = page.getByRole("group", { name: /^Change \d of 4 in First message$/ });
+  const keywords = page.getByRole("group", {
+    name: /^Change \d of 4 in Entry 1: Archive, keywords$/,
+  });
+  for (const group of [replacement, deletion, insertion, keywords]) {
+    await group.getByRole("button", { name: /^Reject change/ }).click();
+    await expect(group.getByRole("button", { name: /^Restore change/ })).toBeFocused();
+    await expect(group.locator("del, ins")).toHaveCount(0);
+    await expect(group).not.toContainText(/deleted:|inserted:|removed:|added:/);
+  }
+  for (const group of [replacement, deletion, keywords]) {
+    await expect(group.getByText("Kept", { exact: true })).toBeVisible();
+  }
+  for (const group of [replacement, keywords]) {
+    await expect(group.getByText("Rejected", { exact: true })).toBeVisible();
+  }
+  await expect(insertion.getByText("Not added", { exact: true })).toBeVisible();
+  await expect(insertion.getByText("Morning lantern.", { exact: true })).toBeHidden();
+  await expect(bar).toContainText("Nothing to apply, 4 rejected");
+  await expect(bar.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
+  await keywords.getByRole("button", { name: /^Restore change/ }).click();
+  await expect(keywords.getByRole("button", { name: /^Reject change/ })).toBeFocused();
+  await expect(keywords.getByText("Removed", { exact: true })).toBeVisible();
+  await expect(keywords.getByText("Proposed", { exact: true })).toBeVisible();
+  await expect(keywords.locator("del")).toHaveCount(1);
+  await expect(keywords.locator("ins")).toHaveCount(1);
+  await expect(bar).toContainText("1 change to apply, 3 rejected");
+});
 
 const RICH_ANSWER = [
   richBlock("name", "The request names her family.", "Mara Voss", "Mara Ilse Voss"),
@@ -911,7 +1479,7 @@ for (const size of SHOTS === undefined ? [] : SIZES) {
       await submitRework(page, { request: ownerRequest(base, "kept-shot"), model: "mock-fast" });
       await expect(dock(page)).toContainText("3 changes to apply");
       await shot("05-review-arrived");
-      await dock(page).getByText("1 could not be placed").click();
+      await dock(page).getByText("1 change won't apply").click();
       await shot("06-review-unmatched");
       await dock(page).getByRole("button", { name: "Next change" }).click();
       await expect(dock(page)).toContainText("Change 1 of 3, Description");

@@ -23,6 +23,7 @@ import { isComposing } from "@/lib/keys.ts";
 import { artStatusQuery } from "../creator/queries.ts";
 import { WorkflowSelect } from "../creator/WorkflowSelect.tsx";
 import {
+  addressAction,
   FAMILY_NAMES,
   nameTakenLine,
   nodeCount,
@@ -108,10 +109,12 @@ const ROW = cn(rowLayout("collection", false), ROW_FRAME, "border-rush border-b"
 export function WorkflowRow({
   row,
   inUse,
+  onEditAddress,
 }: {
   row: Row;
   /** The workflow Create with AI paints with. */
   inUse: boolean;
+  onEditAddress: () => void;
 }) {
   const { workflow } = row;
   const glide = useGlide();
@@ -126,6 +129,9 @@ export function WorkflowRow({
   const problemId = useId();
   const chooseId = useId();
   const cannotRun = status.data !== undefined && status.data.state !== "ready";
+  const remedy = addressAction(
+    status.isPending ? "checking" : status.isError ? "failed" : status.data,
+  );
   const reason =
     shown.reason ??
     (shown.missing !== null
@@ -392,14 +398,22 @@ export function WorkflowRow({
           {inUse && cannotRun ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <p className="min-w-0 flex-1 basis-64 text-note text-reed">{reason}</p>
-              <span id={chooseId} className="sr-only">
-                Choose another
-              </span>
-              <WorkflowSelect
-                labelId={chooseId}
-                actionLabel="Choose another"
-                className="w-auto tablet:w-auto"
-              />
+              {remedy !== null ? (
+                <Button variant="outline" onClick={onEditAddress}>
+                  {remedy === "add" ? "Add the address" : "Edit the address"}
+                </Button>
+              ) : shown.missing !== null ? (
+                <>
+                  <span id={chooseId} className="sr-only">
+                    Choose another
+                  </span>
+                  <WorkflowSelect
+                    labelId={chooseId}
+                    actionLabel="Choose another"
+                    className="w-auto tablet:w-auto"
+                  />
+                </>
+              ) : null}
             </div>
           ) : (
             shown.reason !== null && <p className="text-pretty text-reed text-ui">{shown.reason}</p>

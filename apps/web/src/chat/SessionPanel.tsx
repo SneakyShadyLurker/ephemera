@@ -350,6 +350,7 @@ function PresetField<T extends { id: string; name: string }>({
   presets,
   chosen,
   onChoose,
+  description,
 }: {
   kind: PresetKind;
   label: string;
@@ -358,6 +359,7 @@ function PresetField<T extends { id: string; name: string }>({
   presets: UseQueryResult<T[]>;
   chosen: T | undefined;
   onChoose: (preset: T) => void;
+  description?: (preset: T) => string;
 }) {
   return (
     <Field label={label} note={note} status={status}>
@@ -369,6 +371,7 @@ function PresetField<T extends { id: string; name: string }>({
             presets={presets}
             chosen={chosen}
             onChoose={onChoose}
+            {...(description && { description })}
           />
           {chosen && (
             <Link
@@ -399,6 +402,7 @@ function PresetSelect<T extends { id: string; name: string }>({
   chosen,
   onChoose,
   look = "field",
+  description,
 }: {
   labelId: string;
   label: string;
@@ -406,6 +410,7 @@ function PresetSelect<T extends { id: string; name: string }>({
   chosen: T | undefined;
   onChoose: (preset: T) => void;
   look?: "field" | "inline";
+  description?: (preset: T) => string;
 }) {
   const list = presets.data ?? [];
   return (
@@ -424,9 +429,19 @@ function PresetSelect<T extends { id: string; name: string }>({
         captionId={look === "inline" ? labelId : undefined}
         placeholder={look === "inline" ? "None" : presetPlaceholder(presets)}
       />
-      <SelectContent label={`${label}s`} {...(look === "inline" && { className: "min-w-64" })}>
+      <SelectContent
+        label={`${label}s`}
+        {...(look === "inline" && { className: "w-[min(20rem,var(--available-width))]" })}
+      >
         {list.map((preset) => (
-          <SelectItem key={preset.id} value={preset.id}>
+          <SelectItem
+            key={preset.id}
+            value={preset.id}
+            {...(description && {
+              description: description(preset),
+              descriptionClassName: "line-clamp-2 wrap-anywhere",
+            })}
+          >
             {preset.name}
           </SelectItem>
         ))}
@@ -464,6 +479,7 @@ export function SamplerPresetSelect({ labelId }: { labelId: string }) {
       chosen={chosen}
       onChoose={choose}
       look="inline"
+      description={(preset) => samplerSummary(preset.values)}
     />
   );
 }
@@ -502,6 +518,7 @@ function SamplerPresetField() {
       presets={presets}
       chosen={chosen}
       onChoose={choose}
+      description={(preset) => samplerSummary(preset.values)}
     />
   );
 }

@@ -21,37 +21,60 @@ export function useFirstChangeScroll(): void {
     let epoch = reworkStore.getState().epoch;
     let scrolled = false;
     let done = false;
+    let active = true;
+    let frame = 0;
+    const cancel = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
     const owner = () => {
       scrolled = true;
+      cancel();
     };
     const key = (event: KeyboardEvent) => {
-      if (SCROLL_KEYS.has(event.key) && !typing(event.target)) scrolled = true;
+      if (SCROLL_KEYS.has(event.key) && !typing(event.target)) owner();
     };
     window.addEventListener("wheel", owner, { passive: true, capture: true });
     window.addEventListener("touchmove", owner, { passive: true, capture: true });
     window.addEventListener("keydown", key, { capture: true });
-    let frame = 0;
     const unsubscribe = reworkStore.subscribe((state) => {
       // Every new run starts afresh.
       if (state.epoch !== epoch) {
+        cancel();
         epoch = state.epoch;
         scrolled = false;
         done = false;
+      }
+      if (state.phase !== "working" && !(state.phase === "review" && state.ended === "complete")) {
+        cancel();
+        return;
       }
       if (done || state.phase !== "working") return;
       const [first] = reviewOrder(state.changes);
       if (first === undefined) return;
       done = true;
       if (scrolled) return;
+      const scheduledEpoch = epoch;
       // The change's view renders after this update.
       frame = requestAnimationFrame(() => {
+        frame = 0;
+        const current = reworkStore.getState();
+        if (
+          !active ||
+          scrolled ||
+          current.epoch !== scheduledEpoch ||
+          (current.phase !== "working" &&
+            !(current.phase === "review" && current.ended === "complete"))
+        )
+          return;
         const target = document.querySelector<HTMLElement>(`[data-change-at="${first.at}"]`);
         target?.scrollIntoView({ block: "center", behavior: scrollBehavior() });
       });
     });
     return () => {
+      active = false;
       unsubscribe();
-      cancelAnimationFrame(frame);
+      cancel();
       window.removeEventListener("wheel", owner, { capture: true });
       window.removeEventListener("touchmove", owner, { capture: true });
       window.removeEventListener("keydown", key, { capture: true });

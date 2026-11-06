@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { MarkIcon, MenuIcon } from "@/components/icons";
 import { Illustration } from "@/components/illustration.tsx";
@@ -16,6 +16,7 @@ import {
   HeaderActions,
   HeaderFrame,
   HeaderTitle,
+  PHONE_TOOLBAR,
 } from "./Header.tsx";
 import { setNavOpen } from "./ui.ts";
 
@@ -110,11 +111,7 @@ export function ScreenHeader({
       edge={edge}
       toolbar={
         phone && collection ? (
-          <HeaderActions
-            role="toolbar"
-            aria-label="Collection actions"
-            className="gap-1 px-4 pb-2 [&>button]:px-2.5"
-          >
+          <HeaderActions role="toolbar" aria-label="Collection actions" className={PHONE_TOOLBAR}>
             {children}
           </HeaderActions>
         ) : undefined
@@ -159,6 +156,7 @@ export function ScreenHeader({
  */
 export function ScreenError({ error, reset }: { error: unknown; reset: () => void }) {
   const chunk = error instanceof ChunkLoadError;
+  const atStory = useRouterState({ select: (state) => state.location.pathname === "/" });
   return (
     <main className="flex min-w-0 flex-1 flex-col">
       <ScreenHeader title="Something went wrong" />
@@ -169,7 +167,18 @@ export function ScreenError({ error, reset }: { error: unknown; reset: () => voi
           title={chunk ? "This screen needs a reload" : "This screen could not load"}
           art={{ role: "hero", image: <Illustration name="error" /> }}
           actions={
-            !chunk && (
+            chunk ? (
+              <>
+                {!atStory && (
+                  <Link to="/" className={buttonVariants({ variant: "primary" })}>
+                    Back to the story
+                  </Link>
+                )}
+                <Button variant="danger" onClick={() => window.location.reload()}>
+                  Reload and end the chat
+                </Button>
+              </>
+            ) : (
               <Button variant="outline" onClick={reset}>
                 Try again
               </Button>
@@ -177,7 +186,7 @@ export function ScreenError({ error, reset }: { error: unknown; reset: () => voi
           }
         >
           {chunk
-            ? "Its code did not arrive, and the browser keeps that until the page reloads. Your chat is still here; a reload brings the screen back and ends the chat."
+            ? "Its code did not arrive, and only a reload brings it back. Your chat is still here."
             : "Your chat is still here."}
         </EmptyState>
       </div>

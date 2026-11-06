@@ -2,8 +2,12 @@ import type { Page } from "@playwright/test";
 import { PRESET_LIMITS } from "../packages/core/src/preset/prompt.ts";
 import { uniqueName } from "./support/cards.ts";
 import {
+  closeSession,
   createPresetViaApi,
   expectNoOverflow,
+  openSession,
+  patchSettings,
+  readSettings,
   saved,
   seriousAxeViolations,
 } from "./support/entities.ts";
@@ -30,6 +34,82 @@ const MODEL_DEFAULTS = {
   seed: null,
   reasoning: "provider-default",
 };
+
+for (const width of [360, 390]) {
+  test(`sampler choices describe the model before selection in composer and Session at ${width}px`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width, height: 780 });
+    const longModel = `model-${"a-very-long-model-name-with-no-breaks".repeat(4)}`;
+    const shortId = await createPresetViaApi(request, "sampler", {
+      name: "Quiet sampler",
+      values: { ...MODEL_DEFAULTS, model: "mock-slow", temperature: 0.7 },
+    });
+    const longId = await createPresetViaApi(request, "sampler", {
+      name: "Long sampler",
+      values: {
+        ...MODEL_DEFAULTS,
+        model: longModel,
+        temperature: 0.9,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+        seed: 42,
+        reasoning: "high",
+      },
+    });
+    await patchSettings(request, { model: "mock-fast" });
+    await page.goto("/");
+    for (const entry of ["composer", "Session"]) {
+      if (entry === "Session") await openSession(page);
+      const trigger = page.getByRole("combobox", {
+        name: entry === "composer" ? "Sampler" : "Sampler preset",
+        exact: true,
+      });
+      await trigger.click();
+      const short = page.getByRole("option", { name: "Quiet sampler", exact: true });
+      const long = page.getByRole("option", { name: "Long sampler", exact: true });
+      await expect(short).toHaveAccessibleDescription(/Mock-slow, temperature 0.7/);
+      await expect(long).toHaveAccessibleDescription(new RegExp(longModel, "i"));
+      await expect(long).toHaveAccessibleDescription(/seed 42.*reasoning high/i);
+      const popup = await page.getByRole("listbox").boundingBox();
+      expect(popup?.x).toBeGreaterThanOrEqual(0);
+      expect((popup?.x ?? Infinity) + (popup?.width ?? Infinity)).toBeLessThanOrEqual(width);
+      if (entry === "composer") {
+        const positioner = await short
+          .locator('xpath=ancestor::*[contains(@style,"--available-width")][1]')
+          .boundingBox();
+        expect(positioner?.width).toBeCloseTo(320, 0);
+        const summary = short.locator('[aria-hidden="true"]').first();
+        expect(await summary.evaluate((node) => node.scrollHeight <= node.clientHeight)).toBe(true);
+      }
+      const description = long.locator('[aria-hidden="true"]').first();
+      expect(
+        await description.evaluate(
+          (node) =>
+            node.getBoundingClientRect().height <=
+            Number.parseFloat(getComputedStyle(node).lineHeight) * 2 + 1,
+        ),
+      ).toBe(true);
+      expect(await long.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      if (entry === "composer") {
+        await page.keyboard.press("q");
+        await page.keyboard.press("Enter");
+      } else await long.click();
+      const id = entry === "composer" ? shortId : longId;
+      const model = entry === "composer" ? "mock-slow" : longModel;
+      await expect
+        .poll(async () => ({
+          id: (await readSettings(request)).samplerPresetId,
+          model: (await readSettings(request)).model,
+        }))
+        .toEqual({ id, model });
+      await expect(trigger).toContainText(entry === "composer" ? "Quiet sampler" : "Long sampler");
+      if (entry === "Session") await closeSession(page);
+    }
+    await expectNoOverflow(page);
+  });
+}
 
 const blocks = (page: Page) => page.getByRole("list", { name: "Blocks in send order" });
 const band = (page: Page) => page.getByRole("list", { name: "Blocks inside the chat" });
@@ -63,6 +143,20 @@ test("a prompt preset's blocks are toggled, moved, added, placed in the chat, re
   await page.keyboard.type(presetName);
   await expect(name).toHaveValue(presetName);
 
+  const history = page.getByRole("switch", { name: "Send Chat history", exact: true });
+  const regular = page.getByRole("switch", { name: "Send Main prompt", exact: true });
+  // The fixed band retains its 12px inset; its switch leads the indented rows inside it.
+  expect(
+    ((await history.boundingBox())?.x ?? NaN) - ((await regular.boundingBox())?.x ?? NaN),
+  ).toBe(12);
+  await expect(history).toHaveAccessibleDescription("The conversation so far.");
+  await history.focus();
+  await page.keyboard.press("Space");
+  await expect(history).not.toBeChecked();
+  await expect(history).toHaveAccessibleDescription(/Off: no messages/);
+  await page.keyboard.press("Space");
+  await expect(history).toBeChecked();
+
   await page.getByRole("switch", { name: "Send Persona description" }).click();
   await expect(page.getByRole("button", { name: /^Persona description: off/ })).toBeVisible();
 
@@ -77,6 +171,10 @@ test("a prompt preset's blocks are toggled, moved, added, placed in the chat, re
   await blockName.fill("Stay in scene");
   await page.getByRole("button", { name: "Inside the chat" }).click();
   await expect(band(page)).toContainText("Stay in scene");
+  expect((await band(page).getByRole("switch").first().boundingBox())?.x).toBeCloseTo(
+    (await history.boundingBox())?.x ?? Infinity,
+    0,
+  );
   await expect(page.getByRole("status").filter({ hasText: "is now inside the chat" })).toHaveCount(
     1,
   );
@@ -241,6 +339,23 @@ for (const { name, width, height, scheme } of [
     ]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      if (path === `/presets/prompt/${promptId}`) {
+        const add = page.getByRole("button", { name: "Add block", exact: true });
+        await expect(add).toHaveCount(1);
+        const position = await add.evaluate((button) => {
+          const help = button.parentElement?.parentElement?.querySelector("p");
+          const list = document.querySelector('[aria-label="Blocks in send order"]');
+          if (!help || !list) throw new Error("No blocks help or list");
+          return {
+            afterHelp: !!(help.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING),
+            beforeList: !!(button.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING),
+            belowHelp: button.getBoundingClientRect().top >= help.getBoundingClientRect().bottom,
+          };
+        });
+        expect(position.afterHelp).toBe(true);
+        expect(position.beforeList).toBe(true);
+        if (width === 390) expect(position.belowHelp).toBe(true);
+      }
       await expectNoOverflow(page);
       expect(await seriousAxeViolations(page), path).toEqual([]);
     }
@@ -257,15 +372,44 @@ test("the formatting key draws each mark as the chat does, beside the form when 
   for (const { width, inForm } of [
     { width: 1440, inForm: false },
     { width: 820, inForm: true },
+    { width: 390, inForm: true },
   ]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`/presets/prompt/${id}`);
+    const reference = page.getByRole("region", { name: "Formatting" });
+    await expect(
+      reference.getByText("What the chat draws in a reply.", { exact: false }),
+    ).toBeVisible();
+    if (inForm) {
+      const disclosure = reference.locator("details");
+      await expect(disclosure).not.toHaveAttribute("open");
+      // Samples stay in the document, including while the native reference is closed.
+      expect(await disclosure.locator("code").count()).toBeGreaterThan(8);
+      const summary = disclosure.locator("summary");
+      await summary.focus();
+      await page.keyboard.press("Enter");
+      await expect(disclosure).toHaveAttribute("open");
+    }
     const marks = page
       .getByRole("region", { name: "Formatting" })
       .getByRole("list", { name: "Marks, as written and as the chat shows them" });
     await expect(marks.locator('[data-tone="rose"]')).toHaveText("rose");
+    await expect(marks.getByRole("listitem")).toHaveCount(9);
     await expect(marks.locator('[data-voice="thought"]')).toHaveText("a thought");
     await expect(marks.getByText(":rose[rose]", { exact: true })).toBeVisible();
+    const code = marks.locator("code").first();
+    await code.click();
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+      .toBe(await code.textContent());
+    await expect(reference.getByText("Marks touch their words:", { exact: false })).toBeVisible();
+    if (inForm) {
+      await reference.locator("summary").click();
+      await page.getByRole("textbox", { name: "Author's Note", exact: true }).focus();
+      await expect(
+        page.getByRole("textbox", { name: "Author's Note", exact: true }),
+      ).toBeInViewport();
+    }
     await expect(
       page.getByRole("form", { name: "Prompt preset" }).getByRole("region", { name: "Formatting" }),
     ).toHaveCount(inForm ? 1 : 0);

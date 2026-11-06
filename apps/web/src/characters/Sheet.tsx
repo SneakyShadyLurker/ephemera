@@ -377,21 +377,26 @@ function SheetEditor({
         back={BACK}
         title={fields.name.trim() || "New character"}
         status={autosave.status}
+        reviewing={locked}
         creating={creating}
         noun="character"
         frame={wide ? SHEET_FRAME.indexed : SHEET_FRAME.form}
+        direct={
+          <>
+            {!wide && !phone && <SectionsMenu />}
+            <ChatButton id={id} name={fields.name} flush={autosave.flush} locked={locked} />
+            <ReworkButton
+              id={id}
+              portrait={portrait}
+              portraitChanging={portraitChanging}
+              card={reworkCard}
+              open={composing}
+              onOpenChange={setComposing}
+              trigger={reworkButton}
+            />
+          </>
+        }
       >
-        {!wide && !phone && <SectionsMenu />}
-        <ChatButton id={id} name={fields.name} flush={autosave.flush} locked={locked} />
-        <ReworkButton
-          id={id}
-          portrait={portrait}
-          portraitChanging={portraitChanging}
-          card={reworkCard}
-          open={composing}
-          onOpenChange={setComposing}
-          trigger={reworkButton}
-        />
         {id !== null && (
           <MoreActions
             id={id}

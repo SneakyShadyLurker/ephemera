@@ -189,13 +189,57 @@ export async function tabTo(
 
 /** Waits for CSS transitions to settle, then reports serious or critical axe violations. */
 export async function seriousAxeViolations(page: Page): Promise<string[]> {
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => document.getAnimations().filter((a) => a instanceof CSSTransition).length,
-      ),
-    )
-    .toBe(0);
+  const sampleTransitions = () =>
+    page.evaluate(() => {
+      const transitions = document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition);
+      return {
+        at: new Date().toISOString(),
+        time: performance.now(),
+        count: transitions.length,
+        transitions: transitions.slice(0, 30).map((animation) => {
+          const effect = animation.effect;
+          const target = effect instanceof KeyframeEffect ? effect.target : null;
+          return {
+            property: animation.transitionProperty,
+            state: animation.playState,
+            pending: animation.pending,
+            currentTime: String(animation.currentTime),
+            timeline: animation.timeline && {
+              type: animation.timeline.constructor.name,
+              currentTime: String(animation.timeline.currentTime),
+            },
+            timing: effect?.getComputedTiming(),
+            target: target && {
+              tag: target.tagName,
+              id: target.id.slice(0, 120),
+              classes: Array.from(target.classList)
+                .slice(0, 16)
+                .map((name) => name.slice(0, 120)),
+              connected: target.isConnected,
+            },
+          };
+        }),
+      };
+    });
+  const history: Awaited<ReturnType<typeof sampleTransitions>>[] = [];
+  try {
+    await expect
+      .poll(
+        async () => {
+          const sample = await sampleTransitions();
+          history.push(sample);
+          if (history.length > 12) history.shift();
+          return sample.count;
+        },
+        { timeout: 5_000 },
+      )
+      .toBe(0);
+  } catch (error) {
+    process.stdout.write(`Axe transition precondition ${JSON.stringify(history)}\n`);
+    throw error;
+  }
   const { violations } = await new AxeBuilder({ page }).analyze();
   return violations
     .filter((violation) => violation.impact === "serious" || violation.impact === "critical")

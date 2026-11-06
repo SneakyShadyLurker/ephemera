@@ -33,6 +33,27 @@ test("the owner creates a lorebook from the sheet and edits an entry that autosa
   await expect(page.getByRole("textbox", { name: "Title" })).toBeFocused();
   await page.getByRole("textbox", { name: "Title" }).fill("The Grey Lantern");
   const keywords = page.getByLabel("Keywords", { exact: true });
+  const text = page.getByLabel("Text", { exact: true });
+  expect(
+    await text.evaluate((element) => {
+      const activation = [...document.querySelectorAll('[role="group"]')].find((group) =>
+        group.textContent?.includes("Always"),
+      );
+      return (
+        activation !== undefined &&
+        Boolean(element.compareDocumentPosition(activation) & Node.DOCUMENT_POSITION_FOLLOWING)
+      );
+    }),
+  ).toBe(true);
+  await text.focus();
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(() =>
+      page
+        .getByRole("group", { name: "Goes in" })
+        .evaluate((group) => group.contains(document.activeElement)),
+    )
+    .toBe(true);
   await keywords.fill("lantern");
   await keywords.press("Enter");
   await keywords.fill("grey light, lamp room");
@@ -40,7 +61,7 @@ test("the owner creates a lorebook from the sheet and edits an entry that autosa
   await keywords.fill("/bells? (?:toll|ring)s?/i");
   await keywords.press("Enter");
   await page.getByLabel("Text", { exact: true }).fill("The lamp {{char}} trims by hand.");
-  await page.getByRole("button", { name: "Where it goes" }).click();
+  await page.getByRole("button", { name: "Placement and order" }).click();
   await choose(page, "Placement", "After the character");
   const order = page.getByRole("textbox", { name: "Order" });
   await order.fill("40");
@@ -63,6 +84,9 @@ test("the owner creates a lorebook from the sheet and edits an entry that autosa
     enabled: true,
   });
   // The row stands after the character, marked always on.
+  await expect(
+    entries(page).getByRole("button", { name: "Edit The Grey Lantern" }),
+  ).toHaveAccessibleDescription(/order 40/);
   await expect(entries(page).getByRole("button", { name: "Edit The Grey Lantern" })).toContainText(
     "Always on",
   );
@@ -123,7 +147,7 @@ test("an order or placement change moves the row; remove has Undo; the whole boo
     ],
   });
   await page.goto(`/characters/${id}/lorebook?entry=0`);
-  await page.getByRole("button", { name: "Where it goes" }).click();
+  await page.getByRole("button", { name: "Placement and order" }).click();
   const order = page.getByRole("textbox", { name: "Order" });
   await order.fill("30");
   await order.press("Enter");
@@ -456,6 +480,27 @@ for (const { name, width, height, scheme } of [
 
     await page.goto(`/characters/${id}/lorebook`);
     await expect(entries(page)).toBeVisible();
+    const summary = page.locator("summary").filter({ hasText: "Book settings" });
+    await expect(summary).toContainText("Last 2 messages, default budget, chaining on");
+    const answer = summary.getByText("Last 2 messages, default budget, chaining on", {
+      exact: true,
+    });
+    const summaryFit = await answer.evaluate((node) => {
+      const bounds = node.closest("summary")?.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const lines = [...range.getClientRects()];
+      return {
+        clipped: node.scrollWidth > node.clientWidth,
+        contained:
+          !!bounds &&
+          lines.every((line) => line.left >= bounds.left && line.right <= bounds.right + 1),
+        ellipsis: getComputedStyle(node).textOverflow,
+      };
+    });
+    expect(summaryFit.clipped).toBe(false);
+    expect(summaryFit.contained).toBe(true);
+    expect(summaryFit.ellipsis).not.toBe("ellipsis");
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
 
@@ -619,15 +664,15 @@ test.describe("Native lorebook controls", () => {
     await secondary.press("Enter");
     await choose(page, "Secondary keyword condition", "also have all of");
 
-    await row(page, "Where it goes").click();
+    await row(page, "Placement and order").click();
     await choose(page, "Placement", "In the chat");
     await setNumber(page, "Depth", "3");
     await choose(page, "Role", "User");
-    await expect(row(page, "Where it goes")).toHaveAccessibleDescription(
+    await expect(row(page, "Placement and order")).toHaveAccessibleDescription(
       "In the chat at depth 3 as user, order 100",
     );
 
-    await row(page, "When it goes in").click();
+    await row(page, "Timing").click();
     await setNumber(page, "Sticky", "2");
     await setNumber(page, "Cooldown", "1");
     await setNumber(page, "Delay", "4");
@@ -638,18 +683,18 @@ test.describe("Native lorebook controls", () => {
       /Can't go in before the chat has 4 messages/,
     );
 
-    await row(page, "What brings it in").click();
+    await row(page, "Chaining").click();
     await pressed(page, "Can go in through", "Its keywords only").click();
     await page.getByRole("switch", { name: "Its text can bring in other entries" }).click();
 
-    await row(page, "What it matches").click();
+    await row(page, "Matching").click();
     await setNumber(page, "Scan depth", "5");
     await pressed(page, "Whole words", "Off").click();
     await pressed(page, "Match case", "On").click();
     // Default clears the explicit override.
     await pressed(page, "Match case", "Default").click();
     await expect(page.getByText("Default is off", { exact: true })).toBeVisible();
-    await expect(row(page, "What it matches")).toHaveAccessibleDescription(
+    await expect(row(page, "Matching")).toHaveAccessibleDescription(
       "Last 5 messages, inside words too, any case",
     );
 
@@ -729,10 +774,10 @@ test.describe("Native lorebook controls", () => {
     await expect(list).toContainText("Entries in the chat sit among the messages, deepest first");
     const edit = (title: string) => list.getByRole("button", { name: `Edit ${title}` });
     await expect(edit("Deep gull")).toHaveAccessibleDescription(
-      "Depth 4, system, chained only, timing set, deep",
+      "order 100 Depth 4, system, chained only, timing set, deep",
     );
-    await expect(edit("Fog note")).toHaveAccessibleDescription("Below, fog");
-    await expect(edit("Log example")).toHaveAccessibleDescription("Before, log");
+    await expect(edit("Fog note")).toHaveAccessibleDescription("order 100 Below, fog");
+    await expect(edit("Log example")).toHaveAccessibleDescription("order 100 Before, log");
 
     await edit("Before harbour").focus();
     const order = [
@@ -827,7 +872,7 @@ test.describe("Native lorebook controls", () => {
     await page.goto(`/characters/${id}/lorebook?entry=0`);
     // Closed rows are out of the tab order.
     await expect(number(page, "Scan depth")).toBeHidden();
-    const rows = ["Where it goes", "When it goes in", "What brings it in", "What it matches"];
+    const rows = ["Placement and order", "Timing", "Chaining", "Matching"];
     for (const [at, name] of rows.entries()) {
       const button = row(page, name);
       await button.focus();
@@ -865,7 +910,7 @@ test.describe("Native lorebook controls", () => {
       await expect(control).toBeFocused();
     }
     // Closing a row takes its controls out of the tab order again.
-    await row(page, "What it matches").click();
+    await row(page, "Matching").click();
     await expect(number(page, "Scan depth")).toBeHidden();
   });
 
@@ -879,8 +924,8 @@ test.describe("Native lorebook controls", () => {
     });
     await page.goto(`/characters/${id}/lorebook`);
     await entries(page).getByRole("button", { name: "Edit Lamp" }).click();
-    await row(page, "What brings it in").click();
-    await expect(row(page, "What brings it in")).toHaveAccessibleDescription(
+    await row(page, "Chaining").click();
+    await expect(row(page, "Chaining")).toHaveAccessibleDescription(
       "The book doesn't chain entries",
     );
     await page.getByRole("button", { name: "Open book settings" }).click();
@@ -891,8 +936,8 @@ test.describe("Native lorebook controls", () => {
     await expect(chaining).toBeChecked();
 
     await entries(page).getByRole("button", { name: "Edit Lamp" }).click();
-    await expect(row(page, "What brings it in")).toHaveAttribute("aria-expanded", "true");
-    await expect(row(page, "What brings it in")).toHaveAccessibleDescription(
+    await expect(row(page, "Chaining")).toHaveAttribute("aria-expanded", "true");
+    await expect(row(page, "Chaining")).toHaveAccessibleDescription(
       "Its keywords or another entry, and its text can bring in others",
     );
     await expect(page.getByRole("button", { name: "Open book settings" })).toHaveCount(0);

@@ -329,7 +329,7 @@ export function CardSection({
       )}
       <h3
         className={cn(
-          cn(GROUP_HEADING, "transition-colors duration-(--duration-quick) ease-fade"),
+          cn(GROUP_HEADING, "transition-colors duration-(--duration-tint-quick) ease-fade"),
           row.state === "absent" ? "text-reed" : "text-ink",
         )}
       >

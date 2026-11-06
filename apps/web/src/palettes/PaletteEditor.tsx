@@ -26,7 +26,7 @@ import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
 import { Nameplate } from "../chat/Turn.tsx";
 import { CardProse } from "../creator/CardLayout.tsx";
-import { PANEL_FOOTER } from "../settings/SettingRow.tsx";
+import { PANEL_COMMIT, PANEL_FOOTER } from "../settings/SettingRow.tsx";
 import { applySettings, currentSettings } from "../settings/settings.ts";
 import { FIELD_LABEL, HELP, LINE_FIELD, SECTION_HEADING } from "../sheet/fields.ts";
 import { identity } from "../signin/identity.ts";
@@ -63,6 +63,10 @@ const SAMPLE = `*She sets the lantern down on the sill.* "You came back. :rose[M
 :thought[Older than his letters made him sound.]
 
 The wind worries at the shutters. :iris[A gull cries over the water.] :mist[The light turns, and turns.]`;
+
+const COMPACT_SAMPLE = `*She sets the lantern down.* "You came back. :rose[Mind the tin], :sage[the stair creaks]."
+
+The wind worries at the shutters. :iris[A gull cries.] :mist[The light turns.]`;
 
 const fieldId = (slot: number, role: PaletteRole) => `palette-${slot}-${role}`;
 
@@ -320,7 +324,7 @@ export function PaletteEditor({
             </Popover>
           </div>
 
-          <div className="tablet:hidden">
+          <div className="desktop:hidden">
             <SampleScene compact />
           </div>
 
@@ -330,9 +334,7 @@ export function PaletteEditor({
                 <span className={FIELD_LABEL}>{group.title}</span>
                 <span className={HELP}>{group.note}</span>
               </legend>
-              <div className="grid gap-3 tablet:grid-cols-2 desktop:grid-cols-1">
-                {group.roles.map(field)}
-              </div>
+              <div className="grid gap-3">{group.roles.map(field)}</div>
             </fieldset>
           ))}
 
@@ -360,9 +362,7 @@ export function PaletteEditor({
                 {MORE_GROUPS.map((group) => (
                   <fieldset key={group.title} className="grid gap-3">
                     <legend className={cn(FIELD_LABEL, "mb-1")}>{group.title}</legend>
-                    <div className="grid gap-3 tablet:grid-cols-2 desktop:grid-cols-1">
-                      {group.roles.map(field)}
-                    </div>
+                    <div className="grid gap-3">{group.roles.map(field)}</div>
                   </fieldset>
                 ))}
               </div>
@@ -387,13 +387,14 @@ export function PaletteEditor({
                 Delete
               </Button>
             )}
-            <span className="flex-1" />
-            <Button variant="quiet" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" disabled={busy !== null} onClick={() => void save()}>
-              {busy === "saving" ? "Saving" : "Save palette"}
-            </Button>
+            <div className={PANEL_COMMIT}>
+              <Button variant="quiet" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={busy !== null} onClick={() => void save()}>
+                {busy === "saving" ? "Saving" : "Save palette"}
+              </Button>
+            </div>
           </div>
         </div>
         <div data-palette-preview="" className="sticky top-0 hidden desktop:block">
@@ -455,22 +456,34 @@ function SampleScene({ compact = false }: { compact?: boolean }) {
       )}
     >
       <div>
-        <Nameplate voice="story" name="Mara" className="static shadow-none" />
-        <div className="prose-turn voice-story voice-scene text-story-phone [&_blockquote]:my-0">
-          <CardProse text={compact ? '"You came back."' : SAMPLE} streaming={false} />
-        </div>
-      </div>
-      <div>
         <Nameplate voice="line" name="You" className="static shadow-none" />
         <p className="prose-turn voice-line slip text-line text-ink">
           {compact ? "I'm coming in." : "The tide is turning. Are you coming in?"}
         </p>
       </div>
-      {!compact && (
-        <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-          <span className={buttonVariants({ variant: "primary" })}>Send</span>
-          <span className={buttonVariants({ variant: "outline" })}>New reply</span>
+      <div>
+        <Nameplate voice="story" name="Mara" className="static shadow-none" />
+        <div className="prose-turn voice-story voice-scene text-story-phone [&_blockquote]:my-0">
+          <CardProse text={compact ? COMPACT_SAMPLE : SAMPLE} streaming={false} />
         </div>
+      </div>
+      {!compact && (
+        <>
+          <div aria-hidden="true" inert className="pointer-events-none flex items-center gap-1">
+            <span className={buttonVariants({ variant: "quiet", size: "text" })}>New reply</span>
+            <span className={buttonVariants({ variant: "quiet", size: "text" })}>Continue</span>
+          </div>
+          <div
+            aria-hidden="true"
+            inert
+            className="pointer-events-none flex min-w-0 items-end gap-2 rounded-xl border border-control-edge bg-surface p-1.5"
+          >
+            <span className="min-w-0 flex-1 self-center py-1.5 pl-2.5 text-ink text-line">
+              I'll mind the stair.
+            </span>
+            <span className={buttonVariants({ variant: "primary" })}>Send</span>
+          </div>
+        </>
       )}
     </figure>
   );

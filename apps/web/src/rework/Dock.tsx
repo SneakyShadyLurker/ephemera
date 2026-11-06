@@ -44,13 +44,21 @@ const UNPLACED: Record<Unplaced, string> = {
 };
 
 /** The changes that could not be placed, as a disclosure: field, reason and the proposed text. */
-function Unplaceable({ changes: all, base }: { changes: ReviewChange[]; base: ReworkCard | null }) {
+function Unplaceable({
+  changes: all,
+  base,
+  allUnplaced,
+}: {
+  changes: ReviewChange[];
+  base: ReworkCard | null;
+  allUnplaced: boolean;
+}) {
   const unplaced = all.flatMap((change) => (change.ok ? [] : [change]));
   if (unplaced.length === 0) return null;
   return (
-    <details className="disclosure">
+    <details className="disclosure" open={allUnplaced || undefined}>
       <summary className={cn(SUMMARY_LINE, "touch:-my-1")}>
-        {unplaced.length} could not be placed
+        {changes(unplaced.length)} won't apply
         <DisclosureChevron />
       </summary>
       <ul className="mt-2 grid max-h-[30dvh] gap-3 overflow-y-auto border-rush border-l pl-3">
@@ -175,8 +183,10 @@ function DockPresenter({
       : `Change ${(index ?? 0) + 1} of ${order.length}, ${fieldLabel(currentChange.field, view.base)}`;
   const line = lineOf(view, model, current, saved ? null : save);
   const accepted = acceptedChanges(view).length;
-  const unplaced = view.changes.filter((change) => !change.ok).length;
-  const applyLine = `${changes(accepted)} to apply${unplaced > 0 ? `, ${unplaced} left out` : ""}`;
+  const rejected = view.changes.filter(
+    (change) => change.ok && change.decision === "rejected",
+  ).length;
+  const applyLine = `${accepted === 0 ? "Nothing to apply" : `${changes(accepted)} to apply`}${rejected > 0 ? `, ${rejected} rejected` : ""}`;
   const edited = view.phase === "applied" ? leftByUndo(view, card) : [];
   const writtenFields = Object.keys(view.applied?.written ?? {}).length;
 
@@ -210,10 +220,13 @@ function DockPresenter({
         aria-label="Previous change"
         className={ICON_TARGET}
         disabled={index === 0}
-        onClick={() => goTo(index === null ? 0 : index - 1)}
+        onClick={() => goTo(index === null ? order.length - 1 : index - 1)}
       >
         <PreviousIcon />
       </Button>
+      <span aria-hidden="true" className="min-w-9 text-center text-meta text-reed tabular-nums">
+        {index !== null && `${index + 1} / ${order.length}`}
+      </span>
       <Button
         size="icon"
         aria-label="Next change"
@@ -283,7 +296,12 @@ function DockPresenter({
           {nothing && view.summary !== null && (
             <p className="text-pretty text-note text-reed">{view.summary}</p>
           )}
-          <Unplaceable changes={view.changes} base={view.base} />
+          <Unplaceable
+            key={view.epoch}
+            changes={view.changes}
+            base={view.base}
+            allUnplaced={order.length === 0}
+          />
           <div className="flex items-center justify-between gap-3">
             {nothing ? (
               <>
@@ -323,7 +341,7 @@ function DockPresenter({
                       onApply();
                     }}
                   >
-                    Apply {changes(accepted)}
+                    {accepted === 0 ? "Apply" : `Apply ${changes(accepted)}`}
                   </Button>
                 )}
               </>
@@ -384,14 +402,11 @@ function DockPresenter({
                   : line.text}
                 {view.phase === "review" &&
                   (view.ended !== "complete" || line.failure) &&
-                  order.length > 0 && (
+                  view.changes.length > 0 && (
                     <span className="mt-0.5 block font-normal text-meta text-reed">
                       {applyLine}
                     </span>
                   )}
-                {view.phase === "review" && current && (
-                  <span className="mt-0.5 block font-normal text-meta text-reed">{current}</span>
-                )}
               </p>
               {meta && <span className="text-meta text-reed tabular-nums">{meta}</span>}
             </div>
@@ -403,7 +418,9 @@ function DockPresenter({
             {!present || line.failure
               ? ""
               : view.phase === "review" && order.length > 0
-                ? `${applyLine}. ${current ?? ""}`
+                ? current === null
+                  ? applyLine
+                  : `${applyLine}. ${current}`
                 : line.announce}
           </p>
           <p role="alert" className="sr-only">
