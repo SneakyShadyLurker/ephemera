@@ -7,17 +7,20 @@ import {
   useId,
   useLayoutEffect,
   useRef,
+  useState,
 } from "react";
-import { isCoarsePointer } from "@/app/form-factor.ts";
+import { isCoarsePointer, useFormFactor } from "@/app/form-factor.ts";
 import { IdeasIcon } from "@/components/icons";
 import { ModelSelect } from "@/components/model-select";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { modelsQuery, useModelOptions } from "../api.ts";
 import { useChatPersona } from "../chat/character.ts";
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
+import { REASONING_LABELS } from "../presets/queries.ts";
 import { portraitStatusLabel, portraitStatusLine } from "../settings/pictures.ts";
 import { useSetting, useSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
@@ -31,13 +34,32 @@ import {
 import { useNotReached } from "../signin/hooks.ts";
 import { StatusDot } from "../workflows/WorkflowRow.tsx";
 import { COLUMN, KINDS } from "./Choose.tsx";
-import { CompositionChoice } from "./CompositionChoice.tsx";
-import { LookChoice } from "./LookChoice.tsx";
-import { artStatusQuery } from "./queries.ts";
+import { COMPOSITION_LABELS, CompositionChoice } from "./CompositionChoice.tsx";
+import { LookChoice, lookLabel } from "./LookChoice.tsx";
+import { artStatusQuery, artWorkflowsQuery } from "./queries.ts";
 import { ReasoningSelect, useEffortChoice } from "./ReasoningSelect.tsx";
 import { useCreator } from "./session.ts";
 import { inTransition, kindTransition } from "./transition.ts";
-import { WorkflowSelect } from "./WorkflowSelect.tsx";
+import { WorkflowSelect, workflowDisplayName } from "./WorkflowSelect.tsx";
+
+const CONTROL_ROWS = "grid w-full grid-cols-[7rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5";
+
+function SummaryValue({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-baseline gap-1">
+      <span aria-hidden="true">· </span>
+      <span>{label} </span>
+      <span className="max-w-48 min-w-0 truncate text-ink">{value}</span>
+    </span>
+  );
+}
+
+function WorkflowSummary() {
+  const workflow = useSetting((settings) => settings.comfyuiWorkflow);
+  const workflows = useQuery(artWorkflowsQuery);
+  const name = workflows.data?.find((option) => option.id === workflow)?.name;
+  return <SummaryValue label="Workflow" value={workflowDisplayName(name, workflows.isError)} />;
+}
 
 const COPY: Record<
   CreatorKind,
@@ -116,7 +138,11 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
     useCreator((state) => state.reasoning),
   );
   // What the picker shows: a saved persona the list has not confirmed is not sent.
-  const personaId = useChatPersona()?.id ?? null;
+  const persona = useChatPersona();
+  const personaId = persona?.id ?? null;
+  const formFactor = useFormFactor();
+  // The native element owns later toggles, including across viewport and query updates.
+  const [initiallyOpen] = useState(() => formFactor !== "phone");
   const field = useRef<HTMLTextAreaElement>(null);
   const fieldId = useId();
   const modelLabel = useId();
@@ -210,58 +236,86 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
           For example: {copy.example}
         </p>
       </div>
-      <div className="flex flex-col items-start gap-3 tablet:flex-row tablet:justify-between">
-        <div className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 tablet:w-auto">
+      <div className="grid min-w-0 gap-2.5">
+        <div className={CONTROL_ROWS}>
           <span id={modelLabel} className={FIELD_LABEL}>
             Model
           </span>
           <ModelSelect labelId={modelLabel} options={options} value={model} onChange={setModel} />
-          <span id={reasoningLabel} className={FIELD_LABEL}>
-            Reasoning
-          </span>
-          <ReasoningSelect
-            labelId={reasoningLabel}
-            efforts={efforts}
-            effort={effort}
-            onChange={setReasoning}
-          />
-          <span id={personaLabel} className={FIELD_LABEL}>
-            Persona
-          </span>
-          <PersonaSelect labelId={personaLabel} size="row" />
-          {portraits && (
-            <>
-              <span id={workflowLabel} className={FIELD_LABEL}>
-                Workflow
-              </span>
-              <WorkflowSelect labelId={workflowLabel} />
-              {kind === "subject" && (
-                <CompositionChoice
-                  value={composition}
-                  onChange={setComposition}
-                  labelClassName={FIELD_LABEL}
-                />
-              )}
-              {kind !== "scenario" && (
-                <LookChoice
-                  value={look}
-                  onChange={setLook}
-                  labelClassName={FIELD_LABEL}
-                  className="w-full max-w-72 tablet:w-64"
-                />
-              )}
-            </>
-          )}
         </div>
-        <PortraitAvailability />
+        {unavailable !== null && (
+          <p id={reason} className="text-ember text-note">
+            {unavailable}
+          </p>
+        )}
+        <details className="disclosure group/options min-w-0" open={initiallyOpen}>
+          <summary className={cn(SUMMARY_LINE, "w-full")}>
+            <span className="hidden group-open/options:inline">
+              {portraits ? "Reasoning, persona and portraits" : "Reasoning and persona"}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1 group-open/options:hidden">
+              <span className="inline-flex max-w-full min-w-0 items-baseline gap-1">
+                <span>Reasoning </span>
+                <span className="max-w-48 min-w-0 truncate text-ink">
+                  {REASONING_LABELS[effort]}
+                </span>
+              </span>
+              <SummaryValue label="Persona" value={persona?.name ?? "You"} />
+              {portraits && (
+                <>
+                  <WorkflowSummary />
+                  {kind === "subject" && (
+                    <SummaryValue label="Composition" value={COMPOSITION_LABELS[composition]} />
+                  )}
+                  {kind !== "scenario" && <SummaryValue label="Look" value={lookLabel(look)} />}
+                </>
+              )}
+            </span>
+            <DisclosureChevron className="ml-auto" />
+          </summary>
+          <div className={cn(CONTROL_ROWS, "pt-2.5")}>
+            <span id={reasoningLabel} className={FIELD_LABEL}>
+              Reasoning
+            </span>
+            <ReasoningSelect
+              labelId={reasoningLabel}
+              efforts={efforts}
+              effort={effort}
+              onChange={setReasoning}
+            />
+            <span id={personaLabel} className={FIELD_LABEL}>
+              Persona
+            </span>
+            <PersonaSelect labelId={personaLabel} size="row" />
+            {portraits && (
+              <>
+                <span id={workflowLabel} className={FIELD_LABEL}>
+                  Workflow
+                </span>
+                <WorkflowSelect labelId={workflowLabel} />
+                {kind === "subject" && (
+                  <CompositionChoice
+                    value={composition}
+                    onChange={setComposition}
+                    labelClassName={FIELD_LABEL}
+                  />
+                )}
+                {kind !== "scenario" && (
+                  <LookChoice
+                    value={look}
+                    onChange={setLook}
+                    labelClassName={FIELD_LABEL}
+                    className="w-full max-w-72 tablet:w-64"
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </details>
       </div>
-      {unavailable !== null && (
-        <p id={reason} className="text-ember text-note">
-          {unavailable}
-        </p>
-      )}
-      <div className="flex justify-end">
-        <Button type="submit" variant="primary" disabled={!ready}>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <PortraitAvailability />
+        <Button type="submit" variant="primary" className="ms-auto" disabled={!ready}>
           {copy.create}
         </Button>
       </div>
@@ -288,7 +342,7 @@ function PortraitAvailability() {
         <StatusDot tone={line?.tone ?? "unknown"} />
         {status.isSuccess ? portraitStatusLabel(status.data) : "Portraits unknown"}
       </PopoverTrigger>
-      <PopoverContent title="Portraits" align="end">
+      <PopoverContent title="Portraits" align="start">
         <div className="grid gap-3 p-2.5 text-note">
           <p className={line?.tone === "problem" ? "text-ember" : "text-ink"}>
             {line?.text ?? `The status could not be checked: ${notReached}.`}

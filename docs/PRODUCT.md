@@ -177,6 +177,12 @@ Version 1.0 holds everything below.
     `<Tone>` sample are full sentences.
 - Create with AI opens in Describe for a Subject. Change offers the three
   kinds as equals side by side, each with its title and one sentence.
+  Model and its recovery message stay visible. Reasoning, persona and
+  configured portrait choices sit in a disclosure, initially folded on
+  phones and open on larger layouts. Its folded summary names the active
+  choices; the owner's toggle lasts for that Describe visit, including
+  resizing, and resets on a new arrival. Portrait availability sits beside
+  Create.
   Brainstorm is reachable from Describe and from a quieter row below the
   kinds, and turns a mood or a few words
   into ideas: the model reads the request as one of the three kinds and

@@ -1718,7 +1718,11 @@ content's path: the tab's memory and one request in the server.
   drawn on canvas, so the policy keeps `img-src 'self'` with no object URL
   and no `blob:` or `data:` source. A fresh visit opens Subject's Describe
   form; Change opens the kind choices, and Brainstorm is available from
-  Describe. Without a portrait the showcase leads with the card text and
+  Describe. Describe's native optional-controls disclosure captures its
+  initial form factor once per mount, then leaves toggling to the element;
+  query updates and resizing never reset it. Its summaries reuse the
+  controls' resolved labels, while Model stays outside the disclosure.
+  Without a portrait the showcase leads with the card text and
   compact art status, while Keep names the card's kind. Card text renders
   as plain text or through the tightened renderer.
   A request an expired sign-in refused is sent once more after renewal.

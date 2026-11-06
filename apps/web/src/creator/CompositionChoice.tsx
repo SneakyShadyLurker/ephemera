@@ -2,6 +2,11 @@ import type { CreatorArtComposition } from "@ephemera/core";
 import { useId } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
+export const COMPOSITION_LABELS: Record<CreatorArtComposition, string> = {
+  regular: "Regular",
+  diptych: "Diptych",
+};
+
 /** A quiet row shared by Describe, the showcase and the saved-character studio. */
 export function CompositionChoice({
   value,
@@ -31,10 +36,10 @@ export function CompositionChoice({
         }}
       >
         <ToggleGroupItem value="regular" labelled>
-          Regular
+          {COMPOSITION_LABELS.regular}
         </ToggleGroupItem>
         <ToggleGroupItem value="diptych" labelled>
-          Diptych
+          {COMPOSITION_LABELS.diptych}
         </ToggleGroupItem>
       </ToggleGroup>
     </>

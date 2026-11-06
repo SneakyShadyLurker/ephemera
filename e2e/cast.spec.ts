@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import type { APIRequestContext, Page, Request, Route } from "@playwright/test";
 import { formatCount } from "../apps/web/src/lib/text.ts";
 import {
@@ -74,6 +75,67 @@ const FACTORS = [
 const SEEDED = keeperWoman([]);
 /** The status line while the shown reply has no snapshot and no call is writing one. */
 const STALE = "As of the previous reply";
+
+test.describe("Cast header target", () => {
+  test.use({ hasTouch: true });
+  for (const width of [360, 390]) {
+    test(`header Cast has a clear touch target at ${width}`, async ({ page, request }, info) => {
+      await page.setViewportSize({ width, height: 844 });
+      const { name } = await castChat(request);
+      await page.goto("/");
+      await expect(castEntry(page, SEEDED)).toBeVisible();
+      const control = page.getByRole("button", { name: "Show the cast", exact: true });
+      await expect(control).toBeVisible();
+      await control.click({ trial: true });
+      const geometry = await control.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        const header = node.closest("header");
+        const neighbors = [...(header?.querySelectorAll("button, a") ?? [])]
+          .filter((other) => other !== node && other.checkVisibility())
+          .map((other) => ({
+            text: other.getAttribute("aria-label") ?? other.textContent,
+            rect: other.getBoundingClientRect().toJSON(),
+          }));
+        // Sample the four edges through their middles, inside the rounded
+        // target rather than in the clipped corners of its bounding rectangle.
+        const points = [
+          { x: rect.left + 1, y: rect.top + rect.height / 2 },
+          { x: rect.right - 1, y: rect.top + rect.height / 2 },
+          { x: rect.left + rect.width / 2, y: rect.top + 1 },
+          { x: rect.left + rect.width / 2, y: rect.bottom - 1 },
+        ];
+        const hits = points.map(({ x, y }) => node.contains(document.elementFromPoint(x, y)));
+        return {
+          target: rect.toJSON(),
+          header: header?.getBoundingClientRect().toJSON(),
+          title: header?.querySelector("h1")?.textContent,
+          neighbors,
+          points,
+          cornerRadius: getComputedStyle(node).borderTopLeftRadius,
+          hits,
+          overflow: document.documentElement.scrollWidth - innerWidth,
+        };
+      });
+      const path = info.outputPath("cast-header-target.json");
+      await writeFile(path, JSON.stringify(geometry));
+      await info.attach("Cast header same-frame targets", {
+        path,
+        contentType: "application/json",
+      });
+      expect(geometry.target.width).toBeGreaterThanOrEqual(44);
+      expect(geometry.target.height).toBeGreaterThanOrEqual(44);
+      expect(geometry.hits).toEqual([true, true, true, true]);
+      expect(geometry.overflow).toBe(0);
+      expect(geometry.title).toBe(name);
+      for (const { rect } of geometry.neighbors) {
+        const overlap =
+          Math.min(rect.right, geometry.target.right) > Math.max(rect.left, geometry.target.left) &&
+          Math.min(rect.bottom, geometry.target.bottom) > Math.max(rect.top, geometry.target.top);
+        expect(overlap).toBe(false);
+      }
+    });
+  }
+});
 
 test("phone streaming freshness excludes card-only data and a snapshot on a hidden alternate", async ({
   page,

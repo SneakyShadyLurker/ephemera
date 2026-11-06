@@ -44,6 +44,8 @@ const LOOKS: Record<
 
 const CHOICES: readonly ArtLookChoice[] = ["auto", ...ART_LOOK_IDS];
 
+export const lookLabel = (look: ArtLookChoice): string => LOOKS[look].name;
+
 const isChoice = oneOf(CHOICES);
 
 /** Auto: a conic of every look's first stop, one equal sector each. */
