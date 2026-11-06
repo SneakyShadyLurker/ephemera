@@ -41,15 +41,27 @@ for (const kind of ["character", "persona", "prompt", "lorebook"] as const) {
     const header = page.locator("main header");
     for (const width of [360, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
+      // CSS resizes before useFormFactor moves Saved into its responsive subtree.
+      const slot = header.locator(width < 768 ? "h1 + p" : "div:has(> h1) + div > span");
+      await expect(slot.getByText("Saved", { exact: true })).toBeVisible();
       const status = header.getByText("Saved", { exact: true });
       await expect(status).toHaveCount(1);
       await expect(status).toBeVisible();
       // Hidden copies can still announce; count the complete alert subtree too.
       await expect(header.locator('[role="alert"]')).toHaveCount(1);
-      const geometry = await status.evaluate((node) => {
-        const title = node.closest("header")?.querySelector("h1");
+      const geometry = await header.evaluate((current, phone) => {
+        if (!current.isConnected || document.querySelector("main header") !== current)
+          throw new Error("No current sheet header");
+        const title = current.querySelector("h1");
         if (!title) throw new Error("No sheet title");
-        const row = title.closest("header")?.firstElementChild?.getBoundingClientRect();
+        const column = title.parentElement;
+        const slot = phone
+          ? column?.querySelector(":scope > p")
+          : column?.nextElementSibling?.querySelector(":scope > span");
+        const node = slot?.querySelector(":scope > span > span > span");
+        if (!node?.isConnected || node.textContent !== "Saved")
+          throw new Error("No Saved state in the requested responsive subtree");
+        const row = current.firstElementChild?.getBoundingClientRect();
         const heading = title.getBoundingClientRect();
         // The hidden title is translated during arrival; measure the slot it occupies.
         const shift = Number.parseFloat(getComputedStyle(title).translate.split(" ")[1] ?? "0");
@@ -60,7 +72,7 @@ for (const kind of ["character", "persona", "prompt", "lorebook"] as const) {
           status: { top: state.top, bottom: state.bottom, left: state.left },
           titleLeft: heading.left,
         };
-      });
+      }, width < 768);
       expect(geometry.row?.height).toBe(56);
       expect(geometry.title.top).toBeGreaterThanOrEqual(geometry.row?.top ?? Infinity);
       expect(geometry.status.bottom).toBeLessThanOrEqual(geometry.row?.bottom ?? 0);

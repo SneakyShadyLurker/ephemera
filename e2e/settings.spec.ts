@@ -570,41 +570,195 @@ test("the full palette scene stays inert and fits 900px in every palette and sch
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/settings?section=appearance");
   await page.getByRole("button", { name: /^Your palettes/ }).click();
-  for (const name of Object.values(BUILT_IN_NAMES)) {
-    await page.getByRole("button", { name: "New palette", exact: true }).click();
-    await page.getByRole("menuitem", { name: new RegExp(`^${name}\\b`) }).click();
-    const editor = page.getByRole("region", { name: "New palette", exact: true });
-    const sample = editor.getByRole("figure", { name: "Sample scene" }).filter({ visible: true });
-    for (const scheme of ["Day", "Night"]) {
-      await editor
-        .getByRole("group", { name: "Editing scheme" })
-        .getByRole("button", { name: scheme, exact: true })
-        .click();
-      await expect(sample.locator(":scope > div").first()).toContainText("You");
-      await expect(sample).toContainText("Mara");
-      for (const tone of ["rose", "sage", "iris", "mist"]) {
-        await expect(sample.locator(`[data-tone="${tone}"]`)).toBeVisible();
-      }
-      await expect(sample).toContainText("Older than his letters made him sound.");
-      const decoration = sample.locator("[inert]");
-      await expect(decoration).toHaveCount(2);
-      await expect(decoration.first()).toHaveText("New replyContinue");
-      await expect(decoration.last()).toContainText("I'll mind the stair.Send");
-      await expect(sample.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
-      expect(
-        await decoration.evaluateAll((nodes) =>
-          nodes.every(
-            (node) =>
-              node.getAttribute("aria-hidden") === "true" &&
-              getComputedStyle(node).pointerEvents === "none",
+  const evidence: unknown[] = [];
+  try {
+    for (const name of Object.values(BUILT_IN_NAMES)) {
+      await page.getByRole("button", { name: "New palette", exact: true }).click();
+      await page.getByRole("menuitem", { name: new RegExp(`^${name}\\b`) }).click();
+      const editor = page.getByRole("region", { name: "New palette", exact: true });
+      const sample = editor.getByRole("figure", { name: "Sample scene" }).filter({ visible: true });
+      const measure = (settle: boolean) =>
+        sample.evaluate(async (figure, settle) => {
+          const panel = figure.closest("section[aria-labelledby]");
+          const scroller = figure.closest("[data-skip-target]");
+          const heading = panel?.querySelector("h3");
+          if (!(scroller instanceof HTMLElement) || !panel || !heading) {
+            throw new Error("Missing Settings scroller, editor or heading");
+          }
+          const rect = (node: Element) => {
+            const box = node.getBoundingClientRect();
+            return {
+              x: box.x,
+              y: box.y,
+              top: box.top,
+              bottom: box.bottom,
+              width: box.width,
+              height: box.height,
+            };
+          };
+          const read = () => {
+            const sampleBox = rect(figure);
+            const scrollerBox = rect(scroller);
+            const availableTop = Math.max(0, scrollerBox.top + scroller.clientTop);
+            const availableBottom = Math.min(
+              innerHeight,
+              scrollerBox.top + scroller.clientTop + scroller.clientHeight,
+            );
+            const animations = document.getAnimations().filter((animation) => {
+              const effect = animation.effect;
+              return (
+                effect instanceof KeyframeEffect &&
+                effect.target instanceof Element &&
+                effect.target.contains(figure) &&
+                Number.isFinite(effect.getComputedTiming().endTime) &&
+                (animation.pending || animation.playState === "running")
+              );
+            });
+            const ancestorScroll = [];
+            for (let node = figure.parentElement; node; node = node.parentElement) {
+              if (
+                node === document.scrollingElement ||
+                /auto|scroll/.test(getComputedStyle(node).overflowY)
+              ) {
+                ancestorScroll.push({
+                  tag: node.tagName,
+                  scrollTop: node.scrollTop,
+                  scrollLeft: node.scrollLeft,
+                  scrollHeight: node.scrollHeight,
+                  clientHeight: node.clientHeight,
+                  scrollBehavior: getComputedStyle(node).scrollBehavior,
+                });
+              }
+            }
+            return {
+              sample: sampleBox,
+              editor: rect(panel),
+              heading: rect(heading),
+              scroller: scrollerBox,
+              availableTop,
+              availableBottom,
+              visibleTop: Math.max(sampleBox.top, availableTop),
+              visibleBottom: Math.min(sampleBox.bottom, availableBottom),
+              ancestorScroll,
+              finiteAncestorAnimationCount: animations.length,
+              finiteAncestorAnimations: animations.slice(0, 30).map((animation) => {
+                const effect = animation.effect as KeyframeEffect;
+                return {
+                  target: (effect.target as Element).tagName,
+                  type: animation.constructor.name,
+                  property:
+                    animation instanceof CSSTransition ? animation.transitionProperty : null,
+                  state: animation.playState,
+                  pending: animation.pending,
+                  currentTime: animation.currentTime,
+                  endTime: effect.getComputedTiming().endTime,
+                };
+              }),
+            };
+          };
+          let latest = read();
+          if (!settle) return { ...latest, settled: false, frames: 0 };
+          let frame = 0;
+          let timer = 0;
+          let frames = 0;
+          let stable = 0;
+          let previous = "";
+          try {
+            return await new Promise<typeof latest & { settled: boolean; frames: number }>(
+              (resolve) => {
+                timer = window.setTimeout(
+                  () => resolve({ ...latest, settled: false, frames }),
+                  3000,
+                );
+                const tick = () => {
+                  latest = read();
+                  frames++;
+                  const signature = JSON.stringify([
+                    latest.sample,
+                    latest.editor,
+                    latest.heading,
+                    latest.scroller,
+                    latest.ancestorScroll,
+                  ]);
+                  stable =
+                    signature === previous && latest.finiteAncestorAnimationCount === 0
+                      ? stable + 1
+                      : 0;
+                  previous = signature;
+                  if (stable >= 3 || frames >= 180) {
+                    resolve({ ...latest, settled: stable >= 3, frames });
+                  } else {
+                    frame = requestAnimationFrame(tick);
+                  }
+                };
+                frame = requestAnimationFrame(tick);
+              },
+            );
+          } finally {
+            clearTimeout(timer);
+            cancelAnimationFrame(frame);
+          }
+        }, settle);
+      evidence.push({ palette: name, phase: "arrival", measurement: await measure(false) });
+      for (const scheme of ["Day", "Night"]) {
+        await editor
+          .getByRole("group", { name: "Editing scheme" })
+          .getByRole("button", { name: scheme, exact: true })
+          .click();
+        evidence.push({
+          palette: name,
+          scheme,
+          phase: "before-fit",
+          intendedReveal:
+            scheme === "Day"
+              ? "one scrollIntoView: start, nearest, auto"
+              : "none; editor already revealed",
+          measurement: await measure(false),
+        });
+        // Arrival only reveals the inline heading. Fit is measured after one normal scene reveal.
+        if (scheme === "Day") {
+          await sample.evaluate((figure) =>
+            figure.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" }),
+          );
+        }
+        await expect(sample.locator(":scope > div").first()).toContainText("You");
+        await expect(sample).toContainText("Mara");
+        for (const tone of ["rose", "sage", "iris", "mist"]) {
+          await expect(sample.locator(`[data-tone="${tone}"]`)).toBeVisible();
+        }
+        await expect(sample).toContainText("Older than his letters made him sound.");
+        const decoration = sample.locator("[inert]");
+        await expect(decoration).toHaveCount(2);
+        await expect(decoration.first()).toHaveText("New replyContinue");
+        await expect(decoration.last()).toContainText("I'll mind the stair.Send");
+        await expect(sample.locator("button, input, textarea, a, [tabindex]")).toHaveCount(0);
+        expect(
+          await decoration.evaluateAll((nodes) =>
+            nodes.every(
+              (node) =>
+                node.getAttribute("aria-hidden") === "true" &&
+                getComputedStyle(node).pointerEvents === "none",
+            ),
           ),
-        ),
-      ).toBe(true);
-      const box = await sample.boundingBox();
-      expect(box?.y).toBeGreaterThanOrEqual(0);
-      expect((box?.y ?? Infinity) + (box?.height ?? Infinity)).toBeLessThanOrEqual(900);
+        ).toBe(true);
+        const geometry = await measure(true);
+        evidence.push({ palette: name, scheme, phase: "fit", measurement: geometry });
+        expect(geometry.settled, "scroll and layout settled within three seconds").toBe(true);
+        const box = geometry.sample;
+        expect(box?.y).toBeGreaterThanOrEqual(0);
+        expect((box?.y ?? Infinity) + (box?.height ?? Infinity)).toBeLessThanOrEqual(900);
+        expect(box.top).toBeGreaterThanOrEqual(geometry.availableTop);
+        expect(box.bottom).toBeLessThanOrEqual(geometry.availableBottom);
+        expect(box.height).toBeLessThanOrEqual(geometry.availableBottom - geometry.availableTop);
+      }
+      await editor.getByRole("button", { name: "Cancel", exact: true }).click();
     }
-    await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  } finally {
+    process.stdout.write(`Palette fit geometry ${JSON.stringify(evidence)}\n`);
+    await test.info().attach("palette-fit-geometry", {
+      body: JSON.stringify(evidence, null, 2),
+      contentType: "application/json",
+    });
   }
 });
 

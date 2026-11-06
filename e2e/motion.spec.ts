@@ -119,6 +119,250 @@ async function deletionMoreBounds(more: Locator) {
   });
 }
 
+/** Bounded, content-free ordering evidence; all instrumentation is restored by stop(). */
+async function deletionOrdering(view: Locator) {
+  return view.evaluateHandle((node) => {
+    type Fiber = { return?: Fiber; memoizedProps?: { value?: unknown } };
+    type Library = {
+      state: Record<string, unknown>;
+      scrollRef: { current: unknown };
+    };
+    type Reading = { following: () => boolean; movement: { current: number } };
+    // Read the mounted providers without adding production hooks. Missing React
+    // metadata is reported as unavailable, never inferred from a near-tail gap.
+    const key = Object.keys(node).find((name) => name.startsWith("__reactFiber$"));
+    let fiber = key ? (node as unknown as Record<string, Fiber>)[key] : undefined;
+    let library: Library | undefined;
+    let reading: Reading | undefined;
+    for (let depth = 0; fiber && depth < 80; depth++, fiber = fiber.return) {
+      const value = fiber.memoizedProps?.value;
+      if (typeof value !== "object" || value === null) continue;
+      if ("state" in value && "scrollRef" in value) {
+        const candidate = value as Library;
+        if (candidate.scrollRef.current === node) library = candidate;
+      }
+      if ("following" in value && "movement" in value) reading = value as Reading;
+    }
+    const state = library?.state;
+    const content = node.firstElementChild;
+    const log = node.closest('[role="log"]');
+    const events: Record<string, unknown>[] = [];
+    let dropped = 0;
+    const snapshot = () => {
+      const latest = [...(log?.querySelectorAll("button") ?? [])].find(
+        (button) => button.textContent?.trim() === "Latest",
+      );
+      const owner = latest?.parentElement;
+      const style = owner && getComputedStyle(owner);
+      const active = document.activeElement;
+      return {
+        top: node.scrollTop,
+        height: node.scrollHeight,
+        client: node.clientHeight,
+        gap: node.scrollHeight - node.clientHeight - node.scrollTop,
+        anchor: getComputedStyle(node).overflowAnchor,
+        portraits: node.querySelectorAll("[data-presence]").length,
+        latest: owner && {
+          hidden: owner.hidden,
+          inert: owner.inert,
+          display: style?.display,
+          visibility: style?.visibility,
+          opacity: style?.opacity,
+          rects: latest?.getClientRects().length,
+        },
+        focus: active && {
+          tag: active.tagName,
+          role: active.getAttribute("role"),
+          more: active.hasAttribute("data-edit-for"),
+          undo: active.textContent?.trim() === "Undo",
+        },
+        following: reading?.following() ?? null,
+        movement: reading?.movement.current ?? null,
+        library: state
+          ? {
+              isAtBottom: state.isAtBottom,
+              escapedFromLock: state.escapedFromLock,
+              lastScrollTop: state.lastScrollTop,
+              ignoreScrollToTop: state.ignoreScrollToTop,
+              resizeDifference: state.resizeDifference,
+              targetScrollTop: state.targetScrollTop,
+              animation: state.animation
+                ? { ignoreEscapes: (state.animation as { ignoreEscapes?: boolean }).ignoreEscapes }
+                : null,
+            }
+          : null,
+      };
+    };
+    const record = (kind: string, detail?: Record<string, unknown>) => {
+      if (events.length === 2500) {
+        events.shift();
+        dropped++;
+      }
+      events.push({ kind, time: performance.now(), ...snapshot(), ...detail });
+    };
+    const top = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    if (!top?.get || !top.set) throw new Error("Missing scrollTop accessor");
+    const own = Object.getOwnPropertyDescriptor(node, "scrollTop");
+    Object.defineProperty(node, "scrollTop", {
+      configurable: true,
+      get: () => top.get?.call(node),
+      set: (value: number) => {
+        record("scroll:write", { value, stack: new Error().stack?.split("\n").slice(1, 9) });
+        top.set?.call(node, value);
+        record("scroll:written");
+      },
+    });
+    const restorers: (() => void)[] = [];
+    for (const name of [
+      "isAtBottom",
+      "escapedFromLock",
+      "lastScrollTop",
+      "ignoreScrollToTop",
+      "resizeDifference",
+    ]) {
+      const descriptor = state && Object.getOwnPropertyDescriptor(state, name);
+      if (!state || !descriptor?.configurable || !("value" in descriptor)) continue;
+      let current = descriptor.value;
+      Object.defineProperty(state, name, {
+        configurable: true,
+        enumerable: descriptor.enumerable ?? false,
+        get: () => current,
+        set: (value: unknown) => {
+          const previous = current;
+          current = value;
+          record(`library:${name}`, {
+            previous,
+            value,
+            stack: new Error().stack?.split("\n").slice(1, 9),
+          });
+        },
+      });
+      restorers.push(() => Object.defineProperty(state, name, { ...descriptor, value: current }));
+    }
+    const capture = () => record("scroll:capture");
+    const bubble = () => record("scroll:bubble");
+    node.addEventListener("scroll", capture, true);
+    node.addEventListener("scroll", bubble);
+    const types = [
+      "wheel",
+      "keydown",
+      "pointerdown",
+      "pointerup",
+      "touchstart",
+      "touchmove",
+      "focusin",
+      "focusout",
+    ] as const;
+    const input = (event: Event) =>
+      record(`input:${event.type}`, {
+        trusted: event.isTrusted,
+        target: event.target instanceof Element ? event.target.tagName : null,
+        key: event instanceof KeyboardEvent ? event.key : undefined,
+        deltaY: event instanceof WheelEvent ? event.deltaY : undefined,
+      });
+    for (const type of types) document.addEventListener(type, input, true);
+    const resize = new ResizeObserver((entries) =>
+      record("resize", {
+        targets: entries.map((entry) => ({
+          owner: entry.target === node ? "scroller" : "content",
+          height: entry.contentRect.height,
+        })),
+      }),
+    );
+    resize.observe(node);
+    if (content) resize.observe(content);
+    type Sample = { top: number; height: number; portraits: number };
+    let start: number | undefined;
+    const frames: Sample[] = [];
+    let resolveSamples: ((value: { start: number; frames: Sample[] }) => void) | undefined;
+    let sampleFrame = 0;
+    let deadline = 0;
+    const sample = () => {
+      frames.push({
+        top: node.scrollTop,
+        height: node.scrollHeight,
+        portraits: node.querySelectorAll("[data-presence]").length,
+      });
+      record("deletion:sample");
+      if (frames.length === 20) {
+        clearTimeout(deadline);
+        if (start !== undefined) resolveSamples?.({ start, frames });
+      } else sampleFrame = requestAnimationFrame(sample);
+    };
+    const mutation = new MutationObserver(() => {
+      record("mutation");
+      if (
+        start === undefined &&
+        [...node.querySelectorAll('[role="status"]')].some((status) =>
+          status.textContent?.includes("reply was deleted"),
+        )
+      ) {
+        start = node.scrollTop;
+        record("deletion:mutation");
+        sample();
+      }
+    });
+    if (log)
+      mutation.observe(log, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["hidden", "inert", "style", "data-status"],
+      });
+    let frame = 0;
+    let previous = "";
+    const tick = () => {
+      const current = JSON.stringify(snapshot());
+      if (current !== previous) record("frame");
+      previous = current;
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    record("initial");
+    return {
+      mark: (stage: string) => {
+        record(`stage:${stage}`);
+        return snapshot();
+      },
+      samples: () =>
+        new Promise<{ start: number; frames: Sample[] }>((resolve, reject) => {
+          if (start !== undefined && frames.length === 20) resolve({ start, frames });
+          else {
+            resolveSamples = resolve;
+            deadline = window.setTimeout(
+              () => reject(new Error("Deletion mutation samples did not finish")),
+              8000,
+            );
+          }
+        }),
+      stop: () => {
+        cancelAnimationFrame(frame);
+        cancelAnimationFrame(sampleFrame);
+        clearTimeout(deadline);
+        resize.disconnect();
+        mutation.disconnect();
+        node.removeEventListener("scroll", capture, true);
+        node.removeEventListener("scroll", bubble);
+        for (const type of types) document.removeEventListener(type, input, true);
+        for (const restore of restorers) restore();
+        if (own) Object.defineProperty(node, "scrollTop", own);
+        else Reflect.deleteProperty(node, "scrollTop");
+        record("final");
+        return {
+          events,
+          dropped,
+          cleanup: {
+            scrollTopRestored: Object.getOwnPropertyDescriptor(node, "scrollTop")?.set === own?.set,
+            libraryDescriptorsRestored: restorers.length,
+            observersDisconnected: true,
+            listenersRemoved: true,
+          },
+        };
+      },
+    };
+  });
+}
+
 for (const width of [390, 1440]) {
   test(`Latest after a history deletion supersedes its Undo bookmark at ${width}`, async ({
     page,
@@ -1055,84 +1299,115 @@ for (const width of [390, 1440]) {
       await patchSettings(request, { characterId, model: "mock-fast" });
       await page.goto("/");
       await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-      await send(page, "The light returns.");
-      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
       const view = page.getByRole("log").locator(":scope > div").first();
-      await expect
-        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
-        .toBeLessThan(4);
-      const before = await view.evaluate((node) => ({
-        top: node.scrollTop,
-        height: node.scrollHeight,
-      }));
-      const sampling = page.evaluate(
-        () =>
-          new Promise<{
-            start: number;
-            frames: { top: number; height: number; portraits: number }[];
-          }>((resolve) => {
-            const view = document.querySelector<HTMLElement>('[role="log"] > div');
-            if (!view) throw new Error("Missing scroller");
-            const observer = new MutationObserver(() => {
-              if (
-                ![...view.querySelectorAll('[role="status"]')].some((node) =>
-                  node.textContent?.includes("reply was deleted"),
-                )
-              )
-                return;
-              observer.disconnect();
-              const start = view.scrollTop;
-              const frames: { top: number; height: number; portraits: number }[] = [];
-              const sample = () => {
-                frames.push({
-                  top: view.scrollTop,
-                  height: view.scrollHeight,
-                  portraits: view.querySelectorAll("[data-presence]").length,
-                });
-                if (frames.length === 20) resolve({ start, frames });
-                else requestAnimationFrame(sample);
-              };
-              sample();
-            });
-            observer.observe(view, { childList: true, subtree: true });
-          }),
-      );
-      await lastReply(page).hover();
-      await lastReply(page)
-        .getByRole("button", { name: /^More actions/ })
-        .click();
-      const beforeDelete = await page
-        .locator('[role="log"] > div')
-        .first()
-        .evaluate((node) => ({
+      const ordering = await deletionOrdering(view);
+      try {
+        await ordering.evaluate((trace) => trace.mark("before-send"));
+        await send(page, "The light returns.");
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        await ordering.evaluate((trace) => trace.mark("send-complete"));
+        await expect
+          .poll(() =>
+            view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+          )
+          .toBeLessThan(4);
+        const before = await view.evaluate((node) => ({
           top: node.scrollTop,
           height: node.scrollHeight,
         }));
-      await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
-      const samples = await sampling;
-      process.stdout.write(
-        `Deletion scroll stages ${JSON.stringify({ width, reducedMotion, beforeMenu: before.top, beforeDelete: beforeDelete.top, mutation: samples.start, preClickDelta: beforeDelete.top - before.top, deletionClamp: samples.start - beforeDelete.top })}\n`,
-      );
-      for (const frame of samples.frames) {
-        expect(frame.portraits).toBe(1);
-        expect(Math.abs(frame.top - beforeDelete.top)).toBeLessThanOrEqual(
-          Math.abs(beforeDelete.height - frame.height) + 2,
+        expect((await ordering.evaluate((trace) => trace.mark("before-menu"))).following).toBe(
+          true,
         );
+        const more = lastReply(page).getByRole("button", { name: /^More actions/ });
+        // Hovering the whole translated turn makes Playwright scroll it into
+        // view before delivering input, escaping the intent this case exercises.
+        // Use the reachable control itself without a harness scroll or rejoin.
+        await expect
+          .poll(async () => {
+            const bounds = await deletionMoreBounds(more);
+            return bounds.fullyInside && bounds.hit;
+          })
+          .toBe(true);
+        const point = await deletionMoreBounds(more);
+        await page.mouse.move(
+          (point.control.left + point.control.right) / 2,
+          (point.control.top + point.control.bottom) / 2,
+        );
+        const hovered = await deletionMoreBounds(more);
+        expect(hovered.fullyInside).toBe(true);
+        expect(hovered.hit).toBe(true);
+        await page.mouse.click(
+          (hovered.control.left + hovered.control.right) / 2,
+          (hovered.control.top + hovered.control.bottom) / 2,
+        );
+        await expect(page.getByRole("menu")).toBeVisible();
+        const beforeDelete = await page
+          .locator('[role="log"] > div')
+          .first()
+          .evaluate((node) => ({
+            top: node.scrollTop,
+            height: node.scrollHeight,
+          }));
+        const intent = await ordering.evaluate((trace) => trace.mark("before-delete"));
+        expect(intent.following).toBe(true);
+        expect(intent.gap).toBeLessThanOrEqual(0.5);
+        await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+        const samples = await ordering.evaluate((trace) => trace.samples());
+        expect((await ordering.evaluate((trace) => trace.mark("samples-complete"))).following).toBe(
+          true,
+        );
+        process.stdout.write(
+          `Deletion scroll stages ${JSON.stringify({ width, reducedMotion, beforeMenu: before.top, beforeDelete: beforeDelete.top, mutation: samples.start, preClickDelta: beforeDelete.top - before.top, deletionClamp: samples.start - beforeDelete.top })}\n`,
+        );
+        for (const frame of samples.frames) {
+          expect(frame.portraits).toBe(1);
+          expect(Math.abs(frame.top - beforeDelete.top)).toBeLessThanOrEqual(
+            Math.abs(beforeDelete.height - frame.height) + 2,
+          );
+        }
+        const undo = page.getByRole("button", { name: "Undo", exact: true });
+        await expect(undo).toBeFocused();
+        await expect(undo).toBeInViewport();
+        await expect
+          .poll(() =>
+            view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+          )
+          .toBeLessThan(4);
+        await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+        await ordering.evaluate((trace) => trace.mark("deleted-latest-hidden"));
+        await page.keyboard.press("Enter");
+        await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+        await expect(page.locator("[data-presence]")).toHaveCount(1);
+        await expect
+          .poll(() =>
+            view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight),
+          )
+          .toBeLessThan(4);
+        await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
+        expect(
+          (await ordering.evaluate((trace) => trace.mark("undo-latest-hidden"))).following,
+        ).toBe(true);
+      } finally {
+        try {
+          const diagnostics = {
+            width,
+            reducedMotion,
+            ...(await ordering.evaluate((trace) => trace.stop())),
+          };
+          await test.info().attach("deletion-tail-ordering", {
+            body: JSON.stringify(diagnostics, null, 2),
+            contentType: "application/json",
+          });
+          // The list reporter discards successful in-memory attachments. Keep
+          // the same bounded evidence in the captured runner log on every path.
+          process.stdout.write(`Deletion tail ordering ${JSON.stringify(diagnostics)}\n`);
+          process.stdout.write(
+            `Deletion tail cleanup ${JSON.stringify({ width, reducedMotion, cleanup: diagnostics.cleanup })}\n`,
+          );
+        } finally {
+          await ordering.dispose();
+        }
       }
-      const undo = page.getByRole("button", { name: "Undo", exact: true });
-      await expect(undo).toBeFocused();
-      await expect(undo).toBeInViewport();
-      await expect
-        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
-        .toBeLessThan(4);
-      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
-      await page.keyboard.press("Enter");
-      await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
-      await expect(page.locator("[data-presence]")).toHaveCount(1);
-      await expect
-        .poll(() => view.evaluate((node) => node.scrollHeight - node.scrollTop - node.clientHeight))
-        .toBeLessThan(4);
-      await expect(page.getByRole("button", { name: "Latest", exact: true })).toBeHidden();
     });
   }
 }
