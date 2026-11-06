@@ -40,7 +40,7 @@ test("native example passages written in a lorebook entry persist and reach the 
   const passages = [`${name}: The lamp is lit.`, `${name}: The archive is quiet.`];
   const examples = passages.join(EXAMPLE_SEPARATOR);
   await page.getByLabel("Text", { exact: true }).fill(examples);
-  await page.getByRole("button", { name: "Where it goes" }).click();
+  await page.getByRole("button", { name: "Placement and order" }).click();
   await choose(page, "Placement", "First in the example dialogue");
   await page
     .getByRole("group", { name: "Goes in" })
