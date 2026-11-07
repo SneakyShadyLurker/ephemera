@@ -109,11 +109,14 @@ const ROW = cn(rowLayout("collection", false), ROW_FRAME, "border-rush border-b"
 export function WorkflowRow({
   row,
   inUse,
+  listFailed,
   onEditAddress,
 }: {
   row: Row;
   /** The workflow Create with AI paints with. */
   inUse: boolean;
+  /** The list already explains the failed request while its notice is active. */
+  listFailed: boolean;
   onEditAddress: () => void;
 }) {
   const { workflow } = row;
@@ -123,15 +126,13 @@ export function WorkflowRow({
   const status = useQuery(
     artStatusQuery(row.scope === "user" ? userWorkflowId(workflow.id) : workflow.id),
   );
-  const shown = workflowStatus(
-    status.isPending ? "checking" : status.isError ? "failed" : status.data,
-  );
+  const presentation = status.isError ? "failed" : status.isPending ? "checking" : status.data;
+  const shown = workflowStatus(presentation);
   const problemId = useId();
   const chooseId = useId();
-  const cannotRun = status.data !== undefined && status.data.state !== "ready";
-  const remedy = addressAction(
-    status.isPending ? "checking" : status.isError ? "failed" : status.data,
-  );
+  const cannotRun = typeof presentation === "object" && presentation.state !== "ready";
+  const checkFailed = inUse && presentation === "failed" && !listFailed;
+  const remedy = addressAction(presentation);
   const reason =
     shown.reason ??
     (shown.missing !== null
@@ -382,12 +383,16 @@ export function WorkflowRow({
       {(problem !== null ||
         shown.missing !== null ||
         shown.reason !== null ||
+        checkFailed ||
         (inUse && cannotRun)) && (
         <div className="col-span-2 grid gap-2 pt-1 pb-1 pl-4">
           {problem !== null && (
             <InlineStatus tone="error" as="p" id={problemId} role="alert">
               {problem}
             </InlineStatus>
+          )}
+          {checkFailed && (
+            <p className="text-note text-reed">Couldn't check this workflow: {notReached}.</p>
           )}
           {inUse && cannotRun ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

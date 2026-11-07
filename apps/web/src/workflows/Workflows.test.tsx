@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ART_STATUS_KEY, artWorkflowsQuery } from "../creator/queries.ts";
 import { settingsQuery } from "../settings/settings.ts";
+import { type SignInPhase, signIn } from "../signin/signin.ts";
 import { workflowsQuery } from "./queries.ts";
 import { Workflows } from "./Workflows.tsx";
 
@@ -59,15 +60,19 @@ const STATUSES: Record<string, CreatorArtStatus> = {
 function render({
   yours = YOURS,
   failed = false,
+  optionsFailed = false,
   statuses = STATUSES,
   failedStatuses = [],
   settings = {},
+  phase = "active",
 }: {
   yours?: WorkflowSummary[];
   failed?: boolean;
+  optionsFailed?: boolean;
   statuses?: Record<string, CreatorArtStatus>;
   failedStatuses?: string[];
   settings?: Partial<Settings>;
+  phase?: SignInPhase;
 } = {}) {
   // Static rendering observes terminal failures without restarting them on mount.
   const client = new QueryClient({ defaultOptions: { queries: { retryOnMount: false } } });
@@ -85,6 +90,16 @@ function render({
       ?.setState({ status: "error", error: new Error("unavailable"), fetchStatus: "idle" });
   }
   client.setQueryData(artWorkflowsQuery.queryKey, OPTIONS);
+  if (optionsFailed) {
+    client
+      .getQueryCache()
+      .find({ queryKey: artWorkflowsQuery.queryKey })
+      ?.setState({
+        status: "error",
+        error: new Error("unavailable"),
+        fetchStatus: "idle",
+      });
+  }
   for (const [id, status] of Object.entries(statuses)) {
     client.setQueryData([...ART_STATUS_KEY, id], status);
   }
@@ -98,7 +113,12 @@ function render({
         fetchStatus: "idle",
       });
   }
-  return renderToStaticMarkup(
+  // useSyncExternalStore reads the server snapshot during static rendering.
+  const snapshot = vi.spyOn(signIn.store, "getInitialState").mockReturnValue({
+    ...signIn.store.getInitialState(),
+    phase,
+  });
+  const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <Workflows
         importRef={createRef()}
@@ -108,6 +128,8 @@ function render({
       />
     </QueryClientProvider>,
   );
+  snapshot.mockRestore();
+  return markup;
 }
 
 /** Each row's markup, by the workflow's name. */
@@ -131,7 +153,9 @@ describe("the workflows list in Settings > Pictures", () => {
   it("puts words beside every dot and marks the workflow in use", () => {
     const markup = render();
     for (const row of rows(markup)) {
-      expect(row).toMatch(/Selected|Ready|Checking|Missing requirements|Unavailable|Unchecked/);
+      expect(row).toMatch(
+        /Selected|Ready|Checking|Missing requirements|Unavailable|No address|Couldn/,
+      );
     }
     expect(rowOf(markup, "Flux Dev Portrait")).toContain("Selected");
     expect(rowOf(markup, "Flux Dev Portrait")).toContain("Ready");
@@ -144,7 +168,7 @@ describe("the workflows list in Settings > Pictures", () => {
     expect(rowOf(markup, "Flux Dev Portrait")).not.toContain("Model files");
   });
 
-  it("reads Unchecked without an address and Checking while asking", () => {
+  it("reads No address without an address and Checking while asking", () => {
     const off = render({
       settings: { comfyuiBaseUrl: "" },
       statuses: {
@@ -154,11 +178,11 @@ describe("the workflows list in Settings > Pictures", () => {
       },
     });
     expect(rowOf(off, "Flux Dev Portrait")).toContain("Selected");
-    expect(rowOf(off, "Flux Dev Portrait")).toContain("Unchecked");
+    expect(rowOf(off, "Flux Dev Portrait")).toContain("No address");
     expect(rowOf(off, "Flux Dev Portrait")).toContain("Add the address");
     expect(rowOf(off, "Flux Dev Portrait")).not.toContain("Choose another");
-    expect(rowOf(off, "Moss Studio")).toContain("Unchecked");
-    expect(rowOf(off, "Krea 2 Gonzalomo")).toContain("Unchecked");
+    expect(rowOf(off, "Moss Studio")).toContain("No address");
+    expect(rowOf(off, "Krea 2 Gonzalomo")).toContain("No address");
     const asking = render({ statuses: {} });
     expect(rowOf(asking, "Flux Dev Portrait")).toContain("Selected");
     expect(rowOf(asking, "Moss Studio")).toContain("Checking");
@@ -175,9 +199,9 @@ describe("the workflows list in Settings > Pictures", () => {
     problem?: boolean;
   }[] = [
     { name: "checking", words: "Checking" },
-    { name: "query failure", failed: true, words: "Unchecked" },
+    { name: "query failure", failed: true, words: "Couldn't check" },
     { name: "ready", status: { state: "ready" }, words: "Ready" },
-    { name: "off", status: { state: "off" }, words: "Unchecked", remedy: "Add the address" },
+    { name: "off", status: { state: "off" }, words: "No address", remedy: "Add the address" },
     {
       name: "missing",
       status: { state: "missing", nodes: ["MissingNode"], models: ["missing.safetensors"] },
@@ -226,19 +250,21 @@ describe("the workflows list in Settings > Pictures", () => {
       remedy,
       problem: true,
     })),
-    {
-      name: "failed refresh retaining ready",
-      status: { state: "ready" },
-      failed: true,
-      words: "Unchecked",
-    },
-    {
-      name: "failed refresh retaining missing",
-      status: { state: "missing", nodes: ["MissingNode"], models: [] },
-      failed: true,
-      words: "Unchecked",
-    },
   ];
+  stateCases.push(
+    ...stateCases.flatMap((entry) =>
+      entry.status === undefined
+        ? []
+        : [
+            {
+              name: `failed refresh retaining ${entry.name}`,
+              status: entry.status,
+              failed: true,
+              words: "Couldn't check",
+            },
+          ],
+    ),
+  );
 
   for (const entry of stateCases) {
     it(`keeps selected and unselected words and remedies for ${entry.name}`, () => {
@@ -250,12 +276,18 @@ describe("the workflows list in Settings > Pictures", () => {
       });
       const selected = rowOf(markup, "Flux Dev Portrait") ?? "";
       const unselected = rowOf(markup, "Moss Studio") ?? "";
+      const server = rowOf(markup, "Krea 2 Gonzalomo") ?? "";
       expect(selected).toContain('class="text-reed">Selected</span>');
       expect(unselected).not.toContain("Selected");
-      for (const row of [selected, unselected]) {
-        expect(row.split(`>${entry.words}</span>`)).toHaveLength(2);
+      const escapedWords = entry.words.replaceAll("'", "&#x27;");
+      for (const row of [selected, unselected, server]) {
+        expect(row.split(`>${escapedWords}</span>`)).toHaveLength(2);
         expect(row).toContain(
-          `class="${entry.problem ? "text-ember" : "text-ink"}">${entry.words}</span>`,
+          `class="${entry.problem ? "text-ember" : "text-ink"}">${escapedWords}</span>`,
+        );
+        expect(row).toContain('aria-hidden="true"');
+        expect(row).toContain(
+          entry.problem ? "bg-ember" : entry.words === "Ready" ? "bg-dusk" : "bg-control-edge",
         );
         expect(row).not.toContain("Cannot run");
         if (entry.reason) expect(row).toContain(entry.reason.replaceAll("'", "&#x27;"));
@@ -273,11 +305,68 @@ describe("the workflows list in Settings > Pictures", () => {
         expect(selected).toContain("missing.safetensors");
         expect(unselected).toContain("MissingNode");
       }
-      if (entry.status?.state === "off" || (entry.failed && entry.status?.state === "missing")) {
+      if (entry.status?.state === "off" && !entry.failed) {
         expect(selected).toContain("Add a picture server address to run this workflow.");
+      }
+      if (entry.failed) {
+        expect(selected).toContain(
+          "Couldn&#x27;t check this workflow: Ephemera could not be reached.",
+        );
+        for (const row of [selected, unselected, server]) {
+          expect(row).not.toContain("Add a picture server address");
+          expect(row).not.toContain("What is missing");
+          expect(row).not.toContain("MissingNode");
+          expect(row).not.toContain("missing.safetensors");
+          expect(row).not.toContain("Install what is missing");
+          if (entry.status?.state === "unavailable") {
+            expect(row).not.toContain("The picture server");
+            expect(row).not.toContain("This address must");
+            expect(row).not.toContain("This server no longer");
+            expect(row).not.toContain("Something answered");
+          }
+        }
+        expect(unselected).not.toContain("check this workflow");
+        expect(server).not.toContain("check this workflow");
       }
     });
   }
+
+  it.each(["active", "renewed", "expired", "waiting", "still-expired"] as const)(
+    "uses the sign-in cause in a selected failure during %s",
+    (phase) => {
+      const markup = render({ phase, statuses: {}, failedStatuses: [FLUX_ID] });
+      expect(rowOf(markup, "Flux Dev Portrait")).toContain(
+        phase === "active" || phase === "renewed"
+          ? "Couldn&#x27;t check this workflow: Ephemera could not be reached."
+          : "Couldn&#x27;t check this workflow: you&#x27;re signed out; sign in, then try again.",
+      );
+    },
+  );
+
+  it.each([FLUX_ID, SERVER])(
+    "suppresses only the duplicate failure cause for selected %s",
+    (id) => {
+      for (const list of [{ failed: true }, { optionsFailed: true }]) {
+        const input = { settings: { comfyuiWorkflow: id }, failedStatuses: [id] };
+        const suppressed = render({ ...input, ...list });
+        expect(suppressed).toContain("The list could not be refreshed");
+        expect(suppressed).toContain("Try again");
+        expect(suppressed).toContain("Couldn&#x27;t check</span>");
+        expect(suppressed).not.toContain("check this workflow");
+        expect(render(input)).toContain("check this workflow");
+      }
+      for (const entry of stateCases) {
+        if (entry.status === undefined || entry.failed) continue;
+        const markup = render({
+          failed: true,
+          statuses: { [id]: entry.status },
+          settings: { comfyuiWorkflow: id },
+        });
+        if (entry.remedy) expect(markup).toContain(entry.remedy);
+        if (entry.reason) expect(markup).toContain(entry.reason.replaceAll("'", "&#x27;"));
+      }
+    },
+  );
 
   it("names each user row's actions button, and server rows have none", () => {
     const markup = render();

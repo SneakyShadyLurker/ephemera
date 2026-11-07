@@ -4,7 +4,7 @@ import type { CreatorArtStatus } from "../packages/core/src/index.ts";
 import { uniqueName } from "./support/cards.ts";
 import { ART_TIMEOUT, COPY, expectBatch, recordArt } from "./support/creator.ts";
 import { keptBase, ownerDescription } from "./support/creator-fixtures.ts";
-import { choose, expectNoOverflow, readSettings } from "./support/entities.ts";
+import { choose, expectNoOverflow, patchSettings, readSettings } from "./support/entities.ts";
 import { sceneButton, sceneChat, scenePicture } from "./support/scene.ts";
 import { settingsTab } from "./support/settings.ts";
 import { expect, test } from "./support/test.ts";
@@ -52,7 +52,10 @@ for (const [status, action] of [
   [{ state: "unavailable", reason: "not_ready" }, null],
   [{ state: "missing", nodes: ["MissingNode"], models: [] }, "Choose another"],
 ] satisfies [CreatorArtStatus, string | null][]) {
-  test(`selected workflow recovery matches ${JSON.stringify(status)}`, async ({ page }) => {
+  test(`selected workflow recovery matches ${JSON.stringify(status)}`, async ({
+    page,
+    request,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.route("**/api/creator/art/status?*", (route) => route.fulfill({ json: status }));
@@ -65,7 +68,7 @@ for (const [status, action] of [
       status.state === "ready"
         ? "Ready"
         : status.state === "off"
-          ? "Unchecked"
+          ? "No address"
           : status.state === "missing"
             ? "Missing requirements"
             : "Unavailable";
@@ -104,6 +107,19 @@ for (const [status, action] of [
       await expect(
         selected.getByRole("combobox", { name: "Choose another", exact: true }),
       ).toBeVisible();
+      await selected.locator("summary").click();
+      await expect(selected.getByText("MissingNode", { exact: true })).toBeVisible();
+      const before = (await readSettings(request)).comfyuiWorkflow;
+      let selectionWrites = 0;
+      page.on("request", (request) => {
+        if (request.method() === "PATCH" && new URL(request.url()).pathname === "/api/settings") {
+          selectionWrites++;
+        }
+      });
+      await selected.getByRole("combobox", { name: "Choose another", exact: true }).click();
+      await page.getByRole("option").filter({ hasNotText: DEFAULT_WORKFLOW }).first().click();
+      await expect.poll(async () => (await readSettings(request)).comfyuiWorkflow).not.toBe(before);
+      expect(selectionWrites).toBe(1);
     } else {
       await expect(selected.getByRole("button", { name: /^(Add|Edit) the address$/ })).toHaveCount(
         0,
@@ -186,18 +202,441 @@ for (const width of [360, 390]) {
   }
 }
 
-test("a selected workflow with a failed status query stays Unchecked without a remedy", async ({
+test("a selected workflow with a failed status query says Couldn't check without a remedy", async ({
   page,
-}) => {
-  await page.route("**/api/creator/art/status?*", (route) => route.abort());
+}, testInfo) => {
+  const sequence: Round13Request[] = [];
+  await page.route("**/api/creator/art/status?*", (route) => {
+    if (new URL(route.request().url()).searchParams.get("workflow") === "krea2-gonzalomo") {
+      sequence.push({ ordinal: sequence.length + 1, result: "refused" });
+    }
+    return route.abort();
+  });
   await openSettings(page);
   const row = page
     .locator("[data-workflow]")
     .filter({ has: page.getByText("Selected", { exact: true }) });
-  await expect(row.getByText("Unchecked", { exact: true })).toBeVisible();
+  await expect(row.getByText("Couldn't check", { exact: true })).toBeVisible();
+  await expect(row).toContainText("Couldn't check this workflow: Ephemera could not be reached.");
   await expect(row.getByRole("button", { name: /^(Add|Edit) the address$/ })).toHaveCount(0);
   await expect(row.getByRole("combobox", { name: "Choose another", exact: true })).toHaveCount(0);
   await expect(row).not.toContainText("Cannot run");
+  await expect(row.locator("details")).toHaveCount(0);
+  expect(sequence).toEqual([
+    { ordinal: 1, result: "refused" },
+    { ordinal: 2, result: "refused" },
+  ]);
+  await round13Evidence(testInfo, { initialFailureWithoutData: true, sequence });
+});
+
+/** Leave Settings through public navigation, retaining this tab's query answers. */
+async function round13Reopen(page: Page) {
+  const navigate = async (name: string) => {
+    const opener = page.getByRole("button", { name: "Open navigation", exact: true });
+    if (await opener.isVisible()) await opener.click();
+    await page
+      .getByRole("navigation", { name: "Main", exact: true })
+      .getByRole("link", { name, exact: true })
+      .click();
+  };
+  await navigate("Characters");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Characters", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("[data-workflow]")).toHaveCount(0);
+  await navigate("Settings");
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await page.getByRole("link", { name: /^Pictures/ }).click();
+  } else {
+    await settingsTab(page, "Pictures").click();
+  }
+  await expect(importButton(page)).toBeEnabled();
+}
+
+/** Only the selected query's state label and ordinal, never raw responses or URLs. */
+type Round13Request = { ordinal: number; result: CreatorArtStatus["state"] | "refused" };
+
+async function round13Evidence(testInfo: import("@playwright/test").TestInfo, evidence: object) {
+  const path = testInfo.outputPath("round13.json");
+  await writeFile(path, JSON.stringify(evidence, null, 2));
+  await testInfo.attach("round13", { path, contentType: "application/json" });
+}
+
+async function expectRound13Failure(row: Locator, explained = true) {
+  await expect(row.getByText("Couldn't check", { exact: true })).toHaveCount(1);
+  await expect(row.getByText("Couldn't check", { exact: true })).toBeVisible();
+  await expect(
+    row.getByText("Couldn't check this workflow: Ephemera could not be reached.", { exact: true }),
+  ).toHaveCount(explained ? 1 : 0);
+  await expect(row.getByRole("button", { name: /^(Add|Edit) the address$/ })).toHaveCount(0);
+  await expect(row.getByRole("combobox", { name: "Choose another", exact: true })).toHaveCount(0);
+  await expect(row.locator("details")).toHaveCount(0);
+  await expect(row).not.toContainText(
+    /Add a picture server address|Install what is missing|Round13Node|round13-model|The picture server did not answer/,
+  );
+}
+
+test.describe("Round13 truthful workflow feedback on touch phones", () => {
+  test.use({ hasTouch: true });
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      test(`No address and Couldn't check ${width}/${reducedMotion}`, async ({
+        page,
+        request,
+        comfy,
+      }, testInfo) => {
+        await page.setViewportSize({ width, height: 844 });
+        const colorScheme = width === 360 ? "light" : "dark";
+        await page.emulateMedia({ reducedMotion, colorScheme });
+        await comfy({ objectInfo: SDXL_OBJECT_INFO });
+        await openSettings(page);
+        const name = uniqueName("Round13");
+        await importWorkflow(page, name);
+        const id = await workflowRow(page, name).getAttribute("data-workflow");
+        expect(id).not.toBeNull();
+        const selectedId = `user-${id}`;
+        await patchSettings(request, { comfyuiWorkflow: selectedId });
+        let failed = false;
+        let release = () => {};
+        const held = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const sequence: Round13Request[] = [];
+        await page.route("**/api/creator/art/status?*", async (route) => {
+          if (new URL(route.request().url()).searchParams.get("workflow") !== selectedId) {
+            return route.fulfill({ json: { state: "ready" } });
+          }
+          sequence.push({ ordinal: sequence.length + 1, result: failed ? "refused" : "off" });
+          if (failed) await held;
+          return failed ? route.abort() : route.fulfill({ json: { state: "off" } });
+        });
+        const writes: string[] = [];
+        page.on("request", (request) => {
+          if (request.method() !== "GET") writes.push(request.method());
+        });
+        const success = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/creator/art/status" &&
+            new URL(response.url()).searchParams.get("workflow") === selectedId &&
+            response.ok(),
+        );
+        await page.reload();
+        await (await success).finished();
+        const row = workflowRow(page, name);
+        await expect(row.getByText("Selected", { exact: true })).toHaveCount(1);
+        await expect(row.getByText("No address", { exact: true })).toHaveCount(1);
+        await expect(row.getByText("No address", { exact: true })).toBeVisible();
+        await expect(
+          row.getByRole("button", { name: "Add the address", exact: true }),
+        ).toBeVisible();
+        const measure = async (words: string) => {
+          await row.scrollIntoViewIfNeeded();
+          return row.evaluate(async (node, words) => {
+            await document.fonts.ready;
+            const name = node.querySelector("[data-workflow-name]");
+            const selected = Array.from(node.querySelectorAll("span")).find(
+              (span) => span.textContent === "Selected",
+            );
+            const status = Array.from(node.querySelectorAll("span")).find(
+              (span) => span.textContent === words,
+            );
+            const action = node.querySelector("[data-workflow-actions]");
+            const dot = name?.previousElementSibling;
+            const metadata = selected?.parentElement?.firstElementChild;
+            if (!name || !selected || !status || !action || !dot || !metadata)
+              throw new Error("Missing workflow geometry");
+            const rect = node.getBoundingClientRect();
+            const n = name.getBoundingClientRect();
+            const s = selected.getBoundingClientRect();
+            const w = status.getBoundingClientRect();
+            const a = action.getBoundingClientRect();
+            const style = getComputedStyle(status);
+            return {
+              touch: matchMedia("(pointer: coarse)").matches,
+              nameX: n.x - rect.x,
+              metadataX: metadata.getBoundingClientRect().x - rect.x,
+              selectedX: s.x - rect.x,
+              statusX: w.x - rect.x,
+              selectedY: s.y - rect.y,
+              statusY: w.y - rect.y,
+              actionWidth: a.width,
+              actionHeight: a.height,
+              actionGap: a.left - Math.max(n.right, s.right, w.right),
+              rowOverflow: node.scrollWidth - node.clientWidth,
+              dotSilent: dot.getAttribute("aria-hidden"),
+              fontSize: style.fontSize,
+              statusColor: style.color,
+              ink: getComputedStyle(name).color,
+            };
+          }, words);
+        };
+        const off = await measure("No address");
+        const offSnapshot = await row.ariaSnapshot();
+        expect(offSnapshot).toContain("No address");
+        expect(offSnapshot).toContain("Selected");
+        expect(sequence).toEqual([{ ordinal: 1, result: "off" }]);
+        failed = true;
+        let retainedSnapshot = "";
+        try {
+          await round13Reopen(page);
+          await expect.poll(() => sequence.length).toBe(2);
+          await expect(row.getByText("No address", { exact: true })).toBeVisible();
+          retainedSnapshot = await row.ariaSnapshot();
+        } finally {
+          release();
+        }
+        await expectRound13Failure(row);
+        const failure = await measure("Couldn't check");
+        const failureSnapshot = await row.ariaSnapshot();
+        await round13Evidence(testInfo, {
+          width,
+          reducedMotion,
+          colorScheme,
+          off,
+          failure,
+          sequence,
+          writes,
+          offSnapshot,
+          retainedSnapshot,
+          failureSnapshot,
+        });
+        expect(failureSnapshot).toContain("Couldn't check");
+        expect(failureSnapshot).toContain("Selected");
+        expect(failureSnapshot).not.toContain("Add the address");
+        for (const sample of [off, failure]) {
+          expect(sample.touch).toBe(true);
+          expect(sample.dotSilent).toBe("true");
+          expect(sample.metadataX).toBeCloseTo(sample.nameX, 5);
+          expect(sample.selectedX).toBeGreaterThan(sample.metadataX);
+          expect(sample.statusY).toBeCloseTo(sample.selectedY, 5);
+          expect(sample.statusX).toBeGreaterThan(sample.selectedX);
+          expect(sample.actionWidth).toBeGreaterThanOrEqual(44);
+          expect(sample.actionHeight).toBeGreaterThanOrEqual(44);
+          expect(sample.actionGap).toBeGreaterThanOrEqual(4);
+          expect(sample.rowOverflow).toBeLessThanOrEqual(1);
+          expect(sample.fontSize).toBe("14px");
+          expect(sample.statusColor).toBe(sample.ink);
+        }
+        expect(sequence).toEqual([
+          { ordinal: 1, result: "off" },
+          { ordinal: 2, result: "refused" },
+          { ordinal: 3, result: "refused" },
+        ]);
+        await expectNoOverflow(page);
+        expect(writes).toEqual([]);
+      });
+    }
+  }
+});
+
+for (const held of [
+  { state: "ready" },
+  { state: "missing", nodes: ["Round13Node"], models: ["round13-model.safetensors"] },
+  { state: "unavailable", reason: "unreachable" },
+] satisfies CreatorArtStatus[]) {
+  test(`Round13 cached ${held.state} fails then recovers through navigation`, async ({
+    page,
+  }, testInfo) => {
+    let failed = false;
+    let current: CreatorArtStatus = held;
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sequence: Round13Request[] = [];
+    await page.route("**/api/creator/art/status?*", async (route) => {
+      if (new URL(route.request().url()).searchParams.get("workflow") === "krea2-gonzalomo") {
+        sequence.push({ ordinal: sequence.length + 1, result: failed ? "refused" : current.state });
+      }
+      if (failed) await pending;
+      return failed ? route.abort() : route.fulfill({ json: current });
+    });
+    const success = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/creator/art/status" &&
+        new URL(response.url()).searchParams.get("workflow") === "krea2-gonzalomo" &&
+        response.ok(),
+    );
+    await openSettings(page);
+    await (await success).finished();
+    const row = page.locator('[data-workflow="krea2-gonzalomo"]');
+    const knownWords =
+      held.state === "ready"
+        ? "Ready"
+        : held.state === "missing"
+          ? "Missing requirements"
+          : "Unavailable";
+    await expect(row.getByText(knownWords, { exact: true })).toBeVisible();
+    if (held.state === "missing") {
+      await row.locator("summary").click();
+      await expect(row.getByText("Round13Node", { exact: true })).toBeVisible();
+      await expect(row.getByText("round13-model.safetensors", { exact: true })).toBeVisible();
+    }
+    const before = await row.ariaSnapshot();
+    failed = true;
+    let retained = "";
+    try {
+      await round13Reopen(page);
+      await expect.poll(() => sequence.length).toBe(2);
+      await expect(row.getByText(knownWords, { exact: true })).toBeVisible();
+      retained = await row.ariaSnapshot();
+    } finally {
+      release();
+    }
+    await expectRound13Failure(row);
+    const after = await row.ariaSnapshot();
+    expect(sequence).toEqual([
+      { ordinal: 1, result: held.state },
+      { ordinal: 2, result: "refused" },
+      { ordinal: 3, result: "refused" },
+    ]);
+    // An observer remount retains the query's old answer; no page reload or cache write.
+    failed = false;
+    current = { state: "off" };
+    await round13Reopen(page);
+    await expect(row.getByText("No address", { exact: true })).toBeVisible();
+    await expect(row.getByText(/Couldn't check this workflow/)).toHaveCount(0);
+    await row.getByRole("button", { name: "Add the address", exact: true }).click();
+    await expect(
+      page.getByRole("textbox", { name: "Picture server address", exact: true }),
+    ).toBeFocused();
+    expect(sequence).toEqual([
+      { ordinal: 1, result: held.state },
+      { ordinal: 2, result: "refused" },
+      { ordinal: 3, result: "refused" },
+      { ordinal: 4, result: "off" },
+    ]);
+    await round13Evidence(testInfo, {
+      held: held.state,
+      before,
+      retained,
+      after,
+      sequence,
+      recovered: "off",
+    });
+  });
+}
+
+test("Round13 retained rows suppress only duplicate check causes until list recovery", async ({
+  page,
+  comfy,
+}, testInfo) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const name = uniqueName("Round13 retained");
+  await importWorkflow(page, name);
+  let listFailed = false;
+  let statusFailed = false;
+  const sequence: { route: string; result: string }[] = [];
+  await page.route("**/api/workflows", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    sequence.push({ route: "list", result: listFailed ? "refused" : "success" });
+    return listFailed ? route.abort() : route.fallback();
+  });
+  await page.route("**/api/creator/art/status?*", (route) => {
+    if (new URL(route.request().url()).searchParams.get("workflow") === "krea2-gonzalomo") {
+      sequence.push({ route: "selected status", result: statusFailed ? "refused" : "off" });
+    }
+    return statusFailed ? route.abort() : route.fulfill({ json: { state: "off" } });
+  });
+  await page.reload();
+  const row = page.locator('[data-workflow="krea2-gonzalomo"]');
+  await expect(row.getByText("No address", { exact: true })).toBeVisible();
+  await expect(workflowRow(page, name)).toBeVisible();
+  listFailed = true;
+  statusFailed = true;
+  await round13Reopen(page);
+  const notice = page.getByRole("status").filter({ hasText: "The list could not be refreshed" });
+  await expect(notice).toBeVisible({ timeout: 15_000 });
+  await expectRound13Failure(row, false);
+  await expect(workflowRow(page, name)).toBeVisible();
+  await expect(page.getByText(/Couldn't check this workflow/)).toHaveCount(0);
+  const suppressed = await row.ariaSnapshot();
+  listFailed = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expectRound13Failure(row);
+  await expect(workflowRow(page, name)).toBeVisible();
+  const restored = await row.ariaSnapshot();
+  // A successful off answer keeps its own reason even when the list alone fails.
+  statusFailed = false;
+  listFailed = true;
+  await round13Reopen(page);
+  await expect(notice).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText("No address", { exact: true })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Add the address", exact: true })).toBeVisible();
+  await round13Evidence(testInfo, { sequence, suppressed, restored, retainedUserRow: true });
+});
+
+test("Round13 failed checks leave rename, conflict and delete feedback actionable", async ({
+  page,
+  request,
+  comfy,
+}, testInfo) => {
+  await comfy({ objectInfo: SDXL_OBJECT_INFO });
+  await openSettings(page);
+  const name = uniqueName("Round13 actions");
+  await importWorkflow(page, name);
+  const id = await workflowRow(page, name).getAttribute("data-workflow");
+  expect(id).not.toBeNull();
+  const row = page.locator(`[data-workflow="${id}"]`);
+  await patchSettings(request, { comfyuiWorkflow: `user-${id}` });
+  await page.route("**/api/creator/art/status?*", (route) => route.abort());
+  await page.reload();
+  await expectRound13Failure(row);
+  let listFailed = true;
+  await page.route("**/api/workflows", (route) =>
+    listFailed && route.request().method() === "GET" ? route.abort() : route.fallback(),
+  );
+  await round13Reopen(page);
+  const notice = page.getByRole("status").filter({ hasText: "The list could not be refreshed" });
+  await expect(notice).toBeVisible({ timeout: 15_000 });
+  await expectRound13Failure(row, false);
+  const attempts: string[] = [];
+  let conflict = false;
+  await page.route(`**/api/workflows/${id}`, (route) => {
+    const method = route.request().method();
+    attempts.push(method);
+    if (method === "PATCH" && conflict) {
+      return route.fulfill({ status: 409, json: { error: "conflict", revision: 1 } });
+    }
+    return route.fulfill({ status: 503, json: {} });
+  });
+  const rename = async () => {
+    await actionsFor(page, name).click();
+    await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+    const field = page.getByRole("textbox", { name: `Name of ${name}`, exact: true });
+    await field.fill(`${name} changed`);
+    await field.press("Enter");
+  };
+  await rename();
+  await expect(row.getByRole("alert")).toHaveText("Not saved: Ephemera could not be reached.");
+  await expect(actionsFor(page, name)).toBeFocused();
+  await expectRound13Failure(row, false);
+  conflict = true;
+  await rename();
+  await expect(row.getByText("Changed in another tab", { exact: true })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Keep mine", exact: true })).toBeEnabled();
+  await expectRound13Failure(row, false);
+  listFailed = false;
+  await row.getByRole("button", { name: "Reload", exact: true }).click();
+  await expect(row.getByText("Changed in another tab", { exact: true })).toHaveCount(0);
+  await expectRound13Failure(row);
+  await actionsFor(page, name).click();
+  await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+  await page
+    .getByRole("alertdialog", { name: `Delete ${name}?`, exact: true })
+    .getByRole("button", { name: "Delete", exact: true })
+    .click();
+  await expect(row.getByRole("alert")).toHaveText("Not deleted: Ephemera could not be reached.");
+  await expect(actionsFor(page, name)).toBeEnabled();
+  await expectRound13Failure(row);
+  expect(attempts).toEqual(["PATCH", "PATCH", "DELETE"]);
+  await round13Evidence(testInfo, {
+    attempts,
+    failureAndMutationFeedbackIndependent: true,
+    renameAndConflictVisibleDuringListFailure: true,
+  });
 });
 
 async function openSettings(page: Page) {

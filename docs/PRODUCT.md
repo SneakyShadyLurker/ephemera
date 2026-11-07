@@ -270,9 +270,13 @@ Version 1.0 holds everything below.
   What is missing.
 - Settings > Pictures lists the workflows: the owner's own under Yours,
   then the server's, each with its family, its status in words (Ready,
-  Checking, Missing requirements, Unavailable or Unchecked). The chosen one
-  says Selected followed by the same readiness status. When it cannot
+  Checking, Missing requirements, Unavailable, No address or Couldn't check).
+  The chosen one says Selected followed by the same readiness status. When it cannot
   paint, its reason appears below.
+  No address means no picture server address is saved. A failed check replaces
+  earlier reasons, remedies and missing requirements. The selected row explains
+  the failure using the current sign-in state, unless the list notice already
+  gives that cause.
   Add the address or Edit the address goes to the address field when that
   is the remedy; missing requirements offer Choose another. Import takes a ComfyUI workflow file, saved
   from ComfyUI or exported as API, chosen or dropped on the section on

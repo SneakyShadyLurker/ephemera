@@ -94,7 +94,13 @@ export type StatusTone = "ready" | "off" | "problem" | "unknown";
 /** One workflow row's status: the dot, the words beside it and what hangs under the row. */
 interface WorkflowStatus {
   tone: StatusTone;
-  words: "Ready" | "Checking" | "Missing requirements" | "Unavailable" | "Unchecked";
+  words:
+    | "Ready"
+    | "Checking"
+    | "Missing requirements"
+    | "Unavailable"
+    | "No address"
+    | "Couldn't check";
   missing: { nodes: string[]; models: string[] } | null;
   /** Why ComfyUI is unavailable, in plain words. */
   reason: string | null;
@@ -102,15 +108,16 @@ interface WorkflowStatus {
 
 /**
  * A row's status from its `artStatusQuery`: still asking ("checking"), not
- * answered ("failed"), or the answer. No saved address reads "Unchecked" too.
+ * answered ("failed"), or the answer. No saved address reads "No address";
+ * a failed query reads "Couldn't check", without claiming a known blocker.
  */
 export function workflowStatus(status: CreatorArtStatus | "checking" | "failed"): WorkflowStatus {
   const none = { missing: null, reason: null };
   if (status === "checking") return { tone: "unknown", words: "Checking", ...none };
-  if (status === "failed") return { tone: "off", words: "Unchecked", ...none };
+  if (status === "failed") return { tone: "off", words: "Couldn't check", ...none };
   switch (status.state) {
     case "off":
-      return { tone: "off", words: "Unchecked", ...none };
+      return { tone: "off", words: "No address", ...none };
     case "ready":
       return { tone: "ready", words: "Ready", ...none };
     case "unavailable":
