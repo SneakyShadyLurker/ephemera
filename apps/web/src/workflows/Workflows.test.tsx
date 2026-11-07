@@ -118,18 +118,20 @@ function render({
     ...signIn.store.getInitialState(),
     phase,
   });
-  const markup = renderToStaticMarkup(
-    <QueryClientProvider client={client}>
-      <Workflows
-        importRef={createRef()}
-        onImport={() => {}}
-        onReplace={() => {}}
-        onEditAddress={() => {}}
-      />
-    </QueryClientProvider>,
-  );
-  snapshot.mockRestore();
-  return markup;
+  try {
+    return renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <Workflows
+          importRef={createRef()}
+          onImport={() => {}}
+          onReplace={() => {}}
+          onEditAddress={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+  } finally {
+    snapshot.mockRestore();
+  }
 }
 
 /** Each row's markup, by the workflow's name. */

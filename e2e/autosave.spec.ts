@@ -124,13 +124,94 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
         } else expect(geometry.status.top).toBeLessThan(geometry.title.bottom);
       }
       // At a height that contains this form, its name stays in the field.
-      await page.setViewportSize({ width: 390, height: 6000 });
-      await scroll(0);
-      expect(
-        await scroller.evaluate((node) => node.scrollHeight - node.clientHeight),
-      ).toBeLessThanOrEqual(1);
-      await expect(field).toBeInViewport();
-      await expect(title).toHaveCSS("opacity", "0");
+      const sampleTallViewport = (nextFrame = false) =>
+        scroller.evaluate(async (node, nextFrame) => {
+          if (nextFrame) await new Promise(requestAnimationFrame);
+          const currentHeader = document.querySelector("main header");
+          const rect = (element: Element | null) => {
+            const box = element?.getBoundingClientRect();
+            return box && { top: box.top, width: box.width, height: box.height };
+          };
+          return {
+            at: performance.now(),
+            viewport: { width: innerWidth, height: innerHeight },
+            visualViewport: {
+              width: visualViewport?.width,
+              height: visualViewport?.height,
+            },
+            current: node.isConnected && document.querySelector("main [data-skip-target]") === node,
+            phoneSaved: currentHeader?.querySelector("h1 + p")?.textContent === "Saved",
+            header: rect(currentHeader),
+            scroller: rect(node),
+            form: rect(node.querySelector("form")),
+            scrollHeight: node.scrollHeight,
+            clientHeight: node.clientHeight,
+            scrollTop: node.scrollTop,
+            fields: Array.from(node.querySelectorAll("textarea"))
+              .slice(0, 12)
+              .map((field) => ({
+                id: field.id,
+                length: field.value.length,
+                rect: rect(field),
+                clientHeight: field.clientHeight,
+                scrollHeight: field.scrollHeight,
+                maxHeight: getComputedStyle(field).maxHeight,
+                fieldSizing: getComputedStyle(field).getPropertyValue("field-sizing"),
+              })),
+          };
+        }, nextFrame);
+      const beforeResize = await sampleTallViewport();
+      let afterResize: typeof beforeResize | undefined;
+      const resizeSamples: (typeof beforeResize)[] = [];
+      try {
+        await page.setViewportSize({ width: 390, height: 6000 });
+        await scroll(0);
+        afterResize = await sampleTallViewport();
+        // Viewport acknowledgement can precede the responsive React commit and
+        // field-sizing layout. Require the phone tree and two matching frames;
+        // overflow is asserted below, never used to decide readiness.
+        let previous = "";
+        await expect
+          .poll(
+            async () => {
+              const sample = await sampleTallViewport(true);
+              resizeSamples.push(sample);
+              if (resizeSamples.length > 12) resizeSamples.shift();
+              const { at: _at, ...geometry } = sample;
+              const key = JSON.stringify(geometry);
+              const settled =
+                sample.current &&
+                sample.phoneSaved &&
+                sample.viewport.width === 390 &&
+                sample.viewport.height === 6000 &&
+                previous === key;
+              previous = key;
+              return settled;
+            },
+            { timeout: 5_000, message: "Tall phone layout has settled after resize" },
+          )
+          .toBe(true);
+        const sample = await sampleTallViewport();
+        resizeSamples.push(sample);
+        if (resizeSamples.length > 12) resizeSamples.shift();
+        expect(sample.scrollHeight - sample.clientHeight).toBeLessThanOrEqual(1);
+        await expect(field).toBeInViewport();
+        await expect(title).toHaveCSS("opacity", "0");
+      } finally {
+        const resizePath = testInfo.outputPath("editor-tall-viewport.json");
+        await writeFile(
+          resizePath,
+          JSON.stringify(
+            { kind, reducedMotion, titles, beforeResize, afterResize, resizeSamples },
+            null,
+            2,
+          ),
+        );
+        await testInfo.attach("editor-tall-viewport", {
+          path: resizePath,
+          contentType: "application/json",
+        });
+      }
       const handoffPath = testInfo.outputPath("editor-title-handoff.json");
       await writeFile(handoffPath, JSON.stringify(titles, null, 2));
       await testInfo.attach("editor-title-handoff", {

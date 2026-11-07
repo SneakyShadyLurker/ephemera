@@ -12,8 +12,15 @@ import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { applySettings, queueSettingsSave, useSetting } from "../settings/settings.ts";
 import { artWorkflowsQuery } from "./queries.ts";
 
-export function workflowDisplayName(name: string | undefined, isError: boolean): string {
-  return name ?? (isError ? "Workflows not listed" : "Listing workflows…");
+export function workflowDisplayName(
+  name: string | undefined,
+  isError: boolean,
+  isPending: boolean,
+): string {
+  return (
+    name ??
+    (isError ? "Workflows not listed" : isPending ? "Listing workflows…" : "Workflow not found")
+  );
 }
 
 /**
@@ -76,7 +83,7 @@ export function WorkflowSelect({
             name === undefined && "text-reed",
           )}
         >
-          {actionLabel ?? workflowDisplayName(name, workflows.isError)}
+          {actionLabel ?? workflowDisplayName(name, workflows.isError, workflows.isPending)}
         </span>
       </SelectTrigger>
       <SelectContent label="Workflows" className="min-w-64">

@@ -378,17 +378,33 @@ test.describe("Describe optional controls", () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await comfy();
       await patchSettings(request, { model: "mock-fast" });
+      const selectedWorkflow = (await readSettings(request)).comfyuiWorkflow;
       const release = Promise.withResolvers<void>();
       await page.route("**/api/creator/art/workflows", async (route) => {
         if (fallback === "loading") await release.promise;
         if (fallback === "error")
           return route.fulfill({ status: 503, json: { error: "unavailable" } });
-        if (fallback === "missing") return route.fulfill({ json: { workflows: [] } });
+        if (fallback === "missing") {
+          const response = await route.fetch();
+          const body = await response.json();
+          const workflows = body.workflows.filter(
+            (workflow: { id: string }) => workflow.id !== selectedWorkflow,
+          );
+          // A successful catalog must remain nonempty, even when this selection is gone.
+          expect(workflows.length).toBeGreaterThan(0);
+          expect(workflows.length).toBeLessThan(body.workflows.length);
+          return route.fulfill({ response, json: { ...body, workflows } });
+        }
         await route.continue();
       });
       try {
         await page.goto("/characters/create");
-        const text = fallback === "error" ? "Workflows not listed" : "Listing workflows…";
+        const text =
+          fallback === "error"
+            ? "Workflows not listed"
+            : fallback === "loading"
+              ? "Listing workflows…"
+              : "Workflow not found";
         const summary = describeOptions(page).locator("summary");
         await expect(summary).toHaveAccessibleName(new RegExp(`Workflow ${text}`));
         await summary.click();

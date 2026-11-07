@@ -58,7 +58,12 @@ function WorkflowSummary() {
   const workflow = useSetting((settings) => settings.comfyuiWorkflow);
   const workflows = useQuery(artWorkflowsQuery);
   const name = workflows.data?.find((option) => option.id === workflow)?.name;
-  return <SummaryValue label="Workflow" value={workflowDisplayName(name, workflows.isError)} />;
+  return (
+    <SummaryValue
+      label="Workflow"
+      value={workflowDisplayName(name, workflows.isError, workflows.isPending)}
+    />
+  );
 }
 
 const COPY: Record<

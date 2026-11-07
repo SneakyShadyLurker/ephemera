@@ -99,7 +99,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     };
     await putNotebook(true);
     await page.goto(`/characters/${characterId}/memory`);
-    const trigger = page.getByRole("button", { name: "Go to section", exact: true });
+    const trigger = page.getByRole("button", { name: "Sections", exact: true });
     const facts = page.getByRole("group", { name: "Facts", exact: true });
     const memories = page.getByRole("heading", { name: "Memories", exact: true });
     const url = page.url();
@@ -227,7 +227,7 @@ test("Memory Sections snapshots empty, simple, one-fact and off visits without n
   page,
   request,
 }) => {
-  const trigger = page.getByRole("button", { name: "Go to section", exact: true });
+  const trigger = page.getByRole("button", { name: "Sections", exact: true });
   for (const initial of ["empty", "simple", "one-fact", "off"] as const) {
     const id = await createCharacterViaApi(request, unique(`Sections ${initial}`));
     const patch = async (facts: string[], enabled = true) => {

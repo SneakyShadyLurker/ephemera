@@ -31,9 +31,7 @@ export function MemorySectionsMenu({
   return (
     <div className="flex shrink-0 items-center gap-1">
       <Menu>
-        <MenuTrigger
-          render={<Button variant="quiet" aria-label="Go to section" className="px-2 touch:px-2" />}
-        >
+        <MenuTrigger render={<Button variant="quiet" className="px-2 touch:px-2" />}>
           <SectionsIcon size={16} />
           Sections
         </MenuTrigger>
