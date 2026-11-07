@@ -1,6 +1,7 @@
+import { writeFile } from "node:fs/promises";
 import type { Locator, Page } from "@playwright/test";
 import { CARD_LIMITS } from "../packages/core/src/card/limits.ts";
-import { type CardFile, uniqueName } from "./support/cards.ts";
+import { type CardFile, imageFile, uniqueName } from "./support/cards.ts";
 import { chooseCharacter, lastReply, openChat, send, upstreamRecords } from "./support/chat.ts";
 import {
   createCharacterViaApi,
@@ -12,6 +13,7 @@ import {
   seriousAxeViolations,
   setLibraryEntriesViaApi,
   setLorebookViaApi,
+  setPortraitViaApi,
 } from "./support/entities.ts";
 import { notALorebookFile, worldInfoFile } from "./support/lorebook-files.ts";
 import { expect, test, unsafe } from "./support/test.ts";
@@ -33,6 +35,167 @@ const bookRow = (page: Page, name: string) =>
 const linkedBooks = (page: Page) => page.getByRole("list", { name: "Linked lorebooks" });
 const linkedCharacters = (page: Page) => page.getByRole("region", { name: "Linked characters" });
 const find = (page: Page) => page.getByRole("searchbox", { name: "Find lorebooks and characters" });
+
+for (const width of [360, 390, 820, 1440]) {
+  test(`library metadata shares its text baseline and keeps separate actions at ${width}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: width === 820 ? 1180 : 900 });
+    await page.emulateMedia({ colorScheme: width === 390 || width === 820 ? "dark" : "light" });
+    const portrait = await imageFile("leaf.png");
+    const characters: string[] = [];
+    for (const name of ["Keeper", "Cartographer", "Lamplighter"]) {
+      const id = await createCharacterViaApi(page.request, name);
+      await setPortraitViaApi(page.request, id, portrait.buffer);
+      characters.push(id);
+    }
+    const mixed = [
+      loreEntry({ comment: "Bell", constant: true }),
+      loreEntry({
+        comment: "Omen",
+        constant: true,
+        settings: { useProbability: true, probability: 25 },
+      }),
+      loreEntry({ comment: "Tide", enabled: false, keys: ["tide"] }),
+    ];
+    const fixtures = [
+      { name: "Empty unlinked", entries: [], links: 0, counts: "No entries" },
+      { name: "Mixed unlinked", entries: mixed, links: 0, counts: "3 entries, 2 on" },
+      { name: "Mixed one", entries: mixed, links: 1, counts: "3 entries, 2 on" },
+      { name: "Mixed three", entries: mixed, links: 3, counts: "3 entries, 2 on" },
+      { name: "Empty linked", entries: [], links: 1, counts: "No entries" },
+    ];
+    for (const fixture of fixtures) {
+      const id = await createLorebookViaApi(page.request, fixture.name, {
+        entries: fixture.entries,
+      });
+      for (const character of characters.slice(0, fixture.links))
+        await linkLorebookViaApi(page.request, id, character);
+    }
+    await page.goto("/lorebooks");
+    for (const fixture of fixtures) {
+      const row = bookRow(page, fixture.name);
+      await expect(row).toContainText(fixture.counts);
+      await expect(row).toContainText(
+        fixture.links === 0
+          ? "Not linked"
+          : `Linked to ${fixture.links} character${fixture.links === 1 ? "" : "s"}`,
+      );
+      await expect(row.locator("img")).toHaveCount(fixture.links);
+      await expect
+        .poll(() =>
+          row
+            .locator("img")
+            .evaluateAll((images) =>
+              images.every(
+                (image) =>
+                  (image as HTMLImageElement).complete &&
+                  (image as HTMLImageElement).naturalWidth > 0,
+              ),
+            ),
+        )
+        .toBe(true);
+      if (fixture.entries.length > 0) {
+        await expect(row).toContainText("1 always");
+        await expect(row).toContainText("1 by chance");
+      }
+      await row
+        .getByRole("button", { name: `More for ${fixture.name}`, exact: true })
+        .click({ trial: true });
+    }
+    const measurements = await library(page).evaluate(async (list, fixtures) => {
+      await document.fonts.ready;
+      return fixtures.map((fixture) => {
+        const row = Array.from(list.querySelectorAll<HTMLElement>("[data-book]")).find(
+          (node) => node.querySelector("a")?.getAttribute("aria-label") === fixture.name,
+        );
+        if (!row) throw new Error(`Missing row ${fixture.name}`);
+        const link = row.querySelector("a");
+        if (!link) throw new Error("Missing book link");
+        const meta = document.getElementById(link.getAttribute("aria-describedby") ?? "");
+        if (!meta) throw new Error("Missing described metadata");
+        const linkage =
+          fixture.links === 0
+            ? "Not linked"
+            : `Linked to ${fixture.links} character${fixture.links === 1 ? "" : "s"}`;
+        const textRange = (text: string) => {
+          const walker = document.createTreeWalker(meta, NodeFilter.SHOW_TEXT);
+          let node = walker.nextNode();
+          while (node && node.textContent !== text) node = walker.nextNode();
+          if (!node) throw new Error(`Missing text ${text}`);
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return { rect: range.getBoundingClientRect().toJSON(), parent: node.parentElement };
+        };
+        const counts = textRange(fixture.counts);
+        const linked = textRange(linkage);
+        const leaf = linked.parent?.parentElement?.querySelector('[aria-hidden="true"]');
+        const leaves = leaf?.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        const more = row.querySelector("button");
+        const moreRect = more?.getBoundingClientRect();
+        const moreHit = moreRect
+          ? document.elementFromPoint(
+              moreRect.x + moreRect.width / 2,
+              moreRect.y + moreRect.height / 2,
+            )
+          : null;
+        return {
+          name: fixture.name,
+          entries: fixture.entries.length,
+          links: fixture.links,
+          counts: counts.rect,
+          linked: linked.rect,
+          countLineHeight: counts.parent?.getBoundingClientRect().height ?? 0,
+          countsBlock: counts.parent?.parentElement?.getBoundingClientRect().toJSON(),
+          leafHeight: leaves?.height ?? 0,
+          rowHeight: rowRect.height,
+          moreSeparate: !!more && !link.contains(more),
+          moreRect: moreRect?.toJSON(),
+          moreHit: moreHit?.outerHTML.slice(0, 500),
+          moreInert: !!more?.closest("[inert]"),
+          moreReachable:
+            !!more && !!moreRect && moreRect.right <= innerWidth && more.contains(moreHit),
+        };
+      });
+    }, fixtures);
+    const evidence = testInfo.outputPath("R3-metadata-geometry.json");
+    await writeFile(evidence, JSON.stringify({ width, measurements }, null, 2));
+    await testInfo.attach("R3-metadata-geometry", {
+      path: evidence,
+      contentType: "application/json",
+    });
+    for (const measurement of measurements) {
+      if (width >= 820) {
+        expect(Math.abs(measurement.counts.bottom - measurement.linked.bottom)).toBeLessThanOrEqual(
+          1,
+        );
+        const unlinked = measurements.find(
+          (sample) => sample.links === 0 && sample.entries === measurement.entries,
+        );
+        expect(unlinked).toBeDefined();
+        expect(measurement.rowHeight - (unlinked?.rowHeight ?? 0)).toBeLessThanOrEqual(
+          Math.max(0, measurement.leafHeight - measurement.countLineHeight) + 0.01,
+        );
+      } else {
+        expect(measurement.linked.top).toBeGreaterThanOrEqual(
+          measurement.countsBlock?.bottom ?? Infinity,
+        );
+      }
+      expect(measurement.moreSeparate).toBe(true);
+      expect(measurement.moreReachable).toBe(true);
+      const row = bookRow(page, measurement.name);
+      const more = row.getByRole("button", { name: `More for ${measurement.name}`, exact: true });
+      await more.click();
+      await expect(
+        page.getByRole("menuitem", { name: "Export as JSON", exact: true }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(more).toBeFocused();
+    }
+    await expectNoOverflow(page);
+  });
+}
 
 /** Imports through the library's file picker, as the owner would. */
 async function importLorebooks(page: Page, files: CardFile[]) {

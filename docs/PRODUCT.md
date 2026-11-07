@@ -271,7 +271,8 @@ Version 1.0 holds everything below.
 - Settings > Pictures lists the workflows: the owner's own under Yours,
   then the server's, each with its family, its status in words (Ready,
   Checking, Missing requirements, Unavailable or Unchecked). The chosen one
-  says Selected and, when it cannot paint, Cannot run with a reason.
+  says Selected followed by the same readiness status. When it cannot
+  paint, its reason appears below.
   Add the address or Edit the address goes to the address field when that
   is the remedy; missing requirements offer Choose another. Import takes a ComfyUI workflow file, saved
   from ComfyUI or exported as API, chosen or dropped on the section on
@@ -460,7 +461,9 @@ Version 1.0 holds everything below.
   character cards, which open in their card's editor and can be copied to
   the library as books of their own; then Events. One Find across the
   column covers book and character names. On phones the full title sits
-  above a labelled Import and New toolbar.
+  above a labelled Import and New toolbar. Linkage sits on its own line
+  on phones; on wider rows its text shares the entry counts' baseline,
+  with the portrait leaves centred beside it.
 - Link a book to any number of characters, up to 8 books per character.
   A character's chats read its embedded book and its linked books together,
   in link order; deleting a book or a character removes its links. Links
@@ -837,6 +840,9 @@ Version 1.0 holds everything below.
   another field is edited; lasting saves and failures are reported in place.
 
 **Chat**
+- The composer says Write to followed by the character's name. Without a
+  character, it says Write the first line in an empty chat, then Write your
+  reply. The Persona choice below names who the player writes as.
 - Persona and Sampler sit in one row of labelled choices under the composer
   on every screen, using the same choices as Session. Session lists
   Character and Persona first, then Sampler preset, Prompt preset and Model.

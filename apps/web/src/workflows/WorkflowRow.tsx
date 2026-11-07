@@ -37,7 +37,6 @@ import { useGlide } from "../sheet/ordering.tsx";
 import { useNotReached } from "../signin/hooks.ts";
 import { deleteWorkflow, refreshWorkflows, updateWorkflow, workflowsQuery } from "./queries.ts";
 
-/** A small state dot beside the status words: lit dusk when ready, ember on a problem. */
 /**
  * The node classes and model files a workflow lacks on the user's ComfyUI,
  * closed under the words that say so and what to do, since their raw names
@@ -68,6 +67,7 @@ export function MissingList({ nodes, models }: { nodes: string[]; models: string
   );
 }
 
+/** A small state dot beside the status words: lit dusk when ready, ember on a problem. */
 export function StatusDot({ tone }: { tone: StatusTone }) {
   return (
     <span
@@ -135,7 +135,7 @@ export function WorkflowRow({
   const reason =
     shown.reason ??
     (shown.missing !== null
-      ? "The picture server lacks this workflow's requirements."
+      ? "Install what is missing on the picture server, or choose another workflow."
       : "Add a picture server address to run this workflow.");
   const actionsRef = useRef<HTMLButtonElement>(null);
   // Rename and Family take focus themselves; the menu then leaves it alone.
@@ -227,16 +227,10 @@ export function WorkflowRow({
   };
 
   const words = (
-    <span className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-note">
+    <span className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-note max-tablet:pl-4">
       {row.scope === "user" && <span className="text-reed">{nodeCount(row.workflow.nodes)}</span>}
-      {inUse ? (
-        <>
-          <span className="text-reed">Selected</span>
-          {cannotRun && <span className="text-ink">Cannot run</span>}
-        </>
-      ) : (
-        <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>{shown.words}</span>
-      )}
+      {inUse && <span className="text-reed">Selected</span>}
+      <span className={shown.tone === "problem" ? "text-ember" : "text-ink"}>{shown.words}</span>
     </span>
   );
 
@@ -416,12 +410,16 @@ export function WorkflowRow({
               ) : null}
             </div>
           ) : (
-            shown.reason !== null && <p className="text-pretty text-reed text-ui">{shown.reason}</p>
+            shown.reason !== null && (
+              <p className="text-pretty text-note text-reed">{shown.reason}</p>
+            )
           )}
           {shown.missing !== null && (
             <>
               {!inUse && (
-                <p className="text-note text-reed">Install requirements or change workflow.</p>
+                <p className="text-note text-reed">
+                  Install what is missing on the picture server to use it.
+                </p>
               )}
               <MissingList nodes={shown.missing.nodes} models={shown.missing.models} />
             </>

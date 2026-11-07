@@ -61,6 +61,36 @@ for (const [status, action] of [
       .locator("[data-workflow]")
       .filter({ has: page.getByText("Selected", { exact: true }) });
     await expect(selected).toHaveCount(1);
+    const words =
+      status.state === "ready"
+        ? "Ready"
+        : status.state === "off"
+          ? "Unchecked"
+          : status.state === "missing"
+            ? "Missing requirements"
+            : "Unavailable";
+    await expect(selected.getByText(words, { exact: true })).toHaveCount(1);
+    await expect(selected).not.toContainText("Cannot run");
+    const colors = await selected.getByText(words, { exact: true }).evaluate(
+      (node, problem) => {
+        const reference = document.createElement("span");
+        reference.style.color = problem ? "var(--ember)" : "var(--ink)";
+        node.append(reference);
+        const result = {
+          actual: getComputedStyle(node).color,
+          expected: getComputedStyle(reference).color,
+        };
+        reference.remove();
+        return result;
+      },
+      status.state === "missing" || status.state === "unavailable",
+    );
+    expect(colors.actual).toBe(colors.expected);
+    if (status.state === "missing") {
+      await expect(selected).toContainText(
+        "Install what is missing on the picture server, or choose another workflow.",
+      );
+    }
     if (action === "Add the address" || action === "Edit the address") {
       const button = selected.getByRole("button", { name: action, exact: true });
       await button.click();
@@ -88,6 +118,87 @@ for (const [status, action] of [
     }
   });
 }
+
+for (const width of [360, 390]) {
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`selected workflow keeps its status slot ${width}/${reducedMotion}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.emulateMedia({ reducedMotion, colorScheme: width === 360 ? "light" : "dark" });
+      let release = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route("**/api/creator/art/status?*", async (route) => {
+        await held;
+        await route.fulfill({ json: { state: "ready" } });
+      });
+      try {
+        await openSettings(page);
+        const row = page
+          .locator("[data-workflow]")
+          .filter({ has: page.getByText("Selected", { exact: true }) });
+        const geometry = (words: string) =>
+          row.evaluate(async (node, words) => {
+            await document.fonts.ready;
+            const name = node.querySelector("[data-workflow-name]");
+            const selected = Array.from(node.querySelectorAll("span")).find(
+              (span) => span.textContent === "Selected",
+            );
+            const status = Array.from(node.querySelectorAll("span")).find(
+              (span) => span.textContent === words,
+            );
+            if (!name || !selected || !status) throw new Error("Workflow words have not arrived");
+            const rect = node.getBoundingClientRect();
+            const selectedRect = selected.getBoundingClientRect();
+            const statusRect = status.getBoundingClientRect();
+            return {
+              height: rect.height,
+              selectedX: selectedRect.x - rect.x,
+              selectedY: selectedRect.y - rect.y,
+              statusY: statusRect.y - rect.y,
+              statusX: statusRect.x - rect.x,
+              nameX: name.getBoundingClientRect().x - rect.x,
+            };
+          }, words);
+        await expect(row.getByText("Checking", { exact: true })).toBeVisible();
+        const checking = await geometry("Checking");
+        expect(checking.selectedX).toBeCloseTo(checking.nameX, 5);
+        release();
+        await expect(row.getByText("Ready", { exact: true })).toBeVisible();
+        const ready = await geometry("Ready");
+        expect(ready).toEqual(checking);
+        await expectNoOverflow(page);
+        const evidence = testInfo.outputPath("R2-status-slot.json");
+        await writeFile(
+          evidence,
+          JSON.stringify({ width, reducedMotion, checking, ready }, null, 2),
+        );
+        await testInfo.attach("R2-status-slot", {
+          path: evidence,
+          contentType: "application/json",
+        });
+      } finally {
+        release();
+      }
+    });
+  }
+}
+
+test("a selected workflow with a failed status query stays Unchecked without a remedy", async ({
+  page,
+}) => {
+  await page.route("**/api/creator/art/status?*", (route) => route.abort());
+  await openSettings(page);
+  const row = page
+    .locator("[data-workflow]")
+    .filter({ has: page.getByText("Selected", { exact: true }) });
+  await expect(row.getByText("Unchecked", { exact: true })).toBeVisible();
+  await expect(row.getByRole("button", { name: /^(Add|Edit) the address$/ })).toHaveCount(0);
+  await expect(row.getByRole("combobox", { name: "Choose another", exact: true })).toHaveCount(0);
+  await expect(row).not.toContainText("Cannot run");
+});
 
 async function openSettings(page: Page) {
   await page.goto("/settings?section=pictures");

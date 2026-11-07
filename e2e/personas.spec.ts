@@ -17,6 +17,130 @@ import { expect, test, unsafe } from "./support/test.ts";
 const card = (page: Page, name: string) =>
   page.getByRole("list", { name: "Personas" }).getByRole("link", { name, exact: false });
 
+for (const width of [390, 1440]) {
+  test(`compact writing cues follow the character and chat at ${width}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const shortName = "Maren";
+    const longName = "C".repeat(60);
+    await createCharacterViaApi(page.request, shortName);
+    await createCharacterViaApi(page.request, longName);
+    await createPersonaViaApi(page.request, "Keeper");
+    await patchSettings(page.request, { model: "mock-fast", characterId: null, personaId: null });
+    await page.goto("/");
+    const composer = page.getByLabel("Message", { exact: true });
+    const persona = page
+      .locator("form")
+      .filter({ has: composer })
+      .getByRole("combobox", { name: "Persona", exact: true });
+    const samples: unknown[] = [];
+    const measure = () =>
+      composer.evaluate(async (node: HTMLTextAreaElement) => {
+        await document.fonts.ready;
+        return {
+          clientHeight: node.clientHeight,
+          boxHeight: node.parentElement?.getBoundingClientRect().height,
+        };
+      });
+    await expect(composer).toHaveAttribute("placeholder", "Write the first line");
+    const baseline = await measure();
+    for (const character of [null, shortName, longName]) {
+      if (character !== null)
+        await chooseCharacter(page, character, character === shortName ? { confirm: true } : {});
+      const placeholder = character === null ? "Write the first line" : `Write to ${character}`;
+      for (const name of ["Keeper", "You (no persona)"]) {
+        await persona.click();
+        await page.getByRole("option", { name, exact: true }).click();
+        await expect(persona).toBeFocused();
+        await expect(composer).toHaveAttribute("placeholder", placeholder);
+        const size = await measure();
+        expect(size).toEqual(baseline);
+        samples.push({ character, persona: name, placeholder, ...size });
+        await expectNoOverflow(page);
+      }
+      if (character === null) {
+        await send(page, "The harbour is quiet.");
+        await expect(page.getByRole("button", { name: "Stop", exact: true })).toHaveCount(0);
+        await expect(messages(page)).toHaveCount(2);
+        for (const name of ["Keeper", "You (no persona)"]) {
+          await persona.click();
+          await page.getByRole("option", { name, exact: true }).click();
+          await expect(persona).toBeFocused();
+          await expect(composer).toHaveAttribute("placeholder", "Write your reply");
+          expect(await measure()).toEqual(baseline);
+        }
+      }
+    }
+    const evidence = testInfo.outputPath("R1-placeholder-sizes.json");
+    await writeFile(evidence, JSON.stringify({ width, baseline, samples }, null, 2));
+    await testInfo.attach("R1-placeholder-sizes", {
+      path: evidence,
+      contentType: "application/json",
+    });
+  });
+}
+
+test("a persona answer resolving during typing preserves the writing cue, focus and caret", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const characterName = "C".repeat(60);
+  const characterId = await createCharacterViaApi(page.request, characterName);
+  const personaId = await createPersonaViaApi(page.request, "Resolved keeper");
+  await patchSettings(page.request, { model: "mock-fast", characterId, personaId });
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/personas", async (route) => {
+    const response = await route.fetch();
+    await held;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.goto("/");
+    const composer = page.getByLabel("Message", { exact: true });
+    const persona = page
+      .locator("form")
+      .filter({ has: composer })
+      .getByRole("combobox", { name: "Persona", exact: true });
+    await expect(composer).toHaveAttribute("placeholder", `Write to ${characterName}`);
+    await expect(persona).toContainText("You");
+    const size = () =>
+      composer.evaluate((node: HTMLTextAreaElement) => ({
+        clientHeight: node.clientHeight,
+        boxHeight: node.parentElement?.getBoundingClientRect().height,
+      }));
+    const empty = await size();
+    await composer.fill("Keep the caret here.");
+    await composer.evaluate((node: HTMLTextAreaElement) => node.setSelectionRange(5, 9));
+    const typing = await size();
+    release();
+    await expect(persona).toContainText("Resolved keeper");
+    await expect(composer).toBeFocused();
+    expect(
+      await composer.evaluate((node: HTMLTextAreaElement) => [
+        node.selectionStart,
+        node.selectionEnd,
+      ]),
+    ).toEqual([5, 9]);
+    await expect(composer).toHaveAttribute("placeholder", `Write to ${characterName}`);
+    expect(await size()).toEqual(typing);
+    await composer.fill("");
+    expect(await size()).toEqual(empty);
+    await expectNoOverflow(page);
+    const evidence = testInfo.outputPath("R1-resolved-persona.json");
+    await writeFile(evidence, JSON.stringify({ empty, typing, caret: [5, 9] }, null, 2));
+    await testInfo.attach("R1-resolved-persona", {
+      path: evidence,
+      contentType: "application/json",
+    });
+  } finally {
+    release();
+  }
+});
+
 for (const hasTouch of [false, true]) {
   test.describe(`persona content rhythm touch=${hasTouch}`, () => {
     test.use({ hasTouch });
@@ -286,7 +410,7 @@ test("a new chat starts as the bound persona, else the default; turns keep their
   await expect(firstTurn).toContainText(fallback);
   await expect(page.getByLabel("Message", { exact: true })).toHaveAttribute(
     "placeholder",
-    `Write to ${withoutBinding} as ${fallback}`,
+    `Write to ${withoutBinding}`,
   );
 
   // Changing persona keeps the chat and leaves earlier cues alone.
@@ -301,7 +425,7 @@ test("a new chat starts as the bound persona, else the default; turns keep their
   await expect(firstTurn).toContainText(fallback);
   await expect(page.getByLabel("Message", { exact: true })).toHaveAttribute(
     "placeholder",
-    `Write to ${withoutBinding} as ${bound}`,
+    `Write to ${withoutBinding}`,
   );
 
   // Leave no default behind for other specs.

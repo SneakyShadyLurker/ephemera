@@ -60,14 +60,17 @@ function render({
   yours = YOURS,
   failed = false,
   statuses = STATUSES,
+  failedStatuses = [],
   settings = {},
 }: {
   yours?: WorkflowSummary[];
   failed?: boolean;
   statuses?: Record<string, CreatorArtStatus>;
+  failedStatuses?: string[];
   settings?: Partial<Settings>;
 } = {}) {
-  const client = new QueryClient();
+  // Static rendering observes terminal failures without restarting them on mount.
+  const client = new QueryClient({ defaultOptions: { queries: { retryOnMount: false } } });
   client.setQueryData(settingsQuery.queryKey, {
     ...DEFAULT_SETTINGS,
     comfyuiBaseUrl: "http://comfyui.local:8188",
@@ -84,6 +87,16 @@ function render({
   client.setQueryData(artWorkflowsQuery.queryKey, OPTIONS);
   for (const [id, status] of Object.entries(statuses)) {
     client.setQueryData([...ART_STATUS_KEY, id], status);
+  }
+  for (const id of failedStatuses) {
+    client
+      .getQueryCache()
+      .build(client, { queryKey: [...ART_STATUS_KEY, id] })
+      .setState({
+        status: "error",
+        error: new Error("unavailable"),
+        fetchStatus: "idle",
+      });
   }
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
@@ -121,11 +134,11 @@ describe("the workflows list in Settings > Pictures", () => {
       expect(row).toMatch(/Selected|Ready|Checking|Missing requirements|Unavailable|Unchecked/);
     }
     expect(rowOf(markup, "Flux Dev Portrait")).toContain("Selected");
-    expect(rowOf(markup, "Flux Dev Portrait")).not.toContain("Ready");
+    expect(rowOf(markup, "Flux Dev Portrait")).toContain("Ready");
     expect(rowOf(markup, "Krea 2 Gonzalomo")).not.toContain("Selected");
     const moss = rowOf(markup, "Moss Studio");
     expect(moss).toContain("Missing requirements");
-    expect(moss).toContain("Install requirements or change workflow.");
+    expect(moss).toContain("Install what is missing on the picture server to use it.");
     expect(moss).toContain("TextEncodeMOSSImageEdit");
     expect(moss).toContain("moss_v2.safetensors");
     expect(rowOf(markup, "Flux Dev Portrait")).not.toContain("Model files");
@@ -141,7 +154,7 @@ describe("the workflows list in Settings > Pictures", () => {
       },
     });
     expect(rowOf(off, "Flux Dev Portrait")).toContain("Selected");
-    expect(rowOf(off, "Flux Dev Portrait")).toContain("Cannot run");
+    expect(rowOf(off, "Flux Dev Portrait")).toContain("Unchecked");
     expect(rowOf(off, "Flux Dev Portrait")).toContain("Add the address");
     expect(rowOf(off, "Flux Dev Portrait")).not.toContain("Choose another");
     expect(rowOf(off, "Moss Studio")).toContain("Unchecked");
@@ -151,6 +164,120 @@ describe("the workflows list in Settings > Pictures", () => {
     expect(rowOf(asking, "Moss Studio")).toContain("Checking");
     expect(rowOf(asking, "Krea 2 Gonzalomo")).toContain("Checking");
   });
+
+  const stateCases: {
+    name: string;
+    status?: CreatorArtStatus;
+    failed?: boolean;
+    words: string;
+    reason?: string;
+    remedy?: string | undefined;
+    problem?: boolean;
+  }[] = [
+    { name: "checking", words: "Checking" },
+    { name: "query failure", failed: true, words: "Unchecked" },
+    { name: "ready", status: { state: "ready" }, words: "Ready" },
+    { name: "off", status: { state: "off" }, words: "Unchecked", remedy: "Add the address" },
+    {
+      name: "missing",
+      status: { state: "missing", nodes: ["MissingNode"], models: ["missing.safetensors"] },
+      words: "Missing requirements",
+      remedy: "Choose another",
+      problem: true,
+    },
+    ...(
+      [
+        [
+          "not_allowed",
+          "This server no longer allows this address. Use an address its owner allows, or ask them to add it to COMFYUI_ALLOWED_ORIGINS.",
+          "Edit the address",
+        ],
+        [
+          "insecure",
+          "This address must start with https, since this server sends its picture server a token. Change the address to https.",
+          "Edit the address",
+        ],
+        [
+          "unreachable",
+          "The picture server did not answer at this address. Check that it runs and the address is right.",
+          "Edit the address",
+        ],
+        [
+          "invalid_response",
+          "Something answered at this address, but not as a ComfyUI picture server does. Check the address.",
+          "Edit the address",
+        ],
+        [
+          "unauthorized",
+          "The picture server refused this server's token. Its owner can check COMFYUI_API_KEY.",
+          undefined,
+        ],
+        [
+          "not_ready",
+          "The picture server answered but is not ready yet. Try again in a moment.",
+          undefined,
+        ],
+      ] as const
+    ).map(([reason, text, remedy]) => ({
+      name: reason,
+      status: { state: "unavailable", reason } as const,
+      words: "Unavailable",
+      reason: text,
+      remedy,
+      problem: true,
+    })),
+    {
+      name: "failed refresh retaining ready",
+      status: { state: "ready" },
+      failed: true,
+      words: "Unchecked",
+    },
+    {
+      name: "failed refresh retaining missing",
+      status: { state: "missing", nodes: ["MissingNode"], models: [] },
+      failed: true,
+      words: "Unchecked",
+    },
+  ];
+
+  for (const entry of stateCases) {
+    it(`keeps selected and unselected words and remedies for ${entry.name}`, () => {
+      const ids = [FLUX_ID, MOSS_ID, SERVER];
+      const status = entry.status;
+      const markup = render({
+        statuses: status === undefined ? {} : Object.fromEntries(ids.map((id) => [id, status])),
+        failedStatuses: entry.failed ? ids : [],
+      });
+      const selected = rowOf(markup, "Flux Dev Portrait") ?? "";
+      const unselected = rowOf(markup, "Moss Studio") ?? "";
+      expect(selected).toContain('class="text-reed">Selected</span>');
+      expect(unselected).not.toContain("Selected");
+      for (const row of [selected, unselected]) {
+        expect(row.split(`>${entry.words}</span>`)).toHaveLength(2);
+        expect(row).toContain(
+          `class="${entry.problem ? "text-ember" : "text-ink"}">${entry.words}</span>`,
+        );
+        expect(row).not.toContain("Cannot run");
+        if (entry.reason) expect(row).toContain(entry.reason.replaceAll("'", "&#x27;"));
+      }
+      for (const remedy of ["Add the address", "Edit the address", "Choose another"]) {
+        if (entry.remedy === remedy) expect(selected).toContain(remedy);
+        else expect(selected).not.toContain(remedy);
+        expect(unselected).not.toContain(remedy);
+      }
+      if (entry.status?.state === "missing" && !entry.failed) {
+        expect(selected).toContain(
+          "Install what is missing on the picture server, or choose another workflow.",
+        );
+        expect(unselected).toContain("Install what is missing on the picture server to use it.");
+        expect(selected).toContain("missing.safetensors");
+        expect(unselected).toContain("MissingNode");
+      }
+      if (entry.status?.state === "off" || (entry.failed && entry.status?.state === "missing")) {
+        expect(selected).toContain("Add a picture server address to run this workflow.");
+      }
+    });
+  }
 
   it("names each user row's actions button, and server rows have none", () => {
     const markup = render();
