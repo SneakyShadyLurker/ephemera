@@ -12,6 +12,17 @@ import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { applySettings, queueSettingsSave, useSetting } from "../settings/settings.ts";
 import { artWorkflowsQuery } from "./queries.ts";
 
+export function workflowDisplayName(
+  name: string | undefined,
+  isError: boolean,
+  isPending: boolean,
+): string {
+  return (
+    name ??
+    (isError ? "Workflows not listed" : isPending ? "Listing workflows…" : "Workflow not found")
+  );
+}
+
 /**
  * Takes the workflow into this tab at once, which asks for its status, and
  * saves it the way every setting is saved; art follows the tab's choice.
@@ -72,9 +83,7 @@ export function WorkflowSelect({
             name === undefined && "text-reed",
           )}
         >
-          {actionLabel ??
-            name ??
-            (workflows.isError ? "Workflows not listed" : "Listing workflows…")}
+          {actionLabel ?? workflowDisplayName(name, workflows.isError, workflows.isPending)}
         </span>
       </SelectTrigger>
       <SelectContent label="Workflows" className="min-w-64">

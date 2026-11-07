@@ -115,10 +115,21 @@ closes it and reports the named book
 in place. The phone character sheet groups Sections, Link a lorebook and
 Details below its compact identity.
 
+Delete event and Remove from cast share the borderless `remove` button role:
+reed at rest, ember on enabled hover or keyboard focus, with the existing
+focus ring. Native and focusable disabled controls retain disabled colours.
+The bordered danger role remains for actions that cannot be undone.
+
 Memory keeps its title and the character's name in the header; phones fold
 the switch's longer explanation under What memory keeps. `MemorySwitch`
 owns the state line and explanation on both surfaces; the character sheet
-folds the explanation at every width. The lorebook
+folds the explanation at every width. The loaded Memory book latches Sections
+eligibility for the visit; current memory-off state hides the menu. The trigger's
+visible Sections text also supplies its accessible name.
+`memory/Sections.tsx` owns its typed reading order and resolves current target
+refs after the menu closes. Jumps focus noneditable groups, with the ring on
+their visible labels, or the Memories heading; notebook revision remounts
+reconnect the targets. The lorebook
 editor folds scan depth, budget and Chaining under Book settings, with
 their current values in the summary, so the entries lead the pane.
 
@@ -1708,7 +1719,11 @@ content's path: the tab's memory and one request in the server.
   drawn on canvas, so the policy keeps `img-src 'self'` with no object URL
   and no `blob:` or `data:` source. A fresh visit opens Subject's Describe
   form; Change opens the kind choices, and Brainstorm is available from
-  Describe. Without a portrait the showcase leads with the card text and
+  Describe. Describe's native optional-controls disclosure captures its
+  initial form factor once per mount, then leaves toggling to the element;
+  query updates and resizing never reset it. Its summaries reuse the
+  controls' resolved labels, while Model stays outside the disclosure.
+  Without a portrait the showcase leads with the card text and
   compact art status, while Keep names the card's kind. Card text renders
   as plain text or through the tightened renderer.
   A request an expired sign-in refused is sent once more after renewal.
@@ -1923,8 +1938,12 @@ AI Rework:
   unchanged runs over 60 words to the sentences beside a change.
   `ChangeRuns` shows Removed and Proposed passages within one field frame;
   a removal over 160 characters or containing a line break folds behind
-  Show removed. Each reason follows its proposal with one always-visible
-  Reject or Restore action; new changes start accepted. Tags and keys group
+  Show removed; its preview truncates within the field while the disclosure
+  label remains reachable. Each reason follows its proposal with one
+  always-visible Reject or Restore action in inline text flow. Both labels
+  share a reserved width, and the decision's padding contains the action's
+  enlarged target without covering neighboring controls. New changes start
+  accepted. Tags and keys group
   their removed and proposed chips under the same labels. Rejection changes
   those labels to Kept and Rejected (Not added for a pure insertion), and
   removes active deletion/insertion semantics from the rejected change.

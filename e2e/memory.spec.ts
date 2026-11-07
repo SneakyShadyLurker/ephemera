@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import type { APIRequestContext, Page, Route } from "@playwright/test";
 import { CONTINUED_SCENE, NEW_SCENE, STORY_HEADING } from "../packages/core/src/memory/prompt.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
@@ -55,6 +55,219 @@ import { expect, test, unsafe } from "./support/test.ts";
  */
 
 const NOTHING_REMEMBERED = "Nothing remembered yet";
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`Memory Sections follows the loaded visit and focuses reading groups (${reducedMotion})`, async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    await page.emulateMedia({ reducedMotion });
+    const { characterId } = await memoryChat(request);
+    await page.goto("/");
+    await twoExchanges(page);
+    await rememberNow(page);
+    await expect
+      .poll(async () => (await storedMemory(request, characterId)).episodes.length)
+      .toBe(1);
+    const putNotebook = async (long: boolean) => {
+      const current = await storedMemory(request, characterId);
+      const result = await request.patch(`/api/memory/characters/${characterId}`, {
+        headers: unsafe(),
+        data: {
+          revision: current.state?.revision ?? 0,
+          notebook: {
+            situation: "The harbour keeps its old customs. ".repeat(long ? 30 : 1),
+            relationships: long
+              ? Array.from(
+                  { length: 16 },
+                  (_, at) => `Relationship ${at}: ${"The keeper trusts her neighbour. ".repeat(5)}`,
+                )
+              : [],
+            facts: long
+              ? Array.from(
+                  { length: 20 },
+                  (_, at) => `Fact ${at}: ${"The northern lamp is kept alight. ".repeat(5)}`,
+                )
+              : ["The lamp is lit."],
+            threads: long ? ["The next ferry has not arrived."] : [],
+            cast: [],
+          },
+        },
+      });
+      expect(result.status()).toBe(200);
+    };
+    await putNotebook(true);
+    await page.goto(`/characters/${characterId}/memory`);
+    const trigger = page.getByRole("button", { name: "Sections", exact: true });
+    const facts = page.getByRole("group", { name: "Facts", exact: true });
+    const memories = page.getByRole("heading", { name: "Memories", exact: true });
+    const url = page.url();
+    const history = await page.evaluate(() => ({
+      length: window.history.length,
+      state: JSON.stringify(window.history.state),
+    }));
+    const geometry = [];
+    for (const width of [360, 390, 820, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(trigger).toHaveCount(1);
+      const placement = await trigger.evaluate((node) => ({
+        header: !!node.closest("header"),
+        box: node.getBoundingClientRect().toJSON(),
+        switchBottom: document.querySelector('[role="switch"]')?.getBoundingClientRect().bottom,
+      }));
+      expect(placement.header).toBe(width >= 768);
+      if (width < 768)
+        expect(placement.box.top).toBeGreaterThan(placement.switchBottom ?? Infinity);
+      else {
+        await expect(
+          page.locator("header").getByRole("button", { name: "Remember now" }),
+        ).toBeVisible();
+        await expect(
+          page.locator("header").getByRole("button", { name: "Memory actions" }),
+        ).toBeVisible();
+      }
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+      const menu = page.getByRole("menu", { name: "Sections" });
+      await expect(menu.getByRole("menuitem")).toHaveText([
+        "Situation",
+        "Next chat opens with",
+        "Relationships",
+        "Facts",
+        "Open threads",
+        "Cast",
+        "Memories",
+      ]);
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+      for (const [label, target] of [
+        ["Facts", facts],
+        ["Memories", memories],
+      ] as const) {
+        await trigger.press("Enter");
+        await menu.getByRole("menuitem", { name: label, exact: true }).press("Enter");
+        await expect(target).toBeFocused();
+        expect(
+          await target.evaluate((node) => node.matches("input, textarea, [contenteditable=true]")),
+        ).toBe(false);
+        await expect
+          .poll(() =>
+            target.evaluate((node) => {
+              const top = node.getBoundingClientRect().top;
+              const header =
+                document.querySelector("main header")?.getBoundingClientRect().bottom ?? Infinity;
+              return top >= header && top < innerHeight;
+            }),
+          )
+          .toBe(true);
+        geometry.push({
+          width,
+          label,
+          box: await target.boundingBox(),
+          active: await target.evaluate((node) => node.tagName),
+        });
+        if (label === "Facts") {
+          const ring = await facts
+            .locator(':scope > span[aria-hidden="true"]')
+            .evaluate((node) => getComputedStyle(node).outlineWidth);
+          expect(ring).toBe("2px");
+          await page.keyboard.press("Tab");
+          await expect(facts.getByRole("textbox").first()).toBeFocused();
+          await expect(facts.getByRole("textbox").first()).toBeEditable();
+        } else {
+          await page.keyboard.press("Tab");
+          await expect(episodeRows(page).first()).toBeFocused();
+        }
+      }
+      expect(page.url()).toBe(url);
+      expect(
+        await page.evaluate(() => ({
+          length: window.history.length,
+          state: JSON.stringify(window.history.state),
+        })),
+      ).toEqual(history);
+    }
+    // A clean background revision remounts the notebook, reconnecting targets without
+    // re-snapshotting eligibility. Empty sections still have a usable Add target.
+    await putNotebook(false);
+    await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+    await expect(facts.getByRole("textbox")).toHaveCount(1);
+    await trigger.press("Enter");
+    await page.getByRole("menuitem", { name: "Open threads", exact: true }).press("Enter");
+    const threads = page.getByRole("group", { name: "Open threads", exact: true });
+    await expect(threads).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(threads.getByRole("button", { name: "Add a thread" })).toBeFocused();
+    const control = page.getByRole("switch", { name: "Remember the story" });
+    await control.click();
+    await expect(control).not.toBeChecked();
+    await expect(trigger).toHaveCount(0);
+    await control.click();
+    await expect(trigger).toBeVisible();
+    await trigger.press("Enter");
+    await page.getByRole("menuitem", { name: "Situation", exact: true }).press("Enter");
+    await expect(page.getByRole("group", { name: "Situation", exact: true })).toBeFocused();
+    const geometryPath = testInfo.outputPath("memory-section-geometry.json");
+    await writeFile(geometryPath, JSON.stringify(geometry, null, 2));
+    await testInfo.attach("memory-section-geometry", {
+      path: geometryPath,
+      contentType: "application/json",
+    });
+    const screenshotPath = testInfo.outputPath("memory-sections.png");
+    await page.screenshot({ path: screenshotPath });
+    await testInfo.attach("memory-sections", {
+      path: screenshotPath,
+      contentType: "image/png",
+    });
+  });
+}
+
+test("Memory Sections snapshots empty, simple, one-fact and off visits without new chrome after a background write", async ({
+  page,
+  request,
+}) => {
+  const trigger = page.getByRole("button", { name: "Sections", exact: true });
+  for (const initial of ["empty", "simple", "one-fact", "off"] as const) {
+    const id = await createCharacterViaApi(request, unique(`Sections ${initial}`));
+    const patch = async (facts: string[], enabled = true) => {
+      const current = await storedMemory(request, id);
+      const response = await request.patch(`/api/memory/characters/${id}`, {
+        headers: unsafe(),
+        data: {
+          revision: current.state?.revision ?? 0,
+          enabled,
+          notebook: {
+            situation: initial === "simple" ? "A quiet harbour." : "",
+            relationships: [],
+            facts,
+            threads: [],
+            cast: [],
+          },
+          opening: initial === "simple" ? "The keeper waits." : "",
+        },
+      });
+      expect(response.status()).toBe(200);
+    };
+    if (initial !== "empty")
+      await patch(
+        initial === "one-fact" || initial === "off" ? ["One fact."] : [],
+        initial !== "off",
+      );
+    await page.goto(`/characters/${id}/memory`);
+    await expect(page.getByRole("heading", { name: /^What .* remembers$/ })).toBeVisible();
+    await expect(trigger).toHaveCount(initial === "one-fact" ? 1 : 0);
+    await patch(["A new background fact."]);
+    await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+    await expect(
+      page.getByRole("group", { name: "Facts", exact: true }).getByRole("textbox"),
+    ).toHaveValue("A new background fact.");
+    await expect(trigger).toHaveCount(initial === "one-fact" ? 1 : 0);
+    // A fresh loaded visit takes a fresh snapshot, including the content that arrived.
+    await page.reload();
+    await expect(trigger).toHaveCount(1);
+  }
+});
 
 const prompt = (page: Page) => page.getByRole("dialog", { name: "Prompt" });
 const folded = (page: Page) => page.locator("[data-message][data-folded]");

@@ -55,6 +55,12 @@ import { MemorySwitch } from "./MemorySection.tsx";
 import { countsText, rememberable, rememberNowHeld, rowAfterDelete } from "./memory.ts";
 import { NotebookEditor, useNotebook } from "./Notebook.tsx";
 import { forgetMemory, MEMORY_KEY, memoryQuery, refreshMemory } from "./queries.ts";
+import {
+  MEMORY_SECTIONS,
+  type MemorySectionKey,
+  MemorySectionsMenu,
+  type RegisterMemorySection,
+} from "./Sections.tsx";
 
 /*
  * A character's memory, as its own screen beside the sheet: the notebook at
@@ -133,7 +139,15 @@ export function MemoryBook({
   const [reportSaving, leaveGuard, saving] = useLeaveGuardScope();
   return (
     <LeaveGuardScope value={reportSaving}>
-      <Book id={id} name={name} memory={memory} from={from} saving={saving} onOpen={openEpisode} />
+      <Book
+        key={id}
+        id={id}
+        name={name}
+        memory={memory}
+        from={from}
+        saving={saving}
+        onOpen={openEpisode}
+      />
       {episodeEditor}
       {leaveGuard}
     </LeaveGuardScope>
@@ -183,6 +197,7 @@ function MemoryFrame({
   from,
   saving,
   onForgotten,
+  sections,
   children,
   after,
 }: {
@@ -194,6 +209,7 @@ function MemoryFrame({
   saving: ScreenSaving | null;
   /** After Forget everything, with the memory as the server left it. */
   onForgotten?: (memory: CharacterMemory) => void;
+  sections?: ReactNode;
   children: ReactNode;
   /** Kept at the end of the body, sticky above the bottom (a save conflict). */
   after?: ReactNode;
@@ -224,6 +240,7 @@ function MemoryFrame({
             <SaveState status={saving.status} creating={false} noun={saving.noun} short={phone} />
           </span>
         )}
+        {!phone && sections}
         {on && <RememberNow id={id} name={name} />}
         {remembered && (
           <ForgetEverything
@@ -328,9 +345,31 @@ function Book({
   onOpen: OpenEpisode;
 }) {
   const queryClient = useQueryClient();
+  const phone = useFormFactor() === "phone";
   const on = memoryIsOn(memory.state);
   /** The notebook row as the memory query has it now. */
   const state = memoryStateOf(memory.state);
+  // Snapshot only the loaded Book visit. Background writes and notebook remounts must
+  // not add navigation above an edit; explicit off hides it without changing eligibility.
+  const [sectionsEligible] = useState(
+    () =>
+      on &&
+      (memory.episodes.length > 0 ||
+        [
+          state.notebook.relationships,
+          state.notebook.facts,
+          state.notebook.threads,
+          state.notebook.cast,
+        ].some((lines) => lines.some((line) => line.trim() !== ""))),
+  );
+  const sectionTargets = useRef<Partial<Record<MemorySectionKey, HTMLElement | null>>>({});
+  const registerSection: RegisterMemorySection = (key, node) => {
+    sectionTargets.current[key] = node;
+  };
+  const sections =
+    on && sectionsEligible ? (
+      <MemorySectionsMenu targetFor={(key) => sectionTargets.current[key] ?? null} />
+    ) : undefined;
   // A memory written elsewhere while nothing here is unsaved remounts the notebook on it.
   const [round, setRound] = useState(0);
   const [notebook, setNotebook] = useState<NotebookReport | null>(null);
@@ -363,6 +402,7 @@ function Book({
       from={from}
       saving={saving}
       onForgotten={forgotten}
+      sections={sections}
       after={
         notebook?.status.kind === "conflict" ? (
           <ConflictNotice
@@ -403,6 +443,12 @@ function Book({
           {on && <RememberingLine id={id} />}
           {on && <RememberNowReason id={id} name={name} />}
         </Heading>
+        {phone && sections && (
+          <div className={cn(NOTEBOOK_GRID, "mt-3 tablet:hidden")}>
+            <div />
+            <div className="-ml-2 justify-self-start">{sections}</div>
+          </div>
+        )}
         <Unfold show={on || holding}>
           <div className="grid grid-cols-[minmax(0,1fr)] gap-10 pt-10">
             {!on && (
@@ -429,18 +475,20 @@ function Book({
               resetAt={forgottenAt}
               onReport={setNotebook}
               onRemount={remount}
+              onSectionTarget={registerSection}
             />
             {on && (
               <section aria-labelledby={MEMORIES_HEADING} className={NOTEBOOK_GRID}>
                 <h2
                   id={MEMORIES_HEADING}
+                  ref={(node) => registerSection("memories", node)}
                   tabIndex={-1}
                   className={cn(
                     GROUP_HEADING,
-                    "mb-2  outline-none tablet:mb-0 tablet:pt-4.5 tablet:text-right",
+                    "mb-2 scroll-mt-6 tablet:mb-0 tablet:pt-4.5 tablet:text-right",
                   )}
                 >
-                  Memories
+                  {MEMORY_SECTIONS.memories}
                 </h2>
                 <EpisodeList episodes={memory.episodes} onOpen={onOpen} />
               </section>
@@ -468,6 +516,7 @@ function NotebookPart({
   resetAt,
   onReport,
   onRemount,
+  onSectionTarget,
 }: {
   id: string;
   name: string;
@@ -479,6 +528,7 @@ function NotebookPart({
   resetAt: number | null;
   onReport: (report: NotebookReport) => void;
   onRemount: () => void;
+  onSectionTarget: RegisterMemorySection;
 }) {
   // The newest revision this editor holds: the one it opened, or the last it saved.
   const known = useRef(state.revision);
@@ -500,6 +550,7 @@ function NotebookPart({
     <div className="grid gap-6">
       <NotebookEditor
         fields={fields}
+        onSectionTarget={onSectionTarget}
         saveStatus={status}
         onCommit={flush}
         readOnly={readOnly}

@@ -119,9 +119,13 @@ describe("the import panel", () => {
 
   it("collapses only settled mappings and puts readiness before the mapping", () => {
     const ready = render(inspected());
-    expect(ready).toMatch(
-      /<details class="disclosure"><summary[^>]*>Ephemera fills these four places/,
-    );
+    const settled = ready.match(/<details class="disclosure"><summary[^>]*>(.*?)<\/summary>/s);
+    expect(settled).not.toBeNull();
+    expect(
+      text(settled?.[1] ?? "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    ).toBe("Ephemera fills these four places. All found in this file");
     expect(text(ready)).toContain("All found in this file");
     expect(ready.indexOf("On your ComfyUI")).toBeLessThan(ready.indexOf("All found in this file"));
     const pending = render(inspected({}));

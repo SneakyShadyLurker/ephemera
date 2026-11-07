@@ -311,7 +311,7 @@ export function chainingAnswer(settings: EntrySettings, bookChains: boolean): st
 export function matchingAnswer(settings: EntrySettings, bookDepth: number): string {
   const depth =
     settings.scanDepth === null
-      ? { own: false, text: `book's ${messages(bookDepth)}` }
+      ? { own: false, text: `book's last ${messages(bookDepth)}` }
       : { own: true, text: `last ${messages(settings.scanDepth)}` };
   const matchCase = {
     own: settings.caseSensitive !== null,

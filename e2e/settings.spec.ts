@@ -1784,7 +1784,7 @@ test("a long persona name never makes the empty composer taller or wider", async
   );
   await patchSettings(page.request, { personaId: id });
   await page.reload();
-  await expect(composer).toHaveAttribute("placeholder", /^Write as Seraphina/);
+  await expect(composer).toHaveAttribute("placeholder", "Write the first line");
   expect((await composer.boundingBox())?.height).toBe(oneLine);
   await expectNoOverflow(page);
   // Typed text still grows it, as before.

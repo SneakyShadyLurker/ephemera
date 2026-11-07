@@ -1,5 +1,5 @@
-import { readFile, rm } from "node:fs/promises";
-import type { Page } from "@playwright/test";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import type { Page, TestInfo } from "@playwright/test";
 import { ART_METAPROMPTS } from "../packages/core/src/creator/prompts.ts";
 import { tile } from "./support/cards.ts";
 import { beacons, upstreamRecords } from "./support/chat.ts";
@@ -27,7 +27,13 @@ import {
   mark,
   ownerDescription,
 } from "./support/creator-fixtures.ts";
-import { choose, createCharacterViaApi, patchSettings } from "./support/entities.ts";
+import {
+  choose,
+  createCharacterViaApi,
+  createPersonaViaApi,
+  patchSettings,
+  readSettings,
+} from "./support/entities.ts";
 import { APP_SERVERS, canary } from "./support/env.ts";
 import { expectStorageEmpty, expectUrlsClean, openProfile } from "./support/retention.ts";
 import { dataDirContaining, filesContaining, holds } from "./support/scan.ts";
@@ -40,6 +46,487 @@ import { appOrigin, expect, test } from "./support/test.ts";
  */
 
 const heading = (page: Page, name: string) => page.getByRole("heading", { name, level: 2 });
+
+const describeOptions = (page: Page) => page.locator("[data-creator] form details");
+
+/** Same-frame rendered evidence, bounded to Describe's controls and its scroll owner. */
+async function describeGeometry(page: Page, info: TestInfo) {
+  const geometry = await page.locator("[data-creator]").evaluate((root) => {
+    const box = (node: Element | null) => node?.getBoundingClientRect().toJSON();
+    const form = root.querySelector("form");
+    const details = form?.querySelector("details");
+    const scroller = root.querySelector("[data-skip-target]");
+    return {
+      width: window.innerWidth,
+      form: box(form ?? null),
+      open: details?.open,
+      summary: box(details?.querySelector("summary") ?? null),
+      scrollTop: scroller?.scrollTop,
+      overflow: (scroller?.scrollWidth ?? 0) - (scroller?.clientWidth ?? 0),
+      controls: [...(form?.querySelectorAll("button, summary, textarea") ?? [])].map((node) => ({
+        text: node.textContent?.slice(0, 160),
+        box: box(node),
+        visible: node.checkVisibility(),
+      })),
+      focus: document.activeElement?.getAttribute("id"),
+    };
+  });
+  const path = info.outputPath(`describe-geometry-${crypto.randomUUID()}.json`);
+  await writeFile(path, JSON.stringify(geometry));
+  await info.attach("Describe same-frame geometry", { path, contentType: "application/json" });
+  return geometry;
+}
+
+test.describe("Describe optional controls", () => {
+  test.use({ hasTouch: true });
+  test.afterEach(async ({ page }, info) => {
+    if (info.status !== info.expectedStatus && (await page.locator("[data-creator]").count()))
+      await describeGeometry(page, info);
+  });
+
+  for (const width of [360, 390]) {
+    for (const reducedMotion of ["reduce", "no-preference"] as const) {
+      for (const colorScheme of ["light", "dark"] as const) {
+        test(`native summary fits and retains choices ${width}/${reducedMotion}/${colorScheme}`, async ({
+          page,
+          request,
+          comfy,
+        }, info) => {
+          await page.setViewportSize({ width, height: 844 });
+          await page.emulateMedia({ reducedMotion, colorScheme });
+          await comfy();
+          const personaName = "AlexandrineMargueriteDeLaRochefortDuChateau".slice(0, 40);
+          const workflowName = "WorkflowWithFortyUnbrokenLettersForFitting".slice(0, 40);
+          const personaId = await createPersonaViaApi(request, personaName);
+          await patchSettings(request, { model: "mock-fast", personaId });
+          await page.route("**/api/creator/art/workflows", async (route) => {
+            const response = await route.fetch();
+            const body = await response.json();
+            body.workflows[0].name = workflowName;
+            await route.fulfill({ response, json: body });
+          });
+          await page.goto("/characters/create");
+          const details = describeOptions(page);
+          const summary = details.locator("summary");
+          const field = page.getByRole("textbox", { name: COPY.subject.field });
+          await expect(summary).toHaveAccessibleName(
+            `Reasoning Model default Persona ${personaName} Workflow ${workflowName} Composition Regular Look Auto`,
+          );
+          await expect(details).not.toHaveAttribute("open");
+          await expect(page.getByRole("combobox", { name: "Model", exact: true })).toBeVisible();
+          await expect(page.getByRole("combobox", { name: "Reasoning", exact: true })).toBeHidden();
+          const folded = await describeGeometry(page, info);
+          expect(folded.overflow).toBe(0);
+          expect(folded.scrollTop).toBe(0);
+          expect(folded.summary?.height).toBeGreaterThanOrEqual(44);
+          expect(folded.summary?.right).toBeLessThanOrEqual(width);
+          const truncation = await summary
+            .locator("span")
+            .evaluateAll((nodes) =>
+              nodes
+                .filter((node) => getComputedStyle(node).textOverflow === "ellipsis")
+                .map((node) => ({ width: node.clientWidth, scroll: node.scrollWidth })),
+            );
+          expect(truncation.filter((node) => node.scroll > node.width)).toHaveLength(2);
+          expect(truncation.every((node) => node.width <= 192)).toBe(true);
+          // Enter opens, Tab reaches the first control, Space closes and opens natively.
+          await summary.focus();
+          await page.keyboard.press("Enter");
+          await expect(summary).toHaveAccessibleName("Reasoning, persona and portraits");
+          await expect(
+            page.getByRole("combobox", { name: "Reasoning", exact: true }),
+          ).toBeEnabled();
+          await expect(summary).toBeFocused();
+          await page.keyboard.press("Tab");
+          await expect(
+            page.getByRole("combobox", { name: "Reasoning", exact: true }),
+          ).toBeFocused();
+          await choose(page, "Reasoning", "Extra high");
+          await page
+            .getByRole("group", { name: "Composition", exact: true })
+            .getByRole("button", { name: "Diptych", exact: true })
+            .click();
+          await choose(page, "Look", "Vintage film");
+          await summary.focus();
+          await page.keyboard.press("Space");
+          await expect(details).not.toHaveAttribute("open");
+          await expect(summary).toHaveAccessibleName(
+            `Reasoning Extra high Persona ${personaName} Workflow ${workflowName} Composition Diptych Look Vintage film`,
+          );
+          await field.fill("A quiet archivist whose choices stay put.");
+          await page.setViewportSize({ width: 834, height: 1000 });
+          await expect(details).not.toHaveAttribute("open");
+          await page.setViewportSize({ width, height: 844 });
+          await expect(details).not.toHaveAttribute("open");
+          await summary.focus();
+          await page.keyboard.press("Space");
+          await page.setViewportSize({ width: 834, height: 1000 });
+          await expect(details).toHaveAttribute("open", "");
+          await page.setViewportSize({ width, height: 844 });
+          await expect(details).toHaveAttribute("open", "");
+          await expect(page.getByRole("combobox", { name: "Reasoning", exact: true })).toHaveText(
+            "Extra high",
+          );
+          await expect(page.getByRole("combobox", { name: "Look", exact: true })).toHaveText(
+            "Vintage film",
+          );
+          const expanded = await describeGeometry(page, info);
+          expect(expanded.overflow).toBe(0);
+          for (const control of expanded.controls.filter((control) => control.visible)) {
+            expect(control.box?.width).toBeGreaterThanOrEqual(44);
+            expect(control.box?.height).toBeGreaterThanOrEqual(44);
+          }
+          const alignment = await page
+            .getByRole("combobox", { name: "Model", exact: true })
+            .evaluate((model) => {
+              const controls = model.closest("form")?.querySelectorAll('[role="combobox"]');
+              return [...(controls ?? [])].map((node) => node.getBoundingClientRect().left);
+            });
+          expect(new Set(alignment).size).toBe(1);
+          await page.getByRole("button", { name: "Change from Subject" }).click();
+          await page.locator('[data-kind="subject"]').click();
+          await expect(details).not.toHaveAttribute("open");
+          expect((await describeGeometry(page, info)).scrollTop).toBe(0);
+        });
+      }
+    }
+  }
+
+  for (const width of [820, 1440]) {
+    test(`optional controls start open at ${width}`, async ({ page, request }) => {
+      await page.setViewportSize({ width, height: 1180 });
+      await patchSettings(request, { model: "mock-fast", comfyuiBaseUrl: "" });
+      await page.goto("/characters/create");
+      await expect(describeOptions(page)).toHaveAttribute("open", "");
+      await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
+        "Reasoning and persona",
+      );
+      await describeOptions(page).locator("summary").click();
+      await page.getByRole("textbox", { name: COPY.subject.field }).fill("A rerender.");
+      await expect(describeOptions(page)).not.toHaveAttribute("open");
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(describeOptions(page)).not.toHaveAttribute("open");
+    });
+  }
+
+  for (const portraits of [true, false]) {
+    for (const kind of ["subject", "group", "scenario"] as const) {
+      test(`${kind} exposes only applicable portrait controls portraits=${portraits}`, async ({
+        page,
+        request,
+        comfy,
+      }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        if (portraits) await comfy();
+        else await patchSettings(request, { comfyuiBaseUrl: "" });
+        await patchSettings(request, { model: "mock-fast" });
+        const workflows: string[] = [];
+        page.on("request", (sent) => {
+          if (new URL(sent.url()).pathname === "/api/creator/art/workflows")
+            workflows.push(sent.url());
+        });
+        await page.goto("/characters/create");
+        if (kind !== "subject") {
+          await page.getByRole("button", { name: "Change from Subject" }).click();
+          await page.locator(`[data-kind="${kind}"]`).click();
+        }
+        const details = describeOptions(page);
+        await expect(details).not.toHaveAttribute("open");
+        if (portraits) await expect(details.locator("summary")).toContainText("Krea 2 Gonzalomo");
+        await details.locator("summary").click();
+        await expect(page.getByRole("combobox", { name: "Persona", exact: true })).toBeVisible();
+        await expect(page.getByRole("combobox", { name: "Workflow", exact: true })).toHaveCount(
+          portraits ? 1 : 0,
+        );
+        await expect(page.getByRole("group", { name: "Composition", exact: true })).toHaveCount(
+          portraits && kind === "subject" ? 1 : 0,
+        );
+        await expect(page.getByRole("combobox", { name: "Look", exact: true })).toHaveCount(
+          portraits && kind !== "scenario" ? 1 : 0,
+        );
+        if (!portraits) expect(workflows).toEqual([]);
+      });
+    }
+  }
+
+  test("closed options leave failed model-list recovery and typed creation reachable", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await patchSettings(request, { model: null, comfyuiBaseUrl: "" });
+    await page.route("**/api/models", (route) =>
+      route.fulfill({ status: 503, json: { error: "unavailable" } }),
+    );
+    await page.goto("/characters/create");
+    const field = page.getByRole("textbox", { name: COPY.subject.field });
+    await expect(field).toHaveAccessibleDescription(/The model list didn't load/, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByText("The model list didn't load. Type a model ID under Model to write with it."),
+    ).toBeVisible();
+    await expect(describeOptions(page)).not.toHaveAttribute("open");
+    await field.fill(ownerDescription(keptBase()));
+    await expect(page.getByRole("button", { name: COPY.subject.create })).toBeDisabled();
+    await page.getByRole("combobox", { name: "Model", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Find a model", exact: true })
+      .fill("vendor/typed-writer");
+    await page.keyboard.press("Enter");
+    await expect(field).toHaveAccessibleDescription(/^For example: /);
+    await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
+      "Reasoning Model default Persona You",
+    );
+    const sent = page.waitForRequest("**/api/creator/card");
+    await page.getByRole("button", { name: COPY.subject.create }).click();
+    expect((await sent).postDataJSON()).toMatchObject({ model: "vendor/typed-writer" });
+  });
+
+  test("folded choices reach generation and retain the existing persona and workflow writes", async ({
+    page,
+    request,
+    comfy,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await comfy();
+    await patchSettings(request, { model: "mock-fast" });
+    const personaId = await createPersonaViaApi(request, "Round10 owner");
+    await page.goto("/characters/create");
+    await describeOptions(page).locator("summary").click();
+    const personaSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === "/api/settings",
+    );
+    await choose(page, "Persona", "Round10 owner");
+    expect((await personaSaved).request().postDataJSON()).toEqual({ personaId });
+    const workflowSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === "/api/settings",
+    );
+    await choose(page, "Workflow", "Krea 2 Second");
+    const savedWorkflow = (await workflowSaved).request().postDataJSON();
+    expect(Object.keys(savedWorkflow)).toEqual(["comfyuiWorkflow"]);
+    expect((await readSettings(request)).comfyuiWorkflow).toBe(savedWorkflow.comfyuiWorkflow);
+    const restored = page.waitForResponse(
+      (response) =>
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === "/api/settings",
+    );
+    await choose(page, "Workflow", "Krea 2 Gonzalomo");
+    const generationWorkflow = (await restored).request().postDataJSON().comfyuiWorkflow;
+    await expect(page.getByRole("button", { name: "Portraits available: details" })).toBeVisible();
+    await choose(page, "Reasoning", "Extra high");
+    await page
+      .getByRole("group", { name: "Composition", exact: true })
+      .getByRole("button", { name: "Diptych" })
+      .click();
+    await choose(page, "Look", "Black and white");
+    await describeOptions(page).locator("summary").click();
+    await choose(page, "Model", "mock-lowonly");
+    await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
+      /Reasoning Model default/,
+    );
+    await choose(page, "Model", "mock-fast");
+    await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
+      /Reasoning Extra high/,
+    );
+    const base = keptBase();
+    await page.getByRole("textbox", { name: COPY.subject.field }).fill(ownerDescription(base));
+    const card = page.waitForRequest("**/api/creator/card");
+    const art = page.waitForRequest("**/api/creator/art");
+    await page.getByRole("button", { name: COPY.subject.create }).click();
+    expect((await card).postDataJSON()).toMatchObject({
+      model: "mock-fast",
+      reasoning: "xhigh",
+      personaId,
+    });
+    expect((await art).postDataJSON()).toMatchObject({
+      model: "mock-fast",
+      reasoning: "xhigh",
+      composition: "diptych",
+      look: "monochrome",
+      workflow: generationWorkflow,
+    });
+  });
+
+  test("a model without reasoning capability resolves and disables the mounted control", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await patchSettings(request, { model: "mock-nowindow", comfyuiBaseUrl: "" });
+    await page.goto("/characters/create");
+    const details = describeOptions(page);
+    await expect(details.locator("summary")).toHaveAccessibleName(
+      "Reasoning Model default Persona You",
+    );
+    await details.locator("summary").click();
+    const reasoning = page.getByRole("combobox", { name: "Reasoning", exact: true });
+    await expect(reasoning).toBeDisabled();
+    await expect(reasoning).toHaveText("Model default");
+  });
+
+  for (const fallback of ["loading", "error", "missing"] as const) {
+    test(`workflow summary matches the trigger's ${fallback} fallback`, async ({
+      page,
+      request,
+      comfy,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await comfy();
+      await patchSettings(request, { model: "mock-fast" });
+      const selectedWorkflow = (await readSettings(request)).comfyuiWorkflow;
+      const release = Promise.withResolvers<void>();
+      await page.route("**/api/creator/art/workflows", async (route) => {
+        if (fallback === "loading") await release.promise;
+        if (fallback === "error")
+          return route.fulfill({ status: 503, json: { error: "unavailable" } });
+        if (fallback === "missing") {
+          const response = await route.fetch();
+          const body = await response.json();
+          const workflows = body.workflows.filter(
+            (workflow: { id: string }) => workflow.id !== selectedWorkflow,
+          );
+          // A successful catalog must remain nonempty, even when this selection is gone.
+          expect(workflows.length).toBeGreaterThan(0);
+          expect(workflows.length).toBeLessThan(body.workflows.length);
+          return route.fulfill({ response, json: { ...body, workflows } });
+        }
+        await route.continue();
+      });
+      try {
+        await page.goto("/characters/create");
+        const text =
+          fallback === "error"
+            ? "Workflows not listed"
+            : fallback === "loading"
+              ? "Listing workflows…"
+              : "Workflow not found";
+        const summary = describeOptions(page).locator("summary");
+        await expect(summary).toHaveAccessibleName(new RegExp(`Workflow ${text}`));
+        await summary.click();
+        await expect(page.getByRole("combobox", { name: "Workflow", exact: true })).toHaveText(
+          text,
+        );
+      } finally {
+        release.resolve();
+      }
+    });
+  }
+
+  for (const update of ["portraits", "persona"] as const) {
+    test(`late ${update} data preserves closed options, focus and caret`, async ({
+      page,
+      request,
+      comfy,
+    }, info) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await comfy();
+      const personaId = await createPersonaViaApi(request, "Before rename");
+      await patchSettings(request, { model: "mock-fast", personaId });
+      const release = Promise.withResolvers<void>();
+      const pending = Promise.withResolvers<void>();
+      const endpoint = update === "portraits" ? "settings" : "personas";
+      let settingsCalls = 0;
+      await page.route(`**/api/${endpoint}`, async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        // The root loader must finish before Describe mounts. Its failed load
+        // renders fallback settings; the mounted reader then recovers in place.
+        if (update === "portraits" && ++settingsCalls <= 2)
+          return route.fulfill({ status: 503, json: { error: "unavailable" } });
+        const response = await route.fetch();
+        const body = await response.json();
+        if (update === "persona")
+          body.personas.find((persona: { id: string }) => persona.id === personaId).name =
+            "Renamed persona arriving late";
+        pending.resolve();
+        await release.promise;
+        await route.fulfill({ response, json: body });
+      });
+      try {
+        await page.goto("/characters/create");
+        await pending.promise;
+        const field = page.getByRole("textbox", { name: COPY.subject.field });
+        await field.fill("The caret stays in this description.");
+        await field.press("Home");
+        const before = await field.evaluate((node) => {
+          if (!(node instanceof HTMLTextAreaElement)) throw new Error("Missing Describe field");
+          return {
+            start: node.selectionStart,
+            end: node.selectionEnd,
+            top: node.closest("[data-skip-target]")?.scrollTop,
+          };
+        });
+        await expect(describeOptions(page)).not.toHaveAttribute("open");
+        release.resolve();
+        await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
+          update === "portraits"
+            ? /Workflow Krea 2 Gonzalomo/
+            : /Persona Renamed persona arriving late/,
+        );
+        await expect(field).toBeFocused();
+        await expect(describeOptions(page)).not.toHaveAttribute("open");
+        expect(
+          await field.evaluate((node) => {
+            if (!(node instanceof HTMLTextAreaElement)) throw new Error("Missing Describe field");
+            return {
+              start: node.selectionStart,
+              end: node.selectionEnd,
+              top: node.closest("[data-skip-target]")?.scrollTop,
+            };
+          }),
+        ).toEqual(before);
+        await describeGeometry(page, info);
+      } finally {
+        release.resolve();
+      }
+    });
+  }
+
+  test("at 360 status widths keep Create trailing and the portrait popover fits", async ({
+    page,
+    request,
+  }, info) => {
+    await page.setViewportSize({ width: 360, height: 844 });
+    await patchSettings(request, { model: "mock-fast", comfyuiBaseUrl: "" });
+    const release = Promise.withResolvers<void>();
+    await page.route("**/api/creator/art/status?**", async (route) => {
+      await release.promise;
+      await route.continue();
+    });
+    try {
+      await page.goto("/characters/create");
+      await expect(page.getByText("Checking portraits…", { exact: true })).toBeVisible();
+      const create = page.getByRole("button", { name: COPY.subject.create });
+      const before = await create.boundingBox();
+      release.resolve();
+      const status = page.getByRole("button", { name: "Portraits off: details" });
+      await expect(status).toBeVisible();
+      const after = await create.boundingBox();
+      expect(after?.x).toBe(before?.x);
+      const trailing = await create.evaluate((node) => ({
+        right: node.getBoundingClientRect().right,
+        formRight: node.closest("form")?.getBoundingClientRect().right,
+        inset: Number.parseFloat(getComputedStyle(node.closest("form") ?? node).paddingRight),
+      }));
+      expect(trailing.right).toBe((trailing.formRight ?? 0) - trailing.inset);
+      const targets = await Promise.all([create, status].map((node) => node.boundingBox()));
+      for (const target of targets) expect(target?.height).toBeGreaterThanOrEqual(44);
+      await status.click();
+      const popup = page.getByRole("dialog", { name: "Portraits", exact: true });
+      await expect(popup).toBeVisible();
+      const bounds = await popup.boundingBox();
+      expect(bounds?.x).toBeGreaterThanOrEqual(0);
+      expect((bounds?.x ?? 360) + (bounds?.width ?? 360)).toBeLessThanOrEqual(360);
+      await describeGeometry(page, info);
+    } finally {
+      release.resolve();
+    }
+  });
+});
 
 test.describe("untouched Describe arrival", () => {
   test.use({ hasTouch: true });
@@ -61,7 +548,12 @@ test.describe("untouched Describe arrival", () => {
                 .filter(
                   (animation) =>
                     animation.effect?.getComputedTiming().iterations !== Infinity &&
-                    animation.timeline === document.timeline,
+                    animation.timeline === document.timeline &&
+                    // Folded controls stay mounted; their unpainted starting
+                    // transitions are not arrival motion to wait for.
+                    (!(animation.effect instanceof KeyframeEffect) ||
+                      !(animation.effect.target instanceof Element) ||
+                      animation.effect.target.checkVisibility()),
                 )
                 .map((animation) => animation.finished.catch(() => {})),
             );
@@ -84,6 +576,7 @@ test.describe("untouched Describe arrival", () => {
             `E Describe ${JSON.stringify({ width, reducedMotion, kind, ...geometry })}\n`,
           );
           expect(geometry.top).toBe(0);
+          await expect(describeOptions(page)).not.toHaveAttribute("open");
           expect(geometry.context?.top).toBeGreaterThanOrEqual(geometry.header?.bottom ?? Infinity);
           if (focused) await expect(field).toBeFocused();
           else await expect(field).not.toBeFocused();
@@ -104,6 +597,8 @@ test.describe("untouched Describe arrival", () => {
         await expect(ideaRows(page)).toHaveCount(10);
         await ideaRows(page).first().getByRole("button").first().tap();
         await arrival("from idea", false);
+        await describeOptions(page).locator("summary").tap();
+        await expect(describeOptions(page)).toHaveAttribute("open", "");
         await page.getByRole("button", { name: BRAINSTORM_COPY.back }).tap();
         await ideaRows(page).first().getByRole("button").first().tap();
         await arrival("back then idea", false);

@@ -830,10 +830,13 @@ function DraftBody({
     <>
       {settled ? (
         <details className="disclosure">
-          <summary className={SUMMARY_LINE}>
-            Ephemera fills these four places
-            <span className="font-normal text-reed">All found in this file</span>
-            <DisclosureChevron />
+          <summary className={cn(SUMMARY_LINE, "items-start gap-2 tablet:items-center")}>
+            <span className="grid gap-0.5 tablet:flex tablet:items-baseline tablet:gap-x-2">
+              <span className="font-medium text-ink text-ui">Ephemera fills these four places</span>
+              <span className="sr-only">. </span>
+              <span className="font-normal text-note text-reed">All found in this file</span>
+            </span>
+            <DisclosureChevron className="mt-0.5 tablet:mt-0" />
           </summary>
           <div className="pt-2">{mapping}</div>
         </details>

@@ -15,7 +15,8 @@ const DISABLED_OUTLINE = "disabled:border-rush data-disabled:border-rush";
  * AI Rework, New art, Remember now). Quiet: icon and label navigation,
  * panels and collection verbs. Link: inline actions beside the line they
  * affect (Dismiss, Undo, Show details, Change, Brainstorm, Make default).
- * Danger: destructive actions.
+ * Remove: an in-flow removal that Undo reverses, never bordered.
+ * Danger: actions that cannot be undone.
  */
 const buttonVariants = cva(
   "press relative inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md border font-medium text-ui disabled:cursor-default disabled:bg-transparent disabled:text-text-disabled data-disabled:cursor-default data-disabled:bg-transparent data-disabled:text-text-disabled [&_svg]:pointer-events-none [&_svg]:shrink-0",
@@ -24,6 +25,9 @@ const buttonVariants = cva(
       variant: {
         primary: "border-transparent bg-dusk text-on-dusk hover:bg-dusk-hover",
         quiet: "border-transparent text-reed hover:bg-surface-hover hover:text-ink",
+        /** Reed words, ember on enabled hover or keyboard focus; Undo reverses the removal. */
+        remove:
+          "border-transparent text-reed hover:[&:not(:disabled):not([data-disabled])]:bg-surface-hover hover:[&:not(:disabled):not([data-disabled])]:text-ember focus-visible:[&:not(:disabled):not([data-disabled])]:text-ember",
         outline: `border-control-edge text-ink hover:bg-surface-hover ${DISABLED_OUTLINE}`,
         danger: `border-ember text-ember hover:bg-error-surface ${DISABLED_OUTLINE}`,
         dangerSolid: "border-transparent bg-ember text-canvas hover:bg-ember/90",

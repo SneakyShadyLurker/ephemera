@@ -25,8 +25,9 @@ window, and once the user is back the tab carries on by itself, sending
 the message that was waiting and saving edits made meanwhile. If the tab
 finds itself signed in as someone else, it drops everything it holds and
 reloads as that user.
-The waiting reply says Not sent yet; the notice beside the composer gives
-the sign-in reason and action.
+The waiting reply says "The reply hasn't started yet." for both a new send
+and a new alternate; the notice beside the composer gives the sign-in reason
+and action.
 
 ## What persists and what vanishes
 
@@ -177,6 +178,15 @@ Version 1.0 holds everything below.
     `<Tone>` sample are full sentences.
 - Create with AI opens in Describe for a Subject. Change offers the three
   kinds as equals side by side, each with its title and one sentence.
+  Model and its recovery message stay visible. Reasoning, persona and
+  configured portrait choices sit in a disclosure, initially folded on
+  phones and open on larger layouts. Its folded summary names the active
+  choices; the owner's toggle lasts for that Describe visit, including
+  resizing, and resets on a new arrival. Portrait availability sits beside
+  Create. When the saved workflow has no resolved name, its control and folded
+  summary distinguish a list still loading (Listing workflows…), a failed list
+  (Workflows not listed), and a successful list without that choice
+  (Workflow not found).
   Brainstorm is reachable from Describe and from a quieter row below the
   kinds, and turns a mood or a few words
   into ideas: the model reads the request as one of the three kinds and
@@ -263,8 +273,14 @@ Version 1.0 holds everything below.
   What is missing.
 - Settings > Pictures lists the workflows: the owner's own under Yours,
   then the server's, each with its family, its status in words (Ready,
-  Checking, Missing requirements, Unavailable or Unchecked). The chosen one
-  says Selected and, when it cannot paint, Cannot run with a reason.
+  Checking, Missing requirements, Unavailable, No address or Couldn't check).
+  The chosen one says Selected followed by the same readiness status. When it cannot
+  paint, its reason appears below.
+  No address means no picture server address is saved. A failed check replaces
+  earlier reasons, remedies and missing requirements. The selected row explains
+  the failure using the current sign-in state, unless the list notice already
+  gives that cause. Background rechecks retain the previous presentation while
+  cached data exists, including a previous failure, until the check settles.
   Add the address or Edit the address goes to the address field when that
   is the remedy; missing requirements offer Choose another. Import takes a ComfyUI workflow file, saved
   from ComfyUI or exported as API, chosen or dropped on the section on
@@ -276,8 +292,9 @@ Version 1.0 holds everything below.
   brings the heading and answer into view once, unless
   the owner has already scrolled or moved focus elsewhere. A panel already
   in view stays in place. A fully resolved mapping
-  without selectable alternatives folds under "Ephemera fills these four places";
-  choices and mapping problems stay open. Changes and omissions wait under Import
+  without selectable alternatives folds under "Ephemera fills these four places".
+  On phones, "All found in this file" sits below that label; on larger layouts
+  it sits beside it. Choices and mapping problems stay open. Changes and omissions wait under Import
   details and the nodes a refusal concerns under a disclosure; it
   saves the workflow under a name and a family (Krea 2, MOSS or General for
   any other model). Ephemera takes out the file's own prompt, scales the
@@ -376,9 +393,12 @@ Version 1.0 holds everything below.
   while the model writes, in each field's place: Removed and Proposed
   passages at reading size within the field's one frame, long removals folded
   behind Show removed, and long unchanged stretches folded behind
-  "Show N unchanged words". Each change's reason follows it with Reject,
-  or Restore once rejected, always visible. Rejected changes label the original
-  Kept and the proposal Rejected, or Not added for a pure insertion. Lorebook
+  "Show N unchanged words". Reject follows its reason in the same text flow,
+  or Restore once rejected, always visible. The action keeps the same width
+  in both states so the reason does not rewrap. Rejected changes label the original
+  Kept and the proposal Rejected, or Not added for a pure insertion. Rejected
+  proposals stay readable in full-strength struck reed; pure insertions fold
+  away. Reduced motion makes tint changes instant while retaining the fold fade. Lorebook
   entries the changes touch, add or remove show above the lorebook's
   summary; a new entry is accepted or rejected whole. A bar under the sheet
   counts the changes to apply and the rejected changes separately,
@@ -449,7 +469,9 @@ Version 1.0 holds everything below.
   character cards, which open in their card's editor and can be copied to
   the library as books of their own; then Events. One Find across the
   column covers book and character names. On phones the full title sits
-  above a labelled Import and New toolbar.
+  above a labelled Import and New toolbar. Linkage sits on its own line
+  on phones; on wider rows its text shares the entry counts' baseline,
+  with the portrait leaves centred beside it.
 - Link a book to any number of characters, up to 8 books per character.
   A character's chats read its embedded book and its linked books together,
   in link order; deleting a book or a character removes its links. Links
@@ -467,6 +489,7 @@ Version 1.0 holds everything below.
   An entry's Text comes before its activation controls, so writing comes first.
   Folded rows group Placement and order, Timing, Event pool, Chaining and
   Matching; each entry's order is also named in its list row's description.
+  Matching names inherited scan depth as "Book's last N messages".
 - Import SillyTavern World Info files or standalone card lorebooks and
   convert them to native data. Export and re-import Ephemera lorebook JSON.
   Reports say what was kept, changed and left out.
@@ -633,6 +656,12 @@ Version 1.0 holds everything below.
   width, including before the character is first saved. Notebook prose
   carries an edit cue and saves on Enter
   or leaving the field, with Done on touch and save feedback beside the edit.
+- A Sections menu appears for a visit that starts with memory on and at least
+  one relationship, fact, open thread, cast line or memory. Eligibility stays
+  fixed for that visit; turning memory off hides it. It sits below the heading
+  on phones and before Remember now in wider headers. Choosing a section
+  scrolls to and focuses its labelled group or the Memories heading, without
+  entering an edit or changing navigation history.
 - Settings > Memory & cast holds memory's settings: Open new chats where the story left
   off, on by default (off, the card's greeting opens every chat), the
   model memory calls use (the reply's
@@ -819,6 +848,9 @@ Version 1.0 holds everything below.
   another field is edited; lasting saves and failures are reported in place.
 
 **Chat**
+- The composer says Write to followed by the character's name. Without a
+  character, it says Write the first line in an empty chat, then Write your
+  reply. The Persona choice below names who the player writes as.
 - Persona and Sampler sit in one row of labelled choices under the composer
   on every screen, using the same choices as Session. Session lists
   Character and Persona first, then Sampler preset, Prompt preset and Model.

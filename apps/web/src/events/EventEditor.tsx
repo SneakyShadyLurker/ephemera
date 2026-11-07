@@ -166,7 +166,7 @@ export function EventEditor({
       </details>
 
       <Button
-        variant="quiet"
+        variant="remove"
         className="-ml-3.5 justify-self-start"
         disabled={deleting}
         focusableWhenDisabled

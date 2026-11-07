@@ -104,8 +104,8 @@ describe("the portrait status in Settings", () => {
 describe("the workflows list in Settings", () => {
   it.each<[Parameters<typeof workflowStatus>[0], ReturnType<typeof workflowStatus>]>([
     ["checking", { tone: "unknown", words: "Checking", missing: null, reason: null }],
-    ["failed", { tone: "off", words: "Unchecked", missing: null, reason: null }],
-    [{ state: "off" }, { tone: "off", words: "Unchecked", missing: null, reason: null }],
+    ["failed", { tone: "off", words: "Couldn't check", missing: null, reason: null }],
+    [{ state: "off" }, { tone: "off", words: "No address", missing: null, reason: null }],
     [{ state: "ready" }, { tone: "ready", words: "Ready", missing: null, reason: null }],
     [
       { state: "missing", nodes: ["TextEncodeMOSSImageEdit"], models: ["moss_v2.safetensors"] },

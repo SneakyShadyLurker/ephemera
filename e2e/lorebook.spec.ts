@@ -654,6 +654,24 @@ test.describe("Native lorebook controls", () => {
     });
     await page.goto(`/characters/${id}/lorebook?entry=0`);
 
+    // The compact default summary names the last messages and wraps within its row.
+    for (const width of [360, 390, 820, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const matching = row(page, "Matching");
+      await expect(matching).toHaveAccessibleDescription(
+        "Book's last 2 messages, any case, whole words",
+      );
+      expect(await matching.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      const description = await matching.evaluate((node) => {
+        const target = document.getElementById(node.getAttribute("aria-describedby") ?? "");
+        const box = target?.getBoundingClientRect();
+        return box && { left: box.left, right: box.right, height: box.height };
+      });
+      expect(description?.left).toBeGreaterThanOrEqual(0);
+      expect(description?.right).toBeLessThanOrEqual(width);
+      expect(description?.height).toBeGreaterThan(0);
+    }
+
     // The secondary condition: the quiet button reveals the field with focus in it.
     await page
       .getByRole("button", { name: "Add words the messages must also have, or must not have" })

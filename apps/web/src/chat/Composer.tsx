@@ -175,14 +175,10 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
   };
 
   const placeholder = character
-    ? persona
-      ? `Write to ${character.name} as ${persona.name}`
-      : `Write to ${character.name}`
-    : persona
-      ? `Write as ${persona.name}`
-      : empty
-        ? "Write the first line"
-        : "Write your reply";
+    ? `Write to ${character.name}`
+    : empty
+      ? "Write the first line"
+      : "Write your reply";
   const status = impersonating
     ? `Writing ${persona ? `${persona.name}'s` : "your"} next message…`
     : impersonation === null

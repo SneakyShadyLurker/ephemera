@@ -129,47 +129,58 @@ export function ChangeDecision({
   const reject = useRef<HTMLButtonElement>(null);
   const rejected = decision === "rejected";
   return (
-    // Inline-level and full width, so it takes a line of its own within the field's text.
+    // A full-width line beneath the passage; the action follows the reason in text flow.
     <span
       data-reason-for={reasonFor}
       className={cn(
-        "mt-2 inline-flex w-full items-start gap-3 align-top font-normal font-sans text-note text-reed tracking-normal whitespace-normal",
+        "mt-0.5 block w-full whitespace-normal py-1.5 text-pretty font-normal font-sans text-note text-reed tracking-normal touch:mt-0 touch:py-3.5",
         reasonFor !== undefined && "change-arrive",
       )}
     >
-      <span id={whyId} className="min-w-0 flex-1 pt-1.5 text-pretty">
+      <span id={whyId}>
         {why}
         {rejected && <span className="sr-only"> Rejected.</span>}
       </span>
+      {why !== "" && " "}
       {rejected ? (
         <Button
           key="restore"
           ref={restore}
           variant="link"
-          size="text"
-          className="shrink-0"
+          size="inline"
+          className={cn("align-baseline no-underline after:-inset-y-1.5", why !== "" && "ms-1.5")}
           aria-label={`Restore ${label}`}
           onClick={() => {
             flushSync(onAccept);
             reject.current?.focus();
           }}
         >
-          Restore
+          <span className="grid justify-items-start decoration-inherit">
+            <span aria-hidden="true" className="invisible [grid-area:1/1]">
+              Reject
+            </span>
+            <span className="underline decoration-inherit [grid-area:1/1]">Restore</span>
+          </span>
         </Button>
       ) : (
         <Button
           key="reject"
           ref={reject}
           variant="link"
-          size="text"
-          className="shrink-0"
+          size="inline"
+          className={cn("align-baseline no-underline after:-inset-y-1.5", why !== "" && "ms-1.5")}
           aria-label={`Reject ${label}`}
           onClick={() => {
             flushSync(onReject);
             restore.current?.focus();
           }}
         >
-          Reject
+          <span className="grid justify-items-start decoration-inherit">
+            <span className="underline decoration-inherit [grid-area:1/1]">Reject</span>
+            <span aria-hidden="true" className="invisible [grid-area:1/1]">
+              Restore
+            </span>
+          </span>
         </Button>
       )}
     </span>
@@ -217,7 +228,8 @@ export function ChangeRuns({
       data-decision={decision}
       data-pure={pure ? "" : undefined}
       className={cn(
-        "change-mark change-arrive group/change my-3 block border-rush border-y py-2.5 pl-3",
+        "change-mark change-arrive group/change my-3 block border-rush border-y pt-2.5 pl-3",
+        children == null ? "pb-2.5" : "pb-1",
       )}
     >
       {change.find !== "" && (
@@ -225,7 +237,7 @@ export function ChangeRuns({
           <span className={cn(COMPACT_LABEL, "mb-1 block")}>{rejected ? "Kept" : "Removed"}</span>
           {longRemoved ? (
             <details className="disclosure group/removed">
-              <summary className={cn(SUMMARY_LINE, "flex min-w-0 gap-2 text-turn")}>
+              <summary className={cn(SUMMARY_LINE, "flex max-w-full min-w-0 gap-2 text-turn")}>
                 <span className="min-w-0 flex-1 truncate group-open/removed:hidden">
                   <Deleted text={change.find} decision={decision} />
                 </span>

@@ -27,7 +27,7 @@ const HELP = cn(SHEET_HELP, "text-ui");
 /**
  * The workflows portraits can be painted with: the user's own, which they
  * import, rename, re-family, replace and delete, then the server's. Each row
- * says whether it can paint now; the one Create with AI uses says "In use".
+ * says whether it can paint now; the one Create with AI uses says "Selected".
  */
 export function Workflows({
   importRef,
@@ -155,6 +155,7 @@ export function Workflows({
                     onDeleted,
                   }}
                   inUse={userWorkflowId(workflow.id) === comfyuiWorkflow}
+                  listFailed={failed}
                   onEditAddress={onEditAddress}
                 />
               ))}
@@ -172,6 +173,7 @@ export function Workflows({
                   key={option.id}
                   row={{ scope: "server", workflow: option }}
                   inUse={option.id === comfyuiWorkflow}
+                  listFailed={failed}
                   onEditAddress={onEditAddress}
                 />
               ))}

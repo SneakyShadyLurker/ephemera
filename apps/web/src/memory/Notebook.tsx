@@ -51,6 +51,12 @@ import {
   regenerateReason,
 } from "./memory.ts";
 import { publishMemoryState, saveMemoryState, writeOpening } from "./queries.ts";
+import {
+  MEMORY_SECTIONS,
+  type RegisterMemorySection,
+  SECTION_LABEL,
+  SECTION_TARGET,
+} from "./Sections.tsx";
 
 /*
  * The notebook, where things stand: the situation as a few sentences, the
@@ -206,6 +212,7 @@ export function NotebookEditor({
   onChange,
   onCommit,
   saveStatus,
+  onSectionTarget,
 }: {
   fields: NotebookFields;
   readOnly?: boolean;
@@ -214,8 +221,10 @@ export function NotebookEditor({
   onChange: (patch: Partial<NotebookFields>) => void;
   onCommit?: () => Promise<boolean>;
   saveStatus?: SaveStatus;
+  onSectionTarget: RegisterMemorySection;
 }) {
   const situationId = useId();
+  const situationLabelId = useId();
   const [write, dispatch] = useReducer(openingWriteAfter, { kind: "idle" });
   const writing = write.kind === "writing";
   const held = readOnly || writing;
@@ -226,9 +235,18 @@ export function NotebookEditor({
         void onCommit?.();
       }}
     >
-      <div className={NOTEBOOK_GRID}>
-        <label htmlFor={situationId} className={MARGIN_LABEL}>
-          Situation
+      <fieldset
+        aria-labelledby={situationLabelId}
+        tabIndex={-1}
+        ref={(node) => onSectionTarget("situation", node)}
+        className={cn(NOTEBOOK_GRID, SECTION_TARGET)}
+      >
+        <label
+          id={situationLabelId}
+          htmlFor={situationId}
+          className={cn(MARGIN_LABEL, SECTION_LABEL)}
+        >
+          {MEMORY_SECTIONS.situation}
         </label>
         <ProseField
           id={situationId}
@@ -241,8 +259,9 @@ export function NotebookEditor({
           // On touch, with no pointer to bring up its edge, the field keeps its lower rule at rest.
           className={cn(PROSE_FIELD, "-mx-2 min-h-13")}
         />
-      </div>
+      </fieldset>
       <OpeningField
+        onSectionTarget={onSectionTarget}
         opening={fields.opening}
         readOnly={readOnly}
         write={write}
@@ -251,7 +270,8 @@ export function NotebookEditor({
         onChange={(opening) => onChange({ opening })}
       />
       <Lines
-        label="Relationships"
+        label={MEMORY_SECTIONS.relationships}
+        targetRef={(node) => onSectionTarget("relationships", node)}
         item="relationship"
         lines={fields.relationships}
         max={MEMORY_LIMITS.relationships}
@@ -262,7 +282,8 @@ export function NotebookEditor({
         saveStatus={saveStatus}
       />
       <Lines
-        label="Facts"
+        label={MEMORY_SECTIONS.facts}
+        targetRef={(node) => onSectionTarget("facts", node)}
         item="fact"
         lines={fields.facts}
         max={MEMORY_LIMITS.facts}
@@ -273,7 +294,8 @@ export function NotebookEditor({
         saveStatus={saveStatus}
       />
       <Lines
-        label="Open threads"
+        label={MEMORY_SECTIONS.threads}
+        targetRef={(node) => onSectionTarget("threads", node)}
         item="thread"
         lines={fields.threads}
         max={MEMORY_LIMITS.threads}
@@ -284,6 +306,7 @@ export function NotebookEditor({
         saveStatus={saveStatus}
       />
       <CastLines
+        targetRef={(node) => onSectionTarget("cast", node)}
         lines={fields.cast}
         readOnly={held}
         pending={writing}
@@ -315,6 +338,7 @@ const OPENING_ACTION = "h-8 gap-1.5 px-2 text-ink text-note touch:h-11";
  * which holds the other fields while it runs.
  */
 function OpeningField({
+  onSectionTarget,
   opening,
   readOnly,
   write,
@@ -322,6 +346,7 @@ function OpeningField({
   source,
   onChange,
 }: {
+  onSectionTarget: RegisterMemorySection;
   opening: string;
   readOnly: boolean;
   write: OpeningWrite;
@@ -330,6 +355,7 @@ function OpeningField({
   onChange: (opening: string) => void;
 }) {
   const fieldId = useId();
+  const labelId = useId();
   const helpId = useId();
   const reasonId = useId();
   const coarse = useCoarsePointer();
@@ -422,10 +448,15 @@ function OpeningField({
     </Button>
   );
   return (
-    <div className={NOTEBOOK_GRID}>
+    <fieldset
+      aria-labelledby={labelId}
+      tabIndex={-1}
+      ref={(node) => onSectionTarget("opening", node)}
+      className={cn(NOTEBOOK_GRID, SECTION_TARGET)}
+    >
       <div className="mb-2 flex items-center justify-between gap-2 tablet:mb-0 tablet:flex-col tablet:items-end tablet:justify-start tablet:gap-1">
-        <label htmlFor={fieldId} className={cn(MARGIN_LABEL, "mb-0")}>
-          Next chat opens with
+        <label id={labelId} htmlFor={fieldId} className={cn(MARGIN_LABEL, SECTION_LABEL, "mb-0")}>
+          {MEMORY_SECTIONS.opening}
         </label>
         {button !== false &&
           (reason === null || coarse ? button : <Tooltip label={reason}>{button}</Tooltip>)}
@@ -503,7 +534,7 @@ function OpeningField({
           Where the next chat begins. Empty, the card's own greeting opens it.
         </p>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -524,6 +555,7 @@ export function focusAfterRemoval(at: number, length: number, then?: number): nu
  * that takes its place, or to Add once the last is gone.
  */
 function Lines({
+  targetRef,
   label,
   item,
   lines: list,
@@ -534,6 +566,7 @@ function Lines({
   onCommit,
   saveStatus,
 }: {
+  targetRef: (node: HTMLFieldSetElement | null) => void;
   label: string;
   item: string;
   lines: string[];
@@ -567,9 +600,14 @@ function Lines({
     setFocusAt(focusAfterRemoval(at, list.length, then) ?? "add");
   };
   return (
-    <fieldset className={cn(NOTEBOOK_GRID, "min-w-0")} aria-busy={pending}>
+    <fieldset
+      ref={targetRef}
+      tabIndex={-1}
+      className={cn(NOTEBOOK_GRID, SECTION_TARGET, "min-w-0")}
+      aria-busy={pending}
+    >
       <legend className="sr-only">{label}</legend>
-      <span aria-hidden="true" className={MARGIN_LABEL}>
+      <span aria-hidden="true" className={cn(MARGIN_LABEL, SECTION_LABEL)}>
         {label}
       </span>
       <div className="grid justify-items-start gap-1">
@@ -658,11 +696,13 @@ const detailText = (person: CastLinePerson, field: CastAnchorField) =>
  * while another is open.
  */
 function CastLines({
+  targetRef,
   lines: list,
   readOnly,
   pending,
   onChange,
 }: {
+  targetRef: (node: HTMLFieldSetElement | null) => void;
   lines: string[];
   readOnly: boolean;
   /** Held while the opening is written. */
@@ -703,10 +743,15 @@ function CastLines({
     setFocusAt(focusAfterRemoval(at, list.length) ?? "add");
   };
   return (
-    <fieldset className={cn(NOTEBOOK_GRID, "min-w-0")} aria-busy={pending}>
-      <legend className="sr-only">Cast</legend>
-      <span aria-hidden="true" className={MARGIN_LABEL}>
-        Cast
+    <fieldset
+      ref={targetRef}
+      tabIndex={-1}
+      className={cn(NOTEBOOK_GRID, SECTION_TARGET, "min-w-0")}
+      aria-busy={pending}
+    >
+      <legend className="sr-only">{MEMORY_SECTIONS.cast}</legend>
+      <span aria-hidden="true" className={cn(MARGIN_LABEL, SECTION_LABEL)}>
+        {MEMORY_SECTIONS.cast}
       </span>
       <div className="grid justify-items-start gap-1">
         {list.length > 0 && (

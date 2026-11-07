@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { uniqueName } from "./support/cards.ts";
 import {
@@ -7,115 +8,273 @@ import {
   createPresetViaApi,
   expectNoOverflow,
   FORM_FACTORS,
+  loreEntry,
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { expect, test, unsafe } from "./support/test.ts";
 
-for (const kind of ["character", "persona", "prompt", "lorebook"] as const) {
-  test(`the ${kind} header has one readable save state on phones and desktop`, async ({ page }) => {
-    const name = uniqueName("Mara Voss");
-    let path: string;
-    let api: string;
-    if (kind === "character") {
-      const id = await createCharacterViaApi(page.request, name);
-      path = `/characters/${id}`;
-      api = `/api/characters/${id}`;
-    } else if (kind === "persona") {
-      const id = await createPersonaViaApi(page.request, name);
-      path = `/personas/${id}`;
-      api = `/api/personas/${id}`;
-    } else if (kind === "lorebook") {
-      const id = await createLorebookViaApi(page.request, name);
-      path = `/lorebooks/${id}`;
-      api = `/api/lorebooks/${id}`;
-    } else {
-      const { presets } = await (await page.request.get("/api/presets/prompt")).json();
-      const id = await createPresetViaApi(page.request, "prompt", {
-        blocks: presets[0].blocks,
-        name,
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  for (const kind of ["character", "persona", "prompt", "sampler", "lorebook"] as const) {
+    test(`the ${kind} header has one readable save state on phones and desktop (${reducedMotion})`, async ({
+      page,
+    }, testInfo) => {
+      await page.emulateMedia({ reducedMotion });
+      const name = uniqueName("Mara Voss");
+      let path: string;
+      let api: string;
+      if (kind === "character") {
+        const id = await createCharacterViaApi(page.request, name, {
+          description: "A long description.\n".repeat(80),
+        });
+        path = `/characters/${id}`;
+        api = `/api/characters/${id}`;
+      } else if (kind === "persona") {
+        const id = await createPersonaViaApi(
+          page.request,
+          name,
+          "A long description.\n".repeat(80),
+        );
+        path = `/personas/${id}`;
+        api = `/api/personas/${id}`;
+      } else if (kind === "lorebook") {
+        const id = await createLorebookViaApi(page.request, name, {
+          entries: Array.from({ length: 30 }, (_, at) => loreEntry({ comment: `Entry ${at}` })),
+        });
+        path = `/lorebooks/${id}`;
+        api = `/api/lorebooks/${id}`;
+      } else {
+        const { presets } = await (await page.request.get(`/api/presets/${kind}`)).json();
+        const id = await createPresetViaApi(page.request, kind, {
+          ...(kind === "prompt"
+            ? {
+                blocks: presets[0].blocks.map((block: { kind: string; content?: string }) =>
+                  block.kind === "text" ? { ...block, content: "Write within the scene." } : block,
+                ),
+              }
+            : { values: presets[0].values }),
+          name,
+        });
+        path = `/presets/${kind}/${id}`;
+        api = `/api/presets/${kind}/${id}`;
+      }
+      await page.goto(path);
+      const header = page.locator("main header");
+      const title = header.getByRole("heading", { level: 1, name, exact: true });
+      const field = page.getByRole("textbox", { name: "Name", exact: true });
+      const scroller = page.locator("main [data-skip-target]").first();
+      const scroll = (top: number) =>
+        scroller.evaluate((node, top) => {
+          node.scrollTo({ top, behavior: "instant" });
+        }, top);
+      const titles = [];
+      for (const width of [360, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        // CSS resizes before useFormFactor moves Saved into its responsive subtree.
+        const slot = header.locator(width < 768 ? "h1 + p" : "div:has(> h1) + div > span");
+        await expect(slot.getByText("Saved", { exact: true })).toBeVisible();
+        await scroll(0);
+        await expect(field).toHaveValue(name);
+        await expect(title).toHaveCSS("opacity", "0");
+        await scroll(600);
+        await expect(title).toHaveCSS("opacity", "1");
+        await expect(title).toHaveText(name);
+        titles.push({
+          width,
+          scrollTop: await scroller.evaluate((node) => node.scrollTop),
+          title: await title.textContent(),
+          opacity: await title.evaluate((node) => getComputedStyle(node).opacity),
+        });
+        await scroll(0);
+        await expect(title).toHaveCSS("opacity", "0");
+        const status = header.getByText("Saved", { exact: true });
+        await expect(status).toHaveCount(1);
+        await expect(status).toBeVisible();
+        // Hidden copies can still announce; count the complete alert subtree too.
+        await expect(header.locator('[role="alert"]')).toHaveCount(1);
+        const geometry = await header.evaluate((current, phone) => {
+          if (!current.isConnected || document.querySelector("main header") !== current)
+            throw new Error("No current sheet header");
+          const title = current.querySelector("h1");
+          if (!title) throw new Error("No sheet title");
+          const column = title.parentElement;
+          const slot = phone
+            ? column?.querySelector(":scope > p")
+            : column?.nextElementSibling?.querySelector(":scope > span");
+          const node = slot?.querySelector(":scope > span > span > span");
+          if (!node?.isConnected || node.textContent !== "Saved")
+            throw new Error("No Saved state in the requested responsive subtree");
+          const row = current.firstElementChild?.getBoundingClientRect();
+          const heading = title.getBoundingClientRect();
+          // The hidden title is translated during arrival; measure the slot it occupies.
+          const shift = Number.parseFloat(getComputedStyle(title).translate.split(" ")[1] ?? "0");
+          const state = (node.parentElement?.parentElement ?? node).getBoundingClientRect();
+          return {
+            row: row && { top: row.top, bottom: row.bottom, height: row.height },
+            title: { top: heading.top - shift, bottom: heading.bottom - shift },
+            status: { top: state.top, bottom: state.bottom, left: state.left },
+            titleLeft: heading.left,
+          };
+        }, width < 768);
+        expect(geometry.row?.height).toBe(56);
+        expect(geometry.title.top).toBeGreaterThanOrEqual(geometry.row?.top ?? Infinity);
+        expect(geometry.status.bottom).toBeLessThanOrEqual(geometry.row?.bottom ?? 0);
+        if (width < 768) {
+          expect(geometry.status.top).toBeGreaterThanOrEqual(geometry.title.bottom);
+          expect(geometry.status.left).toBeCloseTo(geometry.titleLeft, 0);
+        } else expect(geometry.status.top).toBeLessThan(geometry.title.bottom);
+      }
+      // At a height that contains this form, its name stays in the field.
+      const sampleTallViewport = (nextFrame = false) =>
+        scroller.evaluate(async (node, nextFrame) => {
+          if (nextFrame) await new Promise(requestAnimationFrame);
+          const currentHeader = document.querySelector("main header");
+          const rect = (element: Element | null) => {
+            const box = element?.getBoundingClientRect();
+            return box && { top: box.top, width: box.width, height: box.height };
+          };
+          return {
+            at: performance.now(),
+            viewport: { width: innerWidth, height: innerHeight },
+            visualViewport: {
+              width: visualViewport?.width,
+              height: visualViewport?.height,
+            },
+            current: node.isConnected && document.querySelector("main [data-skip-target]") === node,
+            phoneSaved: currentHeader?.querySelector("h1 + p")?.textContent === "Saved",
+            header: rect(currentHeader),
+            scroller: rect(node),
+            form: rect(node.querySelector("form")),
+            scrollHeight: node.scrollHeight,
+            clientHeight: node.clientHeight,
+            scrollTop: node.scrollTop,
+            fields: Array.from(node.querySelectorAll("textarea"))
+              .slice(0, 12)
+              .map((field) => ({
+                id: field.id,
+                length: field.value.length,
+                rect: rect(field),
+                clientHeight: field.clientHeight,
+                scrollHeight: field.scrollHeight,
+                maxHeight: getComputedStyle(field).maxHeight,
+                fieldSizing: getComputedStyle(field).getPropertyValue("field-sizing"),
+              })),
+          };
+        }, nextFrame);
+      const beforeResize = await sampleTallViewport();
+      let afterResize: typeof beforeResize | undefined;
+      const resizeSamples: (typeof beforeResize)[] = [];
+      try {
+        await page.setViewportSize({ width: 390, height: 6000 });
+        await scroll(0);
+        afterResize = await sampleTallViewport();
+        // Viewport acknowledgement can precede the responsive React commit and
+        // field-sizing layout. Require the phone tree and two matching frames;
+        // overflow is asserted below, never used to decide readiness.
+        let previous = "";
+        await expect
+          .poll(
+            async () => {
+              const sample = await sampleTallViewport(true);
+              resizeSamples.push(sample);
+              if (resizeSamples.length > 12) resizeSamples.shift();
+              const { at: _at, ...geometry } = sample;
+              const key = JSON.stringify(geometry);
+              const settled =
+                sample.current &&
+                sample.phoneSaved &&
+                sample.viewport.width === 390 &&
+                sample.viewport.height === 6000 &&
+                previous === key;
+              previous = key;
+              return settled;
+            },
+            { timeout: 5_000, message: "Tall phone layout has settled after resize" },
+          )
+          .toBe(true);
+        const sample = await sampleTallViewport();
+        resizeSamples.push(sample);
+        if (resizeSamples.length > 12) resizeSamples.shift();
+        expect(sample.scrollHeight - sample.clientHeight).toBeLessThanOrEqual(1);
+        await expect(field).toBeInViewport();
+        await expect(title).toHaveCSS("opacity", "0");
+      } finally {
+        const resizePath = testInfo.outputPath("editor-tall-viewport.json");
+        await writeFile(
+          resizePath,
+          JSON.stringify(
+            { kind, reducedMotion, titles, beforeResize, afterResize, resizeSamples },
+            null,
+            2,
+          ),
+        );
+        await testInfo.attach("editor-tall-viewport", {
+          path: resizePath,
+          contentType: "application/json",
+        });
+      }
+      const handoffPath = testInfo.outputPath("editor-title-handoff.json");
+      await writeFile(handoffPath, JSON.stringify(titles, null, 2));
+      await testInfo.attach("editor-title-handoff", {
+        path: handoffPath,
+        contentType: "application/json",
       });
-      path = `/presets/prompt/${id}`;
-      api = `/api/presets/prompt/${id}`;
-    }
-    await page.goto(path);
-    const header = page.locator("main header");
-    for (const width of [360, 390, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
-      // CSS resizes before useFormFactor moves Saved into its responsive subtree.
-      const slot = header.locator(width < 768 ? "h1 + p" : "div:has(> h1) + div > span");
-      await expect(slot.getByText("Saved", { exact: true })).toBeVisible();
-      const status = header.getByText("Saved", { exact: true });
-      await expect(status).toHaveCount(1);
-      await expect(status).toBeVisible();
-      // Hidden copies can still announce; count the complete alert subtree too.
+      await page.setViewportSize({ width: 360, height: 900 });
+      let release = () => {};
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(`**${api}`, async (route) => {
+        if (route.request().method() !== "PATCH") return route.fallback();
+        await pending;
+        return route.abort();
+      });
+      await page.getByRole("textbox", { name: "Name", exact: true }).fill(`${name} edited`);
+      await expect(header.getByText("Saving", { exact: true })).toHaveCount(1);
+      await expect
+        .poll(() =>
+          header.getByText("Saving", { exact: true }).evaluate((node) => {
+            let opacity = 1;
+            for (
+              let at: Element | null = node;
+              at?.tagName !== "HEADER" && at;
+              at = at.parentElement
+            ) {
+              opacity *= Number.parseFloat(getComputedStyle(at).opacity);
+            }
+            return opacity;
+          }),
+        )
+        .toBe(1);
+      release();
+      await expect(
+        header.getByText("Not saved: can't reach Ephemera. Retrying", { exact: true }),
+      ).toHaveCount(2);
+      await expect(header.getByRole("heading", { level: 1 })).toHaveCount(0);
       await expect(header.locator('[role="alert"]')).toHaveCount(1);
-      const geometry = await header.evaluate((current, phone) => {
-        if (!current.isConnected || document.querySelector("main header") !== current)
-          throw new Error("No current sheet header");
-        const title = current.querySelector("h1");
-        if (!title) throw new Error("No sheet title");
-        const column = title.parentElement;
-        const slot = phone
-          ? column?.querySelector(":scope > p")
-          : column?.nextElementSibling?.querySelector(":scope > span");
-        const node = slot?.querySelector(":scope > span > span > span");
-        if (!node?.isConnected || node.textContent !== "Saved")
-          throw new Error("No Saved state in the requested responsive subtree");
-        const row = current.firstElementChild?.getBoundingClientRect();
-        const heading = title.getBoundingClientRect();
-        // The hidden title is translated during arrival; measure the slot it occupies.
-        const shift = Number.parseFloat(getComputedStyle(title).translate.split(" ")[1] ?? "0");
-        const state = (node.parentElement?.parentElement ?? node).getBoundingClientRect();
-        return {
-          row: row && { top: row.top, bottom: row.bottom, height: row.height },
-          title: { top: heading.top - shift, bottom: heading.bottom - shift },
-          status: { top: state.top, bottom: state.bottom, left: state.left },
-          titleLeft: heading.left,
-        };
-      }, width < 768);
-      expect(geometry.row?.height).toBe(56);
-      expect(geometry.title.top).toBeGreaterThanOrEqual(geometry.row?.top ?? Infinity);
-      expect(geometry.status.bottom).toBeLessThanOrEqual(geometry.row?.bottom ?? 0);
-      if (width < 768) {
-        expect(geometry.status.top).toBeGreaterThanOrEqual(geometry.title.bottom);
-        expect(geometry.status.left).toBeCloseTo(geometry.titleLeft, 0);
-      } else expect(geometry.status.top).toBeLessThan(geometry.title.bottom);
+      await page.unroute(`**${api}`);
+      await expect(header.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+    });
+  }
+  test(`a short lorebook retains its name in the field (${reducedMotion})`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ reducedMotion });
+    const name = uniqueName("Short book");
+    const id = await createLorebookViaApi(request, name);
+    await page.goto(`/lorebooks/${id}`);
+    for (const width of [360, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const field = page.getByRole("textbox", { name: "Name", exact: true });
+      await expect(field).toHaveValue(name);
+      const scroller = page.locator("main [data-skip-target]").first();
+      expect(
+        await scroller.evaluate((node) => node.scrollHeight - node.clientHeight),
+      ).toBeLessThanOrEqual(1);
+      await expect(field).toBeInViewport();
+      await expect(page.locator("main header h1")).toHaveText(name);
+      await expect(page.locator("main header h1")).toHaveCSS("opacity", "0");
     }
-    await page.setViewportSize({ width: 360, height: 900 });
-    let release = () => {};
-    const pending = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await page.route(`**${api}`, async (route) => {
-      if (route.request().method() !== "PATCH") return route.fallback();
-      await pending;
-      return route.abort();
-    });
-    await page.getByRole("textbox", { name: "Name", exact: true }).fill(`${name} edited`);
-    await expect(header.getByText("Saving", { exact: true })).toHaveCount(1);
-    await expect
-      .poll(() =>
-        header.getByText("Saving", { exact: true }).evaluate((node) => {
-          let opacity = 1;
-          for (
-            let at: Element | null = node;
-            at?.tagName !== "HEADER" && at;
-            at = at.parentElement
-          ) {
-            opacity *= Number.parseFloat(getComputedStyle(at).opacity);
-          }
-          return opacity;
-        }),
-      )
-      .toBe(1);
-    release();
-    await expect(
-      header.getByText("Not saved: can't reach Ephemera. Retrying", { exact: true }),
-    ).toHaveCount(2);
-    await expect(header.getByRole("heading", { level: 1 })).toHaveCount(0);
-    await expect(header.locator('[role="alert"]')).toHaveCount(1);
-    await page.unroute(`**${api}`);
-    await expect(header.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
   });
 }
 

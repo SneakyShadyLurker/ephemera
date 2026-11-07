@@ -172,20 +172,20 @@ describe("what brings it in", () => {
 
 describe("what it matches", () => {
   it("names the entry's own settings first", () => {
-    expect(matchingAnswer(settings({}), 4)).toBe("Book's 4 messages, any case, whole words");
+    expect(matchingAnswer(settings({}), 4)).toBe("Book's last 4 messages, any case, whole words");
     expect(matchingAnswer(settings({ wholeWords: false }), 4)).toBe(
-      "Inside words too, book's 4 messages, any case",
+      "Inside words too, book's last 4 messages, any case",
     );
     expect(matchingAnswer(settings({ scanDepth: 1, caseSensitive: true }), 4)).toBe(
       "Last 1 message, matching case, whole words",
     );
     // An explicit default stays explicit, and is named first like any override.
     expect(matchingAnswer(settings({ wholeWords: true }), 2)).toBe(
-      "Whole words, book's 2 messages, any case",
+      "Whole words, book's last 2 messages, any case",
     );
     // An explicit case setting is named first.
     expect(matchingAnswer(settings({ caseSensitive: true }), 2)).toBe(
-      "Matching case, book's 2 messages, whole words",
+      "Matching case, book's last 2 messages, whole words",
     );
   });
 });
