@@ -124,7 +124,8 @@ Memory keeps its title and the character's name in the header; phones fold
 the switch's longer explanation under What memory keeps. `MemorySwitch`
 owns the state line and explanation on both surfaces; the character sheet
 folds the explanation at every width. The loaded Memory book latches Sections
-eligibility for the visit; current memory-off state hides the menu.
+eligibility for the visit; current memory-off state hides the menu. The trigger's
+visible Sections text also supplies its accessible name.
 `memory/Sections.tsx` owns its typed reading order and resolves current target
 refs after the menu closes. Jumps focus noneditable groups, with the ring on
 their visible labels, or the Memories heading; notebook revision remounts

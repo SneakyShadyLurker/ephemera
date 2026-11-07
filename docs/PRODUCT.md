@@ -183,7 +183,10 @@ Version 1.0 holds everything below.
   phones and open on larger layouts. Its folded summary names the active
   choices; the owner's toggle lasts for that Describe visit, including
   resizing, and resets on a new arrival. Portrait availability sits beside
-  Create.
+  Create. When the saved workflow has no resolved name, its control and folded
+  summary distinguish a list still loading (Listing workflows…), a failed list
+  (Workflows not listed), and a successful list without that choice
+  (Workflow not found).
   Brainstorm is reachable from Describe and from a quieter row below the
   kinds, and turns a mood or a few words
   into ideas: the model reads the request as one of the three kinds and
@@ -276,7 +279,8 @@ Version 1.0 holds everything below.
   No address means no picture server address is saved. A failed check replaces
   earlier reasons, remedies and missing requirements. The selected row explains
   the failure using the current sign-in state, unless the list notice already
-  gives that cause.
+  gives that cause. Background rechecks retain the previous presentation while
+  cached data exists, including a previous failure, until the check settles.
   Add the address or Edit the address goes to the address field when that
   is the remedy; missing requirements offer Choose another. Import takes a ComfyUI workflow file, saved
   from ComfyUI or exported as API, chosen or dropped on the section on
