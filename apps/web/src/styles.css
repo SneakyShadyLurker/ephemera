@@ -329,7 +329,10 @@
  * mix happens in OKLCH toward a colour of each surface's own lightness, so
  * lightness and every text contrast hold; the hue stays near the palette's.
  * Each surface is restated in OKLCH first: Chromium reads a near-grey hex as
- * hueless, which would hand the mix the portrait's hue whole.
+ * hueless, which would hand the mix the portrait's hue whole. A truly neutral
+ * surface has no hue to keep (its restated hue is rounding noise, a fixed
+ * rust), so below a just-visible chroma it takes the portrait's hue instead.
+ * Atmosphere is a setting, off unless the owner turns it on.
  */
 @property --tint-mix {
   syntax: "<percentage>";
@@ -349,34 +352,36 @@
 }
 
 :root[data-atmosphere] {
+  /* A surface's own hue, or the portrait's where the surface is neutral (`c` under 0.002). */
+  --hue-or-tint: calc(h + (var(--tint-h) - h) * clamp(0, (0.002 - c) * 1000000, 1));
   --canvas: color-mix(
     in oklch shorter hue,
-    oklch(from var(--canvas-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--canvas-base) l c var(--hue-or-tint)) calc(100% - var(--tint-mix)),
     oklch(from var(--canvas-base) l 0.06 var(--tint-h))
   );
   --surface: color-mix(
     in oklch shorter hue,
-    oklch(from var(--surface-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-base) l c var(--hue-or-tint)) calc(100% - var(--tint-mix)),
     oklch(from var(--surface-base) l 0.06 var(--tint-h))
   );
   --surface-hover: color-mix(
     in oklch shorter hue,
-    oklch(from var(--surface-hover-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-hover-base) l c var(--hue-or-tint)) calc(100% - var(--tint-mix)),
     oklch(from var(--surface-hover-base) l 0.06 var(--tint-h))
   );
   --surface-pressed: color-mix(
     in oklch shorter hue,
-    oklch(from var(--surface-pressed-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-pressed-base) l c var(--hue-or-tint)) calc(100% - var(--tint-mix)),
     oklch(from var(--surface-pressed-base) l 0.06 var(--tint-h))
   );
   --surface-selected: color-mix(
     in oklch shorter hue,
-    oklch(from var(--surface-selected-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--surface-selected-base) l c var(--hue-or-tint)) calc(100% - var(--tint-mix)),
     oklch(from var(--surface-selected-base) l 0.06 var(--tint-h))
   );
   --rush: color-mix(
     in oklch shorter hue,
-    oklch(from var(--rush-base) l c h) calc(100% - var(--tint-mix)),
+    oklch(from var(--rush-base) l c var(--hue-or-tint)) calc(100% - var(--tint-mix)),
     oklch(from var(--rush-base) l 0.06 var(--tint-h))
   );
 }

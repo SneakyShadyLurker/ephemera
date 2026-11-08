@@ -68,6 +68,11 @@ export const settingsSchema = z.strictObject({
   theme: z.enum(THEMES),
   /** A built-in palette or a saved custom one; the server refuses an empty slot. */
   palette: z.enum(PALETTE_CHOICES),
+  /**
+   * The room leans toward the portrait's hue in the chat and the creator's
+   * art (portraits/atmosphere.ts); off, the palette shows as chosen.
+   */
+  atmosphere: z.boolean(),
   /** The model replies use. */
   model: modelIdSchema.nullable(),
   /**
@@ -129,6 +134,7 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   palette: DEFAULT_PALETTE,
+  atmosphere: false,
   model: null,
   imagePromptModel: null,
   characterId: null,

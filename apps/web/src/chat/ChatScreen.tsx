@@ -292,11 +292,14 @@ function usePreviewOnArrival() {
 }
 
 /**
- * The room leans toward the character portrait's hue while the chat shows;
- * leaving the chat fades it out. The tint lives in this screen's memory only.
+ * With Atmosphere on, the room leans toward the character portrait's hue
+ * while the chat shows; leaving the chat, or turning it off, fades it out.
+ * The tint lives in this screen's memory only.
  */
 function useRoomTint() {
-  const tint = useAtmosphere(useChatCharacter(), useScheme());
+  const on = useSetting((settings) => settings.atmosphere);
+  const character = useChatCharacter();
+  const tint = useAtmosphere(on ? character : undefined, useScheme());
   useEffect(() => applyAtmosphere(tint), [tint]);
   useEffect(() => () => applyAtmosphere(null), []);
 }

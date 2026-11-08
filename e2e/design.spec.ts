@@ -2,7 +2,12 @@ import { deflateSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { pngChunk } from "../apps/server/test/image-fixtures.ts";
-import { CONTRAST_FLOORS, paletteProperty, WASH_OPACITY } from "../packages/core/src/palettes.ts";
+import {
+  CONTRAST_FLOORS,
+  PALETTE_ROLES,
+  paletteProperty,
+  WASH_OPACITY,
+} from "../packages/core/src/palettes.ts";
 import { importCards, pngCard, uniqueName, v3 } from "./support/cards.ts";
 import {
   browserStorage,
@@ -41,7 +46,7 @@ import {
 } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { illustrationFile } from "./support/illustration.ts";
-import { expect, test } from "./support/test.ts";
+import { expect, test, unsafe } from "./support/test.ts";
 
 /** Ordinary resting settlement, without revealing a target or writing scroll state. */
 async function settleReading(page: Page) {
@@ -4097,6 +4102,7 @@ for (const scheme of ["light", "dark"] as const) {
       characterInColour(page, "Tide", [30, 130, 210]),
       characterInColour(page, "Ash", [128, 128, 128]),
     ]);
+    await patchSettings(page.request, { atmosphere: true });
     const requests: string[] = [];
     page.on("request", (request) => requests.push(request.url()));
     await openChat(page, "mock-fast");
@@ -4158,6 +4164,87 @@ for (const scheme of ["light", "dark"] as const) {
     }
   });
 }
+
+test("Atmosphere starts off, Settings turns it on and off, and a neutral palette takes the portrait's hue", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ colorScheme: "dark" });
+  // A palette of pure greys: no hue of its own for the tint to keep.
+  const scheme = (ground: string, ink: string) =>
+    Object.fromEntries(PALETTE_ROLES.map((role) => [role, role === "ink" ? ink : ground]));
+  const light = scheme("#eeeeee", "#111111");
+  const dark = scheme("#111111", "#eeeeee");
+  const saved = await page.request.post("/api/palettes/1", {
+    headers: unsafe(),
+    data: {
+      name: uniqueName("Greys"),
+      base: "tokyo-night",
+      light,
+      dark,
+      origin: { light, dark },
+      handSet: { light: [], dark: [] },
+    },
+  });
+  expect(saved.status()).toBe(200);
+  await patchSettings(page.request, { palette: "custom-1" });
+  const cool = await characterInColour(page, "Tide", [30, 130, 210]);
+  const root = page.locator("html");
+  const atmosphere = page.getByRole("switch", { name: "Atmosphere", exact: true });
+  // In-app navigation keeps the tab's memory, the portrait's pixels included.
+  const toSettings = async () => {
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Settings" })
+      .click();
+    await expect(atmosphere).toBeVisible();
+  };
+  const toChat = async () => {
+    await page
+      .getByRole("navigation", { name: "Main" })
+      .getByRole("link", { name: "Chat" })
+      .click();
+    await expect(page.getByRole("button", { name: `Portrait of ${cool}` })).toBeVisible();
+  };
+
+  await openChat(page, "mock-fast");
+  await chooseCharacter(page, cool);
+  await toSettings();
+  await expect(atmosphere).toHaveAccessibleDescription(
+    "The chat's background leans faintly toward the character portrait's colour.",
+  );
+  // Off by default.
+  await expect(atmosphere).not.toBeChecked();
+  await atmosphere.click();
+  await expect(atmosphere).toBeChecked();
+  await toChat();
+  await expect(root).toHaveAttribute("data-atmosphere", "");
+  const tinted = await room(page);
+  expect(tinted).toMatchObject({ atmosphere: true, tinted: true });
+  // The grey's restated hue is rounding noise; the lean carries the portrait's own hue.
+  const canvasHue = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = `oklch(from ${getComputedStyle(document.documentElement).backgroundColor} l c h)`;
+    document.body.append(probe);
+    const hue = Number(getComputedStyle(probe).color.match(/-?[\d.]+/g)?.[2]);
+    probe.remove();
+    return hue;
+  });
+  const portraitHue = Number(tinted.hue);
+  expect(Math.abs(((canvasHue - portraitHue + 540) % 360) - 180)).toBeLessThan(2);
+
+  // Off again: the portrait's pixels are held in memory now, so a room that
+  // ignored the setting would lean again on the chat's first frame.
+  await toSettings();
+  await atmosphere.click();
+  await expect(atmosphere).not.toBeChecked();
+  await toChat();
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(root).not.toHaveAttribute("data-atmosphere");
+  expect(await room(page)).toMatchObject({ atmosphere: false, tinted: false });
+});
 
 /** Core's floors with each role as the custom property the page resolves. */
 const PAGE_FLOORS = CONTRAST_FLOORS.map(({ role, grounds, floor }) => ({

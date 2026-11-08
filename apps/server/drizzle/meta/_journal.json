@@ -197,6 +197,13 @@
       "when": 1793630217244,
       "tag": "0027_remove_character_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1794150465106,
+      "tag": "0028_atmosphere_setting",
+      "breakpoints": true
     }
   ]
 }

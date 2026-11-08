@@ -335,6 +335,8 @@ export const settings = sqliteTable(
       .notNull()
       .default({}),
     reasoningOpen: integer({ mode: "boolean" }).notNull().default(false),
+    /** The room leans toward the portrait's hue (off by default). */
+    atmosphere: integer({ mode: "boolean" }).notNull().default(false),
     showHiddenReasoning: integer({ mode: "boolean" }).notNull().default(false),
     /** The owner's ComfyUI for card portraits; empty for none. */
     comfyuiBaseUrl: text().notNull().default(""),

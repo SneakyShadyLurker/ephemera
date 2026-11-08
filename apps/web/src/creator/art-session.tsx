@@ -14,6 +14,7 @@ import { motionMs } from "@/app/motion-tokens.ts";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { useScheme } from "@/app/theme.tsx";
 import { applyAtmosphere, tintFromPixels } from "../portraits/atmosphere.ts";
+import { useSetting } from "../settings/settings.ts";
 import { type DecodedBatch, useDecodedBatch } from "./art.ts";
 import type { ArtImage, ArtSliceState } from "./art-slice.ts";
 
@@ -69,15 +70,16 @@ const revealedBatches = new WeakSet<ArtImage[]>();
 export const shownBefore = (images: ArtImage[]): boolean => revealedBatches.has(images);
 
 /**
- * The room leans toward the chosen portrait's hue, within the atmosphere's
- * caps and with its grey fallback: `--delay-follow` into a reveal, at once when
- * the choice changes, and not at all once the session is left.
+ * With Atmosphere on, the room leans toward the chosen portrait's hue, within
+ * the atmosphere's caps and with its grey fallback: `--delay-follow` into a
+ * reveal, at once when the choice changes, and not at all once the session is left.
  */
 function useHueLean(batch: DecodedBatch, selected: number) {
+  const on = useSetting((settings) => settings.atmosphere);
   const scheme = useScheme();
   const reduced = useReducedMotion();
   const revealed = useRef<DecodedBatch | null>(null);
-  const pixels = batch.status === "ready" ? batch.pixels[selected] : undefined;
+  const pixels = batch.status === "ready" && on ? batch.pixels[selected] : undefined;
   useEffect(() => {
     if (batch.status !== "ready" || pixels === undefined) {
       if (batch.status !== "decoding") applyAtmosphere(null);

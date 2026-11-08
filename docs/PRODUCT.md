@@ -37,7 +37,7 @@ and action.
 | Personas | The composer draft |
 | Prompt presets (their Author's Note included) and sampler presets | Assembled prompts and the prompt inspector view |
 | Library lorebooks and the characters each is linked to | Model output, including reasoning |
-| UI settings (theme and colour palette, up to three custom palettes, default model, image prompt model, last chosen character and persona, defaults) | |
+| UI settings (theme and colour palette, up to three custom palettes, Atmosphere, default model, image prompt model, last chosen character and persona, defaults) | |
 | Imported ComfyUI workflows: the graph Ephemera runs, with a placeholder where the prompt goes, its name and its image model family | A workflow file being imported, until Save |
 | Events: each instruction, its chance, its cooldown, its scope and whether it is on | The lorebook's timed effects (which entries stay in or rest) |
 | | Which event fired on which reply, and the event text as filled for a request |
@@ -926,9 +926,9 @@ Version 1.0 holds everything below.
   empty line; the stored text is unchanged.
 - The chosen character is present beside the story: one portrait, their
   prose in a reading sans across the page and yours in the interface sans on
-  a slip at the trailing edge, a room that leans
-  faintly toward the portrait's colour, and the lamp's light travelling the
-  portrait's frame while they write. The portrait and Cast move to a new
+  a slip at the trailing edge, with Atmosphere on (off by default) a room
+  that leans faintly toward the portrait's colour, and the lamp's light
+  travelling the portrait's frame while they write. The portrait and Cast move to a new
   reply as soon as it starts, in a band above it on phones, without replaying
   their entrance. The header title yields whenever the character's nameplate
   is visible in the story, including before it sticks. Replacing a portrait
@@ -1094,7 +1094,8 @@ recursion, the text of entries already sent; card fields, the persona and
 notes are not scanned.
 
 **Settings**
-- Six categories: Appearance (theme and palettes, Tokyo Night by default),
+- Six categories: Appearance (theme and palettes, Tokyo Night by default,
+  and Atmosphere, off by default),
   Chat (default persona, reply model, character prompts, reasoning), Model
   setup (context limits and windows, post-processing, model by model),
   Memory & cast, Pictures (image prompt model, ComfyUI address, workflows)
