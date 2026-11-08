@@ -314,6 +314,8 @@ describe("database", () => {
       promptProcessing: {},
       reasoningOpen: false,
       showHiddenReasoning: false,
+      // An existing installation upgrades with the room's tint off.
+      atmosphere: false,
     });
     upgraded.close();
   });

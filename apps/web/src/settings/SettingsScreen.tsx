@@ -302,6 +302,8 @@ function SaveAlerts() {
 
 function AppearanceSettings() {
   const paletteLabel = useId();
+  const { atmosphere } = useSettings();
+  const updateSettings = useUpdateSettings();
   return (
     <SettingGroup>
       <SettingRow
@@ -331,6 +333,23 @@ function AppearanceSettings() {
       >
         <PalettePicker labelId={paletteLabel} />
       </SettingRow>
+      <div className="py-3.5">
+        <SwitchField
+          trailing
+          checked={atmosphere}
+          onCheckedChange={(on) => updateSettings({ atmosphere: on })}
+          label="Atmosphere"
+          description="The chat's background leans faintly toward the character portrait's colour."
+          about={
+            <Infotip label="Atmosphere">
+              <p>
+                Creating a character with AI does the same with the portrait you pick. Off, the
+                palette always shows exactly as chosen.
+              </p>
+            </Infotip>
+          }
+        />
+      </div>
     </SettingGroup>
   );
 }

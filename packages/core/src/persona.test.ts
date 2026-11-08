@@ -59,6 +59,7 @@ describe("settings", () => {
     const settings = {
       theme: "dark",
       palette: "nord",
+      atmosphere: true,
       model: "m",
       imagePromptModel: null,
       characterId: id,

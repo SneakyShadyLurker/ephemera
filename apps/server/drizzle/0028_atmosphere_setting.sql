@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `atmosphere` integer DEFAULT false NOT NULL;
