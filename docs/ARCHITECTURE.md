@@ -1471,7 +1471,10 @@ content's path: the tab's memory and one request in the server.
   whatever the tab sent. For a Subject or Group card with a stored
   portrait, a model the catalog does not mark text only gets its vision
   copy as a file part before the text, which then ends with core's
-  `SCENE_REFERENCE_NOTE`; a Scenario card sends none. One `generateText`
+  `SCENE_REFERENCE_NOTE`: the portrait wins on looks over the notes, except
+  a non-human's kind and its traits, which the notes keep since a cover
+  shows them as a human woman, and a change the excerpt makes wins over
+  both. A Scenario card sends none. One `generateText`
   call with `SCENE_METAPROMPTS[model][kind]` for the workflow's image model
   writes the image prompt (the scene request carries no look: the
   metaprompt picks the capture from the catalogue by the era the notes and
