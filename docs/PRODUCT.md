@@ -238,8 +238,12 @@ Version 1.0 holds everything below.
   rules; Enter paints with it, and it stays until the card is dropped. A Subject's
   portrait defaults to one person in a single frame. Its Composition choice,
   before creation and under New art, also offers a Diptych of two tall panels:
-  one moment and one pose, the person from the front on the left and from
-  directly behind on the right.
+  the same woman a few seconds apart, standing, facing the camera on the
+  left and turned around, looking back over her shoulder, on the right. The
+  Diptych keeps to her looks: an ordinary woman in a private place (the
+  card's Location when someone would undress there, otherwise her own
+  bedroom or bathroom), at most two garments, and nothing from her job or
+  story.
   Composition survives Rewrite, Discard or back to Describe, and visits to
   Settings in the same tab; clearing the session or choosing another kind
   resets it to regular.
@@ -248,15 +252,19 @@ Version 1.0 holds everything below.
   Subjects before creation and under New art, is Auto by default: the
   model fits the capture to the card, an amateur snapshot unless the card
   calls for another, a mirror selfie for someone whose life is posting
-  themself, black and white film for any era before the 1950s, 35mm colour
+  themself, black and white film for the 1900s to the 1940s, 35mm colour
   film for the 1950s to the 1990s, or an early compact digital camera for
-  the 2000s. Choosing one outright names the capture only; the card keeps
-  its own era. Look survives Rewrite, Discard, back to Describe and a
+  the 2000s. A cover shows someone who could be met in everyday life: an
+  earlier era becomes the 1900s, an invented world the present day, and a
+  person who is not human a human woman. Choosing one outright names the
+  capture only; the card keeps its own era. Look survives Rewrite, Discard, back to Describe and a
   change between Subject and Multiple Subjects; clearing the session or
   choosing Scenario resets it to Auto.
-  Every woman on a cover, a Scenario's unnamed women included, poses by
-  her dominant personality trait that a picture can show: the image prompt
-  names her pose and where she is in the place in words. A scene picture
+  Every woman on a regular or group cover, a Scenario's unnamed women
+  included, poses by her dominant personality trait that a picture can
+  show: the image prompt names her pose and where she is in the place in
+  words. A Diptych woman stands relaxed in both panels, her temperament in
+  her face and one small gesture. A scene picture
   does the same wherever the chat leaves the pose open. Multiple Subjects get one group
   portrait, and a Scenario a movie poster: unnamed women of its world,
   three unless the owner's art direction asks for another number, where
