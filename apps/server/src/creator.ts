@@ -95,7 +95,6 @@ import {
 import { type StreamContext, streamedResponse, streamSignal } from "./streams.ts";
 import { countText } from "./tokens.ts";
 import {
-  busyCode,
   type CallEvents,
   type CallFailure,
   effortSettings,
@@ -373,11 +372,11 @@ interface Ended {
   retryAfterS?: number;
 }
 
-/** A failed call's code: a busy provider, the deadline, or any other failure. */
+/** A failed call's code: a busy or signed-out provider, the deadline, or any other failure. */
 export const failedCode = (failure: CallFailure | undefined, signal: AbortSignal) =>
-  failure?.busy === true
-    ? busyCode(failure)
-    : { code: timedOut(signal) ? ("timeout" as const) : ("upstream" as const) };
+  failure?.upstream === undefined
+    ? { code: timedOut(signal) ? ("timeout" as const) : ("upstream" as const) }
+    : { code: failure.upstream, ...waitOf(failure) };
 
 /**
  * A user turn of `text`, after the image when one goes: AI SDK 7's user file

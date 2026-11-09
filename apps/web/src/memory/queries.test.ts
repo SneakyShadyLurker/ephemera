@@ -234,7 +234,12 @@ describe("an opening call", () => {
       answering(() => Response.json({ error }, { status }));
       expect(await call()).toEqual({ ok: false, reason: error });
     }
-    for (const error of ["memory_failed", "upstream_busy", "memory_off"] as const) {
+    for (const error of [
+      "memory_failed",
+      "upstream_busy",
+      "upstream_signed_out",
+      "memory_off",
+    ] as const) {
       answering(streamed({ error }));
       expect(await call()).toEqual({ ok: false, reason: error });
     }

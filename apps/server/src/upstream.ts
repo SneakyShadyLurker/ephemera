@@ -14,6 +14,8 @@ import {
   type Settings,
   type StreamFailure,
   UPSTREAM_BUSY,
+  UPSTREAM_SIGNED_OUT,
+  type UpstreamFailure,
 } from "@ephemera/core";
 import {
   APICallError,
@@ -116,9 +118,13 @@ export interface CallFailure {
   errorClass: string;
   /** The provider's HTTP status, when it answered one. */
   status?: number;
-  /** The provider stayed busy (429 or 503) through the retries. */
-  busy: boolean;
-  /** Seconds the provider asked to wait, when it said. */
+  /**
+   * The provider's own failure, as the code every surface names: it stayed
+   * busy (429 or 503) through the retries, or it has no working sign-in for
+   * the model (401, or its "no auth available" answer). Absent otherwise.
+   */
+  upstream?: UpstreamFailure;
+  /** Seconds a busy provider asked to wait, when it said. */
   retryAfterS?: number;
 }
 
@@ -136,16 +142,56 @@ function retryAfter(headers: Record<string, string> | undefined): number | undef
   return Math.min(Math.ceil(seconds), MAX_RETRY_AFTER_S);
 }
 
+/** The error codes an OpenAI-compatible proxy (CLIProxyAPI) answers when it holds no usable credential. */
+const SIGNED_OUT_CODES = new Set([
+  "upstream_authentication_required",
+  "auth_unavailable",
+  "auth_not_found",
+]);
+/** The same answer's message prefixes, for the variants whose code is generic. */
+const SIGNED_OUT_MESSAGE = /^auth_(?:unavailable|not_found):/;
+
+/** The fields of an OpenAI-style error body this reads; anything else is ignored. */
+const errorBodySchema = z.object({
+  error: z.object({ code: z.string().optional(), message: z.string().optional() }),
+});
+
+/**
+ * Whether the provider refused the sign-in (401) or said it has no usable
+ * credential for the model, whatever its status. Only the verdict leaves.
+ */
+function signedOut(error: APICallError): boolean {
+  if (error.statusCode === 401) return true;
+  if (error.responseBody === undefined) return false;
+  let json: unknown;
+  try {
+    json = JSON.parse(error.responseBody);
+  } catch {
+    return false;
+  }
+  const body = errorBodySchema.safeParse(json);
+  if (!body.success) return false;
+  const { code, message } = body.data.error;
+  return (
+    (code !== undefined && SIGNED_OUT_CODES.has(code)) ||
+    (message !== undefined && SIGNED_OUT_MESSAGE.test(message))
+  );
+}
+
 export function callFailure(error: unknown): CallFailure {
   const last = RetryError.isInstance(error) ? error.lastError : error;
-  if (!APICallError.isInstance(last)) return { errorClass: errorClass(last), busy: false };
+  if (!APICallError.isInstance(last)) return { errorClass: errorClass(last) };
   const status = last.statusCode;
-  const busy = status === 429 || status === 503;
-  const wait = busy ? retryAfter(last.responseHeaders) : undefined;
+  const upstream = signedOut(last)
+    ? UPSTREAM_SIGNED_OUT
+    : status === 429 || status === 503
+      ? UPSTREAM_BUSY
+      : undefined;
+  const wait = upstream === UPSTREAM_BUSY ? retryAfter(last.responseHeaders) : undefined;
   return {
     errorClass: errorClass(last),
     ...(status === undefined ? {} : { status }),
-    busy,
+    ...(upstream === undefined ? {} : { upstream }),
     ...(wait === undefined ? {} : { retryAfterS: wait }),
   };
 }
@@ -165,16 +211,13 @@ export function logCallError(
   return failure;
 }
 
-/** A busy provider's wait, for an error answer or event: none when it did not say. */
+/** A busy provider's wait, for an error answer or event: none when it did not say or was signed out. */
 export const waitOf = ({ retryAfterS }: { retryAfterS?: number | undefined }) =>
   retryAfterS === undefined ? {} : { retryAfterS };
 
-/** A busy provider's code for a route's error event, with its wait when known. */
-export const busyCode = (failure: CallFailure) => ({ code: UPSTREAM_BUSY, ...waitOf(failure) });
-
 /** The chat stream's error text for a failed call. */
 export const streamFailure = (error: unknown): StreamFailure =>
-  callFailure(error).busy ? UPSTREAM_BUSY : "generation_failed";
+  callFailure(error).upstream ?? "generation_failed";
 
 /** A route's log events for one call. */
 export interface CallEvents {

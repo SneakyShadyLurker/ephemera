@@ -252,6 +252,7 @@ const REMEMBER_STATUSES = {
   context_window_unknown: 409,
   prompt_too_long: 422,
   upstream_busy: 409,
+  upstream_signed_out: 409,
   too_many_memories: 409,
   too_many_chat_memories: 409,
   memory_failed: 409,
@@ -263,6 +264,7 @@ const OPENING_STATUSES = {
   context_window_unknown: 409,
   prompt_too_long: 422,
   upstream_busy: 409,
+  upstream_signed_out: 409,
   nothing_to_remember: 409,
   memory_failed: 409,
 } as const satisfies RefusalStatuses<OpeningRefusal>;

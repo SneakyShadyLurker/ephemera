@@ -1,6 +1,6 @@
 import type { BrainstormOption } from "@ephemera/core";
 import { describe, expect, it } from "vitest";
-import { MODEL_BUSY } from "@/lib/text";
+import { MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
 import { ideasAlert, ideasStatus } from "./brainstorm-notes.ts";
 import { BRAINSTORM_EMPTY, type BrainstormSession } from "./brainstorm-slice.ts";
 
@@ -44,6 +44,7 @@ describe("the brainstorm's alert", () => {
     ["timeout", "The model stopped before the ideas were done. New ideas to try again."],
     ["stream", "The model stopped before the ideas were done. New ideas to try again."],
     ["upstream_busy", MODEL_BUSY],
+    ["upstream_signed_out", MODEL_SIGNED_OUT],
     [
       "cut",
       "The model ran out of room before the ten were done. New ideas to try again, or choose a lower reasoning effort.",

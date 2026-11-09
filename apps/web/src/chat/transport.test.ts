@@ -7,6 +7,7 @@ import {
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MODEL_SIGNED_OUT } from "@/lib/text";
 import { signIn } from "../signin/signin.ts";
 import { streamScene } from "./scene-stream.ts";
 import { createChatStore, type Reply, shownReply } from "./store.ts";
@@ -235,7 +236,7 @@ describe("streamReply", () => {
       });
       return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
     });
-    await expect(collect()).rejects.toMatchObject({ reason: "stream", busy: false });
+    await expect(collect()).rejects.toMatchObject({ reason: "stream", upstream: undefined });
   });
 
   it("fails as signed out when the sign-in redirect answers", async () => {
@@ -310,21 +311,25 @@ describe("streamReply", () => {
   });
 
   it.each([
-    ["upstream_busy", true],
-    ["generation_failed", false],
-    ["x", false],
-  ])("tells a busy provider apart by the error's code (%s)", async (errorText, busy) => {
-    vi.stubGlobal("fetch", async () =>
-      sseResponse([{ type: "start" }, { type: "error", errorText }]),
-    );
-    await expect(
-      (async () => {
-        for await (const _ of streamReply(request, new AbortController().signal)) {
-          // Nothing to read before the error.
-        }
-      })(),
-    ).rejects.toMatchObject({ reason: "provider", busy });
-  });
+    ["upstream_busy", "upstream_busy"],
+    ["upstream_signed_out", "upstream_signed_out"],
+    ["generation_failed", undefined],
+    ["x", undefined],
+  ])(
+    "tells a busy or signed-out provider apart by the error's code (%s)",
+    async (errorText, upstream) => {
+      vi.stubGlobal("fetch", async () =>
+        sseResponse([{ type: "start" }, { type: "error", errorText }]),
+      );
+      await expect(
+        (async () => {
+          for await (const _ of streamReply(request, new AbortController().signal)) {
+            // Nothing to read before the error.
+          }
+        })(),
+      ).rejects.toMatchObject({ reason: "provider", upstream });
+    },
+  );
 
   it("yields the prompt sent even when the reply fails before any output", async () => {
     vi.stubGlobal("fetch", async () =>
@@ -481,9 +486,17 @@ describe("partial reply footer", () => {
       expect(out).not.toContain("output limit");
     }
     expect(render({ finishReason: "length", refusal: "prompt_too_long" })).toContain("Not sent:");
-    expect(render({ finishReason: "content-filter", busy: true, status: "failed" })).not.toContain(
-      "content filter",
-    );
+    expect(
+      render({ finishReason: "content-filter", upstream: "upstream_busy", status: "failed" }),
+    ).not.toContain("content filter");
+    const signedOut = render({
+      finishReason: "content-filter",
+      upstream: "upstream_signed_out",
+      status: "failed",
+    });
+    expect(signedOut).toContain(MODEL_SIGNED_OUT.replaceAll("'", "&#x27;"));
+    expect(signedOut).not.toContain("content filter");
+    expect(signedOut).not.toContain("busy");
     expect(render({ finishReason: "length", status: "streaming" })).toBe("");
     expect(render({})).toBe("");
   });

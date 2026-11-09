@@ -1,3 +1,5 @@
+import type { UpstreamFailure } from "@ephemera/core";
+
 /** Text that starts a sentence: its first letter capitalized. */
 export const sentence = (text: string): string =>
   text.charAt(0).toLocaleUpperCase() + text.slice(1);
@@ -41,6 +43,16 @@ export function boundedAndList(names: readonly string[], limit: number): string 
 
 /** What a model call's failure says when its provider stayed busy through the server's retries. */
 export const MODEL_BUSY = "The model is busy. Try again in a moment.";
+
+/** What a model call's failure says when its provider refused the sign-in or holds none that works. */
+export const MODEL_SIGNED_OUT =
+  "The model's provider has no working sign-in. Check its key or login, then try again.";
+
+/** What a model call's failure says for each of its provider's own failures. */
+export const UPSTREAM_NOTE: Record<UpstreamFailure, string> = {
+  upstream_busy: MODEL_BUSY,
+  upstream_signed_out: MODEL_SIGNED_OUT,
+};
 
 /** What an art failure says when Atelier's worker stayed busy through the admission wait. */
 export const COMFYUI_BUSY = "ComfyUI stayed busy with other work. Try again in a moment.";

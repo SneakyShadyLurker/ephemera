@@ -162,6 +162,12 @@ describe("the character sheet's Cast section", () => {
     expect(busy).toContain('role="alert"');
     expect(busy).toContain("The cast was not read: the cast model is busy. Try again in a moment.");
     expect(busy).toContain("Regenerate the cast");
+    const signedOut = view({ failure: "upstream_signed_out" });
+    expect(signedOut).toContain('role="alert"');
+    expect(signedOut).toContain(
+      "The cast was not read: the cast model&#x27;s provider has no working sign-in. Check its key or login, then try again.",
+    );
+    expect(signedOut).toContain("Regenerate the cast");
 
     vi.mocked(ensureCastSheet).mockResolvedValue({ ok: false, reason: "prompt_too_long" });
     const client = new QueryClient();

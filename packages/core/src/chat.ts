@@ -231,13 +231,25 @@ export type RefusalCode = z.infer<typeof refusalCodeSchema>;
  * retries: a code of every model call's failure, content-free.
  */
 export const UPSTREAM_BUSY = "upstream_busy" as const;
+/**
+ * The model's provider refused the sign-in or holds none that works (401,
+ * or the upstream's own "no auth available" answer): retrying cannot help
+ * until its key or login is fixed. Content-free, with no wait.
+ */
+export const UPSTREAM_SIGNED_OUT = "upstream_signed_out" as const;
+/** The provider's own failures every model call can end in, each a content-free code. */
+export const UPSTREAM_FAILURES = [UPSTREAM_BUSY, UPSTREAM_SIGNED_OUT] as const;
+export type UpstreamFailure = (typeof UPSTREAM_FAILURES)[number];
 /** The longest wait, in seconds, a provider's request to wait is taken as. */
 export const MAX_RETRY_AFTER_S = 86_400;
 /** Seconds the provider asked to wait before another try, when it said. */
 export const retryAfterSchema = z.number().int().nonnegative().max(MAX_RETRY_AFTER_S);
 
-/** The refusals every bounded model-call route shares: the prompt's two and a busy provider. */
-export const COMMON_REFUSALS = [...PROMPT_REFUSALS, UPSTREAM_BUSY] as const;
+/**
+ * The refusals every bounded model-call route shares: the prompt's two, a
+ * busy provider and a signed-out one.
+ */
+export const COMMON_REFUSALS = [...PROMPT_REFUSALS, ...UPSTREAM_FAILURES] as const;
 
 /** A model-call route's refusal body: one of its `codes`, or the request outliving its deadline. */
 export const refusalBodySchema = <const T extends readonly [string, ...string[]]>(codes: T) =>
@@ -255,7 +267,7 @@ export const refusalBodySchema = <const T extends readonly [string, ...string[]]
 export const CHAT_DATA_PARTS = { prompt: "data-prompt", usage: "data-usage" } as const;
 
 /** Why a chat stream ended in an error: its error part's text. */
-export const streamFailureSchema = z.enum(["generation_failed", UPSTREAM_BUSY]);
+export const streamFailureSchema = z.enum(["generation_failed", ...UPSTREAM_FAILURES]);
 export type StreamFailure = z.infer<typeof streamFailureSchema>;
 
 /**

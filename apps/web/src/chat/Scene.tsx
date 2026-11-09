@@ -7,7 +7,7 @@ import { SceneIcon, StopIcon } from "@/components/icons";
 import { LamplightRim } from "@/components/lamplight.tsx";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { COMFYUI_BUSY, MODEL_BUSY } from "@/lib/text";
+import { COMFYUI_BUSY, MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
 import { ArtCanvas } from "../creator/ArtCanvas.tsx";
 import { decodePng } from "../creator/art.ts";
 import type { ArtImage } from "../creator/art-slice.ts";
@@ -51,6 +51,8 @@ function failure(run: Extract<SceneRun, { status: "failed" }>): string {
       return "The model could not write the image prompt.";
     case "upstream_busy":
       return MODEL_BUSY;
+    case "upstream_signed_out":
+      return MODEL_SIGNED_OUT;
     case "timeout":
       return "The picture ran past its deadline.";
     case "not_configured":

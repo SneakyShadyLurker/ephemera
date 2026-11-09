@@ -1,5 +1,5 @@
 import { CREATOR_LIMITS } from "@ephemera/core";
-import { MODEL_BUSY } from "@/lib/text";
+import { UPSTREAM_NOTE } from "@/lib/text";
 import type { BrainstormSession } from "./brainstorm-slice.ts";
 
 /*
@@ -45,7 +45,7 @@ const ALERT: Record<NonNullable<BrainstormSession["failure"]>, string> = {
   upstream: STOPPED,
   timeout: STOPPED,
   stream: STOPPED,
-  upstream_busy: MODEL_BUSY,
+  ...UPSTREAM_NOTE,
   cut: "The model ran out of room before the ten were done. New ideas to try again, or choose a lower reasoning effort.",
   filtered:
     "The provider's filter stopped the ideas. New ideas to try again, or choose another model.",

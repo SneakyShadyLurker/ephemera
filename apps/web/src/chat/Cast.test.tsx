@@ -352,6 +352,12 @@ describe("the status line", () => {
       cast: { ...state.cast, failure: "upstream_busy", failures: 1 },
     }));
     expect(status(panel())).toBe("Cast couldn&#x27;t update: the cast model is busy.");
+    chatStore.setState((state) => ({
+      cast: { ...state.cast, failure: "upstream_signed_out", failures: 1 },
+    }));
+    expect(status(panel())).toBe(
+      "Cast couldn&#x27;t update: the cast model&#x27;s provider has no working sign-in.",
+    );
   });
 
   it.each(["float", "band"] as const)(

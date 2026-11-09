@@ -1,4 +1,4 @@
-import { andList, countOf, MODEL_BUSY } from "@/lib/text";
+import { andList, countOf, MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
 import { isFailure, type SaveStatus, saveStatusText } from "../sheet/autosave.ts";
 import { invalidField, type ReworkState } from "./store.ts";
 
@@ -93,7 +93,9 @@ export function lineOf(
         ? refusedText(state)
         : state.failure === "upstream_busy"
           ? `${MODEL_BUSY} ${arrived(state.changes.length)}`
-          : `The model stopped before it finished. ${arrived(state.changes.length)}`;
+          : state.failure === "upstream_signed_out"
+            ? `${MODEL_SIGNED_OUT} ${arrived(state.changes.length)}`
+            : `The model stopped before it finished. ${arrived(state.changes.length)}`;
     return { text, announce: text, failure: true };
   }
   if (placed.length === 0) {

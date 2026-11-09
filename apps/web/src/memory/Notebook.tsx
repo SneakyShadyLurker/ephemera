@@ -423,7 +423,13 @@ function OpeningField({
           ? "completed"
           : controller.signal.aborted
             ? "aborted"
-            : ["unreachable", "timeout", "memory_failed", "upstream_busy"].includes(outcome.reason)
+            : [
+                  "unreachable",
+                  "timeout",
+                  "memory_failed",
+                  "upstream_busy",
+                  "upstream_signed_out",
+                ].includes(outcome.reason)
               ? "failed"
               : undefined,
     );

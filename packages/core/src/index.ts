@@ -23,6 +23,9 @@ export {
   scanTextOf,
   streamFailureSchema,
   UPSTREAM_BUSY,
+  UPSTREAM_FAILURES,
+  UPSTREAM_SIGNED_OUT,
+  type UpstreamFailure,
 } from "./chat.ts";
 export * from "./creator/index.ts";
 export * from "./events/index.ts";

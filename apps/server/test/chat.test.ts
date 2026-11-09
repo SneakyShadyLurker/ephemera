@@ -152,6 +152,34 @@ describe("POST /api/chat", () => {
     },
   );
 
+  it("says upstream_signed_out when the provider holds no usable sign-in, logging status only", async () => {
+    const upstream = fakeUpstream({
+      failWith: {
+        status: 503,
+        body: JSON.stringify({
+          error: {
+            message: `auth_unavailable: no auth available (${UPSTREAM_TEXT})`,
+            type: "authentication_error",
+            code: "upstream_authentication_required",
+            retryable: false,
+          },
+        }),
+        headers: { "Retry-After": "0" },
+      },
+    });
+    const { app, lines } = testApp({ fetch: upstream.fetch });
+    const body = await readAll(await app.request("/api/chat", postJson(request)));
+    expect(body).toContain('"errorText":"upstream_signed_out"');
+    expect(body).not.toContain("upstream_busy");
+    expect(body).not.toContain(UPSTREAM_TEXT);
+    const error = lines
+      .map((line) => JSON.parse(line))
+      .find((line) => line.event === "generation.error");
+    expect(error).toMatchObject({ level: "error", status: 503, errorClass: "AI_APICallError" });
+    expect(lines.join("\n")).not.toContain(UPSTREAM_TEXT);
+    expect(lines.join("\n")).not.toContain("auth_unavailable");
+  });
+
   it("ends a retry's wait at the request lifetime bound", async () => {
     const upstream = fakeUpstream({
       failWith: { status: 429, body: "{}", headers: { "Retry-After": "30" } },

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { characterNoteSchema } from "../../card/character-note.ts";
 import { lorebookSchema, sheetFieldsSchema } from "../../card/schema.ts";
-import { modelIdSchema, retryAfterSchema, UPSTREAM_BUSY } from "../../chat.ts";
+import { modelIdSchema, retryAfterSchema, UPSTREAM_BUSY, UPSTREAM_SIGNED_OUT } from "../../chat.ts";
 import { creatorReasoningSchema } from "../schema.ts";
 import { REWORK_LIMITS as R } from "./limits.ts";
 
@@ -54,6 +54,8 @@ const reworkErrorCodeSchema = z.enum([
   "upstream",
   /** The model's provider stayed busy through the server's retries. */
   UPSTREAM_BUSY,
+  /** The model's provider has no working sign-in for it. */
+  UPSTREAM_SIGNED_OUT,
   /** The request ran past its deadline. */
   "timeout",
   /** The card, its lorebook and the answer do not fit the model's context window. */

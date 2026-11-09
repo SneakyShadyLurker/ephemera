@@ -1,5 +1,5 @@
 import type { CardProblem, CardSection } from "@ephemera/core";
-import { andList, MODEL_BUSY, sentence } from "@/lib/text";
+import { andList, sentence, UPSTREAM_NOTE } from "@/lib/text";
 import { blockTitle } from "./sections.ts";
 import type { CardRun, CardStatus } from "./store.ts";
 
@@ -23,7 +23,7 @@ const FAILURE_NOTE: Partial<Record<NonNullable<CardRun["failure"]>, string>> = {
     "The provider's filter stopped this card. Rewrite to try again, or choose another model.",
   too_large:
     "The description is too long for this model's context window. Shorten it, or choose another model.",
-  upstream_busy: MODEL_BUSY,
+  ...UPSTREAM_NOTE,
 };
 
 /** A section as the card shows it. */

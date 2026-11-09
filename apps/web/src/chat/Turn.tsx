@@ -4,6 +4,7 @@ import { useFormFactor } from "@/app/form-factor.ts";
 import { InlineStatus, NoticeSlot } from "@/app/NoticeCard.tsx";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { MODEL_SIGNED_OUT } from "@/lib/text";
 import { useSetting } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
 import { useSignedIn } from "../signin/hooks.ts";
@@ -271,8 +272,10 @@ export function ReplyNote({ reply, last }: { reply: Reply; last: boolean }) {
     ? `${reply.failed === "continue" ? "Continue" : "Replace"} failed; the reply is as it was.`
     : reply.refusal !== undefined
       ? REFUSAL_NOTE[reply.refusal]
-      : reply.busy && reply.status === "failed"
-        ? "The model is busy."
+      : reply.upstream !== undefined && reply.status === "failed"
+        ? reply.upstream === "upstream_busy"
+          ? "The model is busy."
+          : MODEL_SIGNED_OUT
         : reply.status === "failed"
           ? failedNote(reply)
           : (STATUS_NOTE[reply.status] ?? partial);
