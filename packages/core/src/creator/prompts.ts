@@ -237,7 +237,7 @@ const ETHNICITY_RULE = (src = "the notes", cover = false) =>
  * world the card plays in; scene pictures and Scenario posters keep it.
  */
 const EVERYDAY_RULE =
-  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human woman of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places.";
+  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human woman of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places, and an era before the 1900s becomes the 1900s.";
 
 /*
  * The cards keep European units, but Krea 2 renders numbers poorly, so every
@@ -284,7 +284,7 @@ const LOOKS = (w: ArtWords, surface: LookSurface): string =>
         `- ${look.id}. Pick it when ${look.when[surface === "scene" ? "scene" : "cover"]}. Write it as ${look.wording[w.id]}.`,
         ...(surface !== "scene" && look.undated
           ? [
-              `When the tag names it and the notes give no such era, write ${look.undated[w.id]}, the people and place keeping their own era.`,
+              `When the tag names it and the notes give no such era, write ${look.undated[w.id]}, the people and place keeping their own era as the everyday rule below sets it.`,
             ]
           : []),
         ...(look.framing ? [look.framing[surface]] : []),
@@ -618,13 +618,14 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
 
 /*
  * Whose word wins on looks: a change the excerpt makes, then the portrait for
- * the stable identity, then the notes. A scenario fixes no one, so its person
+ * the stable identity, then the notes, which alone keep a non-human's kind
+ * since a cover shows them as a human woman. A scenario fixes no one, so its person
  * looks as the chat has shown them, then as the notes give the world's people.
  */
 const SCENE_LOOKS = (c: SceneCast) =>
   `How ${c.them} look follows this order: a change the excerpt makes, such as hair cut or dyed, make-up, a wound, a disguise or a transformation, comes first; ${
     c.fromCard
-      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes.`
+      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human woman.`
       : "then how the excerpt has described them; then the notes' People; where none of these says, choose what fits the setting."
   }`;
 

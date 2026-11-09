@@ -562,6 +562,16 @@ describe("creator requests and events", () => {
         expect(prompt).not.toContain("which the cover shows");
         expect(prompt).not.toContain("someone you could meet in everyday life");
       }
+      for (const prompt of covers) {
+        expect(prompt).toContain("keeping their own era as the everyday rule below sets it");
+        expect(prompt).toContain("an era before the 1900s becomes the 1900s");
+      }
+      // The cover draws a non-human as human, so scenes take their kind from the notes, not the portrait.
+      for (const kind of ["subject", "group"] as const) {
+        expect(SCENE_METAPROMPTS[model][kind]).toContain(
+          "A person the notes make not human keeps their kind and its visible traits from the notes",
+        );
+      }
       for (const prompt of [...covers, ART_METAPROMPTS[model].scenario]) {
         expect(prompt).toContain("Describe skin only by its tone, natural and true to life");
         expect(prompt).not.toContain("smooth, even finish");

@@ -256,8 +256,10 @@ Version 1.0 holds everything below.
   film for the 1950s to the 1990s, or an early compact digital camera for
   the 2000s. A cover shows someone who could be met in everyday life: an
   earlier era becomes the 1900s, an invented world the present day, and a
-  person who is not human a human woman. Choosing one outright names the
-  capture only; the card keeps its own era. Look survives Rewrite, Discard, back to Describe and a
+  person who is not human a human woman; scene pictures and AI Rework
+  still take that person's kind from the card, not the cover. Choosing one
+  outright names the capture only; the card keeps its own era within those
+  limits. Look survives Rewrite, Discard, back to Describe and a
   change between Subject and Multiple Subjects; clearing the session or
   choosing Scenario resets it to Auto.
   Every woman on a regular or group cover, a Scenario's unnamed women
