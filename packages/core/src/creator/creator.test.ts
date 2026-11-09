@@ -212,7 +212,7 @@ describe("creator requests and events", () => {
     }
     expect(ART_METAPROMPTS.general.subject).toContain("vertical 2:3 photograph");
     expect(ART_METAPROMPTS.general.subject).toContain("her breasts and vulva are bare");
-    expect(SUBJECT_DIPTYCH_METAPROMPTS.general).toContain("hides her buttocks");
+    expect(SUBJECT_DIPTYCH_METAPROMPTS.general).toContain("covers her buttocks from behind");
     expect(SCENE_METAPROMPTS.general.subject).toContain("the vulva with its pubic hair");
   });
 
@@ -407,16 +407,36 @@ describe("creator requests and events", () => {
       const diptych = artMetaprompt(model, "subject", "diptych");
       expect(diptych).toBe(SUBJECT_DIPTYCH_METAPROMPTS[model]);
       expect(diptych).toContain("two tall vertical panels");
-      expect(diptych).toContain("The right panel is a full rear view");
-      expect(diptych).toContain("in full view on the left");
-      expect(diptych).toContain("in full view on the right");
-      // One personality-led pose and place in it, seen from both sides, not only standing.
-      expect(diptych).toContain("She holds one pose in both panels");
-      expect(diptych).toContain("her pose and position unchanged");
-      expect(diptych).toContain("where she is in the place");
-      expect(diptych).toContain("besides where step 2 puts each woman");
-      expect(diptych).toContain(`hides her ${model === "krea2" ? "ass" : "buttocks"}`);
-      expect(diptych).not.toContain("she stands fully in the frame");
+      const [vulva, ass] = model === "krea2" ? ["pussy", "ass"] : ["vulva", "buttocks"];
+      // Two snapshots seconds apart, front then turned around: no impossible same-moment rear camera.
+      expect(diptych).toContain("the same woman a few seconds apart");
+      expect(diptych).toContain("In the right panel she has turned around, her back to the camera");
+      expect(diptych).toContain("looks back over her shoulder");
+      expect(diptych).not.toContain("directly behind her");
+      // Exposure holds whatever the reason she is undressed.
+      expect(diptych).toContain("Whatever the reason she is undressed");
+      expect(diptych).toContain(`her breasts and ${vulva} in full view in the left panel`);
+      expect(diptych).toContain(`her ${ass} in full view in the right panel`);
+      expect(diptych).toContain(`nothing she wears covers her ${ass} from behind`);
+      expect(diptych).toContain("at most two garments");
+      expect(diptych).toContain(
+        "Below the waist she wears nothing, or one garment pushed all the way down around her ankles",
+      );
+      // A relaxed standing stance, not a trait-driven pose she could sit or lie in.
+      expect(diptych).toContain("How she stands, the same in both panels");
+      expect(diptych).not.toContain("Pose each woman by the dominant personality trait");
+      expect(diptych).not.toContain("stands, leans, sits, kneels or lies");
+      // Her looks only: no job, story or props, and a private place.
+      expect(diptych).toContain("Leave out her job, her story and the rest of her life");
+      expect(diptych).toContain(
+        "her own bedroom or bathroom, at the time of day the Location gives",
+      );
+      expect(diptych).toContain("Only when the Location is itself a private room");
+      expect(diptych).toContain("Never a workplace or a public place");
+      expect(diptych).not.toContain("jewellery");
+      expect(diptych).not.toContain("besides where step 2 puts each woman");
+      expect(diptych).toContain("in the available light of step 6");
+      expect(diptych).toContain("at most 220 words");
       for (const kind of ["group", "scenario"] as const) {
         expect(artMetaprompt(model, kind, "diptych")).toBe(ART_METAPROMPTS[model][kind]);
       }
@@ -486,10 +506,7 @@ describe("creator requests and events", () => {
 
   it("poses every woman on every cover by her dominant visible trait, named in words with her place", () => {
     for (const model of ART_FAMILIES) {
-      for (const prompt of [
-        ...KINDS.map((kind) => ART_METAPROMPTS[model][kind]),
-        SUBJECT_DIPTYCH_METAPROMPTS[model],
-      ]) {
+      for (const prompt of KINDS.map((kind) => ART_METAPROMPTS[model][kind])) {
         expect(prompt).toContain("Pose each woman by the dominant personality trait");
         expect(prompt).toContain("the one a picture can show most clearly");
         expect(prompt).toContain("posture, body language, gesture, gaze and expression");
@@ -513,6 +530,51 @@ describe("creator requests and events", () => {
         expect(SCENE_METAPROMPTS[model][kind]).toContain(
           "Never replace an explicit current pose or action",
         );
+      }
+    }
+  });
+
+  it("keeps every character cover believable, while scenes and posters keep their world", () => {
+    for (const model of ART_FAMILIES) {
+      const covers = [
+        ART_METAPROMPTS[model].subject,
+        ART_METAPROMPTS[model].group,
+        SUBJECT_DIPTYCH_METAPROMPTS[model],
+      ];
+      for (const prompt of covers) {
+        expect(prompt).toContain("which the cover shows as the present day");
+        expect(prompt).toContain("which the cover shows as the 1900s");
+        expect(prompt).toContain(
+          "A person the notes make not human is shown as an ordinary human woman",
+        );
+        expect(prompt).toContain(
+          "An invented world, such as fantasy or sci-fi, becomes the present day",
+        );
+        expect(prompt).not.toContain("gets their kind");
+        expect(prompt).not.toContain("whose kind has no breasts");
+        expect(prompt).not.toContain("eighteenth century");
+      }
+      for (const prompt of [
+        ART_METAPROMPTS[model].scenario,
+        ...Object.values(SCENE_METAPROMPTS[model]),
+      ]) {
+        expect(prompt).toContain("A person who is not human gets their kind");
+        expect(prompt).not.toContain("which the cover shows");
+        expect(prompt).not.toContain("someone you could meet in everyday life");
+      }
+      for (const prompt of covers) {
+        expect(prompt).toContain("keeping their own era as the everyday rule below sets it");
+        expect(prompt).toContain("an era before the 1900s becomes the 1900s");
+      }
+      // The cover draws a non-human as human, so scenes take their kind from the notes, not the portrait.
+      for (const kind of ["subject", "group"] as const) {
+        expect(SCENE_METAPROMPTS[model][kind]).toContain(
+          "A person the notes make not human keeps their kind and its visible traits from the notes",
+        );
+      }
+      for (const prompt of [...covers, ART_METAPROMPTS[model].scenario]) {
+        expect(prompt).toContain("Describe skin only by its tone, natural and true to life");
+        expect(prompt).not.toContain("smooth, even finish");
       }
     }
   });

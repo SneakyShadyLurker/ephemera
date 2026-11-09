@@ -941,6 +941,12 @@ describe("rework prompt", () => {
     );
   });
 
+  it("never corrects a non-human's kind toward a portrait that shows them as human", () => {
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "A portrait shows a character who is not human as a human woman, so never correct their kind or its traits",
+    );
+  });
+
   it("turns a set outfit anywhere the model reads into a style of dress, and never copies the portrait's", () => {
     expect(REWORK_SYSTEM_PROMPT).toContain(
       "Clothing that belongs to a character, in the description, characterNote and lorebook entries, is a general style or habit of dress: a set outfit or a list of garments becomes the style it shows",

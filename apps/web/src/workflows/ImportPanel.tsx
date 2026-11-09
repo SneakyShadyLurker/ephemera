@@ -665,7 +665,9 @@ export function PanelView({
           onCancel();
         }
       }}
-      className="grid max-w-xl gap-6 rounded-xl border border-rush bg-surface p-4 transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-y-(--rise) starting:opacity-0 tablet:p-5"
+      // A reduced-motion disclosure collapses after its fade. Anchoring its contents
+      // can adjust the scroll again after the shorter range has already clamped it.
+      className="grid max-w-xl gap-6 rounded-xl border border-rush bg-surface p-4 transition-[opacity,translate] duration-(--duration-panel-in) ease-spring starting:translate-y-(--rise) starting:opacity-0 motion-reduce:[overflow-anchor:none] tablet:p-5"
     >
       <div className="grid gap-0.5">
         <h3

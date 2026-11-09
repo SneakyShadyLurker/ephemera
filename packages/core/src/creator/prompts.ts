@@ -218,17 +218,26 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
 
 /*
  * Fine skin detail and liquids render badly in the image model, so no
- * art metaprompt asks for them, whatever the notes say.
+ * art metaprompt asks for them, whatever the notes say; a smooth finish
+ * renders as airbrushed, so skin stays natural.
  */
-const SKIN_RULE = `Describe skin only by its tone and a smooth, even finish, leaving out pores, veins, scars, stretch marks, blemishes, goosebumps, sweat and any liquid on the body, even where the notes mention them.`;
+const SKIN_RULE = `Describe skin only by its tone, natural and true to life, leaving out pores, veins, scars, stretch marks, blemishes, goosebumps, sweat and any liquid on the body, even where the notes mention them.`;
 
 /*
  * Krea 2 renders a default look unless each person's ethnicity is spelled
  * out. `src` names where the looks are given: the notes, or for a scenario's
- * scene, whom only the chat describes, the excerpt first.
+ * scene, whom only the chat describes, the excerpt first. A character cover
+ * leaves the kind to EVERYDAY_RULE.
  */
-const ETHNICITY_RULE = (src = "the notes") =>
-  `Name each person's ethnicity in plain words, such as East Asian, West African, South Asian, Nordic or Mediterranean, only from a stated ethnicity or ancestry, never birthplace or residence, and describe the phenotype ${src} give: skin tone and undertone, face shape, eye shape, nose, lips, hair colour and texture. Where ${src} state no ethnicity, describe the phenotype alone. A person who is not human gets their kind and its visible traits instead.`;
+const ETHNICITY_RULE = (src = "the notes", cover = false) =>
+  `Name each person's ethnicity in plain words, such as East Asian, West African, South Asian, Nordic or Mediterranean, only from a stated ethnicity or ancestry, never birthplace or residence, and describe the phenotype ${src} give: skin tone and undertone, face shape, eye shape, nose, lips, hair colour and texture. Where ${src} state no ethnicity, describe the phenotype alone.${cover ? "" : " A person who is not human gets their kind and its visible traits instead."}`;
+
+/*
+ * A character cover shows someone you could meet in everyday life, whatever
+ * world the card plays in; scene pictures and Scenario posters keep it.
+ */
+const EVERYDAY_RULE =
+  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human woman of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places, and an era before the 1900s becomes the 1900s.";
 
 /*
  * The cards keep European units, but Krea 2 renders numbers poorly, so every
@@ -238,8 +247,8 @@ const ETHNICITY_RULE = (src = "the notes") =>
  * cover's quoted title keeps its own digits too, and so do the decade and the
  * 35mm a look's wording names (looks.ts).
  */
-const FIGURE_RULE = (src = "the notes", title = false, scene = false) =>
-  `State each person's age as given in ${src} as "NN years old", such as "25 years old"; where ${src} give none, choose a fitting age. Apart from age${title ? ", the quoted title" : ""} and the decade and 35mm a look's own wording carries, such as 1970s, write no numbers, cup letters or units anywhere, turning every measurement into a plain word. Describe each figure explicitly in short visual words so the proportions read at a glance: height, body type, shoulders, the size and shape of the breasts or chest, waist, hips, buttocks, legs and where the weight sits, as far as ${src} give them. Height becomes petite, short, average height, tall or very tall for their sex. Height and weight together become a body type such as slender, slim, athletic, curvy, full-figured, plump or heavyset, which carries the figure where the notes give little more. Always give each woman's breasts one size word placed directly before "breasts", ${scene ? "from the EU cup size where they are bare and, while clothing covers them, the size the clothing gives them as step 2 says. The EU cup sizes" : "from the EU cup size"}: AA nearly flat, A very small, B small, C medium, D large, E very large, F extra large, G and H huge, I and J enormous, K and above gigantic and absurdly oversized. Map UK and US cups to EU first (DD is E, DDD and UK E are F, UK F is G, FF is H, UK G is I, GG is J, UK H is K). Without a cup size, use the description's size word; without either, choose what fits her build (medium by default), the one feature you may add beyond ${src}. A woman whose kind has no breasts keeps the anatomy ${src} give.`;
+const FIGURE_RULE = (src = "the notes", title = false, scene = false, cover = false) =>
+  `State each person's age as given in ${src} as "NN years old", such as "25 years old"; where ${src} give none, choose a fitting age. Apart from age${title ? ", the quoted title" : ""} and the decade and 35mm a look's own wording carries, such as 1970s, write no numbers, cup letters or units anywhere, turning every measurement into a plain word. Describe each figure explicitly in short visual words so the proportions read at a glance: height, body type, shoulders, the size and shape of the breasts or chest, waist, hips, buttocks, legs and where the weight sits, as far as ${src} give them. Height becomes petite, short, average height, tall or very tall for their sex. Height and weight together become a body type such as slender, slim, athletic, curvy, full-figured, plump or heavyset, which carries the figure where the notes give little more. Always give each woman's breasts one size word placed directly before "breasts", ${scene ? "from the EU cup size where they are bare and, while clothing covers them, the size the clothing gives them as step 2 says. The EU cup sizes" : "from the EU cup size"}: AA nearly flat, A very small, B small, C medium, D large, E very large, F extra large, G and H huge, I and J enormous, K and above gigantic and absurdly oversized. Map UK and US cups to EU first (DD is E, DDD and UK E are F, UK F is G, FF is H, UK G is I, GG is J, UK H is K). Without a cup size, use the description's size word; without either, choose what fits her build (medium by default), the one feature you may add beyond ${src}.${cover ? "" : ` A woman whose kind has no breasts keeps the anatomy ${src} give.`}`;
 
 /*
  * The image model knows no names: a named person, place or franchise renders
@@ -275,7 +284,7 @@ const LOOKS = (w: ArtWords, surface: LookSurface): string =>
         `- ${look.id}. Pick it when ${look.when[surface === "scene" ? "scene" : "cover"]}. Write it as ${look.wording[w.id]}.`,
         ...(surface !== "scene" && look.undated
           ? [
-              `When the tag names it and the notes give no such era, write ${look.undated[w.id]}, the people and place keeping their own era.`,
+              `When the tag names it and the notes give no such era, write ${look.undated[w.id]}, the people and place keeping their own era as the everyday rule below sets it.`,
             ]
           : []),
         ...(look.framing ? [look.framing[surface]] : []),
@@ -284,30 +293,42 @@ const LOOKS = (w: ArtWords, surface: LookSurface): string =>
   ].join("\n");
 
 /*
- * Step 5 picks one look from the catalogue. A cover takes an explicit look
- * from the message's tag; a scene has none and chooses from what it receives.
+ * The step that picks one look from the catalogue, numbered `n` after the
+ * light step. A cover takes an explicit look from the message's tag; a scene
+ * has none and chooses from what it receives.
  */
-const LOOK_STEP = (surface: LookSurface) =>
-  `5. The look: one of the looks below, in its own words, everything in focus, in the available light of step 4. ${
+const LOOK_STEP = (surface: LookSurface, n = 5) =>
+  `${n}. The look: one of the looks below, in its own words, everything in focus, in the available light of step ${n - 1}. ${
     surface === "scene"
       ? "Choose by the era the notes and the excerpt give, and take the snapshot unless another plainly fits."
       : "A <look> tag in the message names the look to use. Without one, choose by the era and the person the notes give, from the Location line's time, the background, the appearance and the temperament, and take the snapshot unless another plainly fits."
   } Where the chosen look gives a framing, it replaces the camera position and the gaze in step 1 and nothing else there, and it may bring exactly the props its framing names.`;
 
-/* The light and the look every character art metaprompt ends with, then its rules, whose looks come from `src`. */
+/* The available light of every character art metaprompt; `both` holds it across a diptych's panels. */
+const AVAILABLE_LIGHT = (both: string) =>
+  `Only the available light that place and time give${both}, as it falls: its physical source in a few words, its direction, colour and falloff, and the uneven brightness and shadows it leaves.`;
+
+/* The look catalogue and the rules every character art metaprompt ends with, whose looks come from `src`. */
+const CHARACTER_LOOKS_AND_RULES = (
+  w: ArtWords,
+  surface: LookSurface,
+  src = "the notes",
+) => `${LOOKS(w, surface)}
+
+Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${SKIN_RULE} ${FORM_RULE(w)}
+
+Return only the prompt as plain text.`;
+
+/* The light and the look of steps 4 and 5, then the rules. */
 const CHARACTER_LIGHT_AND_RULES = (
   w: ArtWords,
   both: string,
   surface: LookSurface,
   src = "the notes",
-) => `4. Only the available light that place and time give${both}, as it falls: its physical source in a few words, its direction, colour and falloff, and the uneven brightness and shadows it leaves.
+) => `4. ${AVAILABLE_LIGHT(both)}
 ${LOOK_STEP(surface)}
 
-${LOOKS(w, surface)}
-
-Rules: ${ETHNICITY_RULE(src)} ${FIGURE_RULE(src, false, surface === "scene")} ${SKIN_RULE} ${FORM_RULE(w)}
-
-Return only the prompt as plain text.`;
+${CHARACTER_LOOKS_AND_RULES(w, surface, src)}`;
 
 const CHARACTER_SCENE = (
   w: ArtWords,
@@ -350,17 +371,28 @@ Write one cohesive paragraph of plain natural language describing the finished $
 2. The woman in four or five sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
 ${CHARACTER_SCENE(w, "", "cover")}`;
 
-/* A Subject's cover shows the one woman from the front and from behind. */
+/*
+ * A Subject's diptych: two snapshots of one ordinary woman a few seconds
+ * apart, facing the camera and then turned around, standing in a private
+ * place. It keeps to her looks: her job, her story and props stay out, so
+ * the picture stays believable.
+ */
 const SUBJECT_DIPTYCH_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 diptych that will be the cover of a roleplay character card: one ${w.photo} split into two tall vertical panels side by side, showing the same woman in one moment, in the same place, light, clothing, pose and position.
+) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 diptych that will be the cover of a roleplay character card: one ${w.photo} split into two tall vertical panels side by side, the same woman a few seconds apart in the same place, light and clothing, facing the camera on the left and turned around on the right.
 
-${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()} She holds one pose in both panels, and only the camera moves, to directly behind her.
+The cover shows an ordinary woman as you could meet her in everyday life, in a private moment caught by someone she knows: relaxed, unposed and believable. Use only what the notes say about her looks and temperament, and only what a ${w.photo} can show. Leave out her job, her story and the rest of her life: no uniform or work clothes, no tools, devices, pets or other props, no voice, scent or sexual experience, and no invented features, people or text. ${NAMES_RULE(w)}
 
-Write one cohesive paragraph of plain natural language describing the finished diptych, at most 260 words, in this order:
-1. The diptych and framing. Two tall vertical panels of equal width side by side, divided by a thin straight seam. The left panel is a full frontal view, the woman facing the camera, the face clearly visible, looking at or just past the camera. The right panel is a full rear view of the same moment, the camera directly behind her, her pose and position unchanged. In both panels her whole body is in the frame, head to feet.
-2. The woman in four or five sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${EXPOSURE(w, `breasts, ${w.vulva} and ${w.ass}`, `her breasts and ${w.vulva} in full view on the left, her ${w.ass} in full view on the right`, "From the front her pose")} From behind, nothing she sits, leans or kneels on and no limb or garment hides her ${w.ass}. Mention distinctive visible features such as tattoos, piercings or jewellery.
-${CHARACTER_SCENE(w, ", the same in both panels", "diptych")}`;
+Write one cohesive paragraph of plain natural language describing the finished diptych, at most 220 words, in this order:
+1. The diptych and framing. Two tall vertical panels of equal width side by side, divided by a thin straight seam, her whole body in each, head to feet. In the left panel she faces the camera, her face clearly visible, looking at or just past the camera. In the right panel she has turned around, her back to the camera, and looks back over her shoulder toward it.
+2. The woman in three or four sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, and an expression that shows her temperament. Mention tattoos and piercings only where the notes give them.
+3. Her clothing. Whatever the reason she is undressed, such as changing, just out of the shower or getting ready for bed, she wears at most two garments in her everyday style, their cut, colour and material named, open, pulled down or slipping off so that her breasts, ${w.vulva} and ${w.ass} are bare: her breasts and ${w.vulva} in full view in the left panel, her ${w.ass} in full view in the right panel. Say where each garment ends up. Below the waist she wears nothing, or one garment pushed all the way down around her ankles. A garment that opens at the front hangs off her shoulders or arms, and nothing she wears covers her ${w.ass} from behind. Describe her nipples and areolas, and her pubic hair as the notes give it, such as shaved, trimmed or natural, and its colour.
+4. How she stands, the same in both panels: on her feet in the place, her weight on one leg, her arms relaxed, her hands hanging loosely or doing one ordinary thing such as tucking her hair behind an ear, no limb in front of her bare breasts, ${w.vulva} or ${w.ass}. Her temperament shows in her face and that one small gesture, not in a posed stance.
+5. The place and time of day in one short phrase, the same in both panels and the only words about the place: her own bedroom or bathroom, at the time of day the Location gives. Only when the Location is itself a private room where she would undress, such as her home, a bedroom, a bathroom or a changing room, use that place instead. Never a workplace or a public place.
+6. ${AVAILABLE_LIGHT(", the same in both panels")}
+${LOOK_STEP("diptych", 7)}
+
+${CHARACTER_LOOKS_AND_RULES(w, "diptych")}`;
 
 const GROUP_ART_PROMPT = (
   w: ArtWords,
@@ -586,13 +618,14 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
 
 /*
  * Whose word wins on looks: a change the excerpt makes, then the portrait for
- * the stable identity, then the notes. A scenario fixes no one, so its person
+ * the stable identity, then the notes, which alone keep a non-human's kind
+ * since a cover shows them as a human woman. A scenario fixes no one, so its person
  * looks as the chat has shown them, then as the notes give the world's people.
  */
 const SCENE_LOOKS = (c: SceneCast) =>
   `How ${c.them} look follows this order: a change the excerpt makes, such as hair cut or dyed, make-up, a wound, a disguise or a transformation, comes first; ${
     c.fromCard
-      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes.`
+      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human woman, unless the excerpt changes them.`
       : "then how the excerpt has described them; then the notes' People; where none of these says, choose what fits the setting."
   }`;
 

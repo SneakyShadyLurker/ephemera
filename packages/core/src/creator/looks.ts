@@ -25,14 +25,26 @@ export interface ArtLook {
   framing?: { cover: string; diptych: string; group: string; scene: string };
 }
 
-/* The present-day amateur snapshot every metaprompt falls back to. */
-const SNAPSHOT_WHEN =
-  "the notes set the person or story in the 2010s to the present, or in an invented world the other looks do not fit, such as fantasy or sci-fi, its people in their own dress, caught as they stand";
+/*
+ * The present-day amateur snapshot every metaprompt falls back to. A cover
+ * shows someone you could meet today, so it brings an invented world into
+ * the present; a scene picture keeps the chat's world.
+ */
+const SNAPSHOT_WHEN = {
+  cover:
+    "the notes set the person or story in the 2010s to the present, or in an invented world such as fantasy or sci-fi, which the cover shows as the present day, its people in today's dress",
+  scene:
+    "the notes set the person or story in the 2010s to the present, or in an invented world the other looks do not fit, such as fantasy or sci-fi, its people in their own dress, caught as they stand",
+};
 
-/* Black and white covers every real era before colour film, centuries before cameras included. */
+/*
+ * Black and white covers every real era before colour film. A cover stays in
+ * the decades amateur snapshots existed, so an earlier era becomes the 1900s;
+ * a scene picture keeps centuries before cameras.
+ */
 const MONOCHROME_WHEN = {
   cover:
-    "the notes set the person or story in any real era before the 1950s, the 1940s and every earlier century included",
+    "the notes set the person or story in the 1900s to the 1940s, or in any earlier era, which the cover shows as the 1900s",
   scene:
     "the notes or the excerpt set the person or story in any real era before the 1950s, the 1940s and every earlier century included",
 };
@@ -40,7 +52,7 @@ const MONOCHROME_WHEN = {
 export const ART_LOOKS: readonly ArtLook[] = [
   {
     id: "snapshot",
-    when: { cover: SNAPSHOT_WHEN, scene: SNAPSHOT_WHEN },
+    when: SNAPSHOT_WHEN,
     wording: {
       krea2: "an amateur snapshot, raw and true to life",
       moss: "an amateur snapshot, raw and true to life",
@@ -63,7 +75,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
       cover:
         "She stands full length before a large mirror, head to feet inside the glass, her phone raised in one hand to one side at about head height, her face clearly visible in the reflection, her eyes on the phone's screen. The reflection fills the frame and she is the only person in it.",
       diptych:
-        "The left panel is her reflection filling a large mirror, her front toward it, her phone raised in one hand to one side at about head height, her face clearly visible in the glass. The right panel is the same moment from directly behind her, her real back at full height and her raised arm, the mirror further into the frame carrying her front reflected small. She is the only person in both panels and the reflection is her.",
+        "Both panels are her reflection in a large mirror, head to feet inside the glass, her phone raised in one hand at about head height. In the left panel she faces the mirror, her face clearly visible in the glass, her eyes on the phone's screen. In the right panel she has turned her back to the mirror and looks over her shoulder at the phone's screen, her face clearly visible in profile. She is the only person in both panels.",
       group:
         "One woman holds her phone raised at about head height before a large mirror, and every woman stands full length in the glass, head to feet, side by side with space between them, every face clearly visible in the reflection. The reflection fills the frame and these women are the only people in it.",
       scene:
@@ -116,10 +128,10 @@ export const ART_LOOKS: readonly ArtLook[] = [
     when: MONOCHROME_WHEN,
     wording: {
       krea2:
-        "an amateur black and white film snapshot from <the era>, named as in the 1920s or the eighteenth century, true to life, in that era's dress and surroundings",
-      moss: "a candid amateur black and white film snapshot from <the era>, named as in the 1920s or the eighteenth century, in that era's dress and surroundings",
+        "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
+      moss: "a candid amateur black and white film snapshot from <the era>, named as in the 1920s, in that era's dress and surroundings",
       general:
-        "an amateur black and white film snapshot from <the era>, named as in the 1920s or the eighteenth century, true to life, in that era's dress and surroundings",
+        "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
     },
     undated: {
       krea2: "an amateur black and white film snapshot, true to life",
