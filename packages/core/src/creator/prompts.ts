@@ -625,7 +625,7 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
 const SCENE_LOOKS = (c: SceneCast) =>
   `How ${c.them} look follows this order: a change the excerpt makes, such as hair cut or dyed, make-up, a wound, a disguise or a transformation, comes first; ${
     c.fromCard
-      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human woman.`
+      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human woman, unless the excerpt changes them.`
       : "then how the excerpt has described them; then the notes' People; where none of these says, choose what fits the setting."
   }`;
 
