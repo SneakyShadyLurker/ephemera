@@ -308,6 +308,8 @@ export const CURATED_NODE_CLASSES: ReadonlySet<string> = new Set([
   "PrimitiveInt",
   "PrimitiveFloat",
   "PrimitiveBoolean",
+  // comfy_extras/nodes_string.py (joins two strings, e.g. a LoRA trigger ahead of the prompt)
+  "StringConcatenate",
 ]);
 
 /** Node classes that write files, show output in ComfyUI or read its outputs; nothing admits them. */
