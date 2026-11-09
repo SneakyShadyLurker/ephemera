@@ -1130,9 +1130,13 @@ describe("POST /api/creator/art", () => {
       const [graph] = [...comfy.state.prompts.values()] as {
         "1"?: { inputs: { unet_name: string } };
         "4"?: { inputs: { text: string } };
+        "5"?: { inputs: { text: string } };
       }[];
       expect(graph?.["1"]?.inputs.unet_name).toBe("moss-fixture-base.safetensors");
       expect(graph?.["4"]?.inputs.text).toBe(IMAGE_PROMPT);
+      expect(graph?.["5"]?.inputs.text).toBe(
+        "worst quality, bad anatomy, watermark, jpeg artifact",
+      );
       await until(() => comfy.clean());
     }
   });
