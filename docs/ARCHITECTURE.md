@@ -402,9 +402,17 @@ instead of a broken image.
    the provider answers with 408, 409, 429 or 5xx before any output is
    retried twice by the AI SDK, after the provider's `Retry-After` (up to
    60 s) or a backoff of 2 s then 4 s; the request's deadline ends any
-   wait. A provider still answering 429 or 503 after the retries ends the
-   stream with the error text `upstream_busy`, every other failure with
-   `generation_failed`, and the reply says the model is busy. The AI SDK's
+   wait. A provider that refused the sign-in or holds none that works ends
+   the stream with the error text `upstream_signed_out` and no wait, and
+   the reply says to check the provider's key or login: a 401, or any
+   status whose JSON error body has the `code`
+   `upstream_authentication_required`, `auth_unavailable` or
+   `auth_not_found`, or a `message` starting `auth_unavailable:` or
+   `auth_not_found:` (CLIProxyAPI's answers when no credential is usable;
+   `callFailure` in `upstream.ts` keeps only the verdict, never the body).
+   Another 429 or 503 after the retries ends it with `upstream_busy`, every
+   other failure with `generation_failed`, and the reply says the model is
+   busy. Every model call's route names the same two codes. The AI SDK's
    warnings are logged as `ai.warning` with the model, the warning's type
    and its feature or setting, never its message or details. The finish
    part's metadata carries the counts the provider reported, read by
@@ -720,7 +728,8 @@ replay carries it.
    unusable answer runs the call a second time, then answers
    `memory_failed`. A failed call is
    not repeated: past the retries it answers `upstream_busy` (with
-   `retryAfterS` when the provider said) for a provider still busy, else
+   `retryAfterS` when the provider said) for a provider still busy,
+   `upstream_signed_out` for one without a working sign-in, else
    `memory_failed`. The chapter call
    follows the same protocol with its own instructions, schema and clamp;
    its message carries canon matched against the members, the notebook as
@@ -1288,8 +1297,9 @@ content's path: the tab's memory and one request in the server.
   levels, and none means the model's default. Each request's calls, its
   retry included, share one random cache key. A provider still busy (429
   or 503) after the AI SDK's retries ends the run with `upstream_busy`,
-  with `retryAfterS` when the provider said; card, image card, rework and
-  art alike.
+  with `retryAfterS` when the provider said, and one without a working
+  sign-in with `upstream_signed_out`; card, image card, rework and art
+  alike.
   Tagged plain text needs no structured-output support, so every model
   behind the upstream can write cards. Card and rework calls go through
   chat's Auto-Parse middleware (`reasoning.ts`) with the `think` tag, so a
@@ -1827,7 +1837,7 @@ content's path: the tab's memory and one request in the server.
   first answer and core's `cardRetryPrompt`, which lists the validator's
   problems and the empty parts. A second unusable answer, or a first with
   no room for the retry, ends with `invalid_card`; `upstream`,
-  `upstream_busy` and `timeout` get no retry. A
+  `upstream_busy`, `upstream_signed_out` and `timeout` get no retry. A
   usable card maps as `POST /api/characters` maps it, with its kind's tag,
   and is saved with its
   portrait in one transaction under the caller's id, so the later of two

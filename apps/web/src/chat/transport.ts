@@ -11,7 +11,8 @@ import {
   type RefusalCode,
   refusalCodeSchema,
   streamFailureSchema,
-  UPSTREAM_BUSY,
+  UPSTREAM_FAILURES,
+  type UpstreamFailure,
 } from "@ephemera/core";
 import {
   isReasoningUIPart,
@@ -49,13 +50,13 @@ export class GenerationError extends Error {
   override name = "GenerationError";
   readonly reason: FailureReason;
   readonly code: RefusalCode | undefined;
-  /** The stream said the model's provider stayed busy through the server's retries. */
-  readonly busy: boolean;
-  constructor(reason: FailureReason, code?: RefusalCode, busy = false) {
+  /** The stream said the model's provider stayed busy through the server's retries, or is signed out. */
+  readonly upstream: UpstreamFailure | undefined;
+  constructor(reason: FailureReason, code?: RefusalCode, upstream?: UpstreamFailure) {
     super(`Generation failed (${reason})`);
     this.reason = reason;
     this.code = code;
-    this.busy = busy;
+    this.upstream = upstream;
   }
 }
 
@@ -121,7 +122,9 @@ export async function* streamReply(
       : new GenerationError("refused", code);
   }
 
-  const seen = { finish: false, error: false, abort: false, busy: false };
+  const seen = { finish: false, error: false, abort: false };
+  /** The provider's own failure, when the stream's error named one. */
+  let upstream: UpstreamFailure | undefined;
   const extra: Omit<ReplyUpdate, "text"> = {};
   const chunks = parseJsonEventStream({
     stream: response.body,
@@ -157,7 +160,8 @@ export async function* streamReply(
         }
         // The error's text is a content-free code (core's streamFailureSchema).
         if (chunk.type === "error") {
-          seen.busy = streamFailureSchema.safeParse(chunk.errorText).data === UPSTREAM_BUSY;
+          const failure = streamFailureSchema.safeParse(chunk.errorText).data;
+          upstream = UPSTREAM_FAILURES.find((code) => code === failure);
         }
         controller.enqueue(chunk);
       },
@@ -196,7 +200,7 @@ export async function* streamReply(
   // The server ended the generation, e.g. at its lifetime bound.
   if (seen.abort) throw new GenerationError("aborted");
   // A reply is complete only when the server said so; a cut stream is a failure.
-  if (seen.error) throw new GenerationError("provider", undefined, seen.busy);
+  if (seen.error) throw new GenerationError("provider", undefined, upstream);
   if (unreadable) throw new GenerationError("unreadable");
   if (failed || !seen.finish) throw new GenerationError("stream");
   yield { text, reasoning, ...extra };

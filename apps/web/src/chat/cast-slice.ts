@@ -934,9 +934,14 @@ export function createCastSlice(
             ? "completed"
             : controller.signal.aborted
               ? "aborted"
-              : ["unreachable", "timeout", "aborted", "cast_failed", "upstream_busy"].includes(
-                    outcome.reason,
-                  )
+              : [
+                    "unreachable",
+                    "timeout",
+                    "aborted",
+                    "cast_failed",
+                    "upstream_busy",
+                    "upstream_signed_out",
+                  ].includes(outcome.reason)
                 ? "failed"
                 : undefined,
       );
@@ -1130,9 +1135,14 @@ export function createCastSlice(
             : "completed"
           : controller.signal.aborted
             ? "aborted"
-            : ["unreachable", "timeout", "aborted", "cast_failed", "upstream_busy"].includes(
-                  outcome.reason,
-                )
+            : [
+                  "unreachable",
+                  "timeout",
+                  "aborted",
+                  "cast_failed",
+                  "upstream_busy",
+                  "upstream_signed_out",
+                ].includes(outcome.reason)
               ? "failed"
               : undefined,
     );

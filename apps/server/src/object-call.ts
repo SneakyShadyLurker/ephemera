@@ -5,7 +5,7 @@ import {
   creatorOutputTokens,
   type ReasoningEffort,
   repairObject,
-  UPSTREAM_BUSY,
+  type UpstreamFailure,
 } from "@ephemera/core";
 import { generateText, type LanguageModelUsage, type ModelMessage } from "ai";
 import type { z } from "zod";
@@ -76,10 +76,10 @@ export async function objectCallTarget(
 /** The events an object call logs under, each caller's own: every call purpose but the streamed ones. */
 export type ObjectCallEvent = Exclude<CallPurpose, "narration" | "scene.prompt">;
 
-/** Why a call gave no object: the request ended, the provider stayed busy, or the caller's failure. */
+/** Why a call gave no object: the request ended, the provider stayed busy or signed out, or the caller's failure. */
 type ObjectCallRefused<F extends string> = {
   ok: false;
-  error: "aborted" | F | typeof UPSTREAM_BUSY;
+  error: "aborted" | F | UpstreamFailure;
   retryAfterS?: number;
 };
 
@@ -186,9 +186,9 @@ export function objectCaller({ log, upstream }: { log: Logger; upstream: Upstrea
         );
         // A correction that failed leaves the first answer, as an unusable one does.
         if (kept !== undefined) return { ok: true, ...kept };
-        return failed.busy
-          ? { ok: false, error: UPSTREAM_BUSY, ...waitOf(failed) }
-          : { ok: false, error: failure };
+        return failed.upstream === undefined
+          ? { ok: false, error: failure }
+          : { ok: false, error: failed.upstream, ...waitOf(failed) };
       }
       const { finishReason, text, usage } = result;
       if (call.calibration !== undefined) {

@@ -287,7 +287,7 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
               sendStart: false,
               // Reasoning is chat content for the reply's disclosure; stated, not left to the default.
               sendReasoning: true,
-              // A provider still busy after the retries is told apart (upstream.ts).
+              // A provider still busy after the retries, or signed out, is told apart (upstream.ts).
               onError: streamFailure,
               // The model's own count calibrates later estimates and reaches the inspector,
               // with the share the provider's prompt cache served (unknown when omitted) and

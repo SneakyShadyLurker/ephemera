@@ -37,6 +37,7 @@ function castReadFailure(reason: CastReadFailure): {
     case "signed_out":
     case "timeout":
     case "upstream_busy":
+    case "upstream_signed_out":
     case "invalid":
     case "context_window_unknown":
     case "no_model": {

@@ -107,6 +107,7 @@ export type SharedCallFailure =
   | "signed_out"
   | "timeout"
   | "upstream_busy"
+  | "upstream_signed_out"
   | "invalid"
   | "context_window_unknown"
   | "no_model";
@@ -131,6 +132,11 @@ export function sharedCallFailure(
       return { words: `the ${model} model took too long`, action: "retry" };
     case "upstream_busy":
       return { words: `the ${model} model is busy. Try again in a moment`, action: "retry" };
+    case "upstream_signed_out":
+      return {
+        words: `the ${model} model's provider has no working sign-in. Check its key or login, then try again`,
+        action: "retry",
+      };
     case "invalid":
       return { words: "Ephemera refused the request", action: "retry" };
     case "context_window_unknown":

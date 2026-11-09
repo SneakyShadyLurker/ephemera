@@ -46,6 +46,7 @@ import {
   randomSeed,
   randomUniform,
   reasoningSentBack,
+  type UpstreamFailure,
 } from "@ephemera/core";
 import { createStore } from "zustand/vanilla";
 import type { RememberFailure, RememberOutcome } from "../memory/queries.ts";
@@ -113,12 +114,12 @@ export interface Reply {
   finishReason?: PartialReplyFinishReason;
   /** Why the server would not build the prompt, when it refused. */
   refusal?: RefusalCode;
-  /** It failed because the model's provider stayed busy through the server's retries. */
-  busy?: true;
+  /** It failed because the model's provider stayed busy through the server's retries, or is signed out. */
+  upstream?: UpstreamFailure;
   /**
    * Why it failed, for its note: the request never reached the server, the
    * server answered with an error, the provider's error came down the stream,
-   * the stream broke off, or what came down it could not be read. A status like `busy`,
+   * the stream broke off, or what came down it could not be read. A status like `provider`,
    * never content, and kept nowhere but this store.
    */
   failure?: ReplyFailure;
@@ -257,7 +258,7 @@ type Pending =
 export type ImpersonationNote = {
   status: "stopped" | "failed";
   refusal?: RefusalCode;
-  busy?: true;
+  upstream?: UpstreamFailure;
 } | null;
 
 /** The generation types of a reply: a sent message, a Replace, or a new alternate. */
@@ -404,6 +405,7 @@ export function latestMemory(
 const TRANSIENT_FAILURES: ReadonlySet<RememberFailure> = new Set([
   "memory_failed",
   "upstream_busy",
+  "upstream_signed_out",
   "timeout",
   "memory_off",
 ]);
@@ -1027,7 +1029,7 @@ interface Target {
   end: (outcome: {
     status: "complete" | "stopped" | "failed";
     refusal?: RefusalCode;
-    busy?: true;
+    upstream?: UpstreamFailure;
     failure?: ReplyFailure;
     finishReason?: PartialReplyFinishReason;
   }) => void;
@@ -1422,9 +1424,14 @@ export function createChatStore(
             ? "completed"
             : controller.signal.aborted
               ? "aborted"
-              : ["unreachable", "timeout", "aborted", "memory_failed", "upstream_busy"].includes(
-                    outcome.reason,
-                  )
+              : [
+                    "unreachable",
+                    "timeout",
+                    "aborted",
+                    "memory_failed",
+                    "upstream_busy",
+                    "upstream_signed_out",
+                  ].includes(outcome.reason)
                 ? "failed"
                 : undefined,
       );
@@ -1910,7 +1917,7 @@ export function createChatStore(
         const code = refused ? (error as { code?: RefusalCode }).code : undefined;
         if (!isSignedOut(error) && !refused)
           unknownUsage = controller.signal.aborted ? "aborted" : "failed";
-        const busy = (error as { busy?: boolean }).busy === true;
+        const upstream = (error as { upstream?: UpstreamFailure }).upstream;
         if (current() && !arrived && isSignedOut(error) && !controller.signal.aborted) {
           target.wait();
           set({ pending: target.pending });
@@ -1918,13 +1925,15 @@ export function createChatStore(
           retryNow = signedIn() && (deps.resumable?.() ?? true);
         } else if (current()) {
           ended = controller.signal.aborted ? "stopped" : "failed";
-          // A refusal and a busy provider have notes of their own.
+          // A refusal and a busy or signed-out provider have notes of their own.
           const failure =
-            controller.signal.aborted || code !== undefined || busy ? undefined : failureOf(error);
+            controller.signal.aborted || code !== undefined || upstream !== undefined
+              ? undefined
+              : failureOf(error);
           target.end({
             status: ended,
             ...(code === undefined ? {} : { refusal: code }),
-            ...(busy && !controller.signal.aborted ? { busy: true as const } : {}),
+            ...(upstream === undefined || controller.signal.aborted ? {} : { upstream }),
             ...(failure === undefined ? {} : { failure }),
           });
         }
@@ -1993,7 +2002,7 @@ export function createChatStore(
       const endReply = ({
         status,
         refusal,
-        busy,
+        upstream,
         failure,
         finishReason,
       }: Parameters<Target["end"]>[0]) => {
@@ -2014,7 +2023,7 @@ export function createChatStore(
         const patch: Partial<Reply> = {
           status,
           ...(refusal === undefined ? {} : { refusal }),
-          ...(busy === undefined ? {} : { busy }),
+          ...(upstream === undefined ? {} : { upstream }),
           ...(failure === undefined ? {} : { failure }),
           ...(finishReason === undefined ? {} : { finishReason }),
         };
@@ -2232,7 +2241,7 @@ export function createChatStore(
             sent = prompt;
             set({ draft: text });
           },
-          end: ({ status, refusal, busy }) => {
+          end: ({ status, refusal, upstream }) => {
             if (status !== "failed" && subject !== null && raw !== "") {
               const filled = fill(raw, sentWith(subject, sent), state.messages, "impersonate");
               if (filled !== null) {
@@ -2247,7 +2256,7 @@ export function createChatStore(
                   : {
                       status,
                       ...(refusal === undefined ? {} : { refusal }),
-                      ...(busy === undefined ? {} : { busy }),
+                      ...(upstream === undefined ? {} : { upstream }),
                     },
             });
           },
@@ -2607,7 +2616,7 @@ export function createChatStore(
               // and never filled again.
               const {
                 refusal: _refusal,
-                busy: _busy,
+                upstream: _upstream,
                 failure: _failure,
                 failed: _failed,
                 finishReason: _finishReason,

@@ -168,6 +168,8 @@ function castStatusText(state: ChatState): string {
   const { cast } = state;
   if (cast.status === "failed" && keeperTargetUncovered(state)) {
     if (cast.failure === "upstream_busy") return "Cast couldn't update: the cast model is busy.";
+    if (cast.failure === "upstream_signed_out")
+      return "Cast couldn't update: the cast model's provider has no working sign-in.";
     return cast.failures >= 3 ? "Showing the last known cast." : "Cast couldn't update.";
   }
   if (cast.sheetStatus === "loading" && currentRegister(state).entries.length === 0) {
@@ -659,11 +661,13 @@ function StackRoster({
   const compact =
     explanation === "Cast couldn't update: the cast model is busy."
       ? "Cast model busy."
-      : explanation === "Showing the last known cast."
-        ? "Last known cast."
-        : explanation === "Cast couldn't update."
-          ? "Couldn't update."
-          : explanation;
+      : explanation === "Cast couldn't update: the cast model's provider has no working sign-in."
+        ? "Cast model signed out."
+        : explanation === "Showing the last known cast."
+          ? "Last known cast."
+          : explanation === "Cast couldn't update."
+            ? "Couldn't update."
+            : explanation;
   const text =
     removal !== null
       ? `${removal.name} removed.`

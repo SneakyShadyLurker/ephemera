@@ -346,6 +346,19 @@ describe("cast keeper calls", () => {
     expect(chat.keeper).toHaveLength(3);
   });
 
+  it.each(["upstream_busy", "upstream_signed_out"] as const)(
+    "names a %s refusal and counts its unreported call as failed",
+    async (reason) => {
+      const chat = castChat();
+      await chat.say("Hi");
+      await chat.refuse(reason);
+      expect(chat.state().cast).toMatchObject({ status: "failed", failure: reason, failures: 1 });
+      expect(
+        chat.state().usage.calls.findLast((call) => call.purpose === "cast.update")?.record.status,
+      ).toBe("failed");
+    },
+  );
+
   it("joins active retries, preserves covered snapshots and fences late answers after Clear", async () => {
     const chat = castChat();
     await chat.say("Hi");

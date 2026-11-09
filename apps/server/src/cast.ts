@@ -102,10 +102,11 @@ const REFUSAL_STATUSES = {
   prompt_too_long: 422,
   context_window_unknown: 409,
   upstream_busy: 409,
+  upstream_signed_out: 409,
   cast_failed: 409,
 } as const satisfies RefusalStatuses<CastRefusal>;
 
-/** A refusal's body: the deadline as `request_timeout`, a busy provider with its wait. */
+/** A refusal's body: the deadline as `request_timeout`, a busy provider with its wait, a signed-out one by its code. */
 const refusalBody = (refused: Refused) => ({
   error: refused.error === "aborted" ? ("request_timeout" as const) : refused.error,
   ...waitOf(refused),

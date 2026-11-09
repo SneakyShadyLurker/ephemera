@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CARD_LIMITS as L } from "../card/limits.ts";
-import { modelIdSchema, retryAfterSchema, UPSTREAM_BUSY } from "../chat.ts";
+import { modelIdSchema, retryAfterSchema, UPSTREAM_BUSY, UPSTREAM_SIGNED_OUT } from "../chat.ts";
 import { REASONING_EFFORTS } from "../preset/sampler.ts";
 import { comfyuiWorkflowIdSchema, comfyuiWorkflowOptionSchema } from "../settings.ts";
 import { callAccountingSchema } from "../usage.ts";
@@ -162,6 +162,8 @@ export const creatorErrorCodeSchema = z.enum([
   "upstream",
   /** The model's provider stayed busy through the server's retries. */
   UPSTREAM_BUSY,
+  /** The model's provider has no working sign-in for it. */
+  UPSTREAM_SIGNED_OUT,
   /** The request ran past its deadline. */
   "timeout",
   /** No ComfyUI address is configured. */
@@ -230,6 +232,8 @@ const creatorCardErrorCodeSchema = z.enum([
   "upstream",
   /** The model's provider stayed busy through the server's retries. */
   UPSTREAM_BUSY,
+  /** The model's provider has no working sign-in for it. */
+  UPSTREAM_SIGNED_OUT,
   /** The request ran past its deadline. */
   "timeout",
   /** The model reached its output ceiling before the card was finished. */
@@ -319,6 +323,8 @@ const creatorImageCardErrorCodeSchema = z.enum([
   "upstream",
   /** The model's provider stayed busy through the server's retries. */
   UPSTREAM_BUSY,
+  /** The model's provider has no working sign-in for it. */
+  UPSTREAM_SIGNED_OUT,
   /** The request ran past its deadline. */
   "timeout",
   /** No reply model is saved. */

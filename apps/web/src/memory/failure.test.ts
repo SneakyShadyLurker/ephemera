@@ -52,12 +52,16 @@ describe("a failed memory call", () => {
       "timeout",
       "memory_failed",
       "upstream_busy",
+      "upstream_signed_out",
       "memory_off",
     ] as const) {
       expect(failureNote(reason).action).toBe("retry");
     }
     expect(failureNote("upstream_busy").text).toBe(
       "The memory was not written: the memory model is busy. Try again in a moment.",
+    );
+    expect(failureNote("upstream_signed_out").text).toBe(
+      "The memory was not written: the memory model's provider has no working sign-in. Check its key or login, then try again.",
     );
     expect(failureNote(null)).toEqual({ text: "The memory was not written.", action: "retry" });
   });

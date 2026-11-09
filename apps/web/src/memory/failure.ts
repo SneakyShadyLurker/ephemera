@@ -44,6 +44,7 @@ export function failureNote(reason: RememberFailure | null): {
       return { text: `${UNCONFIRMED}: you were signed out. ${RECOVERS}`, action: "retry" };
     case "timeout":
     case "upstream_busy":
+    case "upstream_signed_out":
     case "invalid":
     case "context_window_unknown":
     case "no_model":
@@ -95,6 +96,7 @@ export function openingFailureNote(reason: OpeningWriteFailure): {
     case "signed_out":
     case "timeout":
     case "upstream_busy":
+    case "upstream_signed_out":
     case "invalid":
     case "context_window_unknown":
     case "no_model":

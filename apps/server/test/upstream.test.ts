@@ -749,15 +749,45 @@ describe("helper calibration", () => {
   }
 });
 
-const apiError = (statusCode: number, responseHeaders: Record<string, string> = {}) =>
+const apiError = (
+  statusCode: number,
+  responseHeaders: Record<string, string> = {},
+  responseBody = SECRET,
+) =>
   new APICallError({
     message: `bad ${SECRET}`,
     url: "http://upstream.test/v1/chat/completions",
     requestBodyValues: { prompt: SECRET },
     statusCode,
     responseHeaders,
-    responseBody: SECRET,
+    responseBody,
   });
+
+/** The answers an OpenAI-compatible proxy (CLIProxyAPI) gives when it holds no usable credential. */
+const NO_AUTH = {
+  terminal: JSON.stringify({
+    error: {
+      message: `auth_unavailable: no auth available (providers=${SECRET}, model=m)`,
+      type: "authentication_error",
+      code: "upstream_authentication_required",
+      retryable: false,
+    },
+  }),
+  blocked: JSON.stringify({
+    error: {
+      message: `auth_unavailable: no auth available (providers=${SECRET}, model=m)`,
+      type: "server_error",
+      code: "internal_server_error",
+    },
+  }),
+  notFound: JSON.stringify({
+    error: {
+      message: `auth_not_found: no auth available (providers=${SECRET}, model=m)`,
+      type: "server_error",
+      code: "internal_server_error",
+    },
+  }),
+};
 
 describe("a failed call", () => {
   it("is busy for 429 and 503 after the retries, with the provider's wait in seconds", () => {
@@ -769,11 +799,11 @@ describe("a failed call", () => {
     expect(callFailure(retried)).toEqual({
       errorClass: "AI_APICallError",
       status: 429,
-      busy: true,
+      upstream: "upstream_busy",
       retryAfterS: 7,
     });
     expect(callFailure(apiError(503, { "retry-after-ms": "1500" }))).toMatchObject({
-      busy: true,
+      upstream: "upstream_busy",
       retryAfterS: 2,
     });
     const date = new Date(Date.now() + 30_000).toUTCString();
@@ -781,17 +811,60 @@ describe("a failed call", () => {
     expect(callFailure(apiError(429, { "retry-after": "soon" }))).toEqual({
       errorClass: "AI_APICallError",
       status: 429,
-      busy: true,
+      upstream: "upstream_busy",
     });
   });
 
-  it("is not busy for other statuses or errors, and names nothing of their message", () => {
+  it("stays busy for a plain 503 and for a cooldown's 429", () => {
+    const cooldown = JSON.stringify({
+      error: {
+        message: `model_cooldown: ${SECRET}`,
+        type: "rate_limit_error",
+        code: "model_cooldown",
+      },
+    });
+    expect(callFailure(apiError(503, {}, "{}"))).toEqual({
+      errorClass: "AI_APICallError",
+      status: 503,
+      upstream: "upstream_busy",
+    });
+    expect(callFailure(apiError(503, {}, "Service Unavailable")).upstream).toBe("upstream_busy");
+    expect(callFailure(apiError(429, { "retry-after": "5" }, cooldown))).toEqual({
+      errorClass: "AI_APICallError",
+      status: 429,
+      upstream: "upstream_busy",
+      retryAfterS: 5,
+    });
+  });
+
+  it.each([
+    ["a refused sign-in (401)", 401, SECRET],
+    ["no credential left (503, terminal)", 503, NO_AUTH.terminal],
+    ["a blocked credential (503)", 503, NO_AUTH.blocked],
+    ["no credential found (503)", 503, NO_AUTH.notFound],
+  ])("is signed out for %s, with no wait and nothing of the body", (_, status, body) => {
+    const failure = callFailure(
+      new RetryError({
+        message: SECRET,
+        reason: "maxRetriesExceeded",
+        errors: [apiError(status, { "retry-after": "30" }, body)],
+      }),
+    );
+    expect(failure).toEqual({
+      errorClass: "AI_APICallError",
+      status,
+      upstream: "upstream_signed_out",
+    });
+    expect(JSON.stringify(failure)).not.toContain(SECRET);
+    expect(JSON.stringify(failure)).not.toContain("auth_");
+  });
+
+  it("is neither busy nor signed out for other statuses or errors, and names nothing of their message", () => {
     expect(callFailure(apiError(500, { "retry-after": "3" }))).toEqual({
       errorClass: "AI_APICallError",
       status: 500,
-      busy: false,
     });
-    expect(callFailure(new TypeError(SECRET))).toEqual({ errorClass: "TypeError", busy: false });
+    expect(callFailure(new TypeError(SECRET))).toEqual({ errorClass: "TypeError" });
     expect(JSON.stringify(callFailure(apiError(429)))).not.toContain(SECRET);
   });
 });

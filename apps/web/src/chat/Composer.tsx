@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { MODEL_BUSY } from "@/lib/text";
+import { UPSTREAM_NOTE } from "@/lib/text";
 import { useContextWindow } from "../api.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
 import { FOCUS_WITHIN } from "../sheet/fields.ts";
@@ -185,8 +185,8 @@ export function Composer({ field }: { field: RefObject<HTMLTextAreaElement | nul
       ? null
       : impersonation.refusal !== undefined
         ? IMPERSONATION_REFUSAL[impersonation.refusal]
-        : impersonation.busy && impersonation.status === "failed"
-          ? `Write for me failed. ${MODEL_BUSY}`
+        : impersonation.upstream !== undefined && impersonation.status === "failed"
+          ? `Write for me failed. ${UPSTREAM_NOTE[impersonation.upstream]}`
           : IMPERSONATION_NOTE[impersonation.status];
   const notSent = macroNotice === null || generating ? null : MACRO_NOTICE[macroNotice];
 

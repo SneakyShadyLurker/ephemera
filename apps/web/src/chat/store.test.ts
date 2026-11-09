@@ -339,7 +339,16 @@ describe("chat store", () => {
     ["a provider's error event", new GenerationError("provider"), { failure: "provider" }],
     ["a dropped stream", new GenerationError("stream"), { failure: "stream" }],
     ["an unreadable stream", new GenerationError("unreadable"), { failure: "unreadable" }],
-    ["a busy provider", new GenerationError("provider", undefined, true), { busy: true }],
+    [
+      "a busy provider",
+      new GenerationError("provider", undefined, "upstream_busy"),
+      { upstream: "upstream_busy" },
+    ],
+    [
+      "a signed-out provider",
+      new GenerationError("provider", undefined, "upstream_signed_out"),
+      { upstream: "upstream_signed_out" },
+    ],
     [
       "a refusal",
       new GenerationError("refused", "prompt_too_long"),

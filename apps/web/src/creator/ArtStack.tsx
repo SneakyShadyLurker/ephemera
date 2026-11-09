@@ -19,7 +19,7 @@ import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { COMFYUI_BUSY, MODEL_BUSY } from "@/lib/text";
+import { COMFYUI_BUSY, MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
 import { useModelOptions } from "../api.ts";
 import { LEAF_EDGE, PORTRAIT_TRANSITION } from "../portraits/Portrait.tsx";
 import { PortraitViewer } from "../portraits/PortraitViewer.tsx";
@@ -69,6 +69,8 @@ function artReason(art: ArtRun | null, unreadable: boolean): string {
         return "The model could not write the image prompt.";
       case "upstream_busy":
         return MODEL_BUSY;
+      case "upstream_signed_out":
+        return MODEL_SIGNED_OUT;
       case "timeout":
         return "The art ran past its deadline.";
       case "not_configured":
