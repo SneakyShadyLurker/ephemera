@@ -28,9 +28,10 @@
     }
   },
   "5": {
-    "class_type": "ConditioningZeroOut",
+    "class_type": "CLIPTextEncode",
     "inputs": {
-      "conditioning": ["4", 0]
+      "clip": ["2", 0],
+      "text": "worst quality, bad anatomy, watermark, jpeg artifact"
     }
   },
   "6": {
@@ -49,9 +50,9 @@
       "negative": ["5", 0],
       "latent_image": ["6", 0],
       "seed": "{{seed}}",
-      "steps": 12,
-      "cfg": 1.0,
-      "sampler_name": "euler",
+      "steps": 50,
+      "cfg": 3.0,
+      "sampler_name": "er_sde",
       "scheduler": "simple",
       "denoise": 1.0
     }
@@ -77,6 +78,16 @@
     }
   },
   "11": {
+    "class_type": "SkipLayerGuidanceDiTSimple",
+    "inputs": {
+      "model": ["12", 0],
+      "double_layers": "",
+      "single_layers": "22",
+      "start_percent": 0.0,
+      "end_percent": 1.0
+    }
+  },
+  "12": {
     "class_type": "LoraLoaderModelOnly",
     "inputs": {
       "model": ["1", 0],
