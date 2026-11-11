@@ -36,23 +36,31 @@ describe("artFamilySchema", () => {
 
 describe("renderSizeOf", () => {
   it("renders H3 at 2:3 with edges a multiple of 32 that scale exactly to the portrait", () => {
-    const render = renderSizeOf("h3");
-    expect(render.width * 3).toBe(render.height * 2);
-    expect(render.width % 32).toBe(0);
-    expect(render.height % 32).toBe(0);
-    expect(render.width * render.height).toBeGreaterThan(7_500_000);
-    // ComfyUI's ImageScaleBy rounds the edge times the factor.
-    const scale = CREATOR_ART.width / render.width;
-    expect(Math.round(render.width * scale)).toBe(CREATOR_ART.width);
-    expect(Math.round(render.height * scale)).toBe(CREATOR_ART.height);
+    for (const surface of ["cover", "scene"] as const) {
+      const render = renderSizeOf("h3", surface);
+      expect(render.width * 3).toBe(render.height * 2);
+      expect(render.width % 32).toBe(0);
+      expect(render.height % 32).toBe(0);
+      // ComfyUI's ImageScaleBy rounds the edge times the factor.
+      const scale = CREATOR_ART.width / render.width;
+      expect(Math.round(render.width * scale)).toBe(CREATOR_ART.width);
+      expect(Math.round(render.height * scale)).toBe(CREATOR_ART.height);
+    }
   });
 
-  it("renders every other family at the portrait size", () => {
+  it("renders H3 covers at about eight megapixels and scene pictures at about four", () => {
+    expect(renderSizeOf("h3", "cover")).toEqual({ width: 2304, height: 3456 });
+    expect(renderSizeOf("h3", "scene")).toEqual({ width: 1664, height: 2496 });
+  });
+
+  it("renders every other family at the portrait size for either use", () => {
     for (const family of ART_FAMILIES.filter((f) => f !== "h3")) {
-      expect(renderSizeOf(family)).toEqual({
-        width: CREATOR_ART.width,
-        height: CREATOR_ART.height,
-      });
+      for (const surface of ["cover", "scene"] as const) {
+        expect(renderSizeOf(family, surface)).toEqual({
+          width: CREATOR_ART.width,
+          height: CREATOR_ART.height,
+        });
+      }
     }
   });
 });

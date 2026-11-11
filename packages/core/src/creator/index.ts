@@ -45,6 +45,7 @@ export {
   NO_EM_DASHES,
   SCENE_METAPROMPTS,
   SUBJECT_DIPTYCH_METAPROMPTS,
+  sceneReferencePrompt,
 } from "./prompts.ts";
 export * from "./rework/index.ts";
 export { savedCardArtSource, savedCardKind, taggedCardKind } from "./saved-art-source.ts";

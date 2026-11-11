@@ -8,6 +8,7 @@ import {
   decodeArtFrames,
   SCENE_METAPROMPTS,
   scenePrompt,
+  sceneReferencePrompt,
 } from "@ephemera/core";
 import { describe, expect, it } from "vitest";
 import type { WorkflowGraph } from "../src/comfyui/workflow.ts";
@@ -192,6 +193,8 @@ describe("POST /api/scene", () => {
     const load = Object.values(graph ?? {}).find((node) => node.class_type === "AtelierLoadImage");
     expect(load?.inputs.image).toMatch(new RegExp(`^${upload?.lease}:[0-9a-f-]{36}$`));
     expect(JSON.stringify(graph)).toContain(IMAGE_PROMPT);
+    // Krea 2 binds the picture through the graph, so its reference graph runs the written prompt.
+    expect(JSON.stringify(graph)).not.toContain("<Picture 1>");
     expect(logged(lines, "scene.end")).toMatchObject({ reference: true, referenceGraph: true });
     await until(() => comfy.clean());
     expectContentFree(lines);
@@ -255,6 +258,46 @@ describe("POST /api/scene", () => {
     expect(comfy.state.prompts.size).toBe(1);
     expect(all.filter((event) => event.type === "image")).toHaveLength(1);
     expect(all.some((event) => "picture" in event)).toBe(false);
+    await until(() => comfy.clean());
+  });
+
+  it("binds a Subject's face to an H3 reference graph in words, at the scene size", async () => {
+    const { app, lines, comfy, characterId } = await setup({
+      comfy: { mode: "private", installedWorkflow: "h3-fixture" },
+    });
+    const all = await sceneEvents(
+      await app.request("/api/scene", postJson(request(characterId, { workflow: "h3-fixture" }))),
+    );
+    expect(all.at(-1)).toEqual({ type: "done" });
+    expect(comfy.state.uploads).toHaveLength(1);
+    const [graph] = [...comfy.state.prompts.values()] as WorkflowGraph[];
+    const referencePrompt = sceneReferencePrompt("h3", "subject", IMAGE_PROMPT);
+    expect(referencePrompt).not.toBe(IMAGE_PROMPT);
+    expect(graph?.["4"]?.inputs).toMatchObject({
+      prompt: referencePrompt,
+      width: 1664,
+      height: 2496,
+      "images.image_1": ["20", 0],
+    });
+    expect(graph?.["20"]?.class_type).toBe("AtelierLoadImage");
+    expect(logged(lines, "scene.end")).toMatchObject({ reference: true, referenceGraph: true });
+    await until(() => comfy.clean());
+    expectContentFree(lines, [referencePrompt]);
+  });
+
+  it("runs a Scenario's written prompt on the H3 text graph, without a picture", async () => {
+    const { app, comfy, characterId } = await setup({
+      kind: "scenario",
+      comfy: { mode: "private", installedWorkflow: "h3-fixture" },
+    });
+    const all = await sceneEvents(
+      await app.request("/api/scene", postJson(request(characterId, { workflow: "h3-fixture" }))),
+    );
+    expect(all.at(-1)).toEqual({ type: "done" });
+    expect(comfy.state.uploads).toEqual([]);
+    const [graph] = [...comfy.state.prompts.values()] as WorkflowGraph[];
+    expect(graph?.["20"]).toBeUndefined();
+    expect(graph?.["4"]?.inputs).toMatchObject({ prompt: IMAGE_PROMPT, width: 1664, height: 2496 });
     await until(() => comfy.clean());
   });
 

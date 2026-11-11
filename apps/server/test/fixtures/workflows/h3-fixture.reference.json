@@ -1,0 +1,108 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "h3-fixture-base.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "fixture-h3-text-encoder.safetensors",
+      "type": "minimax",
+      "device": "default"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "fixture-h3-vae.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "MiniMaxH3ImageConditioning",
+    "inputs": {
+      "clip": ["2", 0],
+      "vae": ["3", 0],
+      "prompt": "{{prompt}}",
+      "width": "{{width}}",
+      "height": "{{height}}",
+      "images.image_1": ["20", 0]
+    }
+  },
+  "7": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": ["13", 0],
+      "guider": ["14", 0],
+      "sampler": ["16", 0],
+      "sigmas": ["15", 0],
+      "latent_image": ["4", 1]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "9": {
+    "class_type": "SaveImageWebsocket",
+    "inputs": {
+      "images": ["12", 0]
+    }
+  },
+  "10": {
+    "class_type": "ModelAttentionBackend",
+    "inputs": {
+      "model": ["1", 0],
+      "attention": "comfy kitchen attention"
+    }
+  },
+  "12": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": ["8", 0],
+      "upscale_method": "lanczos",
+      "scale_by": "{{scale}}"
+    }
+  },
+  "13": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": "{{seed}}"
+    }
+  },
+  "14": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": ["10", 0],
+      "conditioning": ["4", 0]
+    }
+  },
+  "15": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": ["10", 0],
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1.0
+    }
+  },
+  "16": {
+    "class_type": "SamplerLCM",
+    "inputs": {
+      "s_noise": 1.1,
+      "s_noise_end": 0.9,
+      "noise_clip_std": 0.0
+    }
+  },
+  "20": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "{{referenceImage}}"
+    }
+  }
+}

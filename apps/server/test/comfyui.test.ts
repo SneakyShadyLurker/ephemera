@@ -1061,6 +1061,7 @@ async function collect(
       prompt: PROMPT,
       seed: 42,
       count: CREATOR_ART.count,
+      surface: "cover",
       signal: new AbortController().signal,
       ...input,
     })) {
@@ -1671,6 +1672,7 @@ describe("ComfyUI generation", () => {
             prompt: PROMPT,
             seed: 42,
             count: 4,
+            surface: "cover",
             signal: controller.signal,
           })) {
             if (event.type === "progress" && event.picture?.number === 2) controller.abort();
@@ -1897,6 +1899,7 @@ describe("ComfyUI generation", () => {
         prompt: PROMPT,
         seed: 1,
         count: CREATOR_ART.count,
+        surface: "cover",
         signal: controller.signal,
       })) {
         if (event.type === "progress" && event.phase === "running") controller.abort();
@@ -1919,6 +1922,7 @@ describe("ComfyUI generation", () => {
         prompt: PROMPT,
         seed: 1,
         count: CREATOR_ART.count,
+        surface: "cover",
         signal: controller.signal,
       })) {
         if (event.type === "progress" && event.phase === "running") controller.abort();
@@ -2036,6 +2040,7 @@ describe("ComfyUI generation", () => {
         prompt: PROMPT,
         seed: 1,
         count: CREATOR_ART.count,
+        surface: "cover",
         signal: AbortSignal.timeout(100),
       })) {
         // Progress only; the run hangs.
@@ -2155,6 +2160,68 @@ describe("ComfyUI generation", () => {
         fillWorkflow(template, { prompt: PROMPT, seed: 42, width: 1024, height: 1536, count: 1 }),
       );
       expect(fake.clean()).toBe(true);
+    });
+
+    describe("on a family that binds the picture in words", () => {
+      const h3 = { installedWorkflow: "h3-fixture" } as const;
+      const REFERENCE_PROMPT = `The person in <Picture 1> stays. ${PROMPT}`;
+      const scene = {
+        workflow: serverRun("h3-fixture"),
+        count: 1,
+        surface: "scene",
+        reference: IMAGE,
+        referencePrompt: REFERENCE_PROMPT,
+      } as const;
+
+      it("runs the reference prompt on the reference graph at the scene size", async () => {
+        const { fake, client } = setup({ mode: "private", ...h3 });
+        const events = await collect(client, scene);
+        expect(events.at(-1)).toMatchObject({ type: "images", referenceGraph: true });
+        const [[id, graph] = []] = [...fake.state.prompts];
+        const asset = paths(fake)
+          .find((path) => path.startsWith("PUT "))
+          ?.match(/^PUT \/atelier\/v1\/jobs\/([\w-]+)\/inputs\/([\w-]+)$/);
+        const nodes = graph as WorkflowGraph;
+        expect(nodes["4"]?.inputs).toMatchObject({
+          prompt: REFERENCE_PROMPT,
+          width: 1664,
+          height: 2496,
+          "images.image_1": ["20", 0],
+        });
+        expect(nodes["20"]?.inputs.image).toBe(`${id}:${asset?.[2]}`);
+        expect(nodes["12"]?.inputs.scale_by).toBe(1024 / 1664);
+        expect(fake.clean()).toBe(true);
+      });
+
+      it("runs the written prompt on the text graph of a plain instance, without the picture", async () => {
+        const { fake, client } = setup(h3);
+        const events = await collect(client, scene);
+        expect(events.at(-1)).toMatchObject({ type: "images", referenceGraph: false });
+        expect(paths(fake).some((path) => path.includes("/inputs/"))).toBe(false);
+        const [graph] = [...fake.state.prompts.values()] as WorkflowGraph[];
+        expect(graph?.["20"]).toBeUndefined();
+        expect(graph?.["4"]?.inputs).toEqual(
+          expect.not.objectContaining({ "images.image_1": expect.anything() }),
+        );
+        expect(graph?.["4"]?.inputs).toMatchObject({ prompt: PROMPT, width: 1664, height: 2496 });
+        expect(graph?.["12"]?.inputs.scale_by).toBe(1024 / 1664);
+        expect(fake.clean()).toBe(true);
+      });
+
+      it("renders a scene without a reference on the text graph at the scene size", async () => {
+        const { fake, client } = setup({ mode: "private", ...h3 });
+        const events = await collect(client, {
+          workflow: serverRun("h3-fixture"),
+          count: 1,
+          surface: "scene",
+        });
+        expect(events.at(-1)).toMatchObject({ type: "images", referenceGraph: false });
+        const [graph] = [...fake.state.prompts.values()] as WorkflowGraph[];
+        expect(graph?.["20"]).toBeUndefined();
+        expect(graph?.["4"]?.inputs).toMatchObject({ prompt: PROMPT, width: 1664, height: 2496 });
+        expect(graph?.["12"]?.inputs.scale_by).toBe(1024 / 1664);
+        expect(fake.clean()).toBe(true);
+      });
     });
 
     it("runs the text graph when the private worker lacks a reference node, and logs why", async () => {

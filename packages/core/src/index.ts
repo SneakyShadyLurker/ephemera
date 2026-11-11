@@ -169,7 +169,12 @@ export {
   type WorkflowFormat,
 } from "./workflow/convert.ts";
 export * from "./workflow/detect.ts";
-export { artFamilySchema, fileFamilyOf, renderSizeOf } from "./workflow/family.ts";
+export {
+  type ArtSurface,
+  artFamilySchema,
+  fileFamilyOf,
+  renderSizeOf,
+} from "./workflow/family.ts";
 export * from "./workflow/finalize.ts";
 export * from "./workflow/graph.ts";
 export * from "./workflow/id.ts";

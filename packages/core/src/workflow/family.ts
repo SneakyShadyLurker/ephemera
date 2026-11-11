@@ -14,18 +14,24 @@ export function fileFamilyOf(id: string): ArtFamily {
   return first === "krea2" || first === "moss" || first === "h3" ? first : "general";
 }
 
+/** What a picture is for: a card's cover or a scene picture in chat. */
+export type ArtSurface = "cover" | "scene";
+
 /*
  * The size a family's model renders at before a scaled template shrinks the
- * picture to the portrait size. MiniMax H3 Image is made for large renders,
- * about 4 to 20 megapixels, and paints at about eight here: 2304 x 3456 (2:3,
- * both edges multiples of 32). Every other family renders at the portrait
- * size itself.
+ * picture to the portrait size. MiniMax H3 Image is made for about 4 to 20
+ * megapixels: covers paint at about eight, 2304 x 3456, and scene pictures at
+ * about four, 1664 x 2496, which is also the size its reference pictures
+ * render cleanly at (both 2:3, every edge a multiple of 32). Every other
+ * family renders at the portrait size itself for either use.
  */
-export function renderSizeOf(family: ArtFamily): {
+export function renderSizeOf(
+  family: ArtFamily,
+  surface: ArtSurface,
+): {
   readonly width: number;
   readonly height: number;
 } {
-  return family === "h3"
-    ? { width: 2304, height: 3456 }
-    : { width: CREATOR_ART.width, height: CREATOR_ART.height };
+  if (family !== "h3") return { width: CREATOR_ART.width, height: CREATOR_ART.height };
+  return surface === "cover" ? { width: 2304, height: 3456 } : { width: 1664, height: 2496 };
 }
