@@ -170,6 +170,14 @@ test.describe("Describe optional controls", () => {
           await expect(page.getByRole("combobox", { name: "Look", exact: true })).toHaveText(
             "Vintage film",
           );
+          // The wide layout's rail leaves a moment after the viewport narrows: measure once the form spans the phone again.
+          await expect
+            .poll(() =>
+              page
+                .locator("[data-creator] form")
+                .evaluate((form) => form.getBoundingClientRect().width),
+            )
+            .toBe(width);
           const expanded = await describeGeometry(page, info);
           expect(expanded.overflow).toBe(0);
           for (const control of expanded.controls.filter((control) => control.visible)) {
