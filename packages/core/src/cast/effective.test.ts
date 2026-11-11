@@ -5,6 +5,7 @@ import {
   discoveredCastAnchor,
   discoveredCastEntry,
   effectiveCastAnchor,
+  groundedCastChanges,
   memoryCastContext,
   memoryCastContextSchema,
 } from "./effective.ts";
@@ -322,5 +323,124 @@ describe("player discoveries", () => {
     const recovered = firstEntry(withKnownIdentities({ entries: [] }, introduced));
     expect(recovered.introduced).toBeUndefined();
     expect(recovered.discovered).toBeUndefined();
+  });
+});
+
+describe("a quote as evidence", () => {
+  const shown = [
+    "Mara arrives in a long coat.\nShe says, ‘I am 31…’ and  *laughs*.",
+    'Lena (24): :rose["Stay a while."] She pours the wine — slowly.',
+  ];
+  const grounds = (evidence: string) =>
+    groundedCastChanges(
+      castChangesSchema.parse({ cast: { Mara: { introduce: { evidence } } } }),
+      shown,
+    ).cast.Mara?.introduce !== undefined;
+
+  it.each([
+    "Mara arrives in a long coat.",
+    "mara arrives in a long coat",
+    "'I am 31...'",
+    "She says, 'I am 31...' and laughs.",
+    "arrives in a long coat. She says",
+    '"Stay a while."',
+    '"...Stay a while..."',
+    "She pours the wine - slowly.",
+  ])("holds across markup, typography, case and spacing: %s", (evidence) => {
+    expect(grounds(evidence)).toBe(true);
+  });
+
+  it.each(["Mara leaves in a long coat.", "Stay a while. She pours the tea", '"…"', "*"])(
+    "is refused when no shown turn has its words: %s",
+    (evidence) => {
+      expect(grounds(evidence)).toBe(false);
+    },
+  );
+
+  it("is never found across two turns", () => {
+    expect(grounds("laughs. Lena (24)")).toBe(false);
+  });
+});
+
+describe("an introduction by name", () => {
+  const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const away = (n: number, name: string, overrides: Partial<CastEntry> = {}): CastEntry => ({
+    id: uuid(n),
+    role: "principal",
+    aka: [],
+    anchor: emptyCastAnchor(name, "female"),
+    state: emptyCastState(false),
+    ...overrides,
+  });
+  const nothing = castChangesSchema.parse({ cast: {} });
+  const introduced = (
+    entries: CastEntry[],
+    shown: readonly string[],
+    options: { player?: string | null; removed?: Set<string> } = {},
+  ) =>
+    applyCastChanges({ entries }, nothing, {
+      player: options.player ?? null,
+      newId: () => "unused",
+      shown,
+      ...(options.removed === undefined ? {} : { removed: options.removed }),
+    })
+      .entries.filter((entry) => entry.introduced === true)
+      .map((entry) => entry.anchor.name);
+
+  it("introduces everyone a shown turn names, whatever the keeper answered", () => {
+    const entries = [away(1, "Mara Holt"), away(2, "Lena Voss"), away(3, "Ilse Brandt")];
+    const shown = ['Lena (24): :rose["Mara, the door."] She waves you in.'];
+    expect(introduced(entries, shown)).toEqual(["Mara Holt", "Lena Voss"]);
+  });
+
+  it("takes the whole name, an earlier name, or a first name only one entry has", () => {
+    const sisters = [away(1, "Anna Meyer"), away(2, "Anna Schmidt", { aka: ["the Baroness"] })];
+    expect(introduced(sisters, ["Anna waves."])).toEqual([]);
+    expect(introduced(sisters, ["Anna Meyer waves."])).toEqual(["Anna Meyer"]);
+    expect(introduced(sisters, ["You bow to the Baroness."])).toEqual(["Anna Schmidt"]);
+  });
+
+  it("reads names as whole words, as written", () => {
+    const entries = [away(1, "Rose Tyler"), away(2, "Ann")];
+    expect(
+      introduced(entries, ["She rose and crossed to Annabel's Rosewood desk. Ann-Marie is out."]),
+    ).toEqual([]);
+    expect(introduced(entries, ["Rose's coat hangs by the door. “Ann?” you call."])).toEqual([
+      "Rose Tyler",
+      "Ann",
+    ]);
+  });
+
+  it("never takes a title or the player's own first name for someone's", () => {
+    const entries = [away(1, "Mara Holt"), away(2, "Doctor Elena Voss")];
+    expect(introduced(entries, ["Mara nods at the Doctor."], { player: "Mara Stone" })).toEqual([]);
+    expect(introduced(entries, ["Doctor Elena Voss looks up."], { player: "Mara Stone" })).toEqual([
+      "Doctor Elena Voss",
+    ]);
+  });
+
+  it("leaves a removed entry and an unnamed one as they were, and keeps the rest untouched", () => {
+    const entries = [away(1, "Mara Holt"), away(2, "Lena Voss")];
+    const result = applyCastChanges({ entries }, nothing, {
+      player: null,
+      newId: () => "unused",
+      shown: ["Mara and Lena look up."],
+      removed: new Set([uuid(1)]),
+    });
+    expect(result.entries[0]).toBe(entries[0]);
+    expect(result.entries[1]).toEqual({ ...entries[1], introduced: true });
+    expect(introduced(entries, [])).toEqual([]);
+  });
+
+  it("introduces someone the keeper adds in the same answer", () => {
+    const added = castChangesSchema.parse({
+      cast: { "Ilse Brandt": { gender: "female", state: { activity: "pouring a drink" } } },
+    });
+    const result = applyCastChanges({ entries: [] }, added, {
+      player: null,
+      newId: () => uuid(9),
+      shown: ["Ilse sets a glass on the bar."],
+    });
+    expect(result.entries[0]).toMatchObject({ introduced: true, state: { present: true } });
   });
 });

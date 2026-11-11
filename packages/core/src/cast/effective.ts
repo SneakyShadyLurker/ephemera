@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { withoutHighlights } from "../preset/highlight.ts";
+import { givenName, wholeName } from "../prompt/names.ts";
+import { castKey, firstWordKey } from "./key.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
@@ -52,18 +55,45 @@ export const castIdentity = ({
   ...entry
 }: CastEntry): CastEntry => entry;
 
-/** Require an exact short quote in one shown turn. This is grounding, not semantic proof. */
+/**
+ * A text as a quote is compared: highlight markup and Markdown emphasis out,
+ * quotation marks, dashes and ellipses in one spelling, spacing collapsed,
+ * lower case. A model copies words, seldom their typography.
+ */
+const quoteKey = (text: string): string =>
+  withoutHighlights(text)
+    .normalize("NFKC")
+    .replace(/[\u2018\u2019\u201A\u201B\u2032`]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB\u2033]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[*_~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+/** What a quote opens and closes with beyond its words: its own quotation marks, an elision. */
+const QUOTE_EDGE = /^[\s"'.,;:!?-]+|[\s"'.,;:!?-]+$/g;
+
+/**
+ * Whether `evidence` quotes one of the shown turns: its words in their
+ * order, within one turn, compared as `quoteKey` reads both. This is
+ * grounding, not semantic proof.
+ */
+const quotedIn = (keys: readonly string[], evidence: string): boolean => {
+  const quote = quoteKey(evidence).replace(QUOTE_EDGE, "");
+  return quote !== "" && keys.some((key) => key.includes(quote));
+};
+
+/** The keeper's changes with every introduction and evidenced field a shown turn does not quote left out. */
 export function groundedCastChanges(changes: CastChanges, shown: readonly string[]): CastChanges {
+  const keys = shown.map(quoteKey);
   const grounded = <T extends Record<string, { value: string; evidence: string } | undefined>>(
     fields: T,
   ): T =>
     Object.fromEntries(
       Object.entries(fields).filter(
         ([, item]) =>
-          item !== undefined &&
-          item.value.trim() !== "" &&
-          item.evidence.trim() !== "" &&
-          shown.some((text) => text.includes(item.evidence)),
+          item !== undefined && item.value.trim() !== "" && quotedIn(keys, item.evidence),
       ),
     ) as T;
   return {
@@ -72,7 +102,7 @@ export function groundedCastChanges(changes: CastChanges, shown: readonly string
       Object.entries(changes.cast).map(([name, change]) => {
         const { introduce: candidate, ...rest } = change;
         const introduce =
-          candidate !== undefined && shown.some((text) => text.includes(candidate.evidence))
+          candidate !== undefined && quotedIn(keys, candidate.evidence)
             ? { introduce: candidate }
             : {};
         return [
@@ -90,6 +120,47 @@ export function groundedCastChanges(changes: CastChanges, shown: readonly string
       }),
     ),
   };
+}
+
+/**
+ * The entries a shown turn names, by index: by the whole name, an earlier
+ * name, or the given name when no other entry and not the player shares it.
+ * Names are read as written and as whole words, in the text without its
+ * highlight markup: a story that writes someone's name has told the player
+ * of them, whatever the keeper answered.
+ */
+export function namedInTurns(
+  entries: readonly Pick<CastEntry, "anchor" | "aka">[],
+  shown: readonly string[],
+  player: string | null,
+): Set<number> {
+  const named = new Set<number>();
+  if (shown.length === 0) return named;
+  const texts = shown.map((text) => withoutHighlights(text).normalize("NFC"));
+  const written = (name: string): boolean => {
+    const form = name.normalize("NFC").trim();
+    if (form === "") return false;
+    // A hyphen joins a longer name: "Ann-Marie" does not name Ann.
+    const pattern = new RegExp(`(?<!\\p{L}-)${wholeName(form).source}(?!-\\p{L})`, "u");
+    return texts.some((text) => pattern.test(text));
+  };
+  const given = entries.map((entry) => givenName(entry.anchor.name));
+  const taken = (form: string, at: number): boolean =>
+    (player !== null && firstWordKey(player) === castKey(form)) ||
+    entries.some(
+      (other, index) =>
+        index !== at &&
+        [other.anchor.name, ...other.aka].some((name) => firstWordKey(name) === castKey(form)),
+    );
+  for (const [at, entry] of entries.entries()) {
+    const first = given[at] ?? null;
+    if (
+      [entry.anchor.name, ...entry.aka].some(written) ||
+      (first !== null && !taken(first, at) && written(first))
+    )
+      named.add(at);
+  }
+  return named;
 }
 
 /** Request-only archivist context: no ids, aliases, role or volatile scene state. */

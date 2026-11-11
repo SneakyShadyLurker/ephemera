@@ -614,6 +614,51 @@ describe("cast sheets", () => {
     noCanary(lines);
   });
 
+  describe("a sheet short of its card's kind", () => {
+    const person = (name: string) => ({ name, gender: "female", role: "principal", anchor: {} });
+    const one = { cast: [person("Maren Holt")] };
+    const two = { cast: [person("Maren Holt"), person("Ilse Brandt")] };
+    const group = (turns: FakeTurn[]) => {
+      const made = setup(turns);
+      const characterId = made.stores.characters.create({ ...card, tags: ["Multiple Subjects"] });
+      return { ...made, characterId };
+    };
+    const namesOf = async (response: Response) =>
+      castSheetResponseSchema
+        .parse(await response.json())
+        .sheet?.entries.map((entry) => entry.anchor.name);
+
+    it("is asked for once more, saying what is missing, and the fuller answer is stored", async () => {
+      const { app, stores, upstream, characterId, calls } = group([answer(one), answer(two)]);
+      expect(await namesOf(await postSheet(app, characterId))).toEqual([
+        "Maren Holt",
+        "Ilse Brandt",
+      ]);
+      expect(calls()).toBe(2);
+      const again = upstream.records[1]?.body as { messages: { role: string; content: string }[] };
+      expect(again.messages.at(-1)?.content).toContain(
+        "The card's kind is Multiple Subjects, so it describes its two or three people, and this answer records one person.",
+      );
+      expect(stores.castSheets.get(characterId)?.entries).toHaveLength(2);
+    });
+
+    it("keeps the first answer when the second is unusable or says the same", async () => {
+      const failed = group([answer(one), unusable]);
+      expect(await namesOf(await postSheet(failed.app, failed.characterId))).toEqual([
+        "Maren Holt",
+      ]);
+      const same = group([answer(one), answer(one)]);
+      expect(await namesOf(await postSheet(same.app, same.characterId))).toEqual(["Maren Holt"]);
+      expect(same.calls()).toBe(2);
+    });
+
+    it("is not asked again when the answer has the people its kind promises", async () => {
+      const { app, characterId, calls } = group([answer(two)]);
+      expect(await namesOf(await postSheet(app, characterId))).toHaveLength(2);
+      expect(calls()).toBe(1);
+    });
+  });
+
   it("answers upstream_busy when the provider stays busy through every retry, storing nothing", async () => {
     const { app, lines, stores, characterId, calls } = setup([busy, busy, busy]);
     const response = await postSheet(app, characterId);

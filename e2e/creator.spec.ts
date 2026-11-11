@@ -509,6 +509,8 @@ test.describe("Describe optional controls", () => {
       await page.goto("/characters/create");
       await expect(page.getByText("Checking portraits…", { exact: true })).toBeVisible();
       const create = page.getByRole("button", { name: COPY.subject.create });
+      // The label is a pixel wider in the fallback face: measure once the fonts are in.
+      await page.evaluate(() => document.fonts.ready);
       const before = await create.boundingBox();
       release.resolve();
       const status = page.getByRole("button", { name: "Portraits off: details" });

@@ -27,6 +27,7 @@ import {
   sheetEntriesFromAnswer,
   sheetInstructions,
   sheetMessage,
+  sheetShortfall,
 } from "@ephemera/core";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
@@ -202,8 +203,9 @@ export function createCastApi(deps: CastDeps) {
    * The character's sheet job: one model call over the card alone, under its
    * own lifetime, not any caller's; its answer is clamped, given ids and
    * stored with `fingerprint`, the card's as read before the call, whoever
-   * still waits. The instance stays in use, and the sheet is made durable,
-   * until it settles.
+   * still waits. An answer with fewer people than the card's kind promises
+   * is asked for once more (`sheetShortfall`). The instance stays in use, and
+   * the sheet is made durable, until it settles.
    */
   function startSheetJob(
     user: UserInstance,
@@ -214,6 +216,7 @@ export function createCastApi(deps: CastDeps) {
       message: string;
       room: number;
       fingerprint: string;
+      card: CharacterCard;
     },
   ): Promise<SheetOutcome> {
     const jobs = jobsOf(user);
@@ -228,6 +231,7 @@ export function createCastApi(deps: CastDeps) {
         room: job.room,
         schema: castSheetAnswerSchema,
         clamp: clampCastSheetAnswer,
+        correct: (answer) => sheetShortfall(job.card, answer.cast.length),
         failure: "cast_failed",
         signal: AbortSignal.timeout(deps.requestTimeoutMs),
         recorder,
@@ -294,7 +298,14 @@ export function createCastApi(deps: CastDeps) {
     }
     return {
       ok: true,
-      outcome: startSheetJob(user, characterId, { call, instructions, message, room, fingerprint }),
+      outcome: startSheetJob(user, characterId, {
+        call,
+        instructions,
+        message,
+        room,
+        fingerprint,
+        card,
+      }),
     };
   }
 

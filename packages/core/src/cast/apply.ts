@@ -1,4 +1,4 @@
-import { castIdentity, groundedCastChanges } from "./effective.ts";
+import { castIdentity, groundedCastChanges, namedInTurns } from "./effective.ts";
 import { castKey, firstWordKey, isOneWord } from "./key.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
 import {
@@ -220,7 +220,8 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * the chat knew before (`previous`), else a new entry; the player's names dropped; a set anchor field never
  * rewritten; state written as given, everyone named present unless the
  * change says otherwise; `absent` names marked away; new entries past
- * `CAST_LIMITS.entries` refused.
+ * `CAST_LIMITS.entries` refused. An entry is introduced by the keeper's
+ * grounded `introduce` or by a shown turn writing its name (`namedInTurns`).
  */
 export function applyCastChanges(
   register: CastRegister,
@@ -282,6 +283,12 @@ export function applyCastChanges(
     if (entry === undefined || removed.has(entry.id)) continue;
     entries[at] = { ...entry, state: { ...entry.state, present: false } };
   }
+  // Whoever the batch names is introduced, with or without the keeper's own `introduce`.
+  for (const at of namedInTurns(entries, shown, player)) {
+    const entry = entries[at];
+    if (entry === undefined || entry.introduced === true || removed.has(entry.id)) continue;
+    entries[at] = { ...entry, introduced: true };
+  }
   return { entries };
 }
 
@@ -295,11 +302,12 @@ export const registerFromSheet = (sheet: { entries: readonly CastSheetEntry[] })
  * the register entry with its id, else the one a sheet name resolves to as
  * a keeper's name would (exact, then a single first-name match; one that
  * more than one sheet entry would take by first name, or an exact match
- * took, is no one's), takes the
- * sheet's gender and every anchor field the
- * sheet has set (the sheet is read from the card); its name stays the
- * chat's. A sheet entry with no match is added away at the end, in sheet
- * order, while the register has room. Pure and idempotent.
+ * took, is no one's), takes every anchor field the sheet has set and the
+ * sheet's gender where the card said which (the sheet is read from the
+ * card; `other` is also what a card that did not say reads as, so it never
+ * takes back a gender the chat knows); its name stays the chat's. A sheet
+ * entry with no match is added away at the end, in sheet order, while the
+ * register has room. Pure and idempotent.
  */
 export function withSheet(
   sheet: { entries: readonly CastSheetEntry[] },
@@ -367,7 +375,7 @@ export function withSheet(
             : item.anchor,
         ),
         gender:
-          options.fillOnly && entry.anchor.gender !== "other"
+          item.anchor.gender === "other" || (options.fillOnly && entry.anchor.gender !== "other")
             ? entry.anchor.gender
             : item.anchor.gender,
       },

@@ -1019,8 +1019,10 @@ people's records directly and folds the records of away people under their names
    reply with its usage. The register before a message is the newest
    snapshot before it, with the acknowledged sheet laid over it
    (`withSheet`: a sheet entry matched by id, else by name or `aka`, takes
-   the sheet's gender and every anchor field the sheet set, keeping the
-   chat's name; an unmatched one is added away), then the owner's state
+   every anchor field the sheet set and the sheet's gender where the card
+   said which, keeping the chat's name; `other` is also what a card that
+   did not say reads as, so it never takes back a gender the keeper
+   established; an unmatched one is added away), then the owner's state
    corrections, then the anchor corrections; removed entries are left
    out (`registerAt`, `currentRegister`). A snapshot never holds an anchor
    correction: a keeper answer that kept a corrected field records the
@@ -1097,10 +1099,16 @@ people's records directly and folds the records of away people under their names
    matches the card and it names someone; an empty sheet, as a Scenario
    card's, sends canon. The answer is changes only (`castChangesSchema`: by
    full name, fields to set, a `was` for a fuller name; `absent` names),
-   clamped to the limits (`clampCastChanges`) before it is validated; an introduction or discovery item it cannot use is dropped without losing the rest of the change. Its
+   clamped to the limits (`clampCastChanges`) before it is validated; an
+   introduction or discovery item it cannot use, or a gender it cannot read,
+   is dropped without losing the rest of the change, and a gender written in
+   another case or as "woman" or "man" is read as the schema names it. Its
    cache key is the instance's `cast:<characterId>`. Development, continuity,
-   introduction and discovery fields each require a nonempty value and a literal
-   short quote found in a shown turn (`groundedCastChanges`). This grounds the
+   introduction and discovery fields each require a nonempty value and a
+   short quote found in one shown turn (`groundedCastChanges`). The quote is
+   compared by its words: highlight markup, Markdown emphasis, the spelling
+   of quotation marks, dashes and ellipses, case and spacing are set aside,
+   as are the quote's own surrounding marks. This grounds the
    update, not its semantic correctness. Discovery values may be less exact than
    canon and refine as the player learns more; canon alone never reveals them.
    Keeper and sheet instructions forbid inventing gaps except for a newly
@@ -1116,7 +1124,13 @@ people's records directly and folds the records of away people under their names
    monotonically within the branch, writes the state as given and marks every
    entry named present unless the change says otherwise, and marks the
    `absent` names away. A change that resolves to a removed entry leaves
-   it as it was, so the keeper cannot add it back.
+   it as it was, so the keeper cannot add it back. An entry becomes
+   `introduced` by the keeper's grounded `introduce`, or when a turn of the
+   batch writes its name (`namedInTurns`): the whole name, an earlier one,
+   or the given name when no other entry and not the player shares it, read
+   as written and as whole words in the text without its highlight markup.
+   The second rule needs nothing from the model, so a card's subjects are
+   listed as soon as the story names them.
 6. **The cast sheet.** A character's sheet is character data derived from
    the card alone: the people its card names, by its kind, with their
    anchors and no state, at most eight. Its fingerprint is sha256 of the
@@ -1132,7 +1146,11 @@ people's records directly and folds the records of away people under their names
    use until it settles and stores the clamped answer with ids and the
    fingerprint read before the call (nothing when the character was
    deleted meanwhile), flushed before it answers; a caller that leaves
-   only stops waiting. The sheet is never part of a card export, and its
+   only stops waiting. An answer with fewer people than the card's kind
+   promises (none for a Subject card, fewer than two for Multiple Subjects)
+   is asked for once more in the same job, saying what is missing
+   (`sheetShortfall`); the second answer stands, and the first is kept
+   when the second is unusable. The sheet is never part of a card export, and its
    row cascades with the character.
 7. **The chat's sheet.** The slice asks for the sheet once per chat and
    character: at a chat's start, and before a request or a keeper call

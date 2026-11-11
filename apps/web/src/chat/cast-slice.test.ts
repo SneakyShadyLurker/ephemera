@@ -1446,6 +1446,35 @@ describe("cast snapshots", () => {
     expect(chat.keeper[1]?.request.turns).toEqual([{ role: "assistant", content: "Hello again" }]);
   });
 
+  it("lists a card's two subjects once the greeting names them, whatever the keeper leaves out", async () => {
+    const chat = castChat();
+    const lena = {
+      ...SHEET_ENTRY,
+      id: uuid(2),
+      anchor: { ...SHEET_ENTRY.anchor, name: "Lena Voss", gender: "other" as const },
+    };
+    const listed = () =>
+      currentRegister(chat.state())
+        .entries.filter((e) => e.introduced === true && e.anchor.gender === "female")
+        .map((e) => e.anchor.name);
+    chat.state().setGreetings([':rose["Ava, get the door."] Lena waves you in.']);
+    await chat.sheet([SHEET_ENTRY, lena]);
+    expect(listed()).toEqual([]);
+    // The keeper sets the scene and says the gender the card left open, with no introduction.
+    await chat.answer({
+      cast: {
+        "Ava Lind": { state: { activity: "opening the door" } },
+        "Lena Voss": { gender: "female", state: { activity: "waving" } },
+      },
+      absent: [],
+    });
+    expect(listed()).toEqual(["Ava Lind", "Lena Voss"]);
+    // Both hold through later answers that say nothing of them.
+    await chat.say("Hello");
+    await chat.answer({ cast: {}, absent: [] });
+    expect(listed()).toEqual(["Ava Lind", "Lena Voss"]);
+  });
+
   it("seeds and keeps a Scenario with no sheet people after notebook readiness", async () => {
     const chat = castChat(async () => undefined);
     const greeting = "Ilse Brandt sets a glass on the bar.";

@@ -1,6 +1,7 @@
 import type { MemoryCastContext } from "../cast/effective.ts";
 import { type ChatRole, type SpeakerNames, speakerOf } from "../chat.ts";
 import { LOCATION_OPENING, OPENING_RESTRAINT } from "../creator/prompts.ts";
+import { givenName, wholeName } from "../prompt/names.ts";
 import { closeSentence } from "../prompt/sentence.ts";
 import { MEMORY_LIMITS } from "./limits.ts";
 import {
@@ -33,9 +34,6 @@ const USER_MACRO = /\{\{\s*user\s*\}\}|<user>/gi;
 export const fillUserPlaceholder = (text: string, name: string): string =>
   text.replace(USER_MACRO, () => name);
 
-/** A letter, digit, mark or underscore: what continues a word. */
-const WORD = "[\\p{L}\\p{M}\\p{N}_]";
-
 /**
  * `text` with every whole-word mention of the persona's `name`, as written,
  * as the placeholder; a placeholder already there stays as it is, and so
@@ -45,8 +43,7 @@ const WORD = "[\\p{L}\\p{M}\\p{N}_]";
 export function withUserPlaceholder(text: string, name: string): string {
   const trimmed = name.trim();
   if (trimmed === "") return text;
-  const escaped = RegExp.escape(trimmed);
-  const mention = new RegExp(`(?<!${WORD})${escaped}(?!${WORD})(?![^\\S\\r\\n]+\\p{Lu})`, "gu");
+  const mention = new RegExp(`${wholeName(trimmed).source}(?![^\\S\\r\\n]+\\p{Lu})`, "gu");
   let out = "";
   let from = 0;
   for (const macro of text.matchAll(USER_MACRO)) {
@@ -55,17 +52,6 @@ export function withUserPlaceholder(text: string, name: string): string {
   }
   return out + text.slice(from).replace(mention, USER_PLACEHOLDER);
 }
-
-/** First words, in lower case, that are a title or an article, never what a story calls someone by. */
-const NOT_A_NAME = new Set(
-  [
-    "a an the",
-    "mr mrs ms mx miss sir dame lady lord madam master",
-    "dr doctor prof professor captain general sergeant officer detective agent",
-    "king queen prince princess duke duchess count countess baron baroness emperor empress",
-    "father mother brother sister uncle aunt saint",
-  ].flatMap((words) => words.split(" ")),
-);
 
 /**
  * The forms of the persona's name a memory call's answer takes the
@@ -77,13 +63,9 @@ const NOT_A_NAME = new Set(
  */
 export function userNameForms({ char, user }: SpeakerNames): string[] {
   const whole = user.trim();
-  const first = whole.split(/\s+/)[0] ?? "";
-  const given =
-    first !== whole &&
-    /^\p{Lu}[\p{L}\p{M}'’-]+$/u.test(first) &&
-    !NOT_A_NAME.has(first.toLowerCase());
+  const given = givenName(whole);
   const lower = char.toLowerCase();
-  return [whole, ...(given ? [first] : [])].filter(
+  return [whole, ...(given === null ? [] : [given])].filter(
     (form) => form !== "" && withUserPlaceholder(lower, form.toLowerCase()) === lower,
   );
 }

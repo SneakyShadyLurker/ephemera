@@ -332,6 +332,50 @@ describe("the status line", () => {
     expect(out).not.toContain("data-cast-entry");
   });
 
+  it.each(["float", "band"] as const)(
+    "holds the %s panel from the read card to the first keeper answer, then follows who is listed",
+    (placement) => {
+      const {
+        state: _state,
+        introduced: _introduced,
+        discovered: _discovered,
+        ...subject
+      } = person(1, "Mara");
+      const sheet = { fingerprint: "f".repeat(64), entries: [subject] };
+      const show = () => inApp(<CastPanel placement={placement} />);
+      chatStore.setState({
+        messages: [reply("m1", "r1")],
+        cast: { ...EMPTY_CAST, sheet, status: "seeding" },
+      });
+      const waiting = show();
+      expect(waiting).toContain("Updating…");
+      expect(waiting).not.toContain("data-cast-entry");
+      // The same wait when the first answer follows a reply instead of the greeting.
+      chatStore.setState((state) => ({ cast: { ...state.cast, status: "updating" } }));
+      expect(show()).toContain("Updating…");
+      // Answered with nobody to list: the panel goes, and later updates never bring it back empty.
+      chatStore.setState((state) => ({
+        cast: {
+          ...state.cast,
+          status: "idle",
+          snapshots: { r1: { register: { entries: [] }, usage: null, at: 1 } },
+        },
+      }));
+      expect(show()).toBe("");
+      chatStore.setState((state) => ({
+        messages: [...state.messages, reply("m2", "r2")],
+        cast: { ...state.cast, status: "updating" },
+      }));
+      expect(show()).toBe("");
+      // A card that names no one has nobody to wait for.
+      chatStore.setState({
+        messages: [reply("m1", "r1")],
+        cast: { ...EMPTY_CAST, sheet: { ...sheet, entries: [] }, status: "seeding" },
+      });
+      expect(show()).toBe("");
+    },
+  );
+
   it("says what fills the cast while it waits for a model, without a failure or Try again", () => {
     chatStore.setState({ messages: [], cast: { ...EMPTY_CAST, sheetStatus: "waiting" } });
     const out = panel();
