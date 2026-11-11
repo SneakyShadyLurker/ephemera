@@ -1152,3 +1152,73 @@ describe("current private admission and independent inventory reads", () => {
     },
   );
 });
+
+describe("a one-picture workflow on the private worker", () => {
+  it("takes one lease per picture, each only after the last one's release has ended", async () => {
+    const order: string[] = [];
+    let held = 0;
+    let most = 0;
+    const { fake, client } = setup(
+      { mode: "private", installedWorkflow: "h3-fixture" },
+      (fetch) => async (input, init) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        const lease = /\/jobs\/([^/]+)$/.exec(url)?.[1];
+        if (lease !== undefined && method === "POST") {
+          order.push(`lease ${lease}`);
+          most = Math.max(most, ++held);
+        }
+        if (lease !== undefined && method === "DELETE") {
+          // A slow release: the next lease must wait for it, not just for its start.
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          const response = await fetch(input, init);
+          held--;
+          order.push(`release ${lease}`);
+          return response;
+        }
+        return fetch(input, init);
+      },
+    );
+    const events = await collect(client, {
+      workflow: serverRun("h3-fixture"),
+      count: CREATOR_ART.count,
+    });
+    expect(events.filter((event) => event.type === "images")).toHaveLength(CREATOR_ART.count);
+    const leases = [...fake.state.prompts.keys()];
+    expect(leases).toHaveLength(CREATOR_ART.count);
+    expect(order).toEqual(leases.flatMap((id) => [`lease ${id}`, `release ${id}`]));
+    expect(most).toBe(1);
+    expect(fake.state.released).toEqual(leases);
+    expect(fake.clean()).toBe(true);
+  });
+
+  it("tags each picture's progress and still releases every lease when a later run fails", async () => {
+    let runs = 0;
+    const { fake, client } = setup({
+      mode: "private",
+      installedWorkflow: "h3-fixture",
+      images: () => (++runs === 2 ? [fakePng(CREATOR_ART.width, 1024)] : [fakePng()]),
+    });
+    const events: unknown[] = [];
+    await expect(
+      (async () => {
+        try {
+          for await (const event of client.generate({
+            ...INPUT,
+            workflow: serverRun("h3-fixture"),
+            count: CREATOR_ART.count,
+          }))
+            events.push(event);
+        } finally {
+          await client.settled();
+        }
+      })(),
+    ).rejects.toMatchObject({ reason: "invalid_output" });
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "progress", picture: { number: 2, of: 4 } }),
+    );
+    expect(fake.state.prompts.size).toBe(2);
+    expect(fake.state.released).toEqual([...fake.state.prompts.keys()]);
+    expect(fake.clean()).toBe(true);
+  });
+});

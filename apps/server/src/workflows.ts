@@ -474,6 +474,8 @@ export function createWorkflowsApi(store: WorkflowStoreFor, deps: WorkflowsDeps)
                 output: "",
                 models: [],
                 family: detection.familyGuess,
+                single: false,
+                scaled: false,
               };
           status = artStatus({ reachable: true, ...inventory.missing(checkedGraph) });
         }

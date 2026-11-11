@@ -5,7 +5,10 @@ import type { ArtRun } from "./art-slice.ts";
  * for New art alike, or while a scene's one picture is: the stage, a count
  * where the stage has one, the frame's line, and after a silence who the run
  * waits for. A silence is measured from the last word the run sent, so a
- * live run never shows one.
+ * live run never shows one. A one-picture workflow paints the portraits one
+ * run at a time: its stages then name the portrait they work on, as
+ * "Developing portrait 2 of 4", or say it as their detail while ComfyUI
+ * prepares the run.
  */
 
 /** What a run makes: the creator's four portraits, or a scene's one picture. */
@@ -34,6 +37,14 @@ export function artProgress(art: ArtRun | null, noun: ArtNoun = "portraits"): Ar
   if (art?.status === "waiting") return { label: "Waiting for you to sign in" };
   if (art?.status !== "running") return null;
   const { value, max } = art;
+  const picture =
+    art.picture === undefined || noun !== "portraits"
+      ? undefined
+      : `${art.picture.number} of ${art.picture.of}`;
+  /** What the painting stages name: the portrait of the batch a run paints, or the whole run. */
+  const the = picture === undefined ? words.the : `portrait ${picture}`;
+  /** A preparing stage's detail: which portrait the run is for. */
+  const which = picture === undefined ? {} : { detail: `Portrait ${picture}` };
   switch (art.phase) {
     case "status":
       return {
@@ -57,6 +68,7 @@ export function artProgress(art: ArtRun | null, noun: ArtNoun = "portraits"): Ar
     case "starting":
       return {
         label: "ComfyUI is starting up",
+        ...which,
         line: "pending",
         quiet: { text: "ComfyUI is taking a while to start.", after: 30_000 },
       };
@@ -73,12 +85,14 @@ export function artProgress(art: ArtRun | null, noun: ArtNoun = "portraits"): Ar
     case "queued":
       return {
         label: "Waiting in ComfyUI's queue",
+        ...which,
         line: "pending",
         quiet: { text: "ComfyUI has not started it yet.", after: 30_000 },
       };
     case "loading":
       return {
         label: "ComfyUI is getting ready",
+        ...which,
         line: "pending",
         quiet: { text: "ComfyUI is taking a while to start.", after: 45_000 },
       };
@@ -86,25 +100,25 @@ export function artProgress(art: ArtRun | null, noun: ArtNoun = "portraits"): Ar
       // After the last step ComfyUI decodes and sends the images; nothing measures that.
       return value < max
         ? {
-            label: `Developing ${words.the}`,
+            label: `Developing ${the}`,
             detail: `Step ${value} of ${max}`,
             line: max > 0 ? value / max : 0,
             quiet: { text: "No new step from ComfyUI for a while.", after: 20_000 },
           }
         : {
-            label: `Finishing ${words.the}`,
+            label: `Finishing ${the}`,
             line: "pending",
             quiet: { text: words.onTheirWay, after: 30_000 },
           };
     case "decoding":
       return {
-        label: `Decoding ${words.the}`,
+        label: `Decoding ${the}`,
         line: "pending",
         quiet: { text: words.onTheirWay, after: 30_000 },
       };
     case "sending":
       return {
-        label: `Sending ${words.the}`,
+        label: `Sending ${the}`,
         line: "pending",
         quiet: { text: words.onTheirWay, after: 30_000 },
       };

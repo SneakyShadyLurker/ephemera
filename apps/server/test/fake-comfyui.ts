@@ -97,7 +97,8 @@ export interface FakeComfyuiOptions {
   objectInfo?: Record<string, unknown>;
   /**
    * What the save node sends, as whole PNGs; by default as many valid
-   * portraits as the submitted graph's `batch_size`.
+   * portraits as the submitted graph's `batch_size`, or one for a graph
+   * without one, as a one-picture model paints.
    * A function receives the submitted graph, so each run can send its own.
    */
   images?: Uint8Array[] | ((graph: unknown) => Uint8Array[]);
@@ -335,9 +336,9 @@ export function fakeComfyui(options: FakeComfyuiOptions = {}) {
       if (decode !== undefined && options.progressMode !== undefined) progress(decode, 1, 1);
       send({ type: "executing", data: { node: output, prompt_id: id } });
       const images = typeof options.images === "function" ? options.images(graph) : options.images;
-      const outputs = (
-        images ?? Array.from({ length: batch ?? CREATOR_ART.count }, () => fakePng())
-      ).map((png) => ({ id: crypto.randomUUID(), png }));
+      const outputs = (images ?? Array.from({ length: batch ?? 1 }, () => fakePng())).map(
+        (png) => ({ id: crypto.randomUUID(), png }),
+      );
       if (mode === "private" && state.leases.has(id)) state.outputs.set(id, outputs);
       for (const [index, { png }] of outputs.entries()) {
         progress(output, index, outputs.length);

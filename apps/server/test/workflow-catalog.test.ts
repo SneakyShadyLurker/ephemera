@@ -54,6 +54,8 @@ describe("the workflow catalog", () => {
       output: asFile.output,
       models: asFile.models,
       family: "general",
+      single: asFile.single,
+      scaled: asFile.scaled,
       blocked: [],
     });
     expect(catalog.get(SERVER.defaultWorkflow)).toEqual({

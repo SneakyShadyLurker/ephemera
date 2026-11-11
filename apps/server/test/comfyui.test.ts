@@ -984,6 +984,22 @@ describe("phase-aware completion and private recovery", () => {
     expect(fake.clean()).toBe(true);
   });
 
+  it("never says ComfyUI is getting ready again for a node that runs after sampling began", async () => {
+    // The H3 fixture resizes the decoded picture in node 12, between the decode and the save.
+    const { client, fake } = setup({
+      progressEvents: (id) => [
+        { type: "progress", data: { value: 3, max: 6, prompt_id: id, node: "7" } },
+        { type: "progress", data: { value: 0, max: 1, prompt_id: id, node: "12" } },
+      ],
+    });
+    const events = await collect(client, { workflow: serverRun("h3-fixture"), count: 1 });
+    const phases = events.flatMap((event) => (event.type === "progress" ? [event.phase] : []));
+    expect(phases).toContain("running");
+    expect(phases.slice(phases.indexOf("running"))).not.toContain("loading");
+    expect(events.at(-1)?.type).toBe("images");
+    expect(fake.clean()).toBe(true);
+  });
+
   it("maps fractional native progress to public integers and keeps node completion nonterminal", async () => {
     const { client, fake } = setup({
       progressEvents: (id) => [
@@ -1122,12 +1138,18 @@ describe("workflow substitution", () => {
 
   it("finds every workflow file, names it, and fills each one", () => {
     expect(workflows.list.workflows).toEqual([
+      { id: "h3-fixture", name: "H3 Fixture", family: "h3", scope: "server" },
       { id: "krea2-fixture", name: "Krea 2 Fixture", family: "krea2", scope: "server" },
       { id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo", family: "krea2", scope: "server" },
       { id: "moss-fixture", name: "MOSS Fixture", family: "moss", scope: "server" },
     ]);
     for (const { id } of workflows.list.workflows) {
-      const filled = fillWorkflow(workflows.get(id).graph, values);
+      const { graph, single, scaled } = workflows.get(id);
+      const filled = fillWorkflow(graph, {
+        ...values,
+        count: single ? 1 : values.count,
+        ...(scaled ? { scale: 0.5 } : {}),
+      });
       expect(JSON.stringify(filled)).not.toMatch(/\{\{\w+\}\}/);
     }
     const fallback = workflows.defaultWorkflow;
@@ -1215,6 +1237,52 @@ describe("workflow substitution", () => {
     expect(sent["7"]?.inputs.seed).toBe(7);
     expect(Object.keys(sent)).toEqual(Object.keys(graph));
     expect(graph["4"]?.inputs.text).toBe("{{prompt}}");
+  });
+
+  it("tells a one-picture, scaled H3 graph from the batch graphs", () => {
+    const h3 = workflows.get("h3-fixture");
+    expect(h3).toMatchObject({ family: "h3", output: "9", single: true, scaled: true });
+    expect(h3.models.map((model) => model.file)).toEqual([
+      "h3-fixture-base.safetensors",
+      "fixture-h3-text-encoder.safetensors",
+      "fixture-h3-vae.safetensors",
+    ]);
+    for (const id of ["krea2-fixture", "krea2-gonzalomo", "moss-fixture"]) {
+      expect(workflows.get(id)).toMatchObject({ single: false, scaled: false });
+    }
+    expect(workflows.referenceOf("krea2-fixture")).toMatchObject({ single: false, scaled: false });
+  });
+
+  it("fills a one-picture graph only for one picture, and its scale only when given", () => {
+    const graph = workflows.get("h3-fixture").graph;
+    const one = { ...values, count: 1, width: 2304, height: 3456, scale: 1024 / 2304 };
+    const filled = fillWorkflow(graph, one);
+    expect(filled["4"]?.inputs).toMatchObject({ prompt: PROMPT, width: 2304, height: 3456 });
+    expect(filled["12"]?.inputs.scale_by).toBe(1024 / 2304);
+    expect(filled["13"]?.inputs.noise_seed).toBe(7);
+    expect(JSON.stringify(filled)).not.toMatch(/\{\{\w+\}\}/);
+    expect(() => fillWorkflow(graph, { ...one, count: 4 })).toThrow(/one picture per run/);
+    // A scale placeholder with no scale given is an unknown placeholder.
+    const { scale: _, ...unscaled } = one;
+    expect(() => fillWorkflow(graph, unscaled)).toThrow(/placeholder/);
+    // A scale given to a template without its placeholder is refused, as a reference image is.
+    expect(() => fillWorkflow(template, { ...values, scale: 0.5 })).toThrow(/lacks a placeholder/);
+    for (const scale of [0, -0.5, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => fillWorkflow(graph, { ...one, scale })).toThrow(RangeError);
+    }
+    expect(() => fillWorkflow(graph, { ...one, scale: 1 })).not.toThrow();
+  });
+
+  it("refuses a one-picture graph with a fixed batch size above one", () => {
+    const batch = structuredClone(template);
+    if (batch["6"]) batch["6"].inputs.batch_size = 4;
+    expect(() => describeWorkflow(batch, "krea2")).toThrow(/fixed batch size/);
+    expect(() => discoverWorkflows([{ file: "krea2-lost-count.json", source: batch }])).toThrow(
+      /not a valid workflow/,
+    );
+    if (batch["6"]) batch["6"].inputs.batch_size = 1;
+    expect(describeWorkflow(batch, "krea2")).toMatchObject({ single: true, scaled: false });
+    expect(describeWorkflow(template, "krea2")).toMatchObject({ single: false, scaled: false });
   });
 
   it("detects model-only LoRA dependencies in a MOSS graph and every reference graph", () => {
@@ -1552,6 +1620,103 @@ describe("allowed origins", () => {
 });
 
 describe("ComfyUI generation", () => {
+  describe("on a one-picture workflow", () => {
+    const h3 = { installedWorkflow: "h3-fixture" } as const;
+    const seedOf = (graph: unknown) => (graph as WorkflowGraph)["13"]?.inputs.noise_seed;
+
+    it("paints a batch as one job per picture, each with its own seed and the render size", async () => {
+      const { fake, client } = setup(h3);
+      const seed = 2 ** 32 - 2;
+      const events = await collect(client, { workflow: serverRun("h3-fixture"), seed });
+      const graphs = [...fake.state.prompts.values()] as WorkflowGraph[];
+      expect(graphs.map(seedOf)).toEqual([2 ** 32 - 2, 2 ** 32 - 1, 0, 1]);
+      for (const graph of graphs) {
+        expect(graph["4"]?.inputs).toMatchObject({ prompt: PROMPT, width: 2304, height: 3456 });
+        expect(graph["12"]?.inputs.scale_by).toBe(1024 / 2304);
+      }
+      const images = events.filter((event) => event.type === "images");
+      expect(images.map((event) => event.pngs.length)).toEqual([1, 1, 1, 1]);
+      // Each picture is passed on before the next run starts.
+      expect(events.map((event) => event.type).lastIndexOf("images")).toBe(events.length - 1);
+      const pictures = events.flatMap((event) =>
+        event.type === "progress" ? [event.picture] : [],
+      );
+      expect(pictures.every((picture) => picture?.of === 4)).toBe(true);
+      expect([...new Set(pictures.map((picture) => picture?.number))]).toEqual([1, 2, 3, 4]);
+      // Every picture's progress comes before its image and after the one before it.
+      let number = 1;
+      for (const event of events) {
+        if (event.type === "images") number++;
+        else expect(event.picture?.number).toBe(number);
+      }
+      expect(fake.clean()).toBe(true);
+    });
+
+    it("paints a single picture as one job without a picture tag", async () => {
+      const { fake, client } = setup(h3);
+      const events = await collect(client, { workflow: serverRun("h3-fixture"), count: 1 });
+      expect(fake.state.prompts.size).toBe(1);
+      expect(events.filter((event) => event.type === "images")).toHaveLength(1);
+      expect(events.some((event) => "picture" in event)).toBe(false);
+    });
+
+    it("submits no further job once the batch is stopped during the second run", async () => {
+      const { fake, client } = setup(h3);
+      const controller = new AbortController();
+      const run = (async () => {
+        try {
+          for await (const event of client.generate({
+            baseUrl: BASE,
+            workflow: serverRun("h3-fixture"),
+            prompt: PROMPT,
+            seed: 42,
+            count: 4,
+            signal: controller.signal,
+          })) {
+            if (event.type === "progress" && event.picture?.number === 2) controller.abort();
+          }
+        } finally {
+          await client.settled();
+        }
+      })();
+      expect(await failure(run)).toMatchObject({ reason: "aborted" });
+      expect(fake.state.prompts.size).toBe(2);
+      expect(fake.clean()).toBe(true);
+    });
+
+    it("fails the batch when a later run fails", async () => {
+      let runs = 0;
+      const { fake, client } = setup({
+        ...h3,
+        images: () => (++runs === 3 ? [fakePng(CREATOR_ART.width, 1024)] : [fakePng()]),
+      });
+      expect(await failure(collect(client, { workflow: serverRun("h3-fixture") }))).toMatchObject({
+        reason: "invalid_output",
+      });
+      expect(fake.state.prompts.size).toBe(3);
+    });
+
+    it("holds the batch byte cap across its runs", async () => {
+      // Each picture is within its own cap; the fourth takes the batch past its cap.
+      const { fake, client } = setup({
+        ...h3,
+        images: () => [fakePng(1024, 1536, 7 * 1024 * 1024)],
+      });
+      expect(await failure(collect(client, { workflow: serverRun("h3-fixture") }))).toMatchObject({
+        reason: "oversized",
+      });
+      expect(fake.state.prompts.size).toBe(4);
+    });
+
+    it("keeps a batch workflow at one job without a picture tag", async () => {
+      const { fake, client } = setup();
+      const events = await collect(client, { workflow: serverRun("krea2-fixture") });
+      expect(fake.state.prompts.size).toBe(1);
+      expect(events.filter((event) => event.type === "images")).toHaveLength(1);
+      expect(events.some((event) => "picture" in event)).toBe(false);
+    });
+  });
+
   it("refuses a workflow with blocked classes before any request", async () => {
     const { fake, client } = setup();
     expect(

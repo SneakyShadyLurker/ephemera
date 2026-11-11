@@ -154,9 +154,10 @@ Write your answer as these sections, each wrapped in a tag of the same name, in 
 
 /*
  * The image-model families a workflow belongs to, each with its own art
- * metaprompt wording: Krea 2, MOSS Image, and General for any other model.
+ * metaprompt wording: Krea 2, MOSS Image, MiniMax H3 Image, and General for
+ * any other model.
  */
-export const ART_FAMILIES = ["krea2", "moss", "general"] as const;
+export const ART_FAMILIES = ["krea2", "moss", "h3", "general"] as const;
 export type ArtFamily = (typeof ART_FAMILIES)[number];
 
 /* How an art metaprompt names the image model, the photo it asks for and the anatomy it bares. */
@@ -170,8 +171,8 @@ interface ArtWords {
   vulva: string;
   vulvaShapes: string;
   ass: string;
-  /** A rule only this model needs, after the shared form rule. */
-  form: string;
+  /** The rules only this model needs, after the shared form rule; `title` is a scenario cover's lettering. */
+  form: (title: boolean) => string;
 }
 
 const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
@@ -187,7 +188,7 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     vulva: "pussy",
     vulvaShapes: "puffy outer lips, a closed slit or visible inner lips",
     ass: "ass",
-    form: "",
+    form: () => "",
   },
   /*
    * MOSS Image as Atelier validated it: plain anatomical words, and a capture
@@ -201,7 +202,28 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     vulva: "vulva",
     vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
     ass: "buttocks",
-    form: ` Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the chosen look words it.`,
+    form: () =>
+      ` Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the chosen look words it.`,
+  },
+  /*
+   * MiniMax H3 Image as its own prompt guide and Atelier's renders give it:
+   * plain anatomical words; the kind of image and its subject named first,
+   * as the guide's examples open; left and right, facing and contact kept
+   * consistent, which the guide asks for; "athletic" kept for visible
+   * muscle, which is how the model renders it; and, since the model has no
+   * negative prompt, its exclusions as the one closing sentence the guide's
+   * examples end on.
+   */
+  h3: {
+    id: "h3",
+    model: "MiniMax H3",
+    imageModel: "the MiniMax H3 Image model",
+    photo: "photograph",
+    vulva: "vulva",
+    vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
+    ass: "buttocks",
+    form: (title) =>
+      ` MiniMax H3 reads the kind of image first, so open the paragraph by naming the kind of image and its subject, as in "An amateur snapshot of one woman" or "A movie poster of three women", then keep the order above and give the look's remaining words where its step comes. Within one frame or panel, keep left and right, the way each body faces the camera and what each hand touches or rests on the same wherever the paragraph returns to them. MiniMax H3 renders the word "athletic" as visible muscle definition, so write that word only for a woman the notes make visibly muscular, and name every other build in plain words, such as slim with a narrow waist. It has no negative prompt and takes exclusions as one plain closing sentence, the one place where the prompt says what is absent, so end the paragraph with ${title ? `"No lettering other than the title and no additional people appear.", or with "No lettering or additional people appear." when the notes give no Title.` : `"No lettering or additional people appear."`}`,
   },
   /* Any other image model: plain anatomical words and no model-specific rule. */
   general: {
@@ -212,7 +234,7 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     vulva: "vulva",
     vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
     ass: "buttocks",
-    form: "",
+    form: () => "",
   },
 };
 
@@ -262,7 +284,7 @@ const NAMES_RULE = (w: ArtWords, title = false) =>
  * scenario cover letters its title, quoted as given, like a movie poster.
  */
 const FORM_RULE = (w: ArtWords, title = false) =>
-  `State what is present, never what is absent. No lists of tags, no quality words such as "masterpiece" or "ultra detailed", no prompt weighting syntax, no words for grain or noise, no lettering or captions in the image${title ? " but the title" : ""}. In the text you write, never use colons, semicolons or em dashes${title ? ", except inside the quoted title" : ""}.${w.form}`;
+  `State what is present, never what is absent. No lists of tags, no quality words such as "masterpiece" or "ultra detailed", no prompt weighting syntax, no words for grain or noise, no lettering or captions in the image${title ? " but the title" : ""}. In the text you write, never use colons, semicolons or em dashes${title ? ", except inside the quoted title" : ""}.${w.form(title)}`;
 
 /* What both character art metaprompts take from the notes, and the place, light and look. */
 const CHARACTER_SOURCE = (w: ArtWords) =>
@@ -522,6 +544,7 @@ const artMetaprompts = (w: ArtWords): Readonly<Record<CreatorKind, string>> => (
 export const ART_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<CreatorKind, string>>>> = {
   krea2: artMetaprompts(ART_WORDS.krea2),
   moss: artMetaprompts(ART_WORDS.moss),
+  h3: artMetaprompts(ART_WORDS.h3),
   general: artMetaprompts(ART_WORDS.general),
 };
 
@@ -529,6 +552,7 @@ export const ART_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<Creator
 export const SUBJECT_DIPTYCH_METAPROMPTS: Readonly<Record<ArtFamily, string>> = {
   krea2: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.krea2),
   moss: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.moss),
+  h3: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.h3),
   general: SUBJECT_DIPTYCH_ART_PROMPT(ART_WORDS.general),
 };
 
@@ -657,5 +681,6 @@ export const SCENE_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<Creat
   {
     krea2: sceneMetaprompts(ART_WORDS.krea2),
     moss: sceneMetaprompts(ART_WORDS.moss),
+    h3: sceneMetaprompts(ART_WORDS.h3),
     general: sceneMetaprompts(ART_WORDS.general),
   };

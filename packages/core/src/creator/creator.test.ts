@@ -216,6 +216,25 @@ describe("creator requests and events", () => {
     expect(SCENE_METAPROMPTS.general.subject).toContain("the vulva with its pubic hair");
   });
 
+  it("ends a MiniMax H3 prompt on its one exclusion sentence, which names a scenario's title only when there is one", () => {
+    const plain = 'end the paragraph with "No lettering or additional people appear."';
+    for (const prompt of [
+      ART_METAPROMPTS.h3.subject,
+      ART_METAPROMPTS.h3.group,
+      SUBJECT_DIPTYCH_METAPROMPTS.h3,
+      SCENE_METAPROMPTS.h3.subject,
+    ]) {
+      expect(prompt).toContain(plain);
+      expect(prompt).not.toContain("other than the title");
+    }
+    expect(ART_METAPROMPTS.h3.scenario).toContain(
+      'end the paragraph with "No lettering other than the title and no additional people appear.", or with "No lettering or additional people appear." when the notes give no Title.',
+    );
+    for (const family of ART_FAMILIES.filter((family) => family !== "h3")) {
+      expect(ART_METAPROMPTS[family].subject).not.toContain("additional people appear");
+    }
+  });
+
   it("renders the subject portrait metaprompt for each family, for the owner to read side by side", async () => {
     const rendered = ART_FAMILIES.map(
       (family) => `===== ${family} =====\n\n${ART_METAPROMPTS[family].subject}\n`,
