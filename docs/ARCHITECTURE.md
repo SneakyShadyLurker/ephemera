@@ -1541,7 +1541,8 @@ content's path: the tab's memory and one request in the server.
   fill it for any other count; such a graph with a fixed `batch_size`
   above 1 stops the start. The dimensions are 1024 x 1536, unless the
   template has `{{scale}}`: it then renders at its family's render size
-  (core's `renderSizeOf`: 2304 x 3456 for MiniMax H3 Image, the portrait
+  for the picture's use (core's `renderSizeOf`: for MiniMax H3 Image
+  2304 x 3456 for a cover and 1664 x 2496 for a scene picture, the portrait
   size for every other family) and `{{scale}}` carries portrait width over
   render width, for an `ImageScaleBy` that shrinks the result back to
   1024 x 1536. A MOSS-family graph gets the MOSS Image metaprompts, a
@@ -1568,7 +1569,11 @@ content's path: the tab's memory and one request in the server.
   (the registry's `referenceOf`), derived from Atelier's graphs like the text graph and never a
   workflow of its own; one without its `<id>.json`, or without the
   `{{referenceImage}}` placeholder, stops the start. A workflow may ship a
-  companion reference graph; the bundled Krea 2 workflow has one. The reference graph runs only on Atelier's private
+  companion reference graph; the bundled Krea 2 workflow has one. A family
+  may bind the picture in words: the reference graph then runs core's
+  `sceneReferencePrompt` text while the text graph runs the written prompt,
+  since MiniMax H3 Image names the portrait `<Picture 1>` and needs the
+  prompt to say what the target image keeps from it. The reference graph runs only on Atelier's private
   worker, and only when `/object_info` lists every node class and model
   it needs and the handshake's allowlist permits the transformed graph.
   Otherwise the text graph runs and `comfyui.reference` logs the reason.

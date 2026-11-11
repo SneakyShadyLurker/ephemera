@@ -3,6 +3,7 @@ import {
   SCENE_METAPROMPTS,
   savedCardKind,
   scenePrompt,
+  sceneReferencePrompt,
   sceneRequestSchema,
 } from "@ephemera/core";
 import { zValidator } from "@hono/zod-validator";
@@ -88,6 +89,8 @@ export function createSceneApi(deps: SceneDeps) {
                 : {
                     portrait: async () => (await characters.portrait(characterId, "full"))?.bytes,
                     referenceGraph: true,
+                    referencePrompt: (prompt: string) =>
+                      sceneReferencePrompt(workflow.family, kind, prompt),
                   }),
               instructions: SCENE_METAPROMPTS[workflow.family][kind],
               text: (portrait) => scenePrompt(source, portrait),

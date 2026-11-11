@@ -38,6 +38,7 @@ import {
   SUBJECT_DIPTYCH_METAPROMPTS,
   savedCardArtSource,
   savedCardKind,
+  sceneReferencePrompt,
   toSheetFields,
   validateCardAnswer,
 } from "./index.ts";
@@ -302,6 +303,20 @@ describe("creator requests and events", () => {
         expect(prompt).not.toContain(selfie?.framing?.cover);
         expect(prompt).not.toContain("<look>");
       }
+    }
+  });
+
+  it("binds an H3 scene's picture in words for a Subject or Group, leaving every other prompt as written", () => {
+    const written = "A keeper reads by a lamp at night.";
+    for (const family of ["krea2", "moss", "general"] as const) {
+      for (const kind of KINDS) expect(sceneReferencePrompt(family, kind, written)).toBe(written);
+    }
+    expect(sceneReferencePrompt("h3", "scenario", written)).toBe(written);
+    for (const kind of ["subject", "group"] as const) {
+      const prompt = sceneReferencePrompt("h3", kind, written);
+      expect(prompt).not.toBe(written);
+      expect(prompt.endsWith(` ${written}`)).toBe(true);
+      expect(prompt).toContain("<Picture 1>");
     }
   });
 

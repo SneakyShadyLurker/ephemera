@@ -23,7 +23,8 @@ export const publicWorkflowFiles = () =>
 /**
  * The public graphs plus the synthetic fixtures (`krea2-fixture` with its
  * reference graph, `moss-fixture` without one, and `h3-fixture`, which paints
- * one picture per run at its render size and scales it down): every test
+ * one picture per run at its render size, scales it down and has a reference
+ * graph whose conditioning loads the picture): every test
  * that needs a second workflow, a MOSS one or a one-picture one uses these,
  * never another bundled graph.
  */

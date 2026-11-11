@@ -993,6 +993,11 @@ describe("POST /api/creator/art", () => {
     );
     expect(upstream.records).toHaveLength(1);
     expect(comfy.state.prompts.size).toBe(4);
+    // A cover renders at H3's cover size, larger than a scene picture's.
+    for (const graph of [...comfy.state.prompts.values()] as WorkflowGraph[]) {
+      expect(graph["4"]?.inputs).toMatchObject({ width: 2304, height: 3456 });
+      expect(graph["12"]?.inputs.scale_by).toBe(1024 / 2304);
+    }
     const images = all.filter((event) => event.type === "image");
     expect(images.map((event) => event.index)).toEqual([0, 1, 2, 3]);
     expect(all).toContainEqual(

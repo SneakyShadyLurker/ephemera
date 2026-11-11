@@ -684,3 +684,28 @@ export const SCENE_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<Creat
     h3: sceneMetaprompts(ART_WORDS.h3),
     general: sceneMetaprompts(ART_WORDS.general),
   };
+
+/*
+ * MiniMax H3 Image reads an attached picture as <Picture 1> and expects the
+ * prompt to say what the target image keeps from it, in the order its edit
+ * guide gives: the source, the target, what is preserved, then the new
+ * detail. The written scene prompt is that new detail, so the face reference
+ * goes in front of it and the same prompt still runs alone on the text graph.
+ * A Group's portrait shows every subject, a scene only those present.
+ */
+const H3_SCENE_REFERENCE: Readonly<Record<"subject" | "group", string>> = {
+  subject:
+    "The person in <Picture 1> is <Subject 1>. The target image is a new photograph of <Subject 1> in another place and moment. <Subject 1> is partially preserved: the face, hair colour, skin tone and apparent age stay as <Picture 1> shows them, while the pose, expression, clothing, framing, place and light are new and follow this description.",
+  group:
+    "<Picture 1> shows the people this description may place in the target image. The target image is a new photograph in another place and moment, with only the people the description names. Each of them is partially preserved: the face, hair colour, skin tone and apparent age stay as <Picture 1> shows that person, matched by the looks the description gives, while the pose, expression, clothing, framing, place and light are new and follow this description.",
+};
+
+/**
+ * The image prompt a workflow's reference graph runs with a character's
+ * portrait as its picture: for MiniMax H3 Image the written prompt behind the
+ * sentences that bind it to <Picture 1>, for every other family the prompt as
+ * written. A Scenario has no portrait of its people and no reference.
+ */
+export function sceneReferencePrompt(family: ArtFamily, kind: CreatorKind, prompt: string): string {
+  return family === "h3" && kind !== "scenario" ? `${H3_SCENE_REFERENCE[kind]} ${prompt}` : prompt;
+}

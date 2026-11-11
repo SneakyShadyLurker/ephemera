@@ -18,6 +18,7 @@ const INPUT: GenerateInput = {
   prompt: "Synthetic keeper 雨",
   seed: 42,
   count: 1,
+  surface: "cover",
   signal: new AbortController().signal,
 };
 const jobPost = (url: string, method: string) => method === "POST" && /\/jobs\/[^/]+$/.test(url);

@@ -1,6 +1,7 @@
 import { inflate } from "node:zlib";
 import {
   type ArtStreamEvent,
+  type ArtSurface,
   CREATOR_ART,
   type CreatorErrorCode,
   type NodeMetaMap,
@@ -236,6 +237,8 @@ export interface GenerateInput {
   seed: number;
   /** How many images the batch paints, at most `CREATOR_ART.count`. */
   count: number;
+  /** What the batch is for; it picks the render size of a scaled template. */
+  surface: ArtSurface;
   /**
    * A PNG the workflow's reference graph loads as its image input; a creation
    * draft or character data, held in memory only. Used only on Atelier's
@@ -243,6 +246,11 @@ export interface GenerateInput {
    * nodes the worker has; otherwise the text graph runs without it.
    */
   reference?: Uint8Array<ArrayBuffer>;
+  /**
+   * The prompt the reference graph runs when it differs from the one the text
+   * graph runs; a creation draft like `prompt`, held in memory only.
+   */
+  referencePrompt?: string;
   /** Ends the run; cleanup still runs, on its own deadline. */
   signal: AbortSignal;
 }
@@ -355,16 +363,20 @@ function queuePosition(header: string | null): number | undefined {
 }
 
 /**
- * The size a graph renders at: its family's render size and the factor back
- * to the portrait size when it scales its result down, else the portrait size.
+ * The size a graph renders at: its family's render size for the surface and
+ * the factor back to the portrait size when it scales its result down, else
+ * the portrait size.
  */
-function sized(workflow: Pick<Workflow, "family" | "scaled">): {
+function sized(
+  workflow: Pick<Workflow, "family" | "scaled">,
+  surface: ArtSurface,
+): {
   width: number;
   height: number;
   scale?: number;
 } {
   if (!workflow.scaled) return { width: CREATOR_ART.width, height: CREATOR_ART.height };
-  const render = renderSizeOf(workflow.family);
+  const render = renderSizeOf(workflow.family, surface);
   return { ...render, scale: CREATOR_ART.width / render.width };
 }
 
@@ -1421,7 +1433,10 @@ export function createComfyui(deps: ComfyuiDeps) {
         seed: input.seed,
         count: input.count,
       };
-      let graph = fillWorkflow(workflow.graph, { ...values, ...sized(workflow) });
+      let graph = fillWorkflow(workflow.graph, {
+        ...values,
+        ...sized(workflow, input.surface),
+      });
       const privacy = yield* startedHandshake(baseUrl, signal);
       mode = privacy.mode;
       const recoverable = privacy.mode === "private";
@@ -1508,7 +1523,12 @@ export function createComfyui(deps: ComfyuiDeps) {
           throw new ComfyuiError("oversized");
         const referenceImage = await upload(baseUrl, promptId, input.reference, signal);
         graph = privateGraph(
-          fillWorkflow(reference.graph, { ...values, ...sized(reference), referenceImage }),
+          fillWorkflow(reference.graph, {
+            ...values,
+            prompt: input.referencePrompt ?? input.prompt,
+            ...sized(reference, input.surface),
+            referenceImage,
+          }),
         );
         output = reference.output;
         referenceGraph = true;
