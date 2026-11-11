@@ -691,13 +691,15 @@ export const SCENE_METAPROMPTS: Readonly<Record<ArtFamily, Readonly<Record<Creat
  * guide gives: the source, the target, what is preserved, then the new
  * detail. The written scene prompt is that new detail, so the face reference
  * goes in front of it and the same prompt still runs alone on the text graph.
- * A Group's portrait shows every subject, a scene only those present.
+ * The description wins where it gives a look otherwise, as the scene
+ * metaprompt lets the excerpt or the notes change hair, skin or kind. A
+ * Group's portrait shows every subject, a scene only those present.
  */
 const H3_SCENE_REFERENCE: Readonly<Record<"subject" | "group", string>> = {
   subject:
-    "The person in <Picture 1> is <Subject 1>. The target image is a new photograph of <Subject 1> in another place and moment. <Subject 1> is partially preserved: the face, hair colour, skin tone and apparent age stay as <Picture 1> shows them, while the pose, expression, clothing, framing, place and light are new and follow this description.",
+    "The person in <Picture 1> is <Subject 1>. The target image is a new photograph of <Subject 1> in another place and moment. <Subject 1> is partially preserved: the face, hair colour, skin tone and apparent age stay as <Picture 1> shows them wherever this description does not give them otherwise, while the pose, expression, clothing, framing, place and light are new and follow this description.",
   group:
-    "<Picture 1> shows the people this description may place in the target image. The target image is a new photograph in another place and moment, with only the people the description names. Each of them is partially preserved: the face, hair colour, skin tone and apparent age stay as <Picture 1> shows that person, matched by the looks the description gives, while the pose, expression, clothing, framing, place and light are new and follow this description.",
+    "<Picture 1> shows the people this description may place in the target image. The target image is a new photograph in another place and moment, with only the people the description names. Each of them is partially preserved: the face, hair colour, skin tone and apparent age stay as <Picture 1> shows that person, matched by the looks the description gives, wherever this description does not give them otherwise, while the pose, expression, clothing, framing, place and light are new and follow this description.",
 };
 
 /**

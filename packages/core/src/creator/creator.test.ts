@@ -317,6 +317,10 @@ describe("creator requests and events", () => {
       expect(prompt).not.toBe(written);
       expect(prompt.endsWith(` ${written}`)).toBe(true);
       expect(prompt).toContain("<Picture 1>");
+      // The scene metaprompt lets the excerpt or the notes change hair, skin or kind, so the picture yields to the description.
+      expect(prompt).toMatch(
+        /stay as <Picture 1> shows [^.]*wherever this description does not give them otherwise/,
+      );
     }
   });
 
