@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withoutHighlights } from "../preset/highlight.ts";
-import { givenName, isEverydayName, wholeName } from "../prompt/names.ts";
+import { givenName, wholeName } from "../prompt/names.ts";
 import { castKey } from "./key.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
@@ -128,21 +128,16 @@ export function groundedCastChanges(changes: CastChanges, shown: readonly string
 /** A hyphen that joins a compound name, as models write it: "Ann-Marie" does not name Ann. */
 const JOINER = "[-\\u2010\\u2011]";
 
-/** What stands before a word that opens a sentence, a line or a quotation. */
-const SENTENCE_START = /(?:^|[.!?…:\n])[\s"'“‘«([*_~-]*$/u;
-
-/** What follows a name that opens a scene line's cue: ` (25): `. */
-const CUE_AFTER = /^ \(\d{1,4}\):/;
-
 /**
  * The entries a shown turn names, by index: by the whole name, an earlier
  * name, or the given name when no other entry's name and not the player's
  * holds that word. Names are read as written and as whole words, in the
- * text without its highlight markup. A one-word name that is an everyday
- * word too (`isEverydayName`) counts only where a sentence would not
- * capitalise it anyway, or where it opens a scene line's cue. A story that
- * writes someone's name has told the player of them, whatever the keeper
- * answered.
+ * text without its highlight markup. A story that writes someone's name has
+ * told the player of them, whatever the keeper answered. A capitalised
+ * everyday word that is someone's name too ("May I come in?" with a May in
+ * the cast) counts as well: telling the two apart would cost the plain
+ * mentions ("Rose smiles.") this rule exists for, and what it shows early
+ * is a name, never a detail.
  */
 export function namedInTurns(
   entries: readonly Pick<CastEntry, "anchor" | "aka">[],
@@ -157,19 +152,9 @@ export function namedInTurns(
     if (form === "") return false;
     const pattern = new RegExp(
       `(?<!\\p{L}${JOINER})${wholeName(form).source}(?!${JOINER}\\p{L})`,
-      "gu",
+      "u",
     );
-    const everyday = !/\s/.test(form) && isEverydayName(form);
-    return texts.some((text) =>
-      text
-        .matchAll(pattern)
-        .some(
-          ({ index, 0: found }) =>
-            !everyday ||
-            !SENTENCE_START.test(text.slice(0, index)) ||
-            CUE_AFTER.test(text.slice(index + found.length)),
-        ),
-    );
+    return texts.some((text) => pattern.test(text));
   };
   const words = (name: string) => castKey(name).split(" ");
   const playerWords = player === null ? [] : words(player);

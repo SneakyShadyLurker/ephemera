@@ -36,29 +36,3 @@ export function givenName(name: string): string | null {
 /** Matches `name`, as written, where it stands as whole words. */
 export const wholeName = (name: string, flags = "u"): RegExp =>
   new RegExp(`(?<!${WORD})${RegExp.escape(name)}(?!${WORD})`, flags);
-
-/**
- * Given names that are everyday English words too, in lower case: months,
- * days and seasons, virtues, plants, colours and gems, animals and places,
- * and the short forms that are also verbs or nouns. A sentence capitalises
- * these on its own ("May I come in?", "Dawn breaks"), so a capital alone
- * names no one. Not complete: the common ones.
- */
-const EVERYDAY_NAMES = new Set(
-  [
-    "april may june august summer autumn winter spring dawn eve",
-    "monday tuesday wednesday thursday friday saturday sunday",
-    "hope faith joy grace charity mercy patience prudence honor harmony melody destiny chance",
-    "bliss merry love true angel echo story journey haven trinity christian",
-    "rose lily ivy holly daisy poppy iris fern heather hazel olive sage willow violet ginger",
-    "amber ruby pearl crystal jade scarlet penny candy sandy rusty sunny misty rain storm sky star",
-    "robin wren raven jay wolf fox bear buck drake reed brook dale glen cliff heath forest lake",
-    "river ash clay stone rocky",
-    "will mark art bill rob pat sue chase hunter mason grant miles rich frank earnest victor",
-    "major duke earl king prince baron bishop dean carol jack bob dick don gene guy herb lance",
-    "pierce rod skip wade ward drew nick josh dot",
-  ].flatMap((words) => words.split(" ")),
-);
-
-/** Whether a one-word name is an everyday word as well, whatever its case. */
-export const isEverydayName = (name: string): boolean => EVERYDAY_NAMES.has(name.toLowerCase());

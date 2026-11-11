@@ -412,7 +412,7 @@ describe("an introduction by name", () => {
     expect(
       introduced(entries, ["She rose and crossed to Annabel's Rosewood desk. Ann-Marie is out."]),
     ).toEqual([]);
-    expect(introduced(entries, ["You hang Rose's coat by the door. “Ann?” you call."])).toEqual([
+    expect(introduced(entries, ["Rose's coat hangs by the door. “Ann?” you call."])).toEqual([
       "Rose Tyler",
       "Ann",
     ]);
@@ -443,28 +443,17 @@ describe("an introduction by name", () => {
     expect(introduced(entries, ["Ann—late again—waves."])).toEqual(["Ann"]);
   });
 
-  it("takes an everyday word for a name only where a sentence would not capitalise it", () => {
-    const entries = [
-      away(1, "Dawn Archer"),
-      away(2, "May Chen"),
-      away(3, "Hope Daniels"),
-      away(4, "Will"),
-    ];
-    const opening = [
-      "Dawn breaks over the harbour.\n“May I come in?” a voice asks. *Hope you slept well.* Will it rain?",
-    ];
-    expect(introduced(entries, opening)).toEqual([]);
-    expect(introduced(entries, ["You wave at Dawn, and May laughs."])).toEqual([
-      "Dawn Archer",
-      "May Chen",
-    ]);
-    // A scene line's cue and the whole name are names wherever they stand.
-    expect(introduced(entries, ['Hope (31): "Morning."\nMay Chen looks up.'])).toEqual([
-      "May Chen",
-      "Hope Daniels",
-    ]);
-    // A name that is no everyday word needs no such care.
-    expect(introduced([away(1, "Mara Holt")], ["Mara opens the door."])).toEqual(["Mara Holt"]);
+  it("takes a name that is an everyday word too wherever it is written as a name", () => {
+    const entries = [away(1, "Dawn Archer"), away(2, "Lily Chen"), away(3, "Grace")];
+    expect(
+      introduced(entries, [
+        "“Dawn, come sit beside me.” Lily smiles. Grace's coat is on the chair.",
+      ]),
+    ).toEqual(["Dawn Archer", "Lily Chen", "Grace"]);
+    // Lower case is the word, not the name.
+    expect(introduced(entries, ["At dawn she moved with grace past the lily pond."])).toEqual([]);
+    // A capital alone reads as the name: the accepted cost is an early name, never a detail.
+    expect(introduced(entries, ["Dawn breaks over the harbour."])).toEqual(["Dawn Archer"]);
   });
 
   it("leaves a removed entry and an unnamed one as they were, and keeps the rest untouched", () => {

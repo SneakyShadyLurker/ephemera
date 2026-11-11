@@ -1131,9 +1131,10 @@ people's records directly and folds the records of away people under their names
    or the given name when no other entry's name and not the player's holds
    that word, read as written and as whole words in the text without its
    highlight markup. A hyphen joins a compound name, so "Ann-Marie" does not
-   name Ann. A one-word name that is an everyday word too (`isEverydayName`:
-   May, Dawn, Hope, Will) counts only where a sentence would not capitalise
-   it anyway, or where it opens a scene line's cue. The second rule needs
+   name Ann. A capitalised everyday word that is someone's name too ("May I
+   come in?" with a May in the cast) counts as naming them: telling the two
+   apart would cost plain mentions such as "Rose smiles.", and what shows
+   early is a name, never a detail. The second rule needs
    nothing from the model, so a card's subjects are listed as soon as the
    story names them. The slice counts an introduced entry as the chat's own,
    as it does one the keeper named, so a remembered person the story names
