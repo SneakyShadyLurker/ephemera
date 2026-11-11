@@ -19,6 +19,53 @@ const ANSWER = [
 const noIdeas: StreamBrainstorm = async () => (async function* () {})();
 
 describe("the creator's art slice", () => {
+  it("keeps the picture a one-picture workflow's run paints, and drops it when a run says none", async () => {
+    const gates = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+    const streamArt = vi.fn<StreamArt>(async () =>
+      (async function* () {
+        yield {
+          type: "progress",
+          phase: "running",
+          value: 2,
+          max: 6,
+          picture: { number: 3, of: 4 },
+        } as const;
+        await gates[0]?.promise;
+        yield { type: "progress", phase: "decoding", value: 0, max: 1 } as const;
+        await gates[1]?.promise;
+      })(),
+    );
+    const store = createStore<ArtSliceState>()((set, get) => ({
+      epoch: 0,
+      ...ART_EMPTY,
+      ...createArtSlice(set, get, {
+        streamArt,
+        artStatus: async () => ({ state: "ready" }),
+        subject: () => ({
+          kind: "subject",
+          source: "Notes",
+          model: "model-a",
+          reasoning: "provider-default",
+        }),
+        locked: () => false,
+        register: () => () => {},
+      }),
+    }));
+    store.getState().requestArt();
+    await vi.waitFor(() =>
+      expect(store.getState().art).toMatchObject({
+        status: "running",
+        phase: "running",
+        picture: { number: 3, of: 4 },
+      }),
+    );
+    gates[0]?.resolve();
+    await vi.waitFor(() => expect(store.getState().art).toMatchObject({ phase: "decoding" }));
+    expect(store.getState().art).not.toHaveProperty("picture");
+    gates[1]?.resolve();
+    await vi.waitFor(() => expect(store.getState().art).toMatchObject({ status: "failed" }));
+  });
+
   it.each(["subject", "group", "scenario"] as const)(
     "snapshots composition before async preflight for %s and only sends it for Subject",
     async (kind: CreatorKind) => {

@@ -47,6 +47,24 @@ describe("binary art frames", () => {
     expect(events[2]).toEqual({ type: "done" });
     expect(await read(encodeArtFrame(progress), 1)).toEqual([progress]);
   });
+  it("carries which picture of a one-picture workflow's batch a run paints", async () => {
+    const progress = {
+      type: "progress",
+      phase: "running",
+      value: 3,
+      max: 6,
+      picture: { number: 2, of: 4 },
+    } as const;
+    expect(await read(encodeArtFrame(progress), 5)).toEqual([progress]);
+    for (const picture of [
+      { number: 5, of: 4 },
+      { number: 1, of: CREATOR_ART.count + 1 },
+      { number: 0, of: 4 },
+    ]) {
+      const control = new TextEncoder().encode(JSON.stringify({ ...progress, picture }));
+      await expect(read(concat(header(1, control.length), control))).rejects.toThrow();
+    }
+  });
   it.each([
     header(3, 0),
     header(0, 1),

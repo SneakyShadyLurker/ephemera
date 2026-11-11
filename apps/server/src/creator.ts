@@ -424,7 +424,9 @@ export interface ArtSource {
 /**
  * One art run, the art route's and the scene's: the model writes an image
  * prompt from the route's source, the vision copy of a portrait before the
- * text, then ComfyUI paints `count` pictures. Every failure is sent as an
+ * text, then ComfyUI paints `count` pictures from that one prompt. A
+ * one-picture workflow hands them over one run at a time, so the image
+ * events count across the runs from 0. Every failure is sent as an
  * error event and logged under `${event}.error` or `${event}.comfyui`, by
  * class only; an owner who stopped or left ends the run with an abort log.
  */
@@ -523,6 +525,8 @@ export async function paint(
   send({ type: "progress", phase: "prompt", value: 1, max: 1 });
 
   let referenceGraph = false;
+  /** The next image's place in the batch, across a one-picture workflow's runs. */
+  let index = 0;
   try {
     const run = comfyui.generate({
       baseUrl,
@@ -539,8 +543,9 @@ export async function paint(
         continue;
       }
       referenceGraph = progress.referenceGraph;
-      for (const [index, png] of progress.pngs.entries()) {
+      for (const png of progress.pngs) {
         send({ type: "image", index, png: new Uint8Array(png) });
+        index++;
       }
     }
   } catch (error) {

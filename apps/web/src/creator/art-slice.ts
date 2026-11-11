@@ -54,6 +54,8 @@ export type ArtRun =
       max: number;
       /** While ComfyUI is busy: the run's place in its waiting list, 1 being next. */
       position?: number;
+      /** For a one-picture workflow, which picture of the batch its current run paints. */
+      picture?: ArtPicture;
       /** When the run started and when the last word from it arrived, on the page's clock. */
       started: number;
       heard: number;
@@ -62,6 +64,9 @@ export type ArtRun =
   | { status: "stopped" }
   | { status: "failed"; code: CreatorErrorCode | "stream" | "empty" | "no_model" }
   | { status: "complete" };
+
+/** Which of the batch's pictures a run of a one-picture workflow paints. */
+export type ArtPicture = NonNullable<Extract<ArtStreamEvent, { type: "progress" }>["picture"]>;
 
 /** A candidate portrait: PNG bytes in memory, never a URL. */
 export type ArtImage = Uint8Array<ArrayBuffer>;
@@ -236,7 +241,12 @@ export function createArtSlice(
     running = controller;
     const current = () => get().epoch === epoch && !controller.signal.aborted;
     const started = performance.now();
-    const progress = (phase: ArtPhase, value: number, max: number, position?: number) =>
+    const progress = (
+      phase: ArtPhase,
+      value: number,
+      max: number,
+      { position, picture }: { position?: number; picture?: ArtPicture } = {},
+    ) =>
       set({
         art: {
           status: "running",
@@ -244,6 +254,7 @@ export function createArtSlice(
           value,
           max,
           ...(position === undefined ? {} : { position }),
+          ...(picture === undefined ? {} : { picture }),
           started,
           heard: performance.now(),
         },
@@ -290,7 +301,7 @@ export function createArtSlice(
       for await (const event of events) {
         if (!current()) return;
         if (event.type === "progress") {
-          progress(event.phase, event.value, event.max, event.position);
+          progress(event.phase, event.value, event.max, event);
         } else if (event.type === "image") {
           images[event.index] = event.png;
           progress("receiving", images.filter(Boolean).length, CREATOR_ART.count);

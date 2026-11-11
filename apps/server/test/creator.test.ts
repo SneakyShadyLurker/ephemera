@@ -983,6 +983,25 @@ describe("POST /api/creator/art", () => {
     // Plain cleanup polls retirement every second, beyond expect.poll's default deadline.
     await until(() => comfy.clean());
   });
+  it("paints a one-picture workflow's batch from one image prompt, indexing its images across runs", async () => {
+    const { app, upstream, comfy } = setup({
+      upstream: { chunks: [IMAGE_PROMPT] },
+      comfy: { installedWorkflow: "h3-fixture" },
+    });
+    const all = await artEvents(
+      await app.request("/api/creator/art", postJson({ ...artRequest, workflow: "h3-fixture" })),
+    );
+    expect(upstream.records).toHaveLength(1);
+    expect(comfy.state.prompts.size).toBe(4);
+    const images = all.filter((event) => event.type === "image");
+    expect(images.map((event) => event.index)).toEqual([0, 1, 2, 3]);
+    expect(all).toContainEqual(
+      expect.objectContaining({ type: "progress", picture: { number: 4, of: 4 } }),
+    );
+    expect(all.at(-1)).toEqual({ type: "done" });
+    await until(() => comfy.clean());
+  });
+
   it("tells a busy worker's place", async () => {
     const comfy = {
       mode: "private",

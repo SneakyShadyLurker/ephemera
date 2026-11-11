@@ -73,11 +73,13 @@ describe("the workflow registry", () => {
       workflowsDir: FIXTURE_WORKFLOWS_DIR,
     });
     expect(registry.list.workflows).toEqual([
+      { id: "h3-fixture", name: "H3 Fixture", family: "h3", scope: "server" },
       { id: "krea2-fixture", name: "Krea 2 Fixture", family: "krea2", scope: "server" },
       { id: "krea2-gonzalomo", name: "Krea 2 Gonzalomo", family: "krea2", scope: "server" },
       { id: "moss-fixture", name: "MOSS Fixture", family: "moss", scope: "server" },
     ]);
     expect(registry.get("moss-fixture").family).toBe("moss");
+    expect(registry.get("h3-fixture").family).toBe("h3");
     expect(registry.referenceOf("krea2-fixture")).toBeDefined();
     expect(registry.referenceOf("moss-fixture")).toBeUndefined();
     expect(registry.defaultWorkflow).toBe("krea2-gonzalomo");

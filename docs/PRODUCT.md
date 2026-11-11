@@ -223,8 +223,9 @@ Version 1.0 holds everything below.
   say so, with what to try instead.
 - With a ComfyUI address in Settings, the model writes an image prompt from
   the card (the image prompt model from Settings, when one is set), worded for the image model family of the workflow
-  chosen beside the model (Krea 2, MOSS Image, or General for any other), and ComfyUI paints a batch of four portraits
-  (2:3, 1024 x 1536) with it; the owner's own imported workflows are offered
+  chosen beside the model (Krea 2, MOSS Image, MiniMax H3 Image, or General for any other), and ComfyUI paints a batch of four portraits
+  (2:3, 1024 x 1536) with it, one at a time for a model that paints one
+  picture per run, such as MiniMax H3 Image; the owner's own imported workflows are offered
   first, under Yours, then every workflow the server has (the built-in
   ones and any its workflows directory adds), each with its family, and the
   choice is kept for the next card. The showcase offers it again under New
@@ -306,8 +307,8 @@ Version 1.0 holds everything below.
   On phones, "All found in this file" sits below that label; on larger layouts
   it sits beside it. Choices and mapping problems stay open. Changes and omissions wait under Import
   details and the nodes a refusal concerns under a disclosure; it
-  saves the workflow under a name and a family (Krea 2, MOSS or General for
-  any other model). Ephemera takes out the file's own prompt, scales the
+  saves the workflow under a name and a family (Krea 2, MOSS, MiniMax H3 or
+  General for any other model). Ephemera takes out the file's own prompt, scales the
   picture to the requested size just before it is sent, and refuses any
   node that could write to disk; every refusal says what to do instead.
   Each of the owner's workflows can be renamed, given another family,

@@ -85,6 +85,7 @@ export const portraitStatusLabel = (status: CreatorArtStatus): string =>
 export const FAMILY_NAMES: Record<ArtFamily, string> = {
   krea2: "Krea 2",
   moss: "MOSS",
+  h3: "MiniMax H3",
   general: "General",
 };
 

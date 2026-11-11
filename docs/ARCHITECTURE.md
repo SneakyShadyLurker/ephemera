@@ -1245,7 +1245,7 @@ content's path: the tab's memory and one request in the server.
   block and 10,000 per scenario description, a batch of four 1024 x 1536
   portraits, how many subject blocks each character kind holds), the
   prompts (a card system prompt per kind and an art metaprompt per kind for
-  each image model, Krea 2 and MOSS Image, the
+  each image model, Krea 2, MOSS Image, MiniMax H3 Image and General, the
   look catalogue (`looks.ts`: each capture look's id, when Auto picks it
   on a cover and in a scene, its wording per image model, its undated
   wording and any framing that replaces the camera position, rendered into
@@ -1375,7 +1375,11 @@ content's path: the tab's memory and one request in the server.
   `reference` and `referenceGraph` (always false here) as booleans. The
   art and scene routes share one run (`paint` in `creator.ts`). The
   ComfyUI client then runs the chosen
-  workflow with a random seed. The server answers with
+  workflow with a random seed. A one-picture workflow paints the batch as
+  one job per picture, one after another, from the same image prompt; the
+  route numbers the images across those jobs from 0, and each job's
+  progress events carry `picture` (its number and the batch's count), so
+  the tab can say "Developing portrait 2 of 4". The server answers with
   `application/vnd.ephemera.art-stream.v1`: each atomic frame has a
   one-byte kind and four-byte big-endian payload length. Kind 0 is an empty keepalive, kind 1 a validated JSON
   control event within 64 KiB, and kind 2 an image index followed by raw PNG
@@ -1416,7 +1420,8 @@ content's path: the tab's memory and one request in the server.
   traced to the sampler's positive input, the empty latent, every seed, the
   family guess) and `finalizeWorkflow` with the tab's choices, which keeps
   the chosen output as `SaveImageWebsocket` and drops the others with the
-  nodes only they used (an output another node consumes stays), writes the five placeholders,
+  nodes only they used (an output another node consumes stays), writes the five placeholders
+  (prompt, seed, width, height and count),
   drops a text node that supplied the prompt (code `linked_prompt` when
   that node takes links, feeds anything else or is itself a chosen place),
   inserts a Lanczos `ImageScale` to exactly the requested size before the
@@ -1529,10 +1534,21 @@ content's path: the tab's memory and one request in the server.
   the SQL column's legacy default `krea2-intorealism` included, reads as
   it. Saving an unknown id is refused with 422.
   A graph keeps its sampler, scheduler, steps and CFG fixed; Ephemera
-  supplies only the prompt, the seed, the 1024 x 1536 base dimensions and the count,
-  four for portraits or one for scenes. A MOSS-family graph gets the MOSS
-  Image metaprompts, a Krea 2 graph the Krea 2 ones and any other the
-  General ones. The PNG decoder requires exactly the requested
+  supplies only the prompt, the seed, the dimensions and, through
+  `{{count}}`, the count, four for portraits or one for scenes. A template
+  without `{{count}}` paints one picture per run: the client runs it once
+  per picture in sequence, each run with the next seed, and refuses to
+  fill it for any other count; such a graph with a fixed `batch_size`
+  above 1 stops the start. The dimensions are 1024 x 1536, unless the
+  template has `{{scale}}`: it then renders at its family's render size
+  (core's `renderSizeOf`: 2304 x 3456 for MiniMax H3 Image, the portrait
+  size for every other family) and `{{scale}}` carries portrait width over
+  render width, for an `ImageScaleBy` that shrinks the result back to
+  1024 x 1536. A MOSS-family graph gets the MOSS Image metaprompts, a
+  Krea 2 graph the Krea 2 ones, a MiniMax H3 graph the MiniMax H3 ones and
+  any other the General ones. An imported graph always has `{{count}}`
+  and no `{{scale}}`, and an H3 graph, which has no empty latent, cannot be
+  imported. The PNG decoder requires exactly the requested
   dimensions: an imported graph gets its `ImageScale` from finalization,
   and a server file with a hires pass must scale its final decode back to
   the requested size itself (such as an `ImageScale` before
@@ -1565,7 +1581,8 @@ content's path: the tab's memory and one request in the server.
   disk, and always runs the text graph. A failed upload fails the run as
   `comfyui` with reason `upload`. Each run asks for its own count of
   images, four for card art and one for a scene, and the batch must hold
-  exactly that many. The address comes only
+  exactly that many, a one-picture workflow's jobs one each, with the batch
+  byte cap over all of them. The address comes only
   from settings, redirects are refused, and failures carry a reason, never
   ComfyUI's text. Only concurrent `/object_info` reads for the same base URL
   share a request within one client and its credentials. Each caller can
@@ -1605,7 +1622,10 @@ content's path: the tab's memory and one request in the server.
   worker's `max_execution_seconds` fails readiness and generation before lease allocation. Admission and
   preparation never extend the original request deadline. It replaces the output
   node with `AtelierSaveImages`, carrying the same images input and the lease's
-  `job_id`.
+  `job_id`. A one-picture workflow's batch takes one lease per picture,
+  and the next job asks for its lease only once the last one's release has
+  ended, succeeded or given up, so the worker never calls the batch's own
+  next picture busy; a stop between two jobs submits no further one.
   A private-worker contract change deploys the worker and every consumer
   together in a maintenance window. Rollback restores the worker and matching
   consumer revisions together; there is no private-protocol compatibility window.

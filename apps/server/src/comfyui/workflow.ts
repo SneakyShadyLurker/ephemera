@@ -41,8 +41,9 @@ const graphSchema: z.ZodType<WorkflowGraph> = z.record(
 );
 
 /**
- * What fills a template: the image prompt and the numbers of one batch, and
- * for a reference graph the job input its LoadImage node reads.
+ * What fills a template: the image prompt and the numbers of one run, for a
+ * scaled template the factor that shrinks its render to the portrait size,
+ * and for a reference graph the job input its LoadImage node reads.
  */
 interface WorkflowValues {
   prompt: string;
@@ -51,34 +52,64 @@ interface WorkflowValues {
   height: number;
   count: number;
   referenceImage?: string;
+  scale?: number;
 }
 
 /** Every template has these. */
-const PLACEHOLDERS = ["prompt", "seed", "width", "height", "count"] as const;
-/** Only a reference graph has this, and only a value given for it fills it. */
-const REFERENCE_PLACEHOLDER = "referenceImage";
-type Placeholder = (typeof PLACEHOLDERS)[number] | typeof REFERENCE_PLACEHOLDER;
+const PLACEHOLDERS = ["prompt", "seed", "width", "height"] as const;
+/**
+ * A template with this paints the run's count at once; one without it paints
+ * one picture per run and is filled only for a count of 1.
+ */
+const COUNT_PLACEHOLDER = "count";
+/**
+ * Only a reference graph has the first and only a scaled template the second,
+ * and only a value given for one fills it.
+ */
+const OPTIONAL_PLACEHOLDERS = ["referenceImage", "scale"] as const;
+type Placeholder =
+  | (typeof PLACEHOLDERS)[number]
+  | typeof COUNT_PLACEHOLDER
+  | (typeof OPTIONAL_PLACEHOLDERS)[number];
 const isPlaceholder = (name: string): name is Placeholder =>
-  name === REFERENCE_PLACEHOLDER || (PLACEHOLDERS as readonly string[]).includes(name);
+  name === COUNT_PLACEHOLDER ||
+  (PLACEHOLDERS as readonly string[]).includes(name) ||
+  (OPTIONAL_PLACEHOLDERS as readonly string[]).includes(name);
 
 /** A whole input value that is a placeholder, and any placeholder text at all. */
 const WHOLE = /^\{\{(\w+)\}\}$/;
 const ANY = /\{\{\w*\}\}/;
+
+/** Whether some node input of the graph is the whole placeholder `name`. */
+const hasPlaceholder = (graph: WorkflowGraph, name: Placeholder): boolean =>
+  Object.values(graph).some((node) =>
+    Object.values(node.inputs).some(
+      (value) => typeof value === "string" && WHOLE.exec(value)?.[1] === name,
+    ),
+  );
 
 /**
  * The template with every placeholder replaced. Values go in as JSON values,
  * not as text: the prompt stays a string whatever it contains (quotes,
  * backslashes, newlines, text that looks like a placeholder) and is encoded
  * once when the graph is sent; the numbers stay numbers. A template that
- * lacks a placeholder, or has one this function does not know, is refused;
- * so is a reference image given to a template without its placeholder, or a
- * template with one and no reference image given.
+ * lacks the prompt, seed, width or height placeholder, or has one this
+ * function does not know, is refused. A template without the count
+ * placeholder paints one picture, so any other count is refused. A reference
+ * image or scale given to a template without its placeholder is refused, and
+ * so is a template with one of them and no value given.
  */
 export function fillWorkflow(template: WorkflowGraph, values: WorkflowValues): WorkflowGraph {
   for (const name of ["seed", "width", "height", "count"] as const) {
     if (!Number.isSafeInteger(values[name]) || values[name] < 0) {
       throw new RangeError(`workflow ${name} must be a non-negative integer`);
     }
+  }
+  if (
+    values.scale !== undefined &&
+    !(Number.isFinite(values.scale) && values.scale > 0 && values.scale <= 1)
+  ) {
+    throw new RangeError("workflow scale must be a number above 0 and at most 1");
   }
   const used = new Set<Placeholder>();
   const filled: WorkflowGraph = {};
@@ -99,9 +130,14 @@ export function fillWorkflow(template: WorkflowGraph, values: WorkflowValues): W
     }
     filled[id] = { class_type: node.class_type, inputs };
   }
-  const expected = PLACEHOLDERS.length + (values.referenceImage === undefined ? 0 : 1);
-  if (used.size !== expected) {
+  if (
+    PLACEHOLDERS.some((name) => !used.has(name)) ||
+    OPTIONAL_PLACEHOLDERS.some((name) => values[name] !== undefined && !used.has(name))
+  ) {
     throw new Error("workflow template lacks a placeholder");
+  }
+  if (!used.has(COUNT_PLACEHOLDER) && values.count !== 1) {
+    throw new Error("workflow template paints one picture per run");
   }
   return filled;
 }
@@ -123,6 +159,10 @@ export interface Workflow {
    * declares or else as the first word of its id names; it picks the art metaprompt.
    */
   family: ArtFamily;
+  /** No count placeholder: one run paints one picture, so a batch is a run per picture. */
+  readonly single: boolean;
+  /** A scale placeholder: the graph renders at its family's render size and shrinks the result. */
+  readonly scaled: boolean;
 }
 
 function workflow(source: unknown, family: ArtFamily, allowlist: NodeAllowlist): Workflow {
@@ -134,9 +174,12 @@ function workflow(source: unknown, family: ArtFamily, allowlist: NodeAllowlist):
 }
 
 /**
- * A template's save node and the model files its loaders need, for a server
- * file and a user's stored graph alike; a graph without exactly one save
- * node throws.
+ * A template's save node, the model files its loaders need and whether it
+ * paints one picture per run or renders large and scales down, for a server
+ * file and a user's stored graph alike. A graph without exactly one save node
+ * throws, and so does a one-picture graph with a fixed batch size above 1: a
+ * batch graph that lost its count placeholder would paint more pictures than
+ * its run is for.
  */
 export function describeWorkflow(graph: WorkflowGraph, family: ArtFamily): Workflow {
   const outputs = Object.entries(graph).filter(([, node]) => node.class_type === OUTPUT_CLASS);
@@ -154,7 +197,16 @@ export function describeWorkflow(graph: WorkflowGraph, family: ArtFamily): Workf
         )
       : [],
   );
-  return { graph, output, models, family };
+  const single = !hasPlaceholder(graph, COUNT_PLACEHOLDER);
+  if (
+    single &&
+    Object.values(graph).some(
+      (node) => typeof node.inputs.batch_size === "number" && node.inputs.batch_size !== 1,
+    )
+  ) {
+    throw new Error("workflow without a count placeholder has a fixed batch size");
+  }
+  return { graph, output, models, family, single, scaled: hasPlaceholder(graph, "scale") };
 }
 
 /**
@@ -181,11 +233,11 @@ export function requiredModels(graph: WorkflowGraph, meta: NodeMetaMap): Require
 }
 
 /** Words of an id written in capitals on screen. */
-const ACRONYMS: ReadonlySet<string> = new Set(["moss", "sft"]);
+const ACRONYMS: ReadonlySet<string> = new Set(["moss", "sft", "h3"]);
 
 /**
  * The name on screen, from the id: "krea2-gonzalomo" is "Krea 2 Gonzalomo",
- * "moss-sample-sft" is "MOSS Sample SFT".
+ * "moss-sample-sft" is "MOSS Sample SFT", "h3-image" is "H3 Image".
  */
 function workflowName(id: WorkflowId): string {
   return id
@@ -205,7 +257,8 @@ const REFERENCE_SUFFIX = ".reference.json";
 /**
  * Fills a template with sample values and throws as `fillWorkflow` would at
  * a run: the last gate before a server file or a user's template is taken.
- * `reference` probes the reference placeholder.
+ * `reference` probes the reference placeholder; a graph with a scale
+ * placeholder gets a scale, as its runs do.
  */
 export function dryFill(graph: WorkflowGraph, reference = false): void {
   fillWorkflow(graph, {
@@ -215,6 +268,7 @@ export function dryFill(graph: WorkflowGraph, reference = false): void {
     height: 1,
     count: 1,
     ...(reference ? { referenceImage: "" } : {}),
+    ...(hasPlaceholder(graph, "scale") ? { scale: 1 } : {}),
   });
 }
 

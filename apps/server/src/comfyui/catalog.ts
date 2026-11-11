@@ -108,6 +108,8 @@ export function createWorkflowCatalog(
           output: "",
           models: [],
           family: row.family,
+          single: false,
+          scaled: false,
           blocked: [...blocked, INVALID_GRAPH],
         };
       }

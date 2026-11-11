@@ -5,7 +5,7 @@ import { REASONING_EFFORTS } from "../preset/sampler.ts";
 import { comfyuiWorkflowIdSchema, comfyuiWorkflowOptionSchema } from "../settings.ts";
 import { callAccountingSchema } from "../usage.ts";
 import { WORKFLOW_LIMITS as W } from "../workflow/graph.ts";
-import { CREATOR_LIMITS as C } from "./limits.ts";
+import { CREATOR_LIMITS as C, CREATOR_ART } from "./limits.ts";
 import { ART_LOOK_IDS } from "./looks.ts";
 
 /*
@@ -390,6 +390,17 @@ export const artProgressSchema = z
     max: count,
     /** While `busy`: the worker's waiting-list place, 1 being next in line. */
     position: z.int().positive().exactOptional(),
+    /**
+     * Which of the batch's pictures a run of a one-picture workflow is
+     * painting: such a workflow paints a batch as one run per picture.
+     */
+    picture: z
+      .strictObject({
+        number: z.int().positive(),
+        of: z.int().positive().max(CREATOR_ART.count),
+      })
+      .refine((picture) => picture.number <= picture.of, { path: ["number"] })
+      .exactOptional(),
   })
   .refine((event) => event.value <= event.max, { path: ["value"] });
 

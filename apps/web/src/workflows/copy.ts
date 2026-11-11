@@ -108,6 +108,7 @@ export const FAMILY_HELP: Record<ArtFamily, string> = {
   general: "General uses plain-language image prompts.",
   krea2: "Krea 2 prompts are written for Krea 2 models.",
   moss: "MOSS prompts are written for MOSS Image models.",
+  h3: "MiniMax H3 prompts are written for MiniMax H3 Image models.",
 };
 
 const WORDS = ["no", "one", "two", "three"] as const;

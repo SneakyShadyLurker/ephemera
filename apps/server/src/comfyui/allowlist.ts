@@ -116,6 +116,10 @@ export const CURATED_NODE_CLASSES: ReadonlySet<string> = new Set([
   "SD_4XUpscale_Conditioning",
   // comfy_extras/nodes_easycache.py: patches the model with an in-memory step cache
   "EasyCache",
+  // comfy_extras/nodes_advanced_samplers.py: returns a sampler object built in memory
+  "SamplerLCM",
+  // comfy_extras/nodes_minimax_h3.py: returns conditioning and a latent built in memory
+  "MiniMaxH3ImageConditioning",
   // comfy_extras/nodes_compositing.py: return images and masks computed in memory
   "PorterDuffImageComposite",
   "SplitImageWithAlpha",

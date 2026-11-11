@@ -105,4 +105,52 @@ describe("art progress", () => {
       }
     },
   );
+
+  it("names the portrait a one-picture workflow's run paints", () => {
+    const picture = (phase: ArtPhase, value: number, max: number, position?: number) =>
+      artProgress({
+        status: "running",
+        phase,
+        value,
+        max,
+        ...(position === undefined ? {} : { position }),
+        picture: { number: 2, of: 4 },
+        started: 0,
+        heard: 0,
+      });
+    expect(picture("running", 3, 6)).toMatchObject({
+      label: "Developing portrait 2 of 4",
+      detail: "Step 3 of 6",
+      line: 0.5,
+    });
+    expect(picture("running", 6, 6)?.label).toBe("Finishing portrait 2 of 4");
+    expect(picture("decoding", 0, 1)?.label).toBe("Decoding portrait 2 of 4");
+    expect(picture("sending", 0, 1)?.label).toBe("Sending portrait 2 of 4");
+    for (const [phase, label] of [
+      ["queued", "Waiting in ComfyUI's queue"],
+      ["loading", "ComfyUI is getting ready"],
+      ["starting", "ComfyUI is starting up"],
+    ] as const) {
+      expect(picture(phase, 0, 1)).toMatchObject({ label, detail: "Portrait 2 of 4" });
+    }
+    expect(picture("busy", 0, 1, 3)).toMatchObject({
+      label: "ComfyUI is busy with another job",
+      detail: "Number 3 in line",
+    });
+    // A scene's one picture is never counted among others.
+    expect(
+      artProgress(
+        {
+          status: "running",
+          phase: "running",
+          value: 3,
+          max: 6,
+          picture: { number: 2, of: 4 },
+          started: 0,
+          heard: 0,
+        },
+        "picture",
+      )?.label,
+    ).toBe("Developing the picture");
+  });
 });

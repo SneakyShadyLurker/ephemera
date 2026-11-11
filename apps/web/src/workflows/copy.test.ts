@@ -68,6 +68,7 @@ describe("panel copy", () => {
       general: "General uses plain-language image prompts.",
       krea2: "Krea 2 prompts are written for Krea 2 models.",
       moss: "MOSS prompts are written for MOSS Image models.",
+      h3: "MiniMax H3 prompts are written for MiniMax H3 Image models.",
     });
     expect(INSPECT_BUSY).toBe("Another import is still being read. Try again in a moment.");
     expect(SAVE_FULL).toBe("24 workflows is the most Ephemera keeps. Delete one, then save.");

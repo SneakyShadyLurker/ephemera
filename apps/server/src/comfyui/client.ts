@@ -6,6 +6,7 @@ import {
   type NodeMetaMap,
   nodeMetaFrom,
   objectInfoSchema,
+  renderSizeOf,
 } from "@ephemera/core";
 import { z } from "zod";
 import type { UpstreamFetch } from "../catalog.ts";
@@ -221,7 +222,8 @@ export type ComfyuiEvent =
   | Extract<ArtStreamEvent, { type: "progress" }>
   /**
    * The last event: exactly the run's `count` of PNGs of the expected size, in
-   * batch order, and whether the reference graph painted them.
+   * batch order, and whether the reference graph painted them. A one-picture
+   * workflow's batch sends one such event per picture instead, each with one PNG.
    */
   | { type: "images"; pngs: Uint8Array[]; referenceGraph: boolean };
 
@@ -350,6 +352,20 @@ function queuePosition(header: string | null): number | undefined {
   if (value === undefined || !/^\d+$/.test(value)) return undefined;
   const place = Number(value);
   return Number.isSafeInteger(place) && place > 0 ? place : undefined;
+}
+
+/**
+ * The size a graph renders at: its family's render size and the factor back
+ * to the portrait size when it scales its result down, else the portrait size.
+ */
+function sized(workflow: Pick<Workflow, "family" | "scaled">): {
+  width: number;
+  height: number;
+  scale?: number;
+} {
+  if (!workflow.scaled) return { width: CREATOR_ART.width, height: CREATOR_ART.height };
+  const render = renderSizeOf(workflow.family);
+  return { ...render, scale: CREATOR_ART.width / render.width };
 }
 
 /** The content-free error for anything that ended a run or a status check. */
@@ -1088,14 +1104,19 @@ export function createComfyui(deps: ComfyuiDeps) {
     }
   }
 
-  /** Runs cleanup apart from the run that needs it; a failure inside it is already handled. */
-  function detach(work: () => Promise<void>) {
+  /**
+   * Runs cleanup apart from the run that needs it; a failure inside it is
+   * already handled. The promise settles when the cleanup has ended and never
+   * rejects, for a caller that must not start before it.
+   */
+  function detach(work: () => Promise<void>): Promise<void> {
     const running: Promise<void> = work()
       .catch(() => {})
       .then(() => {
         pending.delete(running);
       });
     pending.add(running);
+    return running;
   }
 
   /** Every run and every cleanup started so far has ended, follow-ups included. */
@@ -1322,12 +1343,57 @@ export function createComfyui(deps: ComfyuiDeps) {
 
   /**
    * One batch: progress while ComfyUI works, then exactly `count` PNGs, or a
+   * ComfyuiError. A workflow whose text graph paints one picture per run
+   * paints a batch above one as that many jobs in turn, each with its own
+   * seed: run i takes the chosen seed plus i, its progress names its picture,
+   * and its one PNG is passed on as soon as it is in. On a private worker the
+   * next job asks for its lease only once the last one's release has ended,
+   * since the worker holds one job at a time and would call the batch's own
+   * next picture busy. A stop between two runs submits no further job.
+   */
+  async function* generate(input: GenerateInput): AsyncGenerator<ComfyuiEvent, void, undefined> {
+    if (!input.workflow.single || input.count === 1) {
+      yield* job(input);
+      return;
+    }
+    const signal = AbortSignal.any([input.signal, stopping]);
+    let size = 0;
+    for (let index = 0; index < input.count; index++) {
+      if (signal.aborted) throw failure(signal.reason, signal);
+      const picture = { number: index + 1, of: input.count };
+      let released: Promise<void> | undefined;
+      for await (const event of job(
+        { ...input, count: 1, seed: (input.seed + index) % 2 ** 32 },
+        (cleanup) => {
+          released = cleanup;
+        },
+      )) {
+        if (event.type === "progress") {
+          yield { ...event, picture };
+          continue;
+        }
+        size += event.pngs.reduce((total, png) => total + png.byteLength, 0);
+        if (size > MAX_BATCH_BYTES) throw new ComfyuiError("oversized");
+        yield event;
+      }
+      await released;
+    }
+  }
+
+  /**
+   * One job: progress while ComfyUI works, then exactly `count` PNGs, or a
    * ComfyuiError. The WebSocket opens before the prompt is submitted under a
    * client-chosen id (the lease id on a private worker), so cleanup never
    * depends on the submit answer. With a reference image, the private worker
    * runs the workflow's reference graph on it, uploaded under the lease.
+   * `released` receives the lease release of a private worker's job when one
+   * is started; a plain instance's cleanup is not handed out, since no later
+   * job waits for it.
    */
-  async function* generate(input: GenerateInput): AsyncGenerator<ComfyuiEvent, void, undefined> {
+  async function* job(
+    input: GenerateInput,
+    released?: (cleanup: Promise<void>) => void,
+  ): AsyncGenerator<ComfyuiEvent, void, undefined> {
     const { baseUrl } = input;
     const signal = AbortSignal.any([input.signal, stopping]);
     const { workflow } = input;
@@ -1353,11 +1419,9 @@ export function createComfyui(deps: ComfyuiDeps) {
       const values = {
         prompt: input.prompt,
         seed: input.seed,
-        width: CREATOR_ART.width,
-        height: CREATOR_ART.height,
         count: input.count,
       };
-      let graph = fillWorkflow(workflow.graph, values);
+      let graph = fillWorkflow(workflow.graph, { ...values, ...sized(workflow) });
       const privacy = yield* startedHandshake(baseUrl, signal);
       mode = privacy.mode;
       const recoverable = privacy.mode === "private";
@@ -1443,7 +1507,9 @@ export function createComfyui(deps: ComfyuiDeps) {
         )
           throw new ComfyuiError("oversized");
         const referenceImage = await upload(baseUrl, promptId, input.reference, signal);
-        graph = privateGraph(fillWorkflow(reference.graph, { ...values, referenceImage }));
+        graph = privateGraph(
+          fillWorkflow(reference.graph, { ...values, ...sized(reference), referenceImage }),
+        );
         output = reference.output;
         referenceGraph = true;
       }
@@ -1569,6 +1635,14 @@ export function createComfyui(deps: ComfyuiDeps) {
           max <= 0 ||
           value > max ||
           value <= (progressValues.get(key) ?? -1)
+        )
+          return undefined;
+        // A node that only hands the picture on once sampling began, such as a resize before the save, is not ComfyUI getting ready again.
+        if (
+          phase === "loading" &&
+          lastProgress !== undefined &&
+          lastProgress.phase !== "queued" &&
+          lastProgress.phase !== "loading"
         )
           return undefined;
         progressValues.set(key, value);
@@ -1760,11 +1834,15 @@ export function createComfyui(deps: ComfyuiDeps) {
     } finally {
       socket?.close();
       // Cleanup holds ids and flags only, never the prompt or the batch.
-      if (mode === "private" && leaseMayExist) detach(() => release(baseUrl, promptId));
-      else if (submitted.length > 0) {
+      if (mode === "private" && leaseMayExist) {
+        // Started apart from the optional call, which would skip its argument without a caller.
+        const releasing = detach(() => release(baseUrl, promptId));
+        released?.(releasing);
+      } else if (submitted.length > 0) {
         const ids = [...submitted];
         const normalCompletion = completed && !signal.aborted;
-        detach(async () => {
+        // No later job waits for a plain instance's cleanup, which can take long.
+        void detach(async () => {
           for (const id of ids) await clean(baseUrl, id, answered, normalCompletion);
         });
       }

@@ -244,6 +244,20 @@ describe("POST /api/scene", () => {
     await until(() => comfy.clean());
   });
 
+  it("paints a one-picture workflow's scene as one job and one image, untagged", async () => {
+    const { app, comfy, characterId } = await setup({
+      comfy: { mode: "private", installedWorkflow: "h3-fixture" },
+    });
+    const all = await sceneEvents(
+      await app.request("/api/scene", postJson(request(characterId, { workflow: "h3-fixture" }))),
+    );
+    expect(all.at(-1)).toEqual({ type: "done" });
+    expect(comfy.state.prompts.size).toBe(1);
+    expect(all.filter((event) => event.type === "image")).toHaveLength(1);
+    expect(all.some((event) => "picture" in event)).toBe(false);
+    await until(() => comfy.clean());
+  });
+
   it("paints from the notes alone for a character without a portrait", async () => {
     const { app, upstream, comfy, characterId } = await setup({
       portrait: false,

@@ -133,6 +133,7 @@ describe("the workflows list in Settings", () => {
   it.each([
     ["krea2", "Krea 2"],
     ["moss", "MOSS"],
+    ["h3", "MiniMax H3"],
     ["general", "General"],
   ] as const)("names the %s family as text", (family, name) => {
     expect(FAMILY_NAMES[family]).toBe(name);

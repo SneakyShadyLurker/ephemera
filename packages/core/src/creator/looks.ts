@@ -56,6 +56,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     wording: {
       krea2: "an amateur snapshot, raw and true to life",
       moss: "an amateur snapshot, raw and true to life",
+      h3: "an amateur snapshot, raw and true to life",
       general: "an amateur snapshot, raw and true to life",
     },
   },
@@ -69,6 +70,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     wording: {
       krea2: "a smartphone selfie, raw and true to life",
       moss: "a candid smartphone selfie, raw and true to life",
+      h3: "a smartphone selfie, raw and true to life",
       general: "a smartphone selfie, raw and true to life",
     },
     framing: {
@@ -93,12 +95,14 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
       moss: "a candid amateur 35mm colour film snapshot from the <decade>, the colours of that era's film in its dress and surroundings",
+      h3: "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
       general:
         "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
     },
     undated: {
       krea2: "an amateur 35mm colour film snapshot, true to life",
       moss: "a candid amateur 35mm colour film snapshot",
+      h3: "an amateur 35mm colour film snapshot, true to life",
       general: "an amateur 35mm colour film snapshot, true to life",
     },
   },
@@ -112,6 +116,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
       moss: "a candid amateur snapshot from an early 2000s compact digital camera, crisp, in the bright colour of early digital and that decade's dress and surroundings",
+      h3: "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
       general:
         "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
     },
@@ -119,6 +124,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
       moss: "a candid amateur snapshot from an early 2000s compact digital camera, crisp, in the bright colour of early digital",
+      h3: "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
       general:
         "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
     },
@@ -130,12 +136,14 @@ export const ART_LOOKS: readonly ArtLook[] = [
       krea2:
         "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
       moss: "a candid amateur black and white film snapshot from <the era>, named as in the 1920s, in that era's dress and surroundings",
+      h3: "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
       general:
         "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
     },
     undated: {
       krea2: "an amateur black and white film snapshot, true to life",
       moss: "a candid amateur black and white film snapshot",
+      h3: "an amateur black and white film snapshot, true to life",
       general: "an amateur black and white film snapshot, true to life",
     },
   },
