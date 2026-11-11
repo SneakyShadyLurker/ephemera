@@ -1106,9 +1106,10 @@ people's records directly and folds the records of away people under their names
    cache key is the instance's `cast:<characterId>`. Development, continuity,
    introduction and discovery fields each require a nonempty value and a
    short quote found in one shown turn (`groundedCastChanges`). The quote is
-   compared by its words: highlight markup, Markdown emphasis, the spelling
-   of quotation marks, dashes and ellipses, case and spacing are set aside,
-   as are the quote's own surrounding marks. This grounds the
+   compared by its whole words: highlight markup, Markdown emphasis, the
+   spelling of quotation marks, dashes and ellipses, case and spacing are
+   set aside, as are the quote's own surrounding marks, and a quote that
+   only sits inside longer words ("red" in "tired") grounds nothing. This grounds the
    update, not its semantic correctness. Discovery values may be less exact than
    canon and refine as the player learns more; canon alone never reveals them.
    Keeper and sheet instructions forbid inventing gaps except for a newly
@@ -1127,10 +1128,16 @@ people's records directly and folds the records of away people under their names
    it as it was, so the keeper cannot add it back. An entry becomes
    `introduced` by the keeper's grounded `introduce`, or when a turn of the
    batch writes its name (`namedInTurns`): the whole name, an earlier one,
-   or the given name when no other entry and not the player shares it, read
-   as written and as whole words in the text without its highlight markup.
-   The second rule needs nothing from the model, so a card's subjects are
-   listed as soon as the story names them.
+   or the given name when no other entry's name and not the player's holds
+   that word, read as written and as whole words in the text without its
+   highlight markup. A hyphen joins a compound name, so "Ann-Marie" does not
+   name Ann. A one-word name that is an everyday word too (`isEverydayName`:
+   May, Dawn, Hope, Will) counts only where a sentence would not capitalise
+   it anyway, or where it opens a scene line's cue. The second rule needs
+   nothing from the model, so a card's subjects are listed as soon as the
+   story names them. The slice counts an introduced entry as the chat's own,
+   as it does one the keeper named, so a remembered person the story names
+   stays introduced when the notebook's seeds are composed again.
 6. **The cast sheet.** A character's sheet is character data derived from
    the card alone: the people its card names, by its kind, with their
    anchors and no state, at most eight. Its fingerprint is sha256 of the

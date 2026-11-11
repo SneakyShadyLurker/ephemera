@@ -1016,6 +1016,10 @@ export function createCastSlice(
           const entry = resolveCastEntry(progress.chain, name);
           if (entry !== undefined) affirmed.add(entry.id);
         }
+        // A turn that names someone introduces her without the keeper's word: she is the chat's too.
+        for (const entry of progress.chain.entries) {
+          if (entry.introduced === true) affirmed.add(entry.id);
+        }
         progress.offset += batch.length;
         progress.limit = CAST_LIMITS.turns;
       }

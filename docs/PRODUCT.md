@@ -762,8 +762,9 @@ Version 1.0 holds everything below.
   and age, with Read the cast now, or Regenerate the cast.
 - The cast panel lists introduced women. Someone is introduced once a
   shown turn writes their name (the whole name, an earlier one, or a first
-  name no one else in the cast shares), or once the keeper quotes the turn
-  that brings them to the player unnamed. A gender the card leaves open is
+  name no one else in the cast shares; a first name that is an everyday
+  word, such as May or Dawn, only where it is clearly a name), or once the
+  keeper quotes the turn that brings them to the player unnamed. A gender the card leaves open is
   the keeper's to say. Only their discovered or
   owner-corrected details are visible; hidden canonical anatomy, personality and
   preferences stay out until play reveals them, and later discoveries can refine

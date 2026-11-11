@@ -357,6 +357,13 @@ describe("a quote as evidence", () => {
     },
   );
 
+  it.each(["red", '"Red"', "long co", "rrives in a long coat", "wine - slow"])(
+    "is refused when its words only sit inside longer ones: %s",
+    (evidence) => {
+      expect(grounds(evidence)).toBe(false);
+    },
+  );
+
   it("is never found across two turns", () => {
     expect(grounds("laughs. Lena (24)")).toBe(false);
   });
@@ -405,7 +412,7 @@ describe("an introduction by name", () => {
     expect(
       introduced(entries, ["She rose and crossed to Annabel's Rosewood desk. Ann-Marie is out."]),
     ).toEqual([]);
-    expect(introduced(entries, ["Rose's coat hangs by the door. “Ann?” you call."])).toEqual([
+    expect(introduced(entries, ["You hang Rose's coat by the door. “Ann?” you call."])).toEqual([
       "Rose Tyler",
       "Ann",
     ]);
@@ -417,6 +424,47 @@ describe("an introduction by name", () => {
     expect(introduced(entries, ["Doctor Elena Voss looks up."], { player: "Mara Stone" })).toEqual([
       "Doctor Elena Voss",
     ]);
+  });
+
+  it("takes no given name another entry or the player holds anywhere in theirs", () => {
+    const titled = [away(1, "Mara Holt"), away(2, "Doctor Mara Voss")];
+    expect(introduced(titled, ["“Mara, come in.”"])).toEqual([]);
+    expect(
+      introduced([away(1, "Mara Holt")], ["Mara nods."], { player: "Doctor Mara Stone" }),
+    ).toEqual([]);
+    expect(
+      introduced([away(1, "Anna Meyer"), away(2, "Mary Anna Smith")], ["Anna waves."]),
+    ).toEqual([]);
+  });
+
+  it("reads a compound name as one, whichever hyphen joins it", () => {
+    const entries = [away(1, "Ann")];
+    expect(introduced(entries, ["Ann\u2011Marie is out. Mary\u2010Ann too."])).toEqual([]);
+    expect(introduced(entries, ["Ann—late again—waves."])).toEqual(["Ann"]);
+  });
+
+  it("takes an everyday word for a name only where a sentence would not capitalise it", () => {
+    const entries = [
+      away(1, "Dawn Archer"),
+      away(2, "May Chen"),
+      away(3, "Hope Daniels"),
+      away(4, "Will"),
+    ];
+    const opening = [
+      "Dawn breaks over the harbour.\n“May I come in?” a voice asks. *Hope you slept well.* Will it rain?",
+    ];
+    expect(introduced(entries, opening)).toEqual([]);
+    expect(introduced(entries, ["You wave at Dawn, and May laughs."])).toEqual([
+      "Dawn Archer",
+      "May Chen",
+    ]);
+    // A scene line's cue and the whole name are names wherever they stand.
+    expect(introduced(entries, ['Hope (31): "Morning."\nMay Chen looks up.'])).toEqual([
+      "May Chen",
+      "Hope Daniels",
+    ]);
+    // A name that is no everyday word needs no such care.
+    expect(introduced([away(1, "Mara Holt")], ["Mara opens the door."])).toEqual(["Mara Holt"]);
   });
 
   it("leaves a removed entry and an unnamed one as they were, and keeps the rest untouched", () => {

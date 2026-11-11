@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withoutHighlights } from "../preset/highlight.ts";
-import { givenName, wholeName } from "../prompt/names.ts";
-import { castKey, firstWordKey } from "./key.ts";
+import { givenName, isEverydayName, wholeName } from "../prompt/names.ts";
+import { castKey } from "./key.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
@@ -75,13 +75,16 @@ const quoteKey = (text: string): string =>
 const QUOTE_EDGE = /^[\s"'.,;:!?-]+|[\s"'.,;:!?-]+$/g;
 
 /**
- * Whether `evidence` quotes one of the shown turns: its words in their
- * order, within one turn, compared as `quoteKey` reads both. This is
+ * Whether `evidence` quotes one of the shown turns: its whole words in
+ * their order, within one turn, compared as `quoteKey` reads both. This is
  * grounding, not semantic proof.
  */
 const quotedIn = (keys: readonly string[], evidence: string): boolean => {
   const quote = quoteKey(evidence).replace(QUOTE_EDGE, "");
-  return quote !== "" && keys.some((key) => key.includes(quote));
+  if (quote === "") return false;
+  // Whole words at both ends: "red" is not quoted by "tired".
+  const pattern = wholeName(quote);
+  return keys.some((key) => pattern.test(key));
 };
 
 /** The keeper's changes with every introduction and evidenced field a shown turn does not quote left out. */
@@ -122,12 +125,24 @@ export function groundedCastChanges(changes: CastChanges, shown: readonly string
   };
 }
 
+/** A hyphen that joins a compound name, as models write it: "Ann-Marie" does not name Ann. */
+const JOINER = "[-\\u2010\\u2011]";
+
+/** What stands before a word that opens a sentence, a line or a quotation. */
+const SENTENCE_START = /(?:^|[.!?…:\n])[\s"'“‘«([*_~-]*$/u;
+
+/** What follows a name that opens a scene line's cue: ` (25): `. */
+const CUE_AFTER = /^ \(\d{1,4}\):/;
+
 /**
  * The entries a shown turn names, by index: by the whole name, an earlier
- * name, or the given name when no other entry and not the player shares it.
- * Names are read as written and as whole words, in the text without its
- * highlight markup: a story that writes someone's name has told the player
- * of them, whatever the keeper answered.
+ * name, or the given name when no other entry's name and not the player's
+ * holds that word. Names are read as written and as whole words, in the
+ * text without its highlight markup. A one-word name that is an everyday
+ * word too (`isEverydayName`) counts only where a sentence would not
+ * capitalise it anyway, or where it opens a scene line's cue. A story that
+ * writes someone's name has told the player of them, whatever the keeper
+ * answered.
  */
 export function namedInTurns(
   entries: readonly Pick<CastEntry, "anchor" | "aka">[],
@@ -140,20 +155,37 @@ export function namedInTurns(
   const written = (name: string): boolean => {
     const form = name.normalize("NFC").trim();
     if (form === "") return false;
-    // A hyphen joins a longer name: "Ann-Marie" does not name Ann.
-    const pattern = new RegExp(`(?<!\\p{L}-)${wholeName(form).source}(?!-\\p{L})`, "u");
-    return texts.some((text) => pattern.test(text));
-  };
-  const given = entries.map((entry) => givenName(entry.anchor.name));
-  const taken = (form: string, at: number): boolean =>
-    (player !== null && firstWordKey(player) === castKey(form)) ||
-    entries.some(
-      (other, index) =>
-        index !== at &&
-        [other.anchor.name, ...other.aka].some((name) => firstWordKey(name) === castKey(form)),
+    const pattern = new RegExp(
+      `(?<!\\p{L}${JOINER})${wholeName(form).source}(?!${JOINER}\\p{L})`,
+      "gu",
     );
+    const everyday = !/\s/.test(form) && isEverydayName(form);
+    return texts.some((text) =>
+      text
+        .matchAll(pattern)
+        .some(
+          ({ index, 0: found }) =>
+            !everyday ||
+            !SENTENCE_START.test(text.slice(0, index)) ||
+            CUE_AFTER.test(text.slice(index + found.length)),
+        ),
+    );
+  };
+  const words = (name: string) => castKey(name).split(" ");
+  const playerWords = player === null ? [] : words(player);
+  const taken = (form: string, at: number): boolean => {
+    const key = castKey(form);
+    return (
+      playerWords.includes(key) ||
+      entries.some(
+        (other, index) =>
+          index !== at &&
+          [other.anchor.name, ...other.aka].some((name) => words(name).includes(key)),
+      )
+    );
+  };
   for (const [at, entry] of entries.entries()) {
-    const first = given[at] ?? null;
+    const first = givenName(entry.anchor.name);
     if (
       [entry.anchor.name, ...entry.aka].some(written) ||
       (first !== null && !taken(first, at) && written(first))

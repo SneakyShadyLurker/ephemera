@@ -2950,6 +2950,25 @@ const remembered = (lines: string[], revision = 1, enabled = true): CharacterMem
 const NPC_LINE = JSON.stringify({ name: "Ilse Brandt", gender: "female", hair: "black bob" });
 
 describe("remembered cast seeds", () => {
+  it("keeps a remembered person introduced once a turn names her, though the keeper says nothing of her", async () => {
+    const chat = castChat(async () => remembered([NPC_LINE]));
+    chat.state().setGreetings(["Ilse Brandt sets a glass on the bar."]);
+    await chat.sheet([]);
+    expect(entry(chat.state(), "Ilse Brandt")?.introduced).toBeUndefined();
+    await chat.answer({ cast: {}, absent: [] });
+    const introduced = entry(chat.state(), "Ilse Brandt");
+    expect(introduced?.introduced).toBe(true);
+    // The story placed her: she is this chat's now, whatever the notebook holds later.
+    chat.state().receiveCastMemory(CHARACTER, remembered([], 2));
+    expect(entry(chat.state(), "Ilse Brandt")).toMatchObject({
+      id: introduced?.id,
+      introduced: true,
+    });
+    await chat.say("Hello");
+    await chat.answer({ cast: {}, absent: [] });
+    expect(entry(chat.state(), "Ilse Brandt")?.introduced).toBe(true);
+  });
+
   for (const greeting of [false, true]) {
     it(`replaces an interrupted ${greeting ? "greeting" : "reply"} keeper once with the latest overlay`, async () => {
       const chat = castChat(async () => remembered([]));
