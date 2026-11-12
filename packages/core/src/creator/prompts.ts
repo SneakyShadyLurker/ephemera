@@ -236,7 +236,9 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
    * MOSS Image Base and its realism LoRAs, as their makers and users prompt
    * them. The capture and its subject open the prompt, since the model reads
    * the medium first and drifts from a photo without it, and a bare
-   * "photograph" renders as a printed photo. Its long-caption training takes
+   * "photograph" renders as a printed photo. A character picture's opening
+   * names the light source too: an amateur capture named alone, far ahead of
+   * the light step, renders lit from the camera. Its long-caption training takes
    * a longer prompt than Krea 2 does. Skin texture is named, which the
    * model resolves and Krea 2 does not. It blurs backgrounds and movement by
    * default, so the prompt states a sharp frame and a still pose. The
@@ -261,7 +263,7 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
       scene: 300,
     },
     form: (title) =>
-      ` MOSS reads the medium first and drifts away from a photo without it, so open the paragraph by naming the capture and its subject, as in ${title ? `"A cinematic movie poster of three women"` : `"A candid amateur smartphone snapshot of one woman"`}, then keep the order above and give the look's remaining words where its step comes. Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the ${title ? "look" : "chosen look"} words it.${title ? "" : ` MOSS blurs whatever lies behind a person unless the prompt says otherwise, so say in the look's sentence that the picture is sharp from the nearest thing in the frame to the farthest, and name the fine detail it shows, such as single strands of hair and the weave of a fabric.`} MOSS renders words for movement as blur, so give every pose and action as a still position, held as the camera caught it. Give the camera's height and distance with the framing, such as at eye level a few steps away, unless the look gives its own framing.`,
+      ` MOSS reads the medium first and drifts away from a photo without it, so open the paragraph by naming ${title ? `the capture and its subject, as in "A cinematic movie poster of three women"` : `the capture, its subject and the light source the light step gives, as in "A candid amateur snapshot of one woman in daylight from a window"`}, then keep the order above and give the look's remaining words where its step comes. Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the ${title ? "look" : "chosen look"} words it.${title ? "" : ` MOSS blurs whatever lies behind a person unless the prompt says otherwise, so say in the look's sentence that the picture is sharp from the nearest thing in the frame to the farthest.`} MOSS renders words for movement as blur, so give every pose and action as a still position, held as the camera caught it. Give the camera's height and distance with the framing, such as at eye level a few steps away, unless the look gives its own framing.`,
   },
   /*
    * MiniMax H3 Image as its own prompt guide and Atelier's renders give it:
@@ -381,9 +383,14 @@ const LOOK_STEP = (surface: LookSurface, n = 5) =>
       : "A <look> tag in the message names the look to use. Without one, choose by the era and the person the notes give, from the Location line's time, the background, the appearance and the temperament, and take the snapshot unless another plainly fits."
   } Where the chosen look gives a framing, it replaces the camera position and the gaze in step 1 and nothing else there, and it may bring exactly the props its framing names.`;
 
-/* The available light of every character art metaprompt; `both` holds it across a diptych's panels. */
+/*
+ * The available light of every character art metaprompt; `both` holds it
+ * across a diptych's panels. An image model lights a person from the camera
+ * unless the prompt says where the light stands and which side of them it
+ * reaches, so the step ties the place's light to each person.
+ */
 const AVAILABLE_LIGHT = (both: string) =>
-  `Only the available light that place and time give${both}, as it falls: its physical source in a few words, its direction, colour and falloff, and the uneven brightness and shadows it leaves.`;
+  `Only the available light that place and time give${both}, as it falls: its physical source in a few words and where it is in the place, its direction, colour and falloff, the side of each person it lights and the side it leaves in shadow, and the uneven brightness and shadows it leaves in the place. The camera adds no light of its own, so each person is lit by that source alone, from where it is.`;
 
 /* The look catalogue and the rules every character art metaprompt ends with, whose looks come from `src`. */
 const CHARACTER_LOOKS_AND_RULES = (

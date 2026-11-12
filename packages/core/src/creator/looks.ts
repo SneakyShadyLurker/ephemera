@@ -6,9 +6,12 @@ import type { ArtFamily } from "./prompts.ts";
  * is an amateur capture in the place's own available light: no text here
  * names flash, a studio or a staged shoot, and none uses a colon, semicolon
  * or the word stem MOSS renders as a printed photo, so a copied line keeps
- * the prompt's form rules. MOSS's wordings also name a sharp capture, since
- * the model softens a frame whose prompt does not. `<decade>` and `<the era>`
- * are filled by the metaprompt model from the notes.
+ * the prompt's form rules. A snapshot's wording names no device and no
+ * brightness: a compact camera or a phone beside the word snapshot renders
+ * lit from the camera, so an era shows in its colour instead. MOSS's
+ * wordings also name a sharp capture, since the model softens a frame whose
+ * prompt does not. `<decade>` and `<the era>` are filled by the metaprompt
+ * model from the notes.
  */
 
 export const ART_LOOK_IDS = ["snapshot", "selfie", "film", "digital", "monochrome"] as const;
@@ -56,7 +59,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     when: SNAPSHOT_WHEN,
     wording: {
       krea2: "an amateur snapshot, raw and true to life",
-      moss: "a candid amateur smartphone snapshot, sharp, raw and true to life",
+      moss: "a candid amateur snapshot, sharp, raw and true to life",
       h3: "an amateur snapshot, raw and true to life",
       general: "an amateur snapshot, raw and true to life",
     },
@@ -115,19 +118,18 @@ export const ART_LOOKS: readonly ArtLook[] = [
     },
     wording: {
       krea2:
-        "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
-      moss: "a candid amateur snapshot from an early 2000s compact digital camera, crisp, in the bright colour of early digital and that decade's dress and surroundings",
-      h3: "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
+        "an amateur digital snapshot from the early 2000s, true to life, in the saturated colour of early digital and that decade's dress and surroundings",
+      moss: "a candid amateur digital snapshot from the early 2000s, sharp, in the saturated colour of early digital and that decade's dress and surroundings",
+      h3: "an amateur digital snapshot from the early 2000s, true to life, in the saturated colour of early digital and that decade's dress and surroundings",
       general:
-        "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital and that decade's dress and surroundings",
+        "an amateur digital snapshot from the early 2000s, true to life, in the saturated colour of early digital and that decade's dress and surroundings",
     },
     undated: {
-      krea2:
-        "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
-      moss: "a candid amateur snapshot from an early 2000s compact digital camera, crisp, in the bright colour of early digital",
-      h3: "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
+      krea2: "an amateur digital snapshot, true to life, in the saturated colour of early digital",
+      moss: "a candid amateur digital snapshot, sharp, in the saturated colour of early digital",
+      h3: "an amateur digital snapshot, true to life, in the saturated colour of early digital",
       general:
-        "an amateur snapshot from an early 2000s compact digital camera, true to life, in the crisp, bright colour of early digital",
+        "an amateur digital snapshot, true to life, in the saturated colour of early digital",
     },
   },
   {

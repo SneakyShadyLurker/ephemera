@@ -255,7 +255,7 @@ Version 1.0 holds everything below.
   model fits the capture to the card, an amateur snapshot unless the card
   calls for another, a mirror selfie for someone whose life is posting
   themself, black and white film for the 1900s to the 1940s, 35mm colour
-  film for the 1950s to the 1990s, or an early compact digital camera for
+  film for the 1950s to the 1990s, or an early digital snapshot for
   the 2000s. A cover shows someone who could be met in everyday life: an
   earlier era becomes the 1900s, an invented world the present day, and a
   person who is not human a human woman; scene pictures and AI Rework

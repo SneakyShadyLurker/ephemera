@@ -32,7 +32,7 @@ const LOOKS: Record<
   },
   digital: {
     name: "2000s digital",
-    description: "Early compact digital camera",
+    description: "Early digital, saturated colour",
     swatch: ["#EEF6FF", "#2A72CC"],
   },
   monochrome: {
