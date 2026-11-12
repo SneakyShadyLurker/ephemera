@@ -36,6 +36,7 @@ vi.mock("./session.ts", async () => {
       characterId: "ava",
       personaId: null,
       reasoning: null,
+      reasoningEffort: null,
     }),
     { clock: () => ({ now: 0, timeZone: "UTC" }), fetchPreview: () => new Promise(() => {}) },
   );

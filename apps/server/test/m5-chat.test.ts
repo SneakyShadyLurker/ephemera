@@ -4,6 +4,7 @@ import {
   defaultSamplerPreset,
   type InspectedPrompt,
   inspectedPromptSchema,
+  type ReasoningEffort,
 } from "@ephemera/core";
 import { describe, expect, it } from "vitest";
 import { plainPromptPreset } from "../../../packages/core/test-fixtures/preset.ts";
@@ -331,6 +332,74 @@ describe("POST /api/chat with prompt assembly", () => {
     expect(upstream.records[0]?.body).toMatchObject({ temperature: 0.5 });
     expect(prompt.settings).toEqual({ temperature: 0.5 });
     expect(prompt.reasoningNotOffered).toBe("high");
+  });
+
+  describe("the tab's reasoning effort", () => {
+    const catalog: CatalogEntry[] = [
+      {
+        slug: "low-high",
+        context_window: 100_000,
+        supported_reasoning_levels: [{ effort: "low" }, { effort: "high" }],
+      },
+    ];
+
+    async function sent(change: { samplerReasoning?: ReasoningEffort; reasoningEffort?: string }) {
+      const { app, stores, upstream } = setup({ catalog });
+      const samplerPresetId =
+        change.samplerReasoning === undefined
+          ? undefined
+          : stores.presets.sampler.create(
+              {
+                name: "Preset",
+                values: { ...defaultSamplerPreset().values, reasoning: change.samplerReasoning },
+              },
+              crypto.randomUUID(),
+            );
+      const prompt = promptPart(
+        await responseParts(
+          await app.request(
+            "/api/chat",
+            postJson({
+              model: "low-high",
+              ...(samplerPresetId === undefined ? {} : { samplerPresetId }),
+              ...(change.reasoningEffort === undefined
+                ? {}
+                : { reasoningEffort: change.reasoningEffort }),
+              clock: CLOCK,
+              pickSeed: PICK_SEED,
+              messages: [{ role: "user", content: "hi" }],
+            }),
+          ),
+        ),
+      );
+      return { body: upstream.records[0]?.body, prompt };
+    }
+
+    it("replaces the sampler preset's effort", async () => {
+      const { body, prompt } = await sent({ samplerReasoning: "low", reasoningEffort: "high" });
+      expect(body).toMatchObject({ reasoning_effort: "high" });
+      expect(prompt.settings).toEqual({ reasoning: "high" });
+    });
+
+    it("applies with no sampler preset chosen", async () => {
+      const { body } = await sent({ reasoningEffort: "low" });
+      expect(body).toMatchObject({ reasoning_effort: "low" });
+    });
+
+    it("sends no effort as the model default, whatever the preset names", async () => {
+      const { body, prompt } = await sent({
+        samplerReasoning: "high",
+        reasoningEffort: "provider-default",
+      });
+      expect(body).not.toHaveProperty("reasoning_effort");
+      expect(prompt.reasoningNotOffered).toBeNull();
+    });
+
+    it("is not sent when the model does not offer it, and says so", async () => {
+      const { body, prompt } = await sent({ samplerReasoning: "low", reasoningEffort: "max" });
+      expect(body).not.toHaveProperty("reasoning_effort");
+      expect(prompt.reasoningNotOffered).toBe("max");
+    });
   });
 });
 

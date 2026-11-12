@@ -6,6 +6,7 @@ import { lorebookStateSchema } from "./lorebook/timed.ts";
 import { chatMemoryStateSchema } from "./memory/state.ts";
 import { withoutHighlights } from "./preset/highlight.ts";
 import { generationTypeSchema, PRESET_LIMITS } from "./preset/prompt.ts";
+import { REASONING_EFFORTS } from "./preset/reasoning.ts";
 import { macroStateSchema } from "./prompt/macro-state.ts";
 import { isTimeZone } from "./prompt/macros.ts";
 
@@ -124,6 +125,8 @@ const selection = {
   generationType: generationTypeSchema.optional(),
   /** The sampler preset whose set values apply to this reply. */
   samplerPresetId: z.uuid().optional(),
+  /** The tab's reasoning effort, in place of the sampler preset's; tab memory only, never kept. */
+  reasoningEffort: z.enum(REASONING_EFFORTS).optional(),
   /** The prompt preset that builds the prompt; without it, the built-in default. */
   promptPresetId: z.uuid().optional(),
   characterId: z.uuid().optional(),

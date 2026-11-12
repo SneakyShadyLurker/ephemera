@@ -209,6 +209,8 @@ export interface Selection {
    * for the server to choose from.
    */
   reasoning: Pick<PromptReasoning, "addToPrompts" | "maxAdditions"> | null;
+  /** The tab's reasoning effort in place of the sampler preset's; null follows the preset. */
+  reasoningEffort: ReasoningEffort | null;
 }
 
 /** The exact prompt of the last request, for the inspector. Chat content. */
@@ -671,11 +673,13 @@ function selected(
   chat: Pick<ChatState, "pickSeed" | "lorebookState" | "eventsState">,
   memoryState: ChatMemoryState | null,
 ) {
-  const { model, samplerPresetId, promptPresetId, characterId, personaId } = selection;
+  const { model, samplerPresetId, reasoningEffort, promptPresetId, characterId, personaId } =
+    selection;
   const { pickSeed, lorebookState, eventsState } = chat;
   return {
     model,
     ...(samplerPresetId === null ? {} : { samplerPresetId }),
+    ...(reasoningEffort === null ? {} : { reasoningEffort }),
     ...(promptPresetId === null ? {} : { promptPresetId }),
     ...(characterId === null ? {} : { characterId }),
     ...(personaId === null ? {} : { personaId }),

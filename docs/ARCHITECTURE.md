@@ -207,8 +207,10 @@ instead of a broken image.
    character, which event fired at which history length), for a character
    with memory on the ids of this chat's memories (§ Memory), both macro variable namespaces, a distinct generation
    type for prompt triggers, transient runtime macro inputs, the browser's
-   clock and timezone for `{{time}}` and `{{date}}`, and the chat's cache
-   affinity id (`cacheKey`, a UUID; previews carry none).
+   clock and timezone for `{{time}}` and `{{date}}`, the tab's reasoning
+   override when Session sets one (`reasoningEffort`; previews carry it
+   too), and the chat's cache affinity id (`cacheKey`, a UUID; previews
+   carry none).
    Model limits come from the upstream's model catalog. The server asks
    `/v1/models?client_version=&detailed=true` first (CLIProxyAPI reads
    `client_version` and answers its rich catalog, `{models:[{slug}]}`;
@@ -369,7 +371,11 @@ instead of a broken image.
    key, retries, error logging and codes), with streamed usage enabled
    (`includeUsage`) and the chosen sampler preset's set values as call
    settings; values left at the model default are not sent, and every
-   effort, `max` included, goes as the SDK's `reasoning` setting. Without
+   effort, `max` included, goes as the SDK's `reasoning` setting. A
+   request's `reasoningEffort` replaces the preset's effort in
+   `callSettings` (`generation.ts`), with or without a preset;
+   `provider-default` sends none, and an effort the model does not offer is
+   not sent and is reported as `reasoningNotOffered`, as a preset's is. Without
    a configured key no `Authorization` header is sent, for a local server
    that needs none.
    CLIProxyAPI v8.0.32's Codex translator drops `temperature`, `top_p` and
@@ -2213,8 +2219,17 @@ sampler choice owner with Session; the inline sampler popup uses up to
 20rem within its positioner's available width. Both selectors describe each
 sampler with the existing model-and-settings summary. Selecting one with a
 model changes both settings together. Session orders Character, Persona, Sampler preset,
-Prompt preset and Model, folding explanations but keeping model and
-reasoning mismatches visible. The palette editor widens its Settings frame
+Reasoning, Prompt preset, Model and Image model, folding explanations but
+keeping model and reasoning mismatches visible. Image model shows only with
+an image backend set and saves `comfyuiWorkflow` through the creator's
+`WorkflowSelect`. Reasoning is the one Session choice that is not a
+setting: `chat/reasoning-override.ts` holds the tab's effort (null follows
+the sampler preset) and never saves it, so a reload follows the preset
+again. The chat store reads it when sending, so every reply, Continue,
+Impersonate and preview carries it as `reasoningEffort`, and a change
+previews again. Choosing a sampler preset, in Session or under the
+composer, clears it, since a preset applies in full. While it is set, the
+sampler's reasoning mismatch gives way to the override's own. The palette editor widens its Settings frame
 on desktop for a sticky sample beside the fields, offers Preview on smaller
 screens and a compact live sample on phones and tablets, using the chat's
 nameplates, prose and slip. The full sample's reply actions and composer

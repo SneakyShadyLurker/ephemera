@@ -152,6 +152,39 @@ describe("previewRequestSchema", () => {
   });
 });
 
+describe("the tab's reasoning effort", () => {
+  const request = (change: object) => ({
+    model: "m",
+    clock,
+    pickSeed,
+    messages: [{ role: "user", content: "x" }],
+    ...change,
+  });
+
+  it("travels with a reply and a preview", () => {
+    expect(generateRequestSchema.parse(request({ reasoningEffort: "high" })).reasoningEffort).toBe(
+      "high",
+    );
+    expect(
+      previewRequestSchema.parse(request({ reasoningEffort: "provider-default" })).reasoningEffort,
+    ).toBe("provider-default");
+  });
+
+  it("refuses an effort no preset could choose", () => {
+    expect(generateRequestSchema.safeParse(request({ reasoningEffort: "ultra" })).success).toBe(
+      false,
+    );
+    expect(previewRequestSchema.safeParse(request({ reasoningEffort: "ultra" })).success).toBe(
+      false,
+    );
+  });
+
+  it("stays absent when the tab sets none", () => {
+    expect(generateRequestSchema.parse(request({}))).not.toHaveProperty("reasoningEffort");
+    expect(previewRequestSchema.parse(request({}))).not.toHaveProperty("reasoningEffort");
+  });
+});
+
 describe("pick seed", () => {
   const request = (seed: unknown) => ({
     model: "m",

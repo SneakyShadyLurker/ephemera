@@ -98,6 +98,7 @@ describe("the tab's bounded usage ledger", () => {
         samplerPresetId: null,
         promptPresetId: null,
         reasoning: null,
+        reasoningEffort: null,
       }),
       {
         clock: () => ({ now: 0, timeZone: "UTC" }),

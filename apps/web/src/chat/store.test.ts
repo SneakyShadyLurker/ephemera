@@ -132,6 +132,7 @@ function selectionOf(change: Partial<Selection> = {}): Selection {
     characterId: null,
     personaId: null,
     reasoning: null,
+    reasoningEffort: null,
     ...change,
   };
 }
@@ -390,6 +391,27 @@ describe("chat store", () => {
     });
     reply.finish();
     await sending;
+  });
+
+  it("sends the tab's reasoning effort with a reply and a preview, and none when it follows the preset", async () => {
+    const { store, reply, preview, selection } = readyStore(
+      selectionOf({ samplerPresetId: "preset-b", reasoningEffort: "high" }),
+    );
+    const first = store.getState().send();
+    reply.finish();
+    await first;
+    void store.getState().requestPreview();
+    expect(reply.calls[0]?.request.reasoningEffort).toBe("high");
+    expect(preview.calls.at(-1)?.request.reasoningEffort).toBe("high");
+
+    selection.reasoningEffort = null;
+    store.getState().setDraft("again");
+    const second = store.getState().send();
+    reply.finish();
+    await second;
+    void store.getState().requestPreview();
+    expect(reply.calls[1]?.request).not.toHaveProperty("reasoningEffort");
+    expect(preview.calls.at(-1)?.request).not.toHaveProperty("reasoningEffort");
   });
 
   it("sends the chat's pick seed with every request and preview, and a new one after Clear", async () => {

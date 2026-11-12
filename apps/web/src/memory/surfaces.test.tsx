@@ -32,6 +32,7 @@ vi.mock("../chat/session.ts", async () => {
       characterId: "5a1e2b3c-4d5e-4f60-8a1b-2c3d4e5f6a7b",
       personaId: null,
       reasoning: null,
+      reasoningEffort: null,
     }),
     {
       clock: () => ({ now: 0, timeZone: "UTC" }),

@@ -2,6 +2,9 @@ import { z } from "zod";
 import { modelIdSchema } from "../chat.ts";
 import { storedFields, withRevision } from "../revision.ts";
 import { presetNameSchema } from "./prompt.ts";
+import { REASONING_EFFORTS } from "./reasoning.ts";
+
+export { REASONING_EFFORTS, type ReasoningEffort } from "./reasoning.ts";
 
 /*
  * A sampler preset: how replies are drawn. Every value may be null, meaning
@@ -18,24 +21,6 @@ export const SAMPLER_RANGES = {
   presencePenalty: { min: -2, max: 2, step: 0.05, start: 0 },
   seed: { min: 0, max: 2_147_483_647, step: 1, start: 0 },
 } as const;
-
-/**
- * Every effort a preset can choose: the AI SDK's `reasoning` levels, which the
- * server checks against the SDK's own type (upstream.ts); "provider-default"
- * sends nothing. CLIProxyAPI's catalog also lists `ultra`, which its chat
- * endpoint refuses, so it is not one.
- */
-export const REASONING_EFFORTS = [
-  "provider-default",
-  "none",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-] as const;
-export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 const ranged = (key: keyof typeof SAMPLER_RANGES, integer = false) => {
   const { min, max } = SAMPLER_RANGES[key];

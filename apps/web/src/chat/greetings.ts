@@ -254,6 +254,7 @@ export function useGreetings() {
         characterId,
         personaId,
         reasoning: null,
+        reasoningEffort: null,
       })
         .catch((): SubjectResult => ({ ok: false }))
         .then((result) => {
