@@ -264,7 +264,7 @@ describe("creator requests and events", () => {
     );
   });
 
-  it("opens a MOSS prompt with the capture and asks for a sharp frame, a still pose and textured skin", () => {
+  it("opens a MOSS prompt with the capture and its light and asks for a sharp frame, a still pose and textured skin", () => {
     const characters = [
       ART_METAPROMPTS.moss.subject,
       ART_METAPROMPTS.moss.group,
@@ -272,17 +272,20 @@ describe("creator requests and events", () => {
       ...Object.values(SCENE_METAPROMPTS.moss),
     ];
     for (const prompt of characters) {
+      // The light source opens the prompt beside the capture, so the capture's name does not light the picture by itself.
       expect(prompt).toContain(
-        'open the paragraph by naming the capture and its subject, as in "A candid amateur smartphone snapshot of one woman"',
+        'open the paragraph by naming the capture, its subject and the light source the light step gives, as in "A candid amateur snapshot of one woman in daylight from a window"',
       );
       expect(prompt).toContain("name the capture as the chosen look words it");
-      expect(prompt).toContain("sharp from the nearest thing in the frame to the farthest");
+      expect(prompt).toContain("sharp from the nearest thing in the frame to the farthest.");
+      // Fine detail at every distance is what a lamp on the camera gives, so the prompt asks for none.
+      expect(prompt).not.toContain("strands of hair");
     }
     // A poster keeps its cinematic look, so it opens as one and takes no whole-frame sharpness.
     expect(ART_METAPROMPTS.moss.scenario).toContain(
       'open the paragraph by naming the capture and its subject, as in "A cinematic movie poster of three women"',
     );
-    expect(ART_METAPROMPTS.moss.scenario).not.toContain("smartphone snapshot of one woman");
+    expect(ART_METAPROMPTS.moss.scenario).not.toContain("snapshot of one woman");
     expect(ART_METAPROMPTS.moss.scenario).not.toContain("sharp from the nearest thing");
     for (const prompt of [...characters, ART_METAPROMPTS.moss.scenario]) {
       expect(prompt).toContain("give every pose and action as a still position");
@@ -588,6 +591,25 @@ describe("creator requests and events", () => {
     expect(ART_METAPROMPTS.krea2.group).toContain(
       "Only the available light that place and time give",
     );
+  });
+
+  it("has the place's light fall on each person from its source, never from the camera", () => {
+    for (const family of ART_FAMILIES) {
+      for (const prompt of [
+        ART_METAPROMPTS[family].subject,
+        ART_METAPROMPTS[family].group,
+        SUBJECT_DIPTYCH_METAPROMPTS[family],
+        ...Object.values(SCENE_METAPROMPTS[family]),
+      ]) {
+        expect(prompt).toContain("its physical source in a few words and where it is in the place");
+        expect(prompt).toContain(
+          "the side of each person it lights and the side it leaves in shadow",
+        );
+        expect(prompt).toContain(
+          "The camera adds no light of its own, so each person is lit by that source alone, from where it is.",
+        );
+      }
+    }
   });
 
   it("bares every woman on every cover in the words the image model answers to", () => {
@@ -1336,22 +1358,31 @@ describe("art looks", () => {
         );
         expect(text.replace(/\b35mm\b|\b(19|20)\d0s\b/g, "")).not.toMatch(/\d/);
       }
+      // A capture's own words name no camera whose pictures are mostly lit from the camera, nor their brightness.
+      for (const model of ART_FAMILIES) {
+        for (const text of [look.wording[model], look.undated?.[model] ?? ""]) {
+          expect(text).not.toMatch(/compact|camera|bright|crisp|smartphone snapshot/i);
+        }
+      }
     }
     const byId = Object.fromEntries(ART_LOOKS.map((look) => [look.id, look]));
     expect(byId.snapshot?.framing).toBeUndefined();
     for (const model of ART_FAMILIES) {
       expect(byId.snapshot?.wording[model]).toBe(
         model === "moss"
-          ? "a candid amateur smartphone snapshot, sharp, raw and true to life"
+          ? "a candid amateur snapshot, sharp, raw and true to life"
           : "an amateur snapshot, raw and true to life",
+      );
+      expect(byId.digital?.wording[model]).toBe(
+        model === "moss"
+          ? "a candid amateur digital snapshot from the early 2000s, sharp, in the saturated colour of early digital and that decade's dress and surroundings"
+          : "an amateur digital snapshot from the early 2000s, true to life, in the saturated colour of early digital and that decade's dress and surroundings",
       );
       for (const id of ["film", "digital", "monochrome"]) {
         const undated = byId[id]?.undated?.[model];
         expect(undated).toBeDefined();
         expect(undated).not.toContain("<decade>");
-      }
-      for (const id of ["film", "monochrome"]) {
-        expect(byId[id]?.undated?.[model]?.replace("35mm", "")).not.toMatch(/\d/);
+        expect(undated?.replace("35mm", "")).not.toMatch(/\d/);
       }
     }
   });
