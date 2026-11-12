@@ -6,8 +6,9 @@ import type { ArtFamily } from "./prompts.ts";
  * is an amateur capture in the place's own available light: no text here
  * names flash, a studio or a staged shoot, and none uses a colon, semicolon
  * or the word stem MOSS renders as a printed photo, so a copied line keeps
- * the prompt's form rules. `<decade>` and `<the era>` are filled by the
- * metaprompt model from the notes.
+ * the prompt's form rules. MOSS's wordings also name a sharp capture, since
+ * the model softens a frame whose prompt does not. `<decade>` and `<the era>`
+ * are filled by the metaprompt model from the notes.
  */
 
 export const ART_LOOK_IDS = ["snapshot", "selfie", "film", "digital", "monochrome"] as const;
@@ -55,7 +56,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     when: SNAPSHOT_WHEN,
     wording: {
       krea2: "an amateur snapshot, raw and true to life",
-      moss: "an amateur snapshot, raw and true to life",
+      moss: "a candid amateur smartphone snapshot, sharp, raw and true to life",
       h3: "an amateur snapshot, raw and true to life",
       general: "an amateur snapshot, raw and true to life",
     },
@@ -69,7 +70,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
     },
     wording: {
       krea2: "a smartphone selfie, raw and true to life",
-      moss: "a candid smartphone selfie, raw and true to life",
+      moss: "a candid smartphone selfie, sharp, raw and true to life",
       h3: "a smartphone selfie, raw and true to life",
       general: "a smartphone selfie, raw and true to life",
     },
@@ -94,14 +95,14 @@ export const ART_LOOKS: readonly ArtLook[] = [
     wording: {
       krea2:
         "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
-      moss: "a candid amateur 35mm colour film snapshot from the <decade>, the colours of that era's film in its dress and surroundings",
+      moss: "a candid amateur 35mm colour film snapshot from the <decade>, in sharp focus, the colours of that era's film in its dress and surroundings",
       h3: "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
       general:
         "an amateur 35mm colour film snapshot from the <decade>, true to life, in that decade's colours, dress and surroundings",
     },
     undated: {
       krea2: "an amateur 35mm colour film snapshot, true to life",
-      moss: "a candid amateur 35mm colour film snapshot",
+      moss: "a candid amateur 35mm colour film snapshot, in sharp focus",
       h3: "an amateur 35mm colour film snapshot, true to life",
       general: "an amateur 35mm colour film snapshot, true to life",
     },
@@ -135,14 +136,14 @@ export const ART_LOOKS: readonly ArtLook[] = [
     wording: {
       krea2:
         "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
-      moss: "a candid amateur black and white film snapshot from <the era>, named as in the 1920s, in that era's dress and surroundings",
+      moss: "a candid amateur black and white film snapshot from <the era>, named as in the 1920s, in sharp focus, in that era's dress and surroundings",
       h3: "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
       general:
         "an amateur black and white film snapshot from <the era>, named as in the 1920s, true to life, in that era's dress and surroundings",
     },
     undated: {
       krea2: "an amateur black and white film snapshot, true to life",
-      moss: "a candid amateur black and white film snapshot",
+      moss: "a candid amateur black and white film snapshot, in sharp focus",
       h3: "an amateur black and white film snapshot, true to life",
       general: "an amateur black and white film snapshot, true to life",
     },
