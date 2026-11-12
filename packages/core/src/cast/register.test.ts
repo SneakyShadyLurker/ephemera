@@ -179,3 +179,40 @@ describe("the sheet answer", () => {
     expect(entries[1]?.anchor).toEqual({ ...emptyCastAnchor("Ana Pires", "female"), age: "20" });
   });
 });
+
+describe("a gender as a model writes it", () => {
+  const sheetGender = (gender: unknown) =>
+    castSheetAnswerSchema.parse(
+      clampCastSheetAnswer({
+        cast: [{ name: "Mara", ...(gender === undefined ? {} : { gender }), anchor: {} }],
+      }),
+    ).cast[0]?.gender;
+  const changeGender = (gender: unknown) =>
+    castChangesSchema.parse(
+      clampCastChanges({ cast: { Mara: { gender, state: { mood: "calm" } } } }),
+    ).cast.Mara;
+
+  it.each([
+    ["Female", "female"],
+    [" WOMAN ", "female"],
+    ["girl", "female"],
+    ["f", "female"],
+    ["Male", "male"],
+    ["man", "male"],
+    ["non-binary", "other"],
+    ["futanari", "other"],
+    ["constructor", "other"],
+    [undefined, "other"],
+    [3, "other"],
+  ])("reads a sheet's %j as %s", (written, read) => {
+    expect(sheetGender(written)).toBe(read);
+  });
+
+  it("reads a keeper's the same, and drops one it cannot read without losing the change", () => {
+    expect(changeGender("Woman")?.gender).toBe("female");
+    expect(changeGender("M")?.gender).toBe("male");
+    expect(changeGender("Other")?.gender).toBe("other");
+    expect(changeGender("unclear")).toEqual({ state: { mood: "calm" } });
+    expect(changeGender(null)).toEqual({ state: { mood: "calm" } });
+  });
+});

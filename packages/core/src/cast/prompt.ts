@@ -68,31 +68,31 @@ Rules:
 - When a known NPC is named more fully, such as "Ilse" becoming "Ilse Brandt", key the change by the full name and give the earlier one in "was".
 - Never write an entry for the player, by any of their names.
 
-Return one JSON object with exactly these keys:
-- "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys), "state" (the state's keys), "introduce" and "discovered". {} when nothing changed.
-- "absent": the names of the NPCs no longer in the scene at the end of the turns; [] when none.
-
-For example:
-{"cast":{"Mara Battin":{"state":{"outfit":"a white bath towel","disarray":"towel slipping at her chest; her jeans and grey T-shirt on the bathroom floor","activity":"drying her hair","mood":"flustered"}},"Jonas Reyes":{"role":"minor","gender":"male","anchor":{"age":"34","ethnicity":"Mexican-American","build":"broad, heavy-set build"},"state":{"position":"standing behind the bar","activity":"polishing a glass"}}},"absent":["Ana Pires"]}
-
-Answer with the JSON object alone, with nothing before or after it and no code fence.`;
-
-/** The keeper call's instructions (system): static, identical for every call. */
-export const keeperInstructions = (): string => `${KEEPER_INSTRUCTIONS}
-
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
 - "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge.
 Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning. Never overwrite an owner's corrected field.
 
 The Cast panel shows player knowledge, never hidden canon:
-- "introduce": {"evidence":"exact short quote"} when the player first encounters or learns of an NPC. Presence alone is not introduction; once introduced, omit this key.
+- "introduce": {"evidence":"exact short quote"} for each NPC the shown turns let the player meet, see, hear or learn of, named or not. The register marks who is introduced with "introduced": true. Anyone without it has not been, a card's own subjects included, however long they have been in the register: introduce them with the first turns that show them to the player. Only an NPC the turns keep out of the player's sight and knowledge stays unintroduced. Once introduced, omit this key.
 - "discovered": an object keyed only by the anchor's text fields. Each populated field is {"value":"what the player now knows", "basis":"seen", "told" or "demonstrated", "evidence":"exact short quote from these turns"}. Omit undiscovered and unchanged fields. A discovery may refine an earlier approximation.
 - Canon and durable developments never reveal themselves. Every introduction and discovery needs player-accessible evidence in the shown batch, not the card, private NPC thoughts or speculation.
 - "seen" is direct observation, "told" preserves what someone said as a claim when appropriate, and "demonstrated" is a trait or preference established by conduct.
 - Record visible looks only when seen. Exact measurements require explicit knowledge; otherwise use a visual approximation. Before exposure, a discovered "build" holds the figure as the clothes show it, chest, hips and ass included, written as an impression through the garment, such as "slim, chest flat under a tight hoodie" or "deep cleavage pushed up in a lace bra"; never nipples, genitals, a cup size or other concealed "intimate" detail. That impression records what the clothes suggest, which may be false. Intimate anatomy requires actual exposure and observation; once seen, record "intimate" and refine "build" without the clothed guess. An exact cup size requires it to be stated or otherwise established.
 - Personality, experience, relationships, fetishes, taboos, goals and private knowledge enter only when learned through dialogue or demonstrated conduct. Mood and arousal must be perceptible or communicated. Once discovered, a field stays known while the NPC is away.
-- State is what the player can observe now: keep private thoughts, unseen actions and concealed injuries out of it as well.`;
+- State is what the player can observe now: keep private thoughts, unseen actions and concealed injuries out of it as well.
+
+Return one JSON object with exactly these keys:
+- "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys), "state" (the state's keys), "developments", "continuity", "introduce" and "discovered". {} when nothing changed.
+- "absent": the names of the NPCs no longer in the scene at the end of the turns; [] when none.
+
+For example, where Mara Battin was introduced before and the turns bring in Jonas Reyes:
+{"cast":{"Mara Battin":{"state":{"outfit":"a white bath towel","disarray":"towel slipping at her chest; her jeans and grey T-shirt on the bathroom floor","activity":"drying her hair","mood":"flustered"}},"Jonas Reyes":{"role":"minor","gender":"male","anchor":{"age":"34","ethnicity":"Mexican-American","build":"broad, heavy-set build"},"state":{"position":"standing behind the bar","activity":"polishing a glass"},"introduce":{"evidence":"Jonas looks up from the glass he is polishing"},"discovered":{"build":{"value":"broad, heavy-set build","basis":"seen","evidence":"a broad, heavy-set man behind the bar"}}}},"absent":["Ana Pires"]}
+
+Answer with the JSON object alone, with nothing before or after it and no code fence.`;
+
+/** The keeper call's instructions (system): static, identical for every call. */
+export const keeperInstructions = (): string => KEEPER_INSTRUCTIONS;
 
 /**
  * The card's description as the keeper's canon, names filled, and the
@@ -162,7 +162,7 @@ export function keeperMessage({
 }): string {
   const task =
     mode === "seed"
-      ? "This is the opening. Set who is present and their state; add anyone it introduces."
+      ? "This is the opening. Set who is present and their state, introduce everyone it shows the player and add anyone new."
       : "These are the newest turns. Answer with what changed.";
   return [
     ...(kind === null ? [] : [`Kind: ${kind}`]),
@@ -217,6 +217,33 @@ Answer with the JSON object alone, with nothing before or after it and no code f
 
 /** The cast sheet call's instructions (system): static, identical for every call. */
 export const sheetInstructions = (): string => SHEET_INSTRUCTIONS;
+
+/** The fewest people a card of each kind describes; a kind not named here promises no one. */
+const SHEET_LEAST: Readonly<Record<string, number>> = {
+  [CREATOR_TAGS.subject]: 1,
+  [CREATOR_TAGS.group]: 2,
+};
+
+/**
+ * What a sheet answer short of its card's kind is asked once more with: a
+ * Subject card's answer without its subject, a Multiple Subjects card's with
+ * fewer than two people. Null when the answer has as many as the kind
+ * promises, the card has no kind or a Scenario's, or it has no description
+ * to read them from. The second answer stands, whatever it holds: a card
+ * may describe fewer people than its tag says.
+ */
+export function sheetShortfall(
+  card: Pick<CharacterCard, "description" | "tags">,
+  recorded: number,
+): string | null {
+  const kind = castCardKind(card.tags);
+  const least = kind === null ? 0 : (SHEET_LEAST[kind] ?? 0);
+  if (recorded >= least || card.description.trim() === "") return null;
+  const people = recorded === 0 ? "no one" : "one person";
+  const promised =
+    kind === CREATOR_TAGS.group ? "its two or three people" : "the one person it is about";
+  return `The card's kind is ${kind}, so it describes ${promised}, and this answer records ${people}. Read the card again and return the complete JSON object with every one of them, each under their own name; return the same object only if the card truly describes no more.`;
+}
 
 /** The tag of the kind the card's tags name, or null when none does. */
 export const castCardKind = (tags: readonly string[]): string | null => {

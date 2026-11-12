@@ -260,10 +260,22 @@ export const sheetWaiting = (state: ChatState): boolean =>
   state.cast.sheetStatus === "waiting" && discoveredRegister(state).entries.length === 0;
 
 /**
+ * The card's sheet names people and the keeper's first answer about them is
+ * on its way: nobody is introduced yet, and no reply has a snapshot. The
+ * panel holds from "Reading the card" until that answer says who is listed.
+ */
+const firstAnswerAwaited = (state: ChatState): boolean =>
+  busyOf(state) &&
+  (state.cast.sheet?.entries.length ?? 0) > 0 &&
+  Object.keys(state.cast.snapshots).length === 0 &&
+  discoveredRegister(state).entries.length === 0;
+
+/**
  * The panel shows with at least one introduced woman, present or away,
  * and, with nobody in it yet, while the first sheet waits for a model, is
- * read, or could not be, or the keeper could not update the shown target
- * and, after such a failure, while it tries again.
+ * read, or could not be, while the keeper's first answer about the sheet's
+ * people is awaited, or the keeper could not update the shown target and,
+ * after such a failure, while it tries again.
  */
 const castVisible = (state: ChatState): boolean => {
   const register = discoveredRegister(state);
@@ -271,6 +283,7 @@ const castVisible = (state: ChatState): boolean => {
   return (
     listedEntries(register).length > 0 ||
     (cast.sheetStatus === "loading" && register.entries.length === 0) ||
+    firstAnswerAwaited(state) ||
     sheetWaiting(state) ||
     sheetUnread(state) ||
     ((cast.status === "failed" || (busyOf(state) && cast.failures > 0)) &&

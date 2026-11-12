@@ -184,6 +184,23 @@ export const castChangesSchema = z.strictObject({
 });
 export type CastChanges = z.infer<typeof castChangesSchema>;
 
+/** How models write a gender beyond the schema's three words, in lower case. */
+const GENDER_WORDS = new Map<string, CastGender>([
+  ["female", "female"],
+  ["f", "female"],
+  ["woman", "female"],
+  ["girl", "female"],
+  ["male", "male"],
+  ["m", "male"],
+  ["man", "male"],
+  ["boy", "male"],
+  ["other", "other"],
+]);
+
+/** A gender as the schema names it, whatever its case; undefined for a word it does not know. */
+const readGender = (value: unknown): CastGender | undefined =>
+  typeof value === "string" ? GENDER_WORDS.get(value.trim().toLowerCase()) : undefined;
+
 const fieldClamps = (keys: readonly string[]) =>
   Object.fromEntries(keys.map((key) => [key, (value: unknown) => clampText(value, L.field)]));
 const anchorClamps = fieldClamps(CAST_ANCHOR_FIELDS);
@@ -192,7 +209,7 @@ const keep = (value: unknown): unknown => value;
 /** A name cut to its bound; a blank one is none. */
 const clampName = (value: unknown): unknown => clampText(value, L.name);
 
-/** One change within bounds: unknown keys dropped, strings cut, a blank `was` none. */
+/** One change within bounds: unknown keys dropped, strings cut, a blank `was` and an unreadable gender none. */
 function clampChange(value: unknown): unknown {
   const groundedClamps = (keys: readonly string[]) =>
     Object.fromEntries(
@@ -208,7 +225,7 @@ function clampChange(value: unknown): unknown {
   const clamped = clampKeys(value, {
     was: clampName,
     role: keep,
-    gender: keep,
+    gender: readGender,
     anchor: (anchor) => clampKeys(anchor, anchorClamps),
     state: (state) => clampKeys(state, { present: keep, ...fieldClamps(CAST_STATE_FIELDS) }),
     developments: (fields) => clampKeys(fields, groundedClamps(CAST_ANCHOR_FIELDS)),
@@ -239,6 +256,8 @@ function clampChange(value: unknown): unknown {
     },
   });
   if (isRecord(clamped) && clamped.was === "") delete clamped.was;
+  // A gender it cannot read says nothing: the entry keeps the one it has.
+  if (isRecord(clamped) && clamped.gender === undefined) delete clamped.gender;
   // An introduction without evidence cannot introduce anyone, but must not discard the NPC.
   if (
     isRecord(clamped) &&
@@ -252,7 +271,7 @@ function clampChange(value: unknown): unknown {
 /**
  * The keeper's answer, parsed from JSON, brought within `CAST_LIMITS` before
  * `castChangesSchema` reads it: strings cut, keys the schema does not name
- * dropped, blank names and unusable introductions and discovery items dropped, `cast` capped
+ * dropped, blank names, unreadable genders and unusable introductions and discovery items dropped, `cast` capped
  * at `entries`. Other values it cannot mend still fail the schema.
  */
 export const clampCastChanges = (value: unknown): unknown =>
@@ -301,7 +320,7 @@ export type CastSheetEntry = z.infer<typeof castSheetEntrySchema>;
 /**
  * The sheet call's answer, parsed from JSON, brought within `CAST_LIMITS`
  * before `castSheetAnswerSchema` reads it: strings cut, unknown keys
- * dropped, a missing gender `other`, nameless and duplicate people (by
+ * dropped, a missing or unreadable gender `other`, nameless and duplicate people (by
  * `castKey`, first wins) dropped, at most `sheetEntries` kept.
  */
 export const clampCastSheetAnswer = (value: unknown): unknown =>
@@ -313,11 +332,11 @@ export const clampCastSheetAnswer = (value: unknown): unknown =>
         .map((item) => {
           const clamped = clampKeys(item, {
             name: clampName,
-            gender: keep,
+            gender: readGender,
             role: keep,
             anchor: (anchor) => clampKeys(anchor, anchorClamps),
           });
-          if (isRecord(clamped) && !("gender" in clamped)) clamped.gender = "other";
+          if (isRecord(clamped)) clamped.gender ??= "other";
           return clamped;
         })
         .filter((item) => {

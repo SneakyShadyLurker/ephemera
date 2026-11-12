@@ -425,3 +425,37 @@ describe("the cast sheet", () => {
     expect(overlaid.entries).toHaveLength(CAST_LIMITS.entries);
   });
 });
+
+describe("the sheet's gender", () => {
+  const sheetOf = (gender: CastEntry["anchor"]["gender"]) => ({
+    entries: [
+      {
+        id: uuid(1),
+        role: "principal" as const,
+        anchor: emptyCastAnchor("Mara Battin", gender),
+        aka: [],
+      },
+    ],
+  });
+  const known = (gender: CastEntry["anchor"]["gender"]) =>
+    register(entry(1, "Mara Battin", { anchor: emptyCastAnchor("Mara Battin", gender) }));
+  const genderOf = (value: CastRegister) => value.entries[0]?.anchor.gender;
+
+  it("never takes back one the chat knows when the card did not say", () => {
+    expect(genderOf(withSheet(sheetOf("other"), known("female")))).toBe("female");
+    expect(genderOf(withSheet(sheetOf("other"), known("other")))).toBe("other");
+  });
+
+  it("wins where the card says which", () => {
+    expect(genderOf(withSheet(sheetOf("male"), known("female")))).toBe("male");
+    expect(genderOf(withSheet(sheetOf("female"), known("other")))).toBe("female");
+  });
+
+  it("lets the keeper say which once, and the overlay keep it", () => {
+    const sheet = sheetOf("other");
+    const { result } = apply(withSheet(sheet, register()), {
+      cast: { "Mara Battin": { gender: "female" } },
+    });
+    expect(genderOf(withSheet(sheet, result))).toBe("female");
+  });
+});

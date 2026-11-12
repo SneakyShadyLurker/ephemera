@@ -8,6 +8,7 @@ import {
   SHEET_OPENING,
   sheetInstructions,
   sheetMessage,
+  sheetShortfall,
 } from "./prompt.ts";
 import { emptyCastAnchor, emptyCastState } from "./register.ts";
 
@@ -114,6 +115,39 @@ describe("the keeper prompt", () => {
     expect(instructions).toContain('how it shapes the body, such as "padded push-up bra"');
   });
 
+  it("describes every key before the answer's shape, and shows an introduction in its example", () => {
+    const instructions = keeperInstructions();
+    const shape = instructions.indexOf("Return one JSON object with exactly these keys:");
+    const example = instructions.indexOf("For example");
+    for (const key of [
+      '- "developments":',
+      '- "continuity":',
+      '- "introduce":',
+      '- "discovered":',
+    ]) {
+      expect(instructions.indexOf(key)).toBeGreaterThan(-1);
+      expect(instructions.indexOf(key)).toBeLessThan(shape);
+    }
+    expect(shape).toBeLessThan(example);
+    const shown = instructions.slice(example);
+    expect(shown).toContain('"introduce":{"evidence":');
+    expect(shown).toContain('"discovered":{"build":{"value":');
+    expect(
+      instructions.endsWith(
+        "Answer with the JSON object alone, with nothing before or after it and no code fence.",
+      ),
+    ).toBe(true);
+  });
+
+  it("asks for everyone not yet introduced, a card's subjects included", () => {
+    const instructions = keeperInstructions();
+    expect(instructions).toContain('The register marks who is introduced with "introduced": true.');
+    expect(instructions).toContain("a card's own subjects included");
+    expect(
+      keeperMessage({ canon: null, names, register, turns, mode: "seed", full: false }),
+    ).toContain("introduce everyone it shows the player");
+  });
+
   it("builds canon from the card's fields with the names filled, null when blank", () => {
     const card = { ...blankCard("Mara"), description: "{{char}} meets {{user}}." };
     expect(castCanon(card, names)).toBe("Description:\nMara meets Ash.");
@@ -125,6 +159,20 @@ describe("the sheet prompt", () => {
   it("keeps the instructions identical across calls, opening with SHEET_OPENING", () => {
     expect(sheetInstructions()).toBe(sheetInstructions());
     expect(sheetInstructions().startsWith(SHEET_OPENING)).toBe(true);
+  });
+
+  it("asks again only for an answer short of what the card's kind promises", () => {
+    const card = { ...blankCard("Mara"), description: "Mara and Lena share a flat." };
+    const group = { ...card, tags: ["Multiple Subjects"] };
+    const subject = { ...card, tags: ["Subject"] };
+    expect(sheetShortfall(group, 0)).toContain("this answer records no one");
+    expect(sheetShortfall(group, 1)).toContain("its two or three people");
+    expect(sheetShortfall(group, 2)).toBeNull();
+    expect(sheetShortfall(subject, 0)).toContain("the one person it is about");
+    expect(sheetShortfall(subject, 1)).toBeNull();
+    expect(sheetShortfall({ ...card, tags: ["Scenario"] }, 0)).toBeNull();
+    expect(sheetShortfall({ ...card, tags: ["romance"] }, 0)).toBeNull();
+    expect(sheetShortfall({ ...group, description: "  " }, 0)).toBeNull();
   });
 
   it("names the card's kind, or none, and keeps {{user}} as written", () => {

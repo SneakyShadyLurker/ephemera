@@ -705,7 +705,8 @@ Version 1.0 holds everything below.
   Owner corrections take precedence over developments and the baseline.
   The keeper and sheet reader are instructed to leave unknown details empty,
   never invent missing anatomy, history or psychology. Development and continuity
-  updates require a literal quote in a shown turn; matching that quote grounds
+  updates require a quote from a shown turn, matched by its words whatever
+  the markup, typography, case or spacing; matching that quote grounds
   an update but does not prove its meaning. After each reply or
   Continue that completes, a keeper call reads the turns since its last
   answer in chronological batches, covering the entire gap before publishing
@@ -753,13 +754,18 @@ Version 1.0 holds everything below.
   since its people are invented in play, unless an older card still
   describes some in full),
   read from the card alone by the cast model when a chat with it first
-  starts, and read again at the next chat once the card changes. Every chat with the character
+  starts, and read again at the next chat once the card changes. A reading
+  with fewer people than the card's kind promises is asked for once more. Every chat with the character
   starts with them in the cast. The sheet is character data, kept per
   user and encrypted, never part of an export, and deleted with its
   character; the character sheet's Cast section lists its people by name
   and age, with Read the cast now, or Regenerate the cast.
-- The cast panel lists introduced women, with only their discovered or
-  owner-corrected details visible; hidden canonical anatomy, personality and
+- The cast panel lists introduced women. Someone is introduced once a
+  shown turn writes their name (the whole name, an earlier one, or a first
+  name no one else in the cast shares), or once the
+  keeper quotes the turn that brings them to the player unnamed. A gender the card leaves open is
+  the keeper's to say. Only their discovered or
+  owner-corrected details are visible; hidden canonical anatomy, personality and
   preferences stay out until play reveals them, and later discoveries can refine
   an approximation. While she stays dressed, her figure shows as her clothes
   suggest it, which a binder or padded bra can make misleading, until undressing
@@ -770,7 +776,9 @@ Version 1.0 holds everything below.
   each name over at most two lines, with the rest behind a roster action.
   Without that portrait, the band keeps names over at most two lines,
   then how many more. Men and others are kept for the narrator but not listed,
-  and with no introduced woman the panel stays hidden. Present names carry
+  and with no introduced woman the panel stays hidden, except while the
+  card is read and, for a card that names people, until the keeper's first
+  answer says who is listed. Present names carry
   a quiet underline that yields to the open-record mark. A name opens
   her record, beside the roster from tablet up and as a drawer on phones;
   the newest message's menu, and on phones a control in the header, open

@@ -1446,6 +1446,35 @@ describe("cast snapshots", () => {
     expect(chat.keeper[1]?.request.turns).toEqual([{ role: "assistant", content: "Hello again" }]);
   });
 
+  it("lists a card's two subjects once the greeting names them, whatever the keeper leaves out", async () => {
+    const chat = castChat();
+    const lena = {
+      ...SHEET_ENTRY,
+      id: uuid(2),
+      anchor: { ...SHEET_ENTRY.anchor, name: "Lena Voss", gender: "other" as const },
+    };
+    const listed = () =>
+      currentRegister(chat.state())
+        .entries.filter((e) => e.introduced === true && e.anchor.gender === "female")
+        .map((e) => e.anchor.name);
+    chat.state().setGreetings([':rose["Ava, get the door."] Lena waves you in.']);
+    await chat.sheet([SHEET_ENTRY, lena]);
+    expect(listed()).toEqual([]);
+    // The keeper sets the scene and says the gender the card left open, with no introduction.
+    await chat.answer({
+      cast: {
+        "Ava Lind": { state: { activity: "opening the door" } },
+        "Lena Voss": { gender: "female", state: { activity: "waving" } },
+      },
+      absent: [],
+    });
+    expect(listed()).toEqual(["Ava Lind", "Lena Voss"]);
+    // Both hold through later answers that say nothing of them.
+    await chat.say("Hello");
+    await chat.answer({ cast: {}, absent: [] });
+    expect(listed()).toEqual(["Ava Lind", "Lena Voss"]);
+  });
+
   it("seeds and keeps a Scenario with no sheet people after notebook readiness", async () => {
     const chat = castChat(async () => undefined);
     const greeting = "Ilse Brandt sets a glass on the bar.";
@@ -2921,6 +2950,25 @@ const remembered = (lines: string[], revision = 1, enabled = true): CharacterMem
 const NPC_LINE = JSON.stringify({ name: "Ilse Brandt", gender: "female", hair: "black bob" });
 
 describe("remembered cast seeds", () => {
+  it("keeps a remembered person introduced once a turn names her, though the keeper says nothing of her", async () => {
+    const chat = castChat(async () => remembered([NPC_LINE]));
+    chat.state().setGreetings(["Ilse Brandt sets a glass on the bar."]);
+    await chat.sheet([]);
+    expect(entry(chat.state(), "Ilse Brandt")?.introduced).toBeUndefined();
+    await chat.answer({ cast: {}, absent: [] });
+    const introduced = entry(chat.state(), "Ilse Brandt");
+    expect(introduced?.introduced).toBe(true);
+    // The story placed her: she is this chat's now, whatever the notebook holds later.
+    chat.state().receiveCastMemory(CHARACTER, remembered([], 2));
+    expect(entry(chat.state(), "Ilse Brandt")).toMatchObject({
+      id: introduced?.id,
+      introduced: true,
+    });
+    await chat.say("Hello");
+    await chat.answer({ cast: {}, absent: [] });
+    expect(entry(chat.state(), "Ilse Brandt")?.introduced).toBe(true);
+  });
+
   for (const greeting of [false, true]) {
     it(`replaces an interrupted ${greeting ? "greeting" : "reply"} keeper once with the latest overlay`, async () => {
       const chat = castChat(async () => remembered([]));

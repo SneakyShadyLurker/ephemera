@@ -45,6 +45,7 @@ export {
   SHEET_OPENING,
   sheetInstructions,
   sheetMessage,
+  sheetShortfall,
 } from "./prompt.ts";
 export {
   CAST_ANCHOR_FIELDS,
