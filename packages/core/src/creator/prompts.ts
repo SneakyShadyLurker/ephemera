@@ -160,6 +160,22 @@ Write your answer as these sections, each wrapped in a tag of the same name, in 
 export const ART_FAMILIES = ["krea2", "moss", "h3", "general"] as const;
 export type ArtFamily = (typeof ART_FAMILIES)[number];
 
+/* The most words a prompt may run to, by what it paints. */
+interface WordBudget {
+  /** A Subject's cover. */
+  cover: number;
+  diptych: number;
+  /** Two people, on a Group cover or in a scene. */
+  pair: number;
+  /** Three people, on a Group cover or in a scene. */
+  trio: number;
+  /** A Scenario poster before its women, and what each woman adds. */
+  poster: number;
+  posterEach: number;
+  /** A scene picture of one person. */
+  scene: number;
+}
+
 /* How an art metaprompt names the image model, the photo it asks for and the anatomy it bares. */
 interface ArtWords {
   id: ArtFamily;
@@ -171,9 +187,33 @@ interface ArtWords {
   vulva: string;
   vulvaShapes: string;
   ass: string;
+  /** How the prompt describes skin. */
+  skin: string;
+  words: WordBudget;
   /** The rules only this model needs, after the shared form rule; `title` is a scenario cover's lettering. */
   form: (title: boolean) => string;
 }
+
+/* What no art metaprompt asks of skin, whatever the notes say: marks and liquids render badly in every model. */
+const SKIN_MARKS = `veins, scars, stretch marks, blemishes, goosebumps, sweat and any liquid on the body, even where the notes mention them`;
+
+/*
+ * Fine skin detail renders badly in Krea 2, so its prompts name skin by tone
+ * alone; a smooth finish renders as airbrushed, so skin stays natural. The
+ * other families but MOSS share the wording.
+ */
+const SKIN_BY_TONE = `Describe skin only by its tone, natural and true to life, leaving out pores, ${SKIN_MARKS}.`;
+
+/* The ceilings Krea 2 holds a prompt's detail within; every family but MOSS shares them. */
+const SHARED_WORDS: WordBudget = {
+  cover: 260,
+  diptych: 220,
+  pair: 290,
+  trio: 370,
+  poster: 180,
+  posterEach: 80,
+  scene: 220,
+};
 
 const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
   /*
@@ -188,22 +228,40 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     vulva: "pussy",
     vulvaShapes: "puffy outer lips, a closed slit or visible inner lips",
     ass: "ass",
+    skin: SKIN_BY_TONE,
+    words: SHARED_WORDS,
     form: () => "",
   },
   /*
-   * MOSS Image as Atelier validated it: plain anatomical words, and a capture
-   * named outright, since a bare "photograph" renders as a printed photo.
+   * MOSS Image Base and its realism LoRAs, as their makers and users prompt
+   * them. The capture and its subject open the prompt, since the model reads
+   * the medium first and drifts from a photo without it, and a bare
+   * "photograph" renders as a printed photo. Its long-caption training takes
+   * a longer prompt than Krea 2 does. Skin texture is named, which the
+   * model resolves and Krea 2 does not. It blurs backgrounds and movement by
+   * default, so the prompt states a sharp frame and a still pose. The
+   * anatomical words are the ones its users and the LoRAs' makers write.
    */
   moss: {
     id: "moss",
     model: "MOSS",
     imageModel: "the MOSS image model",
-    photo: "candid RAW photo",
-    vulva: "vulva",
-    vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
-    ass: "buttocks",
-    form: () =>
-      ` Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the chosen look words it.`,
+    photo: "candid photo",
+    vulva: "pussy",
+    vulvaShapes: "full outer labia, a closed slit or visible inner labia",
+    ass: "ass",
+    skin: `Describe skin by its tone and its natural texture, with fine visible pores and subtle variation in tone, true to life, leaving out ${SKIN_MARKS}.`,
+    words: {
+      cover: 320,
+      diptych: 300,
+      pair: 380,
+      trio: 480,
+      poster: 200,
+      posterEach: 90,
+      scene: 300,
+    },
+    form: (title) =>
+      ` MOSS reads the medium first and drifts away from a photo without it, so open the paragraph by naming the capture and its subject, as in ${title ? `"A cinematic movie poster of three women"` : `"A candid amateur smartphone snapshot of one woman"`}, then keep the order above and give the look's remaining words where its step comes. Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the ${title ? "look" : "chosen look"} words it.${title ? "" : ` MOSS blurs whatever lies behind a person unless the prompt says otherwise, so say in the look's sentence that the picture is sharp from the nearest thing in the frame to the farthest, and name the fine detail it shows, such as single strands of hair and the weave of a fabric.`} MOSS renders words for movement as blur, so give every pose and action as a still position, held as the camera caught it. Give the camera's height and distance with the framing, such as at eye level a few steps away, unless the look gives its own framing.`,
   },
   /*
    * MiniMax H3 Image as its own prompt guide and Atelier's renders give it:
@@ -222,6 +280,8 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     vulva: "vulva",
     vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
     ass: "buttocks",
+    skin: SKIN_BY_TONE,
+    words: SHARED_WORDS,
     form: (title) =>
       ` MiniMax H3 reads the kind of image first, so open the paragraph by naming the kind of image and its subject, as in "An amateur snapshot of one woman" or "A movie poster of three women", then keep the order above and give the look's remaining words where its step comes. Within one frame or panel, keep left and right, the way each body faces the camera and what each hand touches or rests on the same wherever the paragraph returns to them. MiniMax H3 renders the word "athletic" as visible muscle definition, so write that word only for a woman the notes make visibly muscular, and name every other build in plain words, such as slim with a narrow waist. It has no negative prompt and takes exclusions as one plain closing sentence, the one place where the prompt says what is absent, so end the paragraph with ${title ? `"No lettering other than the title and no additional people appear.", or with "No lettering or additional people appear." when the notes give no Title.` : `"No lettering or additional people appear."`}`,
   },
@@ -234,16 +294,11 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     vulva: "vulva",
     vulvaShapes: "full outer labia, closed outer labia or visible inner labia",
     ass: "buttocks",
+    skin: SKIN_BY_TONE,
+    words: SHARED_WORDS,
     form: () => "",
   },
 };
-
-/*
- * Fine skin detail and liquids render badly in the image model, so no
- * art metaprompt asks for them, whatever the notes say; a smooth finish
- * renders as airbrushed, so skin stays natural.
- */
-const SKIN_RULE = `Describe skin only by its tone, natural and true to life, leaving out pores, veins, scars, stretch marks, blemishes, goosebumps, sweat and any liquid on the body, even where the notes mention them.`;
 
 /*
  * Krea 2 renders a default look unless each person's ethnicity is spelled
@@ -337,7 +392,7 @@ const CHARACTER_LOOKS_AND_RULES = (
   src = "the notes",
 ) => `${LOOKS(w, surface)}
 
-Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${SKIN_RULE} ${FORM_RULE(w)}
+Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin} ${FORM_RULE(w)}
 
 Return only the prompt as plain text.`;
 
@@ -388,7 +443,7 @@ const SUBJECT_ART_PROMPT = (
 
 ${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()}
 
-Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most 260 words, in this order:
+Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most ${w.words.cover} words, in this order:
 1. The subject and framing. One woman in a full-length portrait, fully in the frame from head to feet, her face clearly visible, looking at or just past the camera.
 2. The woman in four or five sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
 ${CHARACTER_SCENE(w, "", "cover")}`;
@@ -405,7 +460,7 @@ const SUBJECT_DIPTYCH_ART_PROMPT = (
 
 The cover shows an ordinary woman as you could meet her in everyday life, in a private moment caught by someone she knows: relaxed, unposed and believable. Use only what the notes say about her looks and temperament, and only what a ${w.photo} can show. Leave out her job, her story and the rest of her life: no uniform or work clothes, no tools, devices, pets or other props, no voice, scent or sexual experience, and no invented features, people or text. ${NAMES_RULE(w)}
 
-Write one cohesive paragraph of plain natural language describing the finished diptych, at most 220 words, in this order:
+Write one cohesive paragraph of plain natural language describing the finished diptych, at most ${w.words.diptych} words, in this order:
 1. The diptych and framing. Two tall vertical panels of equal width side by side, divided by a thin straight seam, her whole body in each, head to feet. In the left panel she faces the camera, her face clearly visible, looking at or just past the camera. In the right panel she has turned around, her back to the camera, and looks back over her shoulder toward it.
 2. The woman in three or four sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, and an expression that shows her temperament. Mention tattoos and piercings only where the notes give them.
 3. Her clothing. Whatever the reason she is undressed, such as changing, just out of the shower or getting ready for bed, she wears at most two garments in her everyday style, their cut, colour and material named, open, pulled down or slipping off so that her breasts, ${w.vulva} and ${w.ass} are bare: her breasts and ${w.vulva} in full view in the left panel, her ${w.ass} in full view in the right panel. Say where each garment ends up. Below the waist she wears nothing, or one garment pushed all the way down around her ankles. A garment that opens at the front hangs off her shoulders or arms, and nothing she wears covers her ${w.ass} from behind. Describe her nipples and areolas, and her pubic hair as the notes give it, such as shaved, trimmed or natural, and its colour.
@@ -422,7 +477,7 @@ const GROUP_ART_PROMPT = (
 
 ${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()}
 
-Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most 290 words for two women and 370 for three, in this order:
+Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most ${w.words.pair} words for two women and ${w.words.trio} for three, in this order:
 1. The subjects and framing: a full-length or knee-up group photo with each woman anchored "on the left", "in the centre" or "on the right", side by side with space between them so that no body hides another. Every face is clearly visible, looking at or just past the camera, and every woman is fully in the frame, head to feet for a full-length photo, head to knees for a knee-up photo.
 2. Each woman in four or five sentences, finishing one before starting the next: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
 ${CHARACTER_SCENE(w, "", "group")}`;
@@ -440,7 +495,7 @@ Use only what the notes establish about the world and its people, and only what 
 
 The poster shows three women. Where the owner's direction asks for another number of women, from one up, show that number instead.
 
-Write one cohesive paragraph of plain natural language, at most 180 words plus 80 for each woman, 420 for three, in this order:
+Write one cohesive paragraph of plain natural language, at most ${w.words.poster} words plus ${w.words.posterEach} for each woman, ${w.words.poster + 3 * w.words.posterEach} for three, in this order:
 1. The subjects and framing: the unnamed women of this world, each a kind of person its People describe or would plausibly hold, such as a dockside smuggler or a temple novice, looking and dressed as the People give, each anchored "on the left", "in the centre" or "on the right", and with more than three also in front or behind, with space between them so that no body hides another, and where each is in relation to the others and the place. Every face is clearly visible, looking at or just past the camera, and every woman is fully in the frame.
 2. Each woman in four or five sentences, finishing one before starting the next: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
 3. The place and time of day the Location names, and nowhere else, in one short phrase, the only words in the prompt about the place besides where step 2 puts each woman. Without a Location, or for the place or time it leaves out, use where the premise begins.
@@ -448,7 +503,7 @@ Write one cohesive paragraph of plain natural language, at most 180 words plus 8
 5. The look: cinematic and dramatic, the women sharp, as a film still of the era the notes set the story in. For a story set in the 1950s to the 1990s, the colour, contrast and period details of a film of that decade, named as in 1970s. For a story set in any era before the 1950s, a black and white film still of that era. Otherwise a present-day film.
 6. The title: the Title from the notes, written exactly as given inside quotation marks, as large movie poster title lettering across the top or the bottom of the image, clear of every face, its typeface style and colour named to fit the genre, mood and era. Without a Title, the image holds no lettering.
 
-Rules: ${ETHNICITY_RULE()} Where the notes give none, each woman takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${SKIN_RULE} ${FORM_RULE(w, true)}
+Rules: ${ETHNICITY_RULE()} Where the notes give none, each woman takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)}
 
 Return only the prompt as plain text.`;
 
@@ -583,8 +638,8 @@ interface SceneCast {
   notes: string;
   /** Who is in the frame, and who is not. */
   frame: string;
-  /** The word ceiling. */
-  words: string;
+  /** The word ceiling, from the model's budget. */
+  words: (budget: WordBudget) => string;
   /** Step 1. */
   framing: string;
   /** Step 2's opening. */
@@ -608,7 +663,7 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
     notes: "character notes",
     frame:
       "The character is alone in the frame: {{user}} and anyone else the excerpt mentions are not shown, and nothing in the frame stands in for them.",
-    words: "at most 220 words",
+    words: (b) => `at most ${b.scene} words`,
     framing: SCENE_FRAMING("the character"),
     person: "The character in three or four sentences",
     fromCard: true,
@@ -620,7 +675,8 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
     notes: "character notes",
     frame:
       "Only these subjects are in the frame: {{user}}, any subject the latest turns leave out of the scene and anyone else the excerpt mentions are not shown, and nothing in the frame stands in for them.",
-    words: "at most 220 words for one subject, 290 for two and 370 for three",
+    words: (b) =>
+      `at most ${b.scene} words for one subject, ${b.pair} for two and ${b.trio} for three`,
     framing: `The subjects and framing: how close the camera stands, chosen so that the poses and the place all read, the whole bodies when the poses need it and otherwise waist up or closer, and, with more than one subject present, each anchored "on the left", "in the centre" or "on the right", side by side with space between them so that no body hides another. Each face is visible unless the pose turns it away.`,
     person:
       "Each subject present in three or four sentences, finishing one before starting the next",
@@ -633,7 +689,7 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
     notes: "scenario notes",
     frame:
       "That person is alone in the frame: {{user}} and anyone else the excerpt mentions are not shown, and nothing in the frame stands in for them.",
-    words: "at most 220 words",
+    words: (b) => `at most ${b.scene} words`,
     framing: SCENE_FRAMING("that person"),
     person: "That person in three or four sentences",
     fromCard: false,
@@ -663,7 +719,7 @@ const SCENE_ART_PROMPT = (w: ArtWords, kind: CreatorKind) => {
 
 ${c.fromCard ? CHARACTER_SOURCE(w) : SCENARIO_SCENE_SOURCE(w)} The excerpt is the only source for the moment: the place and time, the light, ${c.their} position, pose, action, expression, eyes and clothing as the latest turns leave them. Where the excerpt says nothing about one of these, take it from the notes; where neither says, choose what fits the moment. Only where the excerpt leaves posing details open, pose each person by their dominant personality trait, the one a picture can show most clearly, and their mannerisms, in posture, body language, gesture, gaze and expression; keep distinct personalities visibly distinct. Never replace an explicit current pose or action from the excerpt with a personality-based pose. ${SCENE_LOOKS(c)} ${c.frame} The excerpt names people; describe ${c.them} and never write a name.
 
-Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, ${c.words}, in this order:
+Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, ${c.words(w.words)}, in this order:
 1. ${c.framing}
 2. ${c.person}: age, ethnicity and phenotype, figure, skin, face and hair as they look now. Then exactly what they are doing and how they hold themselves now: their position in the place, their posture, the head, the arms and the hands. Then the face as it is now: the expression the latest turns give, the eyes (open, closed or half-lidded, where they look, tears, a stare or a glance) and the mouth. Then the clothing as it is now: each garment the excerpt leaves on, off, open, undone or moved, with its final position named; where the excerpt has not touched the clothing, the notes' usual style. Covered, the figure is what the clothing makes of it, over ${c.fromCard ? "the portrait and the notes" : "the notes"}: a binder flattens the chest, a minimiser or sports bra makes it smaller and flatter, a padded or push-up bra makes it larger, higher and fuller, a corset or shapewear smooths and narrows the waist, so the breasts' size word names the size the clothing gives them, not the cup size, and their true size and shape show only where the excerpt bares them. Where the excerpt leaves the body bare, name what shows in plain words: the breasts and nipples, the ${w.vulva} with its pubic hair and its shape, such as ${w.vulvaShapes}, and the ${w.ass}; nothing is bare that the excerpt does not bare. Mention distinctive visible features such as tattoos, piercings or jewellery.
 3. The place and time of day the excerpt leaves ${c.them} in, in one or two short sentences: the place, the visible details of its setting that matter to the moment, and the time of day; when the excerpt gives none, the notes' Location or background.

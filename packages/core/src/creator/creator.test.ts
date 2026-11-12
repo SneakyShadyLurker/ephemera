@@ -243,26 +243,84 @@ describe("creator requests and events", () => {
     await expect(rendered).toMatchFileSnapshot("./__snapshots__/subject-portrait-metaprompts.txt");
   });
 
-  it("asks MOSS for a named capture and plain anatomical words, never a bare photograph", () => {
+  it("asks MOSS for a named capture and the words its users write, never a bare photograph", () => {
     for (const kind of KINDS) {
       const prompt = ART_METAPROMPTS.moss[kind];
       expect(prompt).toContain('Never write the bare word "photograph"');
       expect(prompt.match(/photograph/g)).toHaveLength(1);
-      expect(prompt).toContain("her vulva in view");
-      expect(prompt).not.toContain("pussy");
+      expect(prompt).toContain("her pussy in view");
+      expect(prompt).toContain("her breasts and pussy are bare");
+      expect(prompt).not.toMatch(/vulva|RAW photo/);
     }
     for (const prompt of [
       SUBJECT_DIPTYCH_METAPROMPTS.moss,
       ...Object.values(SCENE_METAPROMPTS.moss),
     ]) {
       expect(prompt.match(/photograph/g)).toHaveLength(1);
+      expect(prompt).not.toMatch(/vulva|RAW photo/);
     }
     expect(SUBJECT_DIPTYCH_METAPROMPTS.moss).toContain(
-      "one candid RAW photo split into two tall vertical panels",
+      "one candid photo split into two tall vertical panels",
     );
-    expect(ART_METAPROMPTS.moss.subject).toContain("her breasts and vulva are bare");
-    expect(ART_METAPROMPTS.moss.group).toContain("her breasts and vulva are bare");
-    expect(ART_METAPROMPTS.moss.scenario).toContain("her breasts and vulva are bare");
+  });
+
+  it("opens a MOSS prompt with the capture and asks for a sharp frame, a still pose and textured skin", () => {
+    const characters = [
+      ART_METAPROMPTS.moss.subject,
+      ART_METAPROMPTS.moss.group,
+      SUBJECT_DIPTYCH_METAPROMPTS.moss,
+      ...Object.values(SCENE_METAPROMPTS.moss),
+    ];
+    for (const prompt of characters) {
+      expect(prompt).toContain(
+        'open the paragraph by naming the capture and its subject, as in "A candid amateur smartphone snapshot of one woman"',
+      );
+      expect(prompt).toContain("name the capture as the chosen look words it");
+      expect(prompt).toContain("sharp from the nearest thing in the frame to the farthest");
+    }
+    // A poster keeps its cinematic look, so it opens as one and takes no whole-frame sharpness.
+    expect(ART_METAPROMPTS.moss.scenario).toContain(
+      'open the paragraph by naming the capture and its subject, as in "A cinematic movie poster of three women"',
+    );
+    expect(ART_METAPROMPTS.moss.scenario).not.toContain("smartphone snapshot of one woman");
+    expect(ART_METAPROMPTS.moss.scenario).not.toContain("sharp from the nearest thing");
+    for (const prompt of [...characters, ART_METAPROMPTS.moss.scenario]) {
+      expect(prompt).toContain("give every pose and action as a still position");
+      expect(prompt).toContain("Give the camera's height and distance with the framing");
+      expect(prompt).toContain(
+        "Describe skin by its tone and its natural texture, with fine visible pores",
+      );
+      expect(prompt).not.toContain("leaving out pores");
+      expect(prompt).toContain("stretch marks, blemishes, goosebumps, sweat and any liquid");
+    }
+  });
+
+  it("keeps skin to its tone and the shorter prompt for every family but MOSS", () => {
+    for (const family of ART_FAMILIES.filter((family) => family !== "moss")) {
+      for (const prompt of [
+        ...Object.values(ART_METAPROMPTS[family]),
+        SUBJECT_DIPTYCH_METAPROMPTS[family],
+        ...Object.values(SCENE_METAPROMPTS[family]),
+      ]) {
+        expect(prompt).toContain(
+          "Describe skin only by its tone, natural and true to life, leaving out pores, veins, scars,",
+        );
+        expect(prompt).not.toMatch(/natural texture|still position|sharp from the nearest/);
+      }
+      expect(ART_METAPROMPTS[family].subject).toContain("at most 260 words");
+      expect(ART_METAPROMPTS[family].group).toContain(
+        "at most 290 words for two women and 370 for three",
+      );
+    }
+    expect(ART_METAPROMPTS.moss.subject).toContain("at most 320 words");
+    expect(ART_METAPROMPTS.moss.group).toContain(
+      "at most 380 words for two women and 480 for three",
+    );
+    expect(SCENE_METAPROMPTS.moss.subject).toContain("at most 300 words");
+    expect(SCENE_METAPROMPTS.moss.scenario).toContain("at most 300 words");
+    expect(SCENE_METAPROMPTS.moss.group).toContain(
+      "at most 300 words for one subject, 380 for two and 480 for three",
+    );
   });
 
   it("lists every look in the model's words on every cover metaprompt, an explicit tag winning over Auto", () => {
@@ -331,7 +389,11 @@ describe("creator requests and events", () => {
       expect(prompt).toContain(
         "Where the owner's direction asks for another number of women, from one up, show that number instead.",
       );
-      expect(prompt).toContain("at most 180 words plus 80 for each woman");
+      expect(prompt).toContain(
+        model === "moss"
+          ? "at most 200 words plus 90 for each woman, 470 for three"
+          : "at most 180 words plus 80 for each woman, 420 for three",
+      );
       expect(prompt).not.toContain("two or three");
     }
   });
@@ -381,9 +443,8 @@ describe("creator requests and events", () => {
       expect(krea).toContain("the pussy with its pubic hair");
       expect(krea).not.toContain("MOSS");
       expect(moss).toContain("the MOSS image model");
-      expect(moss).toContain("vertical 2:3 candid RAW photo");
-      expect(moss).toContain("the vulva with its pubic hair");
-      expect(moss).not.toContain("pussy");
+      expect(moss).toContain("vertical 2:3 candid photo");
+      expect(moss).toContain("the pussy with its pubic hair");
       expect(moss.match(/photograph/g)).toHaveLength(1);
       for (const prompt of [krea, moss]) {
         expect(prompt).toContain("at the end of the excerpt");
@@ -445,7 +506,8 @@ describe("creator requests and events", () => {
       const diptych = artMetaprompt(model, "subject", "diptych");
       expect(diptych).toBe(SUBJECT_DIPTYCH_METAPROMPTS[model]);
       expect(diptych).toContain("two tall vertical panels");
-      const [vulva, ass] = model === "krea2" ? ["pussy", "ass"] : ["vulva", "buttocks"];
+      const [vulva, ass] =
+        model === "krea2" || model === "moss" ? ["pussy", "ass"] : ["vulva", "buttocks"];
       // Two snapshots seconds apart, front then turned around: no impossible same-moment rear camera.
       expect(diptych).toContain("the same woman a few seconds apart");
       expect(diptych).toContain("In the right panel she has turned around, her back to the camera");
@@ -474,7 +536,7 @@ describe("creator requests and events", () => {
       expect(diptych).not.toContain("jewellery");
       expect(diptych).not.toContain("besides where step 2 puts each woman");
       expect(diptych).toContain("in the available light of step 6");
-      expect(diptych).toContain("at most 220 words");
+      expect(diptych).toContain(`at most ${model === "moss" ? 300 : 220} words`);
       for (const kind of ["group", "scenario"] as const) {
         expect(artMetaprompt(model, kind, "diptych")).toBe(ART_METAPROMPTS[model][kind]);
       }
@@ -611,7 +673,11 @@ describe("creator requests and events", () => {
         );
       }
       for (const prompt of [...covers, ART_METAPROMPTS[model].scenario]) {
-        expect(prompt).toContain("Describe skin only by its tone, natural and true to life");
+        expect(prompt).toContain(
+          model === "moss"
+            ? "Describe skin by its tone and its natural texture"
+            : "Describe skin only by its tone, natural and true to life",
+        );
         expect(prompt).not.toContain("smooth, even finish");
       }
     }
@@ -1274,7 +1340,11 @@ describe("art looks", () => {
     const byId = Object.fromEntries(ART_LOOKS.map((look) => [look.id, look]));
     expect(byId.snapshot?.framing).toBeUndefined();
     for (const model of ART_FAMILIES) {
-      expect(byId.snapshot?.wording[model]).toBe("an amateur snapshot, raw and true to life");
+      expect(byId.snapshot?.wording[model]).toBe(
+        model === "moss"
+          ? "a candid amateur smartphone snapshot, sharp, raw and true to life"
+          : "an amateur snapshot, raw and true to life",
+      );
       for (const id of ["film", "digital", "monochrome"]) {
         const undated = byId[id]?.undated?.[model];
         expect(undated).toBeDefined();

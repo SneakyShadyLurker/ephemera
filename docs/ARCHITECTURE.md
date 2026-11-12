@@ -1277,7 +1277,10 @@ content's path: the tab's memory and one request in the server.
   block and 10,000 per scenario description, a batch of four 1024 x 1536
   portraits, how many subject blocks each character kind holds), the
   prompts (a card system prompt per kind and an art metaprompt per kind for
-  each image model, Krea 2, MOSS Image, MiniMax H3 Image and General, the
+  each image model, Krea 2, MOSS Image, MiniMax H3 Image and General, each
+  in that model's own words (`ART_WORDS`: how it names the capture and the
+  anatomy, how it describes skin, its word ceilings and the form rules only
+  that model needs), the
   look catalogue (`looks.ts`: each capture look's id, when Auto picks it
   on a cover and in a scene, its wording per image model, its undated
   wording and any framing that replaces the camera position, rendered into
