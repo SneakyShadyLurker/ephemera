@@ -1,7 +1,13 @@
 import { defaultSamplerPreset } from "../packages/core/src/preset/sampler.ts";
 import { uniqueName } from "./support/cards.ts";
 import { chooseModel, lastReply, send, upstreamRecords } from "./support/chat.ts";
-import { choose, closeSession, createPresetViaApi, openSession } from "./support/entities.ts";
+import {
+  choose,
+  closeSession,
+  createPresetViaApi,
+  openSession,
+  readSettings,
+} from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { expect, test } from "./support/test.ts";
 
@@ -134,4 +140,78 @@ test("unknown reasoning support offers every level and explains why", async ({ p
   const [record] = await upstreamRecords(text);
   expect(record?.model).toBe("mock-unreported");
   expect(record?.sampling).toEqual({ reasoning_effort: "max" });
+});
+
+test("Session's Reasoning wins over the preset's effort in this tab until a preset is chosen", async ({
+  page,
+}) => {
+  const lowName = uniqueName("Low effort");
+  const mediumName = uniqueName("Medium effort");
+  for (const [name, reasoning] of [
+    [lowName, "low"],
+    [mediumName, "medium"],
+  ] as const) {
+    await createPresetViaApi(page.request, "sampler", {
+      name,
+      values: { ...defaultSamplerPreset().values, reasoning },
+    });
+  }
+  await page.goto("/");
+  await chooseModel(page, "mock-fast");
+  await openSession(page);
+  await choose(page, "Sampler preset", lowName);
+  const reasoning = page.getByRole("combobox", { name: "Reasoning", exact: true });
+  await expect(reasoning).toContainText("Preset's effort");
+  await choose(page, "Reasoning", "High");
+  await closeSession(page);
+
+  const overridden = canary("in");
+  await send(page, overridden);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  expect((await upstreamRecords(overridden))[0]?.sampling).toEqual({ reasoning_effort: "high" });
+
+  await openSession(page);
+  await choose(page, "Reasoning", "Preset's effort");
+  await closeSession(page);
+  const following = canary("in");
+  await send(page, following);
+  await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
+  expect((await upstreamRecords(following))[0]?.sampling).toEqual({ reasoning_effort: "low" });
+
+  // Choosing a sampler preset applies it in full, its reasoning included.
+  await openSession(page);
+  await choose(page, "Reasoning", "Maximum");
+  await choose(page, "Sampler preset", mediumName);
+  await expect(reasoning).toContainText("Preset's effort");
+
+  // Never saved: a reload follows the preset again.
+  await choose(page, "Reasoning", "High");
+  await page.reload();
+  await openSession(page);
+  await expect(reasoning).toContainText("Preset's effort");
+});
+
+test("Session's Image model saves the workflow pictures are painted with", async ({
+  page,
+  request,
+  comfy,
+}) => {
+  await comfy();
+  await page.goto("/");
+  await openSession(page);
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PATCH" &&
+      new URL(response.url()).pathname === "/api/settings",
+  );
+  await choose(page, "Image model", "Krea 2 Second");
+  const savedWorkflow = (await saved).request().postDataJSON();
+  expect(Object.keys(savedWorkflow)).toEqual(["comfyuiWorkflow"]);
+  expect((await readSettings(request)).comfyuiWorkflow).toBe(savedWorkflow.comfyuiWorkflow);
+
+  await page.reload();
+  await openSession(page);
+  await expect(page.getByRole("combobox", { name: "Image model", exact: true })).toContainText(
+    "Krea 2 Second",
+  );
 });

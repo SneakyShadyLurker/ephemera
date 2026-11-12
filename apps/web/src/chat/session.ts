@@ -32,6 +32,7 @@ import { SETTINGS_MUTATION_KEY } from "../settings/save-history.ts";
 import { currentSettings } from "../settings/settings.ts";
 import { identity } from "../signin/identity.ts";
 import { SignedOut, signIn } from "../signin/signin.ts";
+import { reasoningOverrideStore } from "./reasoning-override.ts";
 import type { SceneSubject } from "./scene-slice.ts";
 import { streamScene } from "./scene-stream.ts";
 import {
@@ -103,8 +104,8 @@ async function fetchCurrent<T, K extends QueryKey>(
   return readOf(options.queryKey, queryClient.getQueryData<T>(options.queryKey) ?? loaded);
 }
 
-/** The ids a subject is read for: the selection without the preset's reasoning. */
-export type SubjectIds = Omit<Selection, "reasoning">;
+/** The ids a subject is read for: the selection without either reasoning setting. */
+export type SubjectIds = Omit<Selection, "reasoning" | "reasoningEffort">;
 
 /**
  * The saved entities a subject reads, each one's query or null when none is
@@ -272,6 +273,7 @@ export const chatStore = createChatStore(
       characterId,
       personaId,
       reasoning: presetReasoning(promptPresetId),
+      reasoningEffort: reasoningOverrideStore.getState().effort,
     };
   },
   {
@@ -459,6 +461,11 @@ function followSelection(): () => void {
   });
 }
 followSelection();
+
+/** The tab's reasoning override goes with the preview as with a reply, so a change previews again. */
+reasoningOverrideStore.subscribe((state, before) => {
+  if (state.effort !== before.effort) chatStore.getState().schedulePreview();
+});
 
 /**
  * Whether the cast model (core `castModelOf`) has a known context window,

@@ -48,6 +48,7 @@ const selectionOf = (change: Partial<Selection> = {}): Selection => ({
   characterId: null,
   personaId: null,
   reasoning: null,
+  reasoningEffort: null,
   ...change,
 });
 

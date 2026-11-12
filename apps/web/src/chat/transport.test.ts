@@ -26,6 +26,7 @@ vi.mock("./session.ts", async () => {
         characterId: null,
         personaId: null,
         reasoning: null,
+        reasoningEffort: null,
       }),
       { clock: () => ({ now: 0, timeZone: "UTC" }), fetchPreview: () => new Promise(() => {}) },
     ),
@@ -174,6 +175,7 @@ describe("streamReply", () => {
           characterId: null,
           personaId: null,
           reasoning: null,
+          reasoningEffort: null,
         }),
         { clock: () => clock, fetchPreview: () => new Promise(() => {}) },
       );

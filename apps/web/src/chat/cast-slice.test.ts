@@ -72,6 +72,7 @@ function castChat(
     characterId: CHARACTER,
     personaId: null,
     reasoning: null,
+    reasoningEffort: null,
   };
   /** How the next replies end; "complete" when the script is empty. */
   const script: ("complete" | "stop" | "fail")[] = [];

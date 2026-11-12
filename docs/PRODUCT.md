@@ -44,6 +44,7 @@ and action.
 | Memory, on for every character until the owner turns it off: its notebook and its memories (title, summary, cues) | The turns a memory was written from, which of them are folded, and which memories this chat carries |
 | Cast sheets: the people each character's card names and their fixed details, read from the card | The cast register: who is in the story and how they stand, by reply, with the owner's corrections and removals |
 | | Local and global macro variables, both scoped to this tab's chat |
+| | Session's Reasoning, when it overrides the sampler preset's effort |
 | | An AI-written card before Keep: its description, the card, a direction for new art, the image prompt and the candidate portraits |
 | | An AI rework before Apply: the request, the proposed changes and the review |
 | | New art for a saved character before Use as portrait: the direction, the image prompt and the candidate portraits |
@@ -847,7 +848,8 @@ Version 1.0 holds everything below.
   story stays consistent with.
 - Sampler presets: model, max output tokens, temperature, top-p,
   frequency and presence penalty, seed, reasoning effort (low to maximum,
-  as the model offers) where the model supports it. The context window is
+  as the model offers) where the model supports it. Session's Reasoning
+  can override the effort in the open tab. The context window is
   the model's own, not a preset value; Settings can cap it per model. Each
   sampler parameter keeps its label and value on one row, with a slider
   below where offered and save feedback under the whole parameter.
@@ -872,9 +874,15 @@ Version 1.0 holds everything below.
   reply. The Persona choice below names who the player writes as.
 - Persona and Sampler sit in one row of labelled choices under the composer
   on every screen, using the same choices as Session. Session lists
-  Character and Persona first, then Sampler preset, Prompt preset and Model.
+  Character and Persona first, then Sampler preset, Reasoning, Prompt
+  preset, Model and, with an image backend set, Image model.
   Explanations fold away; model and reasoning mismatches stay
-  visible. Each sampler choice shows its model and settings summary before
+  visible. Reasoning starts at Preset's effort and can set another effort
+  the chat's model offers for every reply, Continue and Write for me in
+  this tab; it is never saved, so a reload, or choosing a sampler preset
+  in Session or under the composer, returns to the preset's. Image model
+  picks the workflow scene pictures and new portraits are painted with, the
+  same saved choice as Describe's Workflow. Each sampler choice shows its model and settings summary before
   selection. Choosing a sampler that names a model switches to that model.
   Remove character starts a chat without one through the usual confirmation.
   Session docks only when the story keeps its readable width beside it;
@@ -1043,7 +1051,8 @@ Version 1.0 holds everything below.
 **Models**
 - Model list from the upstream's `/v1/models`, any OpenAI-compatible
   provider's (README § Model providers), without the models its catalog
-  hides; pick per preset or per session. Every model picker finds a model
+  hides; pick per preset or per session. Session's Image model picks the
+  ComfyUI workflow pictures are painted with. Every model picker finds a model
   by typing part of its ID, and takes a whole ID the provider does not
   list. While the list loads or fails, typing an ID still works, and a
   failed list offers Try again.

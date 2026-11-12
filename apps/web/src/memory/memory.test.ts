@@ -91,6 +91,7 @@ describe("Remember now's hold for an open message edit", () => {
       characterId: null,
       personaId: null,
       reasoning: null,
+      reasoningEffort: null,
     }),
     {
       clock: () => ({ now: 0, timeZone: "UTC" }),

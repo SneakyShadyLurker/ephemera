@@ -31,6 +31,8 @@ import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/text";
 import { useContextWindow, useModelInfo, useModelOptions } from "../api.ts";
 import { charactersQuery } from "../characters/queries.ts";
+import { ReasoningSelect, useEffortChoice } from "../creator/ReasoningSelect.tsx";
+import { WorkflowSelect } from "../creator/WorkflowSelect.tsx";
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
 import {
   bindCharacter,
@@ -45,11 +47,12 @@ import {
   REASONING_LABELS,
   samplerSummary,
 } from "../presets/queries.ts";
-import { useSettings, useUpdateSettings } from "../settings/settings.ts";
+import { useSetting, useSettings, useUpdateSettings } from "../settings/settings.ts";
 import { WindowLink } from "../settings/window-link.tsx";
 import { COMPACT_LABEL, EXPLANATION } from "../sheet/fields.ts";
 import { useNotReached } from "../signin/hooks.ts";
 import { useChatCharacter, useChatPersona } from "./character.ts";
+import { setReasoningOverride, useReasoningOverride } from "./reasoning-override.ts";
 import { useStartChat } from "./StartChat.tsx";
 
 /** Session's sheet, below the docked width. */
@@ -139,21 +142,28 @@ function SessionFields() {
       <PersonaField />
       <hr className="border-rush" />
       <SamplerPresetField />
+      <ReasoningField />
       <PromptPresetField />
       <ModelField />
+      <ImageModelField />
     </div>
   );
 }
 
-/** A labelled Session field; the label names its control through `aria-labelledby`. */
+/**
+ * A labelled Session field; the label names its control through
+ * `aria-labelledby`. A `note` folds under its `summary` line.
+ */
 function Field({
   label,
   note,
+  summary,
   status,
   children,
 }: {
   label: string;
   note?: ReactNode;
+  summary?: string;
   status?: ReactNode;
   children: (labelId: string) => ReactNode;
 }) {
@@ -169,13 +179,7 @@ function Field({
         <details className="disclosure">
           <summary className={SUMMARY_LINE}>
             <DisclosureChevron />
-            {label === "Persona"
-              ? "Keeps this chat"
-              : label === "Model"
-                ? "Applies to future replies"
-                : label === "Prompt preset"
-                  ? "Builds each reply’s prompt"
-                  : "Reply settings"}
+            {summary}
           </summary>
           <p className={EXPLANATION}>{note}</p>
         </details>
@@ -298,6 +302,7 @@ function PersonaField() {
       <Field
         label="Persona"
         note="Changing persona keeps the chat. Your next messages are cued as the new persona."
+        summary="Keeps this chat"
       >
         {(labelId) => <PersonaSelect labelId={labelId} onChosen={() => setMoved(null)} />}
       </Field>
@@ -346,6 +351,7 @@ function PresetField<T extends { id: string; name: string }>({
   kind,
   label,
   note,
+  summary,
   status,
   presets,
   chosen,
@@ -355,6 +361,7 @@ function PresetField<T extends { id: string; name: string }>({
   kind: PresetKind;
   label: string;
   note: string | undefined;
+  summary: string;
   status?: ReactNode;
   presets: UseQueryResult<T[]>;
   chosen: T | undefined;
@@ -362,7 +369,7 @@ function PresetField<T extends { id: string; name: string }>({
   description?: (preset: T) => string;
 }) {
   return (
-    <Field label={label} note={note} status={status}>
+    <Field label={label} note={note} summary={summary} status={status}>
       {(labelId) => (
         <div className="flex items-center gap-1">
           <PresetSelect
@@ -452,19 +459,22 @@ function PresetSelect<T extends { id: string; name: string }>({
 
 /**
  * The chat's sampler preset and how choosing one is saved: a preset that
- * names a model switches the chat to it. Session and the composer's line
- * both choose through it.
+ * names a model switches the chat to it, and its reasoning replaces the
+ * tab's override. Session and the composer's line both choose through it.
  */
 function useSamplerChoice() {
   const presets = useQuery(presetsQuery("sampler"));
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const chosen = presets.data?.find((preset) => preset.id === settings.samplerPresetId);
-  const choose = (preset: StoredSamplerPreset) =>
+  // Choosing a preset applies it in full: its model, and its reasoning over the tab's.
+  const choose = (preset: StoredSamplerPreset) => {
+    setReasoningOverride(null);
     updateSettings({
       samplerPresetId: preset.id,
       ...(preset.values.model === null ? {} : { model: preset.values.model }),
     });
+  };
   return { presets, chosen, choose };
 }
 
@@ -486,18 +496,21 @@ export function SamplerPresetSelect({ labelId }: { labelId: string }) {
 
 /**
  * How replies are drawn. A preset that names a model switches the chat to it;
- * an effort the chat's model does not offer is not sent, and this says so.
+ * an effort the chat's model does not offer is not sent, and this says so
+ * while the tab's Reasoning follows the preset.
  */
 function SamplerPresetField() {
   const { presets, chosen, choose } = useSamplerChoice();
   const settings = useSettings();
   const model = useModelInfo(settings.model);
+  const override = useReasoningOverride();
   const named = chosen?.values.model ?? null;
   const effort = chosen?.values.reasoning;
   const overridden =
     chosen && named !== null && settings.model !== null && named !== settings.model;
   const unsupported =
     chosen &&
+    override === null &&
     model !== undefined &&
     effort !== undefined &&
     !offeredEfforts(model).includes(effort);
@@ -514,12 +527,58 @@ function SamplerPresetField() {
       kind="sampler"
       label="Sampler preset"
       note={chosen ? samplerSummary(chosen.values, false) : undefined}
+      summary="Reply settings"
       status={overridden || unsupported ? status : undefined}
       presets={presets}
       chosen={chosen}
       onChoose={choose}
       description={(preset) => samplerSummary(preset.values)}
     />
+  );
+}
+
+/**
+ * The reasoning effort of this tab's replies, over the sampler preset's:
+ * never saved, so a reload, or choosing a sampler preset, follows the
+ * preset again. An effort the chat's model does not offer is not sent.
+ */
+function ReasoningField() {
+  const settings = useSettings();
+  const { chosen } = useSamplerChoice();
+  const override = useReasoningOverride();
+  const model = useModelInfo(settings.model);
+  const { efforts, effort } = useEffortChoice(
+    settings.model,
+    override ?? chosen?.values.reasoning ?? "provider-default",
+  );
+  const unsupported =
+    override !== null && model !== undefined && !offeredEfforts(model).includes(override);
+  return (
+    <Field
+      label="Reasoning"
+      note="Overrides the sampler preset's reasoning in this tab. A reload, or choosing a sampler preset, returns to the preset's."
+      summary="Applies in this tab"
+      status={
+        unsupported
+          ? `${model.id} doesn't offer ${REASONING_LABELS[override].toLowerCase()} reasoning, so none is sent.`
+          : undefined
+      }
+    >
+      {(labelId) => (
+        <ReasoningSelect
+          labelId={labelId}
+          efforts={efforts}
+          effort={effort}
+          onChange={setReasoningOverride}
+          follow={{
+            label: "Preset's effort",
+            chosen: override === null,
+            onChoose: () => setReasoningOverride(null),
+          }}
+          className="max-w-none tablet:w-full"
+        />
+      )}
+    </Field>
   );
 }
 
@@ -559,6 +618,7 @@ function ModelField() {
         ) : undefined
       }
       note={`Used for every reply from now on, and kept after a reload.${windowNote}`}
+      summary="Applies to future replies"
     >
       {(labelId) => (
         <ModelSelect
@@ -573,6 +633,24 @@ function ModelField() {
   );
 }
 
+/**
+ * The workflow pictures are painted with, the setting Describe's Workflow
+ * saves; shown only with an image backend set.
+ */
+function ImageModelField() {
+  const backend = useSetting((settings) => settings.comfyuiBaseUrl) !== "";
+  if (!backend) return null;
+  return (
+    <Field
+      label="Image model"
+      note="Paints scene pictures and new portraits from now on, and kept after a reload."
+      summary="Applies to future pictures"
+    >
+      {(labelId) => <WorkflowSelect labelId={labelId} className="max-w-none tablet:w-full" />}
+    </Field>
+  );
+}
+
 /** What is sent, in which order: the preset that builds every prompt. */
 function PromptPresetField() {
   const presets = useQuery(presetsQuery("prompt"));
@@ -583,6 +661,7 @@ function PromptPresetField() {
       kind="prompt"
       label="Prompt preset"
       note="Builds the prompt of every reply from now on."
+      summary="Builds each reply’s prompt"
       presets={presets}
       chosen={presets.data?.find((preset) => preset.id === settings.promptPresetId)}
       onChoose={(preset) => updateSettings({ promptPresetId: preset.id })}

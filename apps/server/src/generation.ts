@@ -24,6 +24,7 @@ import {
   type PreviewRequest,
   type PromptReasoning,
   promptBudget,
+  type ReasoningEffort,
   type RefusalCode,
   randomUniform,
   reconcileRecap,
@@ -48,12 +49,18 @@ import { resolveModel } from "./upstream.ts";
 
 /**
  * A sampler preset's set values as AI SDK call settings; values left at the
- * model default are omitted, so nothing the user never set is sent.
+ * model default are omitted, so nothing the user never set is sent. The tab's
+ * `reasoningEffort`, when the request carries one, replaces the preset's
+ * reasoning, with or without a preset.
  */
-export function callSettings(values: SamplerValues | undefined): CallSettings {
-  if (values === undefined) return {};
-  const { maxOutputTokens, temperature, topP, frequencyPenalty, presencePenalty, seed, reasoning } =
-    values;
+export function callSettings(
+  values: SamplerValues | undefined,
+  reasoningEffort?: ReasoningEffort,
+): CallSettings {
+  const reasoning = reasoningEffort ?? values?.reasoning ?? "provider-default";
+  const effort = reasoning === "provider-default" ? {} : { reasoning };
+  if (values === undefined) return effort;
+  const { maxOutputTokens, temperature, topP, frequencyPenalty, presencePenalty, seed } = values;
   return {
     ...(maxOutputTokens === null ? {} : { maxOutputTokens }),
     ...(temperature === null ? {} : { temperature }),
@@ -61,7 +68,7 @@ export function callSettings(values: SamplerValues | undefined): CallSettings {
     ...(frequencyPenalty === null ? {} : { frequencyPenalty }),
     ...(presencePenalty === null ? {} : { presencePenalty }),
     ...(seed === null ? {} : { seed }),
-    ...(reasoning === "provider-default" ? {} : { reasoning }),
+    ...effort,
   };
 }
 
@@ -417,7 +424,7 @@ export function createGeneration(
       }
 
       // An effort the model does not offer is not sent; the inspector says so.
-      const settings = callSettings(sampler);
+      const settings = callSettings(sampler, request.reasoningEffort);
       let reasoningNotOffered: InspectedPrompt["reasoningNotOffered"] = null;
       if (
         settings.reasoning !== undefined &&
