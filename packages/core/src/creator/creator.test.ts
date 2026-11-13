@@ -274,7 +274,7 @@ describe("creator requests and events", () => {
     for (const prompt of characters) {
       // The light source opens the prompt beside the capture, so the capture's name does not light the picture by itself.
       expect(prompt).toContain(
-        'open the paragraph by naming the capture, its subject and the light source the light step gives, as in "A candid amateur snapshot of one woman in daylight from a window"',
+        'open the paragraph by naming the capture, its subject and the light source the light step gives, as in "A candid amateur snapshot of one person in daylight from a window"',
       );
       expect(prompt).toContain("name the capture as the chosen look words it");
       expect(prompt).toContain("sharp from the nearest thing in the frame to the farthest.");
@@ -283,9 +283,9 @@ describe("creator requests and events", () => {
     }
     // A poster keeps its cinematic look, so it opens as one and takes no whole-frame sharpness.
     expect(ART_METAPROMPTS.moss.scenario).toContain(
-      'open the paragraph by naming the capture and its subject, as in "A cinematic movie poster of three women"',
+      'open the paragraph by naming the capture and its subject, as in "A cinematic movie poster of three people"',
     );
-    expect(ART_METAPROMPTS.moss.scenario).not.toContain("snapshot of one woman");
+    expect(ART_METAPROMPTS.moss.scenario).not.toContain("snapshot of one person");
     expect(ART_METAPROMPTS.moss.scenario).not.toContain("sharp from the nearest thing");
     for (const prompt of [...characters, ART_METAPROMPTS.moss.scenario]) {
       expect(prompt).toContain("give every pose and action as a still position");
@@ -312,12 +312,12 @@ describe("creator requests and events", () => {
       }
       expect(ART_METAPROMPTS[family].subject).toContain("at most 260 words");
       expect(ART_METAPROMPTS[family].group).toContain(
-        "at most 290 words for two women and 370 for three",
+        "at most 290 words for two subjects and 370 for three",
       );
     }
     expect(ART_METAPROMPTS.moss.subject).toContain("at most 320 words");
     expect(ART_METAPROMPTS.moss.group).toContain(
-      "at most 380 words for two women and 480 for three",
+      "at most 380 words for two subjects and 480 for three",
     );
     expect(SCENE_METAPROMPTS.moss.subject).toContain("at most 300 words");
     expect(SCENE_METAPROMPTS.moss.scenario).toContain("at most 300 words");
@@ -385,17 +385,17 @@ describe("creator requests and events", () => {
     }
   });
 
-  it("shows three women on a Scenario poster unless the owner's direction asks for another number", () => {
+  it("shows three subjects on a Scenario poster unless the owner's direction asks for another number", () => {
     for (const model of ART_FAMILIES) {
       const prompt = ART_METAPROMPTS[model].scenario;
-      expect(prompt).toContain("The poster shows three women.");
+      expect(prompt).toContain("The poster shows three subjects.");
       expect(prompt).toContain(
-        "Where the owner's direction asks for another number of women, from one up, show that number instead.",
+        "Where the owner's direction asks for another number of subjects, from one up, show that number instead.",
       );
       expect(prompt).toContain(
         model === "moss"
-          ? "at most 200 words plus 90 for each woman, 470 for three"
-          : "at most 180 words plus 80 for each woman, 420 for three",
+          ? "at most 200 words plus 90 for each subject, 470 for three"
+          : "at most 180 words plus 80 for each subject, 420 for three",
       );
       expect(prompt).not.toContain("two or three");
     }
@@ -502,7 +502,9 @@ describe("creator requests and events", () => {
     expect(CARD_SYSTEM_PROMPTS.group).toContain("at least two, at most three");
     for (const model of ART_FAMILIES) {
       expect(artMetaprompt(model, "subject")).toBe(ART_METAPROMPTS[model].subject);
-      expect(artMetaprompt(model, "subject", "regular")).toContain("one woman in one single frame");
+      expect(artMetaprompt(model, "subject", "regular")).toContain(
+        "one subject in one single frame",
+      );
       expect(artMetaprompt(model, "subject")).not.toContain("diptych");
       expect(artMetaprompt(model, "subject")).toContain("both in full view from the front");
       expect(artMetaprompt(model, "subject")).not.toContain("uncovered");
@@ -512,7 +514,7 @@ describe("creator requests and events", () => {
       const [vulva, ass] =
         model === "krea2" || model === "moss" ? ["pussy", "ass"] : ["vulva", "buttocks"];
       // Two snapshots seconds apart, front then turned around: no impossible same-moment rear camera.
-      expect(diptych).toContain("the same woman a few seconds apart");
+      expect(diptych).toContain("the same subject a few seconds apart");
       expect(diptych).toContain("In the right panel she has turned around, her back to the camera");
       expect(diptych).toContain("looks back over her shoulder");
       expect(diptych).not.toContain("directly behind her");
@@ -527,7 +529,7 @@ describe("creator requests and events", () => {
       );
       // A relaxed standing stance, not a trait-driven pose she could sit or lie in.
       expect(diptych).toContain("How she stands, the same in both panels");
-      expect(diptych).not.toContain("Pose each woman by the dominant personality trait");
+      expect(diptych).not.toContain("Pose each subject by the dominant personality trait");
       expect(diptych).not.toContain("stands, leans, sits, kneels or lies");
       // Her looks only: no job, story or props, and a private place.
       expect(diptych).toContain("Leave out her job, her story and the rest of her life");
@@ -537,7 +539,7 @@ describe("creator requests and events", () => {
       expect(diptych).toContain("Only when the Location is itself a private room");
       expect(diptych).toContain("Never a workplace or a public place");
       expect(diptych).not.toContain("jewellery");
-      expect(diptych).not.toContain("besides where step 2 puts each woman");
+      expect(diptych).not.toContain("besides where step 2 puts each subject");
       expect(diptych).toContain("in the available light of step 6");
       expect(diptych).toContain(`at most ${model === "moss" ? 300 : 220} words`);
       for (const kind of ["group", "scenario"] as const) {
@@ -612,7 +614,7 @@ describe("creator requests and events", () => {
     }
   });
 
-  it("bares every woman on every cover in the words the image model answers to", () => {
+  it("bares every subject on every cover in the words the image model answers to", () => {
     expect(ART_METAPROMPTS.krea2.subject).toContain("her breasts and pussy are bare");
     expect(ART_METAPROMPTS.krea2.subject).toContain("Her pose keeps her pussy in view");
     expect(ART_METAPROMPTS.krea2.group).toContain("her breasts and pussy are bare");
@@ -626,10 +628,10 @@ describe("creator requests and events", () => {
     }
   });
 
-  it("poses every woman on every cover by her dominant visible trait, named in words with her place", () => {
+  it("poses every subject on every cover by her dominant visible trait, named in words with her place", () => {
     for (const model of ART_FAMILIES) {
       for (const prompt of KINDS.map((kind) => ART_METAPROMPTS[model][kind])) {
-        expect(prompt).toContain("Pose each woman by the dominant personality trait");
+        expect(prompt).toContain("Pose each subject by the dominant personality trait");
         expect(prompt).toContain("the one a picture can show most clearly");
         expect(prompt).toContain("posture, body language, gesture, gaze and expression");
         expect(prompt).toContain(
@@ -637,11 +639,11 @@ describe("creator requests and events", () => {
         );
         expect(prompt).toContain("then the pose that trait gives her, in concrete words");
         expect(prompt).toContain("where she is in the place");
-        expect(prompt).toContain("besides where step 2 puts each woman");
+        expect(prompt).toContain("besides where step 2 puts each subject");
         expect(prompt).not.toContain("square to the camera");
         expect(prompt).not.toContain("hands on her hips, at her sides or behind her head");
       }
-      // A Scenario's women are unnamed, so the trait comes from their kind of person.
+      // A Scenario's subjects are unnamed, so the trait comes from their kind of person.
       expect(ART_METAPROMPTS[model].scenario).toContain(
         "the notes' People give her kind of person",
       );
@@ -666,9 +668,7 @@ describe("creator requests and events", () => {
       for (const prompt of covers) {
         expect(prompt).toContain("which the cover shows as the present day");
         expect(prompt).toContain("which the cover shows as the 1900s");
-        expect(prompt).toContain(
-          "A person the notes make not human is shown as an ordinary human woman",
-        );
+        expect(prompt).toContain("A person the notes make not human is shown as an ordinary human");
         expect(prompt).toContain(
           "An invented world, such as fantasy or sci-fi, becomes the present day",
         );
@@ -701,6 +701,54 @@ describe("creator requests and events", () => {
             : "Describe skin only by its tone, natural and true to life",
         );
         expect(prompt).not.toContain("smooth, even finish");
+      }
+    }
+  });
+
+  it("lets the owner's direction show a non-human's kind on a character cover", () => {
+    for (const model of ART_FAMILIES) {
+      for (const prompt of [
+        ART_METAPROMPTS[model].subject,
+        ART_METAPROMPTS[model].group,
+        SUBJECT_DIPTYCH_METAPROMPTS[model],
+      ]) {
+        expect(prompt).toContain(
+          "When the owner's direction asks to show their kind, name it and show its visible traits from the notes",
+        );
+      }
+    }
+  });
+
+  it("shows on every cover a state the notes or the direction give, in visible cues", () => {
+    for (const model of ART_FAMILIES) {
+      const covers = [...Object.values(ART_METAPROMPTS[model]), SUBJECT_DIPTYCH_METAPROMPTS[model]];
+      for (const prompt of covers) {
+        expect(prompt).toContain(
+          "Where the notes or the owner's direction give a person a state, such as drunk, exhausted, crying or hurt",
+        );
+        expect(prompt).toContain("a prop the notes or the direction name for it");
+        expect(prompt).toContain("ahead of the temperament");
+      }
+      // A scene takes the state from the excerpt already.
+      for (const prompt of Object.values(SCENE_METAPROMPTS[model])) {
+        expect(prompt).not.toContain("give a person a state");
+      }
+    }
+    expect(artPrompt("<Location>\nx\n</Location>", "Drunk.")).toContain(
+      "such as the place, time of day, light, clothing, a state such as drunk or exhausted, posture, expression or mood",
+    );
+  });
+
+  it("lets a scene show the tears and sweat the excerpt gives, while covers keep them out", () => {
+    for (const model of ART_FAMILIES) {
+      for (const prompt of Object.values(SCENE_METAPROMPTS[model])) {
+        expect(prompt).toContain("Tears and sweat the excerpt gives are the exception");
+      }
+      for (const prompt of [
+        ...Object.values(ART_METAPROMPTS[model]),
+        SUBJECT_DIPTYCH_METAPROMPTS[model],
+      ]) {
+        expect(prompt).not.toContain("Tears and sweat the excerpt gives");
       }
     }
   });
@@ -757,7 +805,7 @@ describe("creator requests and events", () => {
       expect(ART_METAPROMPTS[model].scenario).toContain(
         "no lettering or captions in the image but the title",
       );
-      expect(ART_METAPROMPTS[model].scenario).toContain("unnamed women of this world");
+      expect(ART_METAPROMPTS[model].scenario).toContain("unnamed subjects of this world");
       // A title such as "Station 13" keeps its digits, whatever the rule on numbers says.
       expect(ART_METAPROMPTS[model].scenario).toContain(
         "Apart from age, the quoted title and the decade and 35mm a look's own wording carries, such as 1970s, write no numbers",

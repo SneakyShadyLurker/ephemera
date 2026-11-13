@@ -169,7 +169,7 @@ interface WordBudget {
   pair: number;
   /** Three people, on a Group cover or in a scene. */
   trio: number;
-  /** A Scenario poster before its women, and what each woman adds. */
+  /** A Scenario poster before its subjects, and what each subject adds. */
   poster: number;
   posterEach: number;
   /** A scene picture of one person. */
@@ -203,6 +203,18 @@ const SKIN_MARKS = `veins, scars, stretch marks, blemishes, goosebumps, sweat an
  * other families but MOSS share the wording.
  */
 const SKIN_BY_TONE = `Describe skin only by its tone, natural and true to life, leaving out pores, ${SKIN_MARKS}.`;
+
+/* A scene shows the moment as the chat leaves it, crying or sweating included. */
+const SCENE_LIQUIDS =
+  "Tears and sweat the excerpt gives are the exception: show them where it puts them.";
+
+/*
+ * Every cover shows a state the notes or the owner's direction give, such as
+ * drunkenness, in what a picture can see, since the word alone renders as
+ * nothing; it leads the temperament and may bring the one prop that shows it.
+ */
+const STATE_RULE = (w: ArtWords) =>
+  `Where the notes or the owner's direction give a person a state, such as drunk, exhausted, crying or hurt, show it in what a ${w.photo} can see: the expression, the eyes, the flush or pallor of the skin, the hair, the posture and balance, and any disorder in the clothing, ahead of the temperament for the expression and the pose, with a prop the notes or the direction name for it, such as a drink in hand, even where these instructions otherwise allow no props.`;
 
 /* The ceilings Krea 2 holds a prompt's detail within; every family but MOSS shares them. */
 const SHARED_WORDS: WordBudget = {
@@ -263,7 +275,7 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
       scene: 300,
     },
     form: (title) =>
-      ` MOSS reads the medium first and drifts away from a photo without it, so open the paragraph by naming ${title ? `the capture and its subject, as in "A cinematic movie poster of three women"` : `the capture, its subject and the light source the light step gives, as in "A candid amateur snapshot of one woman in daylight from a window"`}, then keep the order above and give the look's remaining words where its step comes. Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the ${title ? "look" : "chosen look"} words it.${title ? "" : ` MOSS blurs whatever lies behind a person unless the prompt says otherwise, so say in the look's sentence that the picture is sharp from the nearest thing in the frame to the farthest.`} MOSS renders words for movement as blur, so give every pose and action as a still position, held as the camera caught it. Give the camera's height and distance with the framing, such as at eye level a few steps away, unless the look gives its own framing.`,
+      ` MOSS reads the medium first and drifts away from a photo without it, so open the paragraph by naming ${title ? `the capture and its subject, as in "A cinematic movie poster of three people"` : `the capture, its subject and the light source the light step gives, as in "A candid amateur snapshot of one person in daylight from a window"`}, then keep the order above and give the look's remaining words where its step comes. Never write the bare word "photograph", which MOSS renders as a printed photo, but name the capture as the ${title ? "look" : "chosen look"} words it.${title ? "" : ` MOSS blurs whatever lies behind a person unless the prompt says otherwise, so say in the look's sentence that the picture is sharp from the nearest thing in the frame to the farthest.`} MOSS renders words for movement as blur, so give every pose and action as a still position, held as the camera caught it. Give the camera's height and distance with the framing, such as at eye level a few steps away, unless the look gives its own framing.`,
   },
   /*
    * MiniMax H3 Image as its own prompt guide and Atelier's renders give it:
@@ -285,7 +297,7 @@ const ART_WORDS: Readonly<Record<ArtFamily, ArtWords>> = {
     skin: SKIN_BY_TONE,
     words: SHARED_WORDS,
     form: (title) =>
-      ` MiniMax H3 reads the kind of image first, so open the paragraph by naming the kind of image and its subject, as in "An amateur snapshot of one woman" or "A movie poster of three women", then keep the order above and give the look's remaining words where its step comes. Within one frame or panel, keep left and right, the way each body faces the camera and what each hand touches or rests on the same wherever the paragraph returns to them. MiniMax H3 renders the word "athletic" as visible muscle definition, so write that word only for a woman the notes make visibly muscular, and name every other build in plain words, such as slim with a narrow waist. It has no negative prompt and takes exclusions as one plain closing sentence, the one place where the prompt says what is absent, so end the paragraph with ${title ? `"No lettering other than the title and no additional people appear.", or with "No lettering or additional people appear." when the notes give no Title.` : `"No lettering or additional people appear."`}`,
+      ` MiniMax H3 reads the kind of image first, so open the paragraph by naming the kind of image and its subject, as in "An amateur snapshot of one person" or "A movie poster of three people", then keep the order above and give the look's remaining words where its step comes. Within one frame or panel, keep left and right, the way each body faces the camera and what each hand touches or rests on the same wherever the paragraph returns to them. MiniMax H3 renders the word "athletic" as visible muscle definition, so write that word only for a subject the notes make visibly muscular, and name every other build in plain words, such as slim with a narrow waist. It has no negative prompt and takes exclusions as one plain closing sentence, the one place where the prompt says what is absent, so end the paragraph with ${title ? `"No lettering other than the title and no additional people appear.", or with "No lettering or additional people appear." when the notes give no Title.` : `"No lettering or additional people appear."`}`,
   },
   /* Any other image model: plain anatomical words and no model-specific rule. */
   general: {
@@ -316,7 +328,7 @@ const ETHNICITY_RULE = (src = "the notes", cover = false) =>
  * world the card plays in; scene pictures and Scenario posters keep it.
  */
 const EVERYDAY_RULE =
-  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human woman of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places, and an era before the 1900s becomes the 1900s.";
+  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. When the owner's direction asks to show their kind, name it and show its visible traits from the notes instead, and the rest of this rule still holds. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places, and an era before the 1900s becomes the 1900s.";
 
 /*
  * The cards keep European units, but Krea 2 renders numbers poorly, so every
@@ -327,7 +339,7 @@ const EVERYDAY_RULE =
  * 35mm a look's wording names (looks.ts).
  */
 const FIGURE_RULE = (src = "the notes", title = false, scene = false, cover = false) =>
-  `State each person's age as given in ${src} as "NN years old", such as "25 years old"; where ${src} give none, choose a fitting age. Apart from age${title ? ", the quoted title" : ""} and the decade and 35mm a look's own wording carries, such as 1970s, write no numbers, cup letters or units anywhere, turning every measurement into a plain word. Describe each figure explicitly in short visual words so the proportions read at a glance: height, body type, shoulders, the size and shape of the breasts or chest, waist, hips, buttocks, legs and where the weight sits, as far as ${src} give them. Height becomes petite, short, average height, tall or very tall for their sex. Height and weight together become a body type such as slender, slim, athletic, curvy, full-figured, plump or heavyset, which carries the figure where the notes give little more. Always give each woman's breasts one size word placed directly before "breasts", ${scene ? "from the EU cup size where they are bare and, while clothing covers them, the size the clothing gives them as step 2 says. The EU cup sizes" : "from the EU cup size"}: AA nearly flat, A very small, B small, C medium, D large, E very large, F extra large, G and H huge, I and J enormous, K and above gigantic and absurdly oversized. Map UK and US cups to EU first (DD is E, DDD and UK E are F, UK F is G, FF is H, UK G is I, GG is J, UK H is K). Without a cup size, use the description's size word; without either, choose what fits her build (medium by default), the one feature you may add beyond ${src}.${cover ? "" : ` A woman whose kind has no breasts keeps the anatomy ${src} give.`}`;
+  `State each person's age as given in ${src} as "NN years old", such as "25 years old"; where ${src} give none, choose a fitting age. Apart from age${title ? ", the quoted title" : ""} and the decade and 35mm a look's own wording carries, such as 1970s, write no numbers, cup letters or units anywhere, turning every measurement into a plain word. Describe each figure explicitly in short visual words so the proportions read at a glance: height, body type, shoulders, the size and shape of the breasts or chest, waist, hips, buttocks, legs and where the weight sits, as far as ${src} give them. Height becomes petite, short, average height, tall or very tall for their sex. Height and weight together become a body type such as slender, slim, athletic, curvy, full-figured, plump or heavyset, which carries the figure where the notes give little more. Always give each subject's breasts one size word placed directly before "breasts", ${scene ? "from the EU cup size where they are bare and, while clothing covers them, the size the clothing gives them as step 2 says. The EU cup sizes" : "from the EU cup size"}: AA nearly flat, A very small, B small, C medium, D large, E very large, F extra large, G and H huge, I and J enormous, K and above gigantic and absurdly oversized. Map UK and US cups to EU first (DD is E, DDD and UK E are F, UK F is G, FF is H, UK G is I, GG is J, UK H is K). Without a cup size, use the description's size word; without either, choose what fits her build (medium by default), the one feature you may add beyond ${src}.${cover ? "" : ` A subject whose kind has no breasts keeps the anatomy ${src} give.`}`;
 
 /*
  * The image model knows no names: a named person, place or franchise renders
@@ -399,7 +411,7 @@ const CHARACTER_LOOKS_AND_RULES = (
   src = "the notes",
 ) => `${LOOKS(w, surface)}
 
-Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin} ${FORM_RULE(w)}
+Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin}${surface === "scene" ? ` ${SCENE_LIQUIDS}` : ""} ${FORM_RULE(w)}
 
 Return only the prompt as plain text.`;
 
@@ -418,58 +430,58 @@ const CHARACTER_SCENE = (
   w: ArtWords,
   both: string,
   surface: LookSurface,
-) => `3. The place and time of day the Location names, in one short phrase, the only words in the prompt about the place besides where step 2 puts each woman${both}. Without a Location, or for the place or time it leaves out, use the background.
+) => `3. The place and time of day the Location names, in one short phrase, the only words in the prompt about the place besides where step 2 puts each subject${both}. Without a Location, or for the place or time it leaves out, use the background.
 ${CHARACTER_LIGHT_AND_RULES(w, both, surface)}`;
 
 /*
- * How every cover bares a woman, in the model's words: every garment's final
+ * How every cover bares a subject, in the model's words: every garment's final
  * position given, and a pose that leaves nothing in front of her.
  */
 const EXPOSURE = (w: ArtWords, bare: string, views: string, pose: string) =>
   `She wears clothing in her usual style, its cut, colour and material named, any underwear she wears included, worn open, undone, pulled up or pulled down so that her ${bare} are bare: ${views}. Say exactly where each garment ends up, such as panties pulled down to her thighs or a skirt bunched at her waist. Describe her nipples and areolas and her ${w.vulva} as the notes give them, in plain words such as shaved, trimmed or natural pubic hair and its colour, ${w.vulvaShapes}. ${pose} keeps her ${w.vulva} in view, with her limbs, her garments and anything she sits, leans or kneels on clear of the exposed areas.`;
 
-/* The exposure of a cover that shows each woman from the front only. */
+/* The exposure of a cover that shows each subject from the front only. */
 const FRONT_EXPOSURE = (w: ArtWords) =>
   EXPOSURE(w, `breasts and ${w.vulva}`, "both in full view from the front", "Her pose");
 
 /*
- * Every cover poses each woman by the trait that most defines her and that a
+ * Every cover poses each subject by the trait that most defines her and that a
  * picture can show; `source` says where that trait comes from.
  */
 const PERSONALITY_POSE = (source = "the notes give her") =>
-  `Pose each woman by the dominant personality trait ${source}, the one a picture can show most clearly, such as confidence, shyness, playfulness, defiance or composure, and by her mannerisms: it shapes her posture, body language, gesture, gaze and expression and where she puts herself in the place. Distinct subjects must not all receive a generic identical stance.`;
+  `Pose each subject by the dominant personality trait ${source}, the one a picture can show most clearly, such as confidence, shyness, playfulness, defiance or composure, and by her mannerisms: it shapes her posture, body language, gesture, gaze and expression and where she puts herself in the place. Distinct subjects must not all receive a generic identical stance.`;
 
-/* Step 2's pose, named in words with where the woman is in the place. */
+/* Step 2's pose, named in words with where the subject is in the place. */
 const POSE_WORDS =
   "then the pose that trait gives her, in concrete words: where she is in the place and the part of it she stands, leans, sits, kneels or lies on or against, her stance and where her weight sits, her head, her arms and her hands.";
 
 /* A Subject's regular cover shows one person in one frame. */
 const SUBJECT_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 ${w.photo} that will be the cover of a roleplay character card: one woman in one single frame.
+) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 ${w.photo} that will be the cover of a roleplay character card: one subject in one single frame.
 
-${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()}
+${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()} ${STATE_RULE(w)}
 
 Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most ${w.words.cover} words, in this order:
-1. The subject and framing. One woman in a full-length portrait, fully in the frame from head to feet, her face clearly visible, looking at or just past the camera.
-2. The woman in four or five sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
+1. The subject and framing. One subject in a full-length portrait, fully in the frame from head to feet, her face clearly visible, looking at or just past the camera.
+2. The subject in four or five sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
 ${CHARACTER_SCENE(w, "", "cover")}`;
 
 /*
- * A Subject's diptych: two snapshots of one ordinary woman a few seconds
+ * A Subject's diptych: two snapshots of one ordinary subject a few seconds
  * apart, facing the camera and then turned around, standing in a private
  * place. It keeps to her looks: her job, her story and props stay out, so
  * the picture stays believable.
  */
 const SUBJECT_DIPTYCH_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 diptych that will be the cover of a roleplay character card: one ${w.photo} split into two tall vertical panels side by side, the same woman a few seconds apart in the same place, light and clothing, facing the camera on the left and turned around on the right.
+) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 diptych that will be the cover of a roleplay character card: one ${w.photo} split into two tall vertical panels side by side, the same subject a few seconds apart in the same place, light and clothing, facing the camera on the left and turned around on the right.
 
-The cover shows an ordinary woman as you could meet her in everyday life, in a private moment caught by someone she knows: relaxed, unposed and believable. Use only what the notes say about her looks and temperament, and only what a ${w.photo} can show. Leave out her job, her story and the rest of her life: no uniform or work clothes, no tools, devices, pets or other props, no voice, scent or sexual experience, and no invented features, people or text. ${NAMES_RULE(w)}
+The cover shows the subject as you could meet her in everyday life, in a private moment caught by someone she knows: relaxed, unposed and believable. Use only what the notes say about her looks and temperament, and only what a ${w.photo} can show. Leave out her job, her story and the rest of her life: no uniform or work clothes, no tools, devices, pets or other props, no voice, scent or sexual experience, and no invented features, people or text. ${NAMES_RULE(w)} ${STATE_RULE(w)}
 
 Write one cohesive paragraph of plain natural language describing the finished diptych, at most ${w.words.diptych} words, in this order:
 1. The diptych and framing. Two tall vertical panels of equal width side by side, divided by a thin straight seam, her whole body in each, head to feet. In the left panel she faces the camera, her face clearly visible, looking at or just past the camera. In the right panel she has turned around, her back to the camera, and looks back over her shoulder toward it.
-2. The woman in three or four sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, and an expression that shows her temperament. Mention tattoos and piercings only where the notes give them.
+2. The subject in three or four sentences: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, and an expression that shows her temperament. Mention tattoos and piercings only where the notes give them.
 3. Her clothing. Whatever the reason she is undressed, such as changing, just out of the shower or getting ready for bed, she wears at most two garments in her everyday style, their cut, colour and material named, open, pulled down or slipping off so that her breasts, ${w.vulva} and ${w.ass} are bare: her breasts and ${w.vulva} in full view in the left panel, her ${w.ass} in full view in the right panel. Say where each garment ends up. Below the waist she wears nothing, or one garment pushed all the way down around her ankles. A garment that opens at the front hangs off her shoulders or arms, and nothing she wears covers her ${w.ass} from behind. Describe her nipples and areolas, and her pubic hair as the notes give it, such as shaved, trimmed or natural, and its colour.
 4. How she stands, the same in both panels: on her feet in the place, her weight on one leg, her arms relaxed, her hands hanging loosely or doing one ordinary thing such as tucking her hair behind an ear, no limb in front of her bare breasts, ${w.vulva} or ${w.ass}. Her temperament shows in her face and that one small gesture, not in a posed stance.
 5. The place and time of day in one short phrase, the same in both panels and the only words about the place: her own bedroom or bathroom, at the time of day the Location gives. Only when the Location is itself a private room where she would undress, such as her home, a bedroom, a bathroom or a changing room, use that place instead. Never a workplace or a public place.
@@ -482,35 +494,35 @@ const GROUP_ART_PROMPT = (
   w: ArtWords,
 ) => `You write image prompts for ${w.imageModel}. From the character notes you receive, write one prompt for a vertical 2:3 group photo that will be the cover of a roleplay character card.
 
-${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()}
+${CHARACTER_SOURCE(w)} ${PERSONALITY_POSE()} ${STATE_RULE(w)}
 
-Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most ${w.words.pair} words for two women and ${w.words.trio} for three, in this order:
-1. The subjects and framing: a full-length or knee-up group photo with each woman anchored "on the left", "in the centre" or "on the right", side by side with space between them so that no body hides another. Every face is clearly visible, looking at or just past the camera, and every woman is fully in the frame, head to feet for a full-length photo, head to knees for a knee-up photo.
-2. Each woman in four or five sentences, finishing one before starting the next: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
+Write one cohesive paragraph of plain natural language describing the finished ${w.photo}, at most ${w.words.pair} words for two subjects and ${w.words.trio} for three, in this order:
+1. The subjects and framing: a full-length or knee-up group photo with each subject anchored "on the left", "in the centre" or "on the right", side by side with space between them so that no body hides another. Every face is clearly visible, looking at or just past the camera, and every subject is fully in the frame, head to feet for a full-length photo, head to knees for a knee-up photo.
+2. Each subject in four or five sentences, finishing one before starting the next: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
 ${CHARACTER_SCENE(w, "", "group")}`;
 
 /*
- * A Scenario's cover is a movie poster: women of its world, none of them a
+ * A Scenario's cover is a movie poster: subjects of its world, none of them a
  * fixed character, in the place play begins, under the card's title. Three
  * by default; the owner's direction may ask for another number.
  */
 const SCENARIO_ART_PROMPT = (
   w: ArtWords,
-) => `You write image prompts for ${w.imageModel}. From the scenario notes you receive, write one prompt for a vertical 2:3 movie poster that will be the cover of a roleplay scenario card: a cinematic film still of the place and moment where the story begins, with women only, under the scenario's title in poster lettering.
+) => `You write image prompts for ${w.imageModel}. From the scenario notes you receive, write one prompt for a vertical 2:3 movie poster that will be the cover of a roleplay scenario card: a cinematic film still of the place and moment where the story begins, with no one but its subjects, under the scenario's title in poster lettering.
 
-Use only what the notes establish about the world and its people, and only what a ${w.photo} can show: no voice, scent or sexual experience, and no invented landmarks, creatures or text beyond the title. ${NAMES_RULE(w, true)} Make the world recognisable through what is visible, its dress and technology included. ${PERSONALITY_POSE("the notes' People give her kind of person, or that fits her place in this world")}
+Use only what the notes establish about the world and its people, and only what a ${w.photo} can show: no voice, scent or sexual experience, and no invented landmarks, creatures or text beyond the title. ${NAMES_RULE(w, true)} Make the world recognisable through what is visible, its dress and technology included. ${PERSONALITY_POSE("the notes' People give her kind of person, or that fits her place in this world")} ${STATE_RULE(w)}
 
-The poster shows three women. Where the owner's direction asks for another number of women, from one up, show that number instead.
+The poster shows three subjects. Where the owner's direction asks for another number of subjects, from one up, show that number instead.
 
-Write one cohesive paragraph of plain natural language, at most ${w.words.poster} words plus ${w.words.posterEach} for each woman, ${w.words.poster + 3 * w.words.posterEach} for three, in this order:
-1. The subjects and framing: the unnamed women of this world, each a kind of person its People describe or would plausibly hold, such as a dockside smuggler or a temple novice, looking and dressed as the People give, each anchored "on the left", "in the centre" or "on the right", and with more than three also in front or behind, with space between them so that no body hides another, and where each is in relation to the others and the place. Every face is clearly visible, looking at or just past the camera, and every woman is fully in the frame.
-2. Each woman in four or five sentences, finishing one before starting the next: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
-3. The place and time of day the Location names, and nowhere else, in one short phrase, the only words in the prompt about the place besides where step 2 puts each woman. Without a Location, or for the place or time it leaves out, use where the premise begins.
+Write one cohesive paragraph of plain natural language, at most ${w.words.poster} words plus ${w.words.posterEach} for each subject, ${w.words.poster + 3 * w.words.posterEach} for three, in this order:
+1. The subjects and framing: the unnamed subjects of this world, each a kind of person its People describe or would plausibly hold, such as a dockside smuggler or a temple novice, looking and dressed as the People give, each anchored "on the left", "in the centre" or "on the right", and with more than three also in front or behind, with space between them so that no body hides another, and where each is in relation to the others and the place. Every face is clearly visible, looking at or just past the camera, and every subject is fully in the frame.
+2. Each subject in four or five sentences, finishing one before starting the next: age, ethnicity and phenotype, figure, skin, face, eyes, hair and hairstyle, an expression that shows her temperament, ${POSE_WORDS} Then clothing and body. ${FRONT_EXPOSURE(w)} Mention distinctive visible features such as tattoos, piercings or jewellery.
+3. The place and time of day the Location names, and nowhere else, in one short phrase, the only words in the prompt about the place besides where step 2 puts each subject. Without a Location, or for the place or time it leaves out, use where the premise begins.
 4. Dramatic light that place and time give, matching the mood in the notes: the physical sources in a few words, their direction and colour.
-5. The look: cinematic and dramatic, the women sharp, as a film still of the era the notes set the story in. For a story set in the 1950s to the 1990s, the colour, contrast and period details of a film of that decade, named as in 1970s. For a story set in any era before the 1950s, a black and white film still of that era. Otherwise a present-day film.
+5. The look: cinematic and dramatic, the subjects sharp, as a film still of the era the notes set the story in. For a story set in the 1950s to the 1990s, the colour, contrast and period details of a film of that decade, named as in 1970s. For a story set in any era before the 1950s, a black and white film still of that era. Otherwise a present-day film.
 6. The title: the Title from the notes, written exactly as given inside quotation marks, as large movie poster title lettering across the top or the bottom of the image, clear of every face, its typeface style and colour named to fit the genre, mood and era. Without a Title, the image holds no lettering.
 
-Rules: ${ETHNICITY_RULE()} Where the notes give none, each woman takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)}
+Rules: ${ETHNICITY_RULE()} Where the notes give none, each subject takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)}
 
 Return only the prompt as plain text.`;
 
@@ -706,13 +718,13 @@ const SCENE_CASTS: Readonly<Record<CreatorKind, SceneCast>> = {
 /*
  * Whose word wins on looks: a change the excerpt makes, then the portrait for
  * the stable identity, then the notes, which alone keep a non-human's kind
- * since a cover shows them as a human woman. A scenario fixes no one, so its person
+ * since a cover shows them as a human. A scenario fixes no one, so its person
  * looks as the chat has shown them, then as the notes give the world's people.
  */
 const SCENE_LOOKS = (c: SceneCast) =>
   `How ${c.them} look follows this order: a change the excerpt makes, such as hair cut or dyed, make-up, a wound, a disguise or a transformation, comes first; ${
     c.fromCard
-      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human woman, unless the excerpt changes them.`
+      ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human, unless the excerpt changes them.`
       : "then how the excerpt has described them; then the notes' People; where none of these says, choose what fits the setting."
   }`;
 

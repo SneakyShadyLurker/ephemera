@@ -195,7 +195,7 @@ describe("scenePrompt", () => {
     expect(scenePrompt("SOURCE", false)).toBe("SOURCE");
     expect(scenePrompt("SOURCE", true)).toBe(`SOURCE\n\n${SCENE_REFERENCE_NOTE}`);
     expect(SCENE_REFERENCE_NOTE).toContain("a change the excerpt makes");
-    // A cover draws a non-human as a human woman, so the notes keep their kind over the portrait.
+    // A cover draws a non-human as a human, so the notes keep their kind over the portrait.
     expect(SCENE_REFERENCE_NOTE).toContain(
       "A person the notes make not human keeps their kind and its visible traits from the notes",
     );

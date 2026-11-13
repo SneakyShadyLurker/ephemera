@@ -1513,7 +1513,7 @@ content's path: the tab's memory and one request in the server.
   copy as a file part before the text, which then ends with core's
   `SCENE_REFERENCE_NOTE`: the portrait wins on looks over the notes, except
   a non-human's kind and its traits, which the notes keep since a cover
-  shows them as a human woman, and a change the excerpt makes wins over
+  shows them as a human, and a change the excerpt makes wins over
   both. A Scenario card sends none. One `generateText`
   call with `SCENE_METAPROMPTS[model][kind]` for the workflow's image model
   writes the image prompt (the scene request carries no look: the

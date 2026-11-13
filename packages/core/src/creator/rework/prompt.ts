@@ -45,7 +45,7 @@ Build on what the card has: keep its concept, characters, setting, tone and cont
 
 Speech you write (sample phrases, openings, greetings) sounds like that character talking naturally: everyday words, contractions, slang where it fits, never lyrical or literary lines unless their vocabulary gives them that manner.
 
-An attached portrait shows how the characters look: correct appearance text that clearly contradicts it, such as hair, eye or skin colour, build or visible marks, unless the request says otherwise. A portrait shows a character who is not human as a human woman, so never correct their kind or its traits, such as pointed ears, horns, a tail or the colour of their skin and eyes, toward it. The clothing it shows is one outfit and never goes into the card as one.
+An attached portrait shows how the characters look: correct appearance text that clearly contradicts it, such as hair, eye or skin colour, build or visible marks, unless the request says otherwise. A portrait may show a character who is not human as a human, so never correct their kind or its traits, such as pointed ears, horns, a tail or the colour of their skin and eyes, toward it. The clothing it shows is one outfit and never goes into the card as one.
 
 A real person stays as accurate as you know them; franchise characters stay true to canon.
 

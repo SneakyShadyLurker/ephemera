@@ -240,9 +240,9 @@ Version 1.0 holds everything below.
   rules; Enter paints with it, and it stays until the card is dropped. A Subject's
   portrait defaults to one person in a single frame. Its Composition choice,
   before creation and under New art, also offers a Diptych of two tall panels:
-  the same woman a few seconds apart, standing, facing the camera on the
+  the same subject a few seconds apart, standing, facing the camera on the
   left and turned around, looking back over her shoulder, on the right. The
-  Diptych keeps to her looks: an ordinary woman in a private place (the
+  Diptych keeps to her looks: an ordinary subject in a private place (the
   card's Location when someone would undress there, otherwise her own
   bedroom or bathroom), at most two garments, and nothing from her job or
   story.
@@ -258,19 +258,22 @@ Version 1.0 holds everything below.
   film for the 1950s to the 1990s, or an early digital snapshot for
   the 2000s. A cover shows someone who could be met in everyday life: an
   earlier era becomes the 1900s, an invented world the present day, and a
-  person who is not human a human woman; scene pictures and AI Rework
+  person who is not human a human unless the owner's art direction asks for
+  their kind; scene pictures and AI Rework
   still take that person's kind from the card, not the cover. Choosing one
   outright names the capture only; the card keeps its own era within those
   limits. Look survives Rewrite, Discard, back to Describe and a
   change between Subject and Multiple Subjects; clearing the session or
   choosing Scenario resets it to Auto.
-  Every woman on a regular or group cover, a Scenario's unnamed women
+  Every subject on a regular or group cover, a Scenario's unnamed subjects
   included, poses by her dominant personality trait that a picture can
   show: the image prompt names her pose and where she is in the place in
-  words. A Diptych woman stands relaxed in both panels, her temperament in
-  her face and one small gesture. A scene picture
+  words. A Diptych subject stands relaxed in both panels, her temperament in
+  her face and one small gesture. A state the card's notes or the art
+  direction give, such as drunk or exhausted, leads over the temperament on every
+  cover, shown in visible cues and at most one prop that carries it. A scene picture
   does the same wherever the chat leaves the pose open. Multiple Subjects get one group
-  portrait, and a Scenario a movie poster: unnamed women of its world,
+  portrait, and a Scenario a movie poster: unnamed subjects of its world,
   three unless the owner's art direction asks for another number, where
   its story begins, under the card's title in poster lettering, a
   film still of the story's era, in black and white before the 1950s. The showcase presents the card with its
