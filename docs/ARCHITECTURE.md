@@ -1297,12 +1297,13 @@ content's path: the tab's memory and one request in the server.
   characters; a name and an opening.
   Sections the format does not ask for, tags included, are ignored.
   `artSource` takes from a card only what the art needs (each subject's
-  appearance, its whole background, which the layout opens with age,
-  origin, home, work and the era when not the present day, and
+  appearance, its background up to 6,000 characters, which the layout
+  opens with age, origin, home, work and the era when not the present
+  day, and
   up to 12,000 characters of its personality for expression and posing;
   for a Scenario its title,
-  which the cover letters like a movie poster, its premise, and Setting,
-  People and Tone whole, for era, place, genre, mood and the looks of the
+  which the cover letters like a movie poster, its premise, Setting up to
+  6,000 characters, and People and Tone whole, for era, place, genre, mood and the looks of the
   people a cover or scene shows), and `toSheetFields` maps a card onto card fields with
   the kind's one tag (`CREATOR_TAGS`: Subject, Multiple Subjects or
   Scenario). For the brainstorm, `limits.ts` adds the ten ideas of a list

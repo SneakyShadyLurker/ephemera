@@ -33,7 +33,7 @@ export function leadingSentences(text: string, count: number): string {
 export const tagged = (name: string, text: string): string => `<${name}>\n${text}\n</${name}>`;
 
 /**
- * A character's looks: its appearance, with its whole background for age,
+ * A character's looks: its appearance, with its bounded background for age,
  * home, era and any lasting state, and its bounded personality for
  * expression and posture.
  */
@@ -41,7 +41,10 @@ const character = (block: AnswerBlock): string =>
   tagged(
     block.name,
     [
-      tagged("background", textOf(block.blocks, "backgroundstory")),
+      tagged(
+        "background",
+        clipText(textOf(block.blocks, "backgroundstory").trim(), C.artBackgroundLength),
+      ),
       tagged("appearance", textOf(block.blocks, "appearance")),
       tagged(
         "temperament",
@@ -72,7 +75,7 @@ export function artSource(
       ? blocks.map(character)
       : [
           tagged("Premise", textOf(blocks, "Roleplay").split("\n")[0] ?? ""),
-          tagged("Setting", textOf(blocks, "Setting")),
+          tagged("Setting", clipText(textOf(blocks, "Setting").trim(), C.artBackgroundLength)),
           // A Scenario saved before People had its own block has none to send.
           ...(textOf(blocks, "People") === "" ? [] : [tagged("People", textOf(blocks, "People"))]),
           tagged("Tone", textOf(blocks, "Tone")),

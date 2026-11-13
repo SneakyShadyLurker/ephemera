@@ -380,9 +380,12 @@ Version 1.0 holds everything below.
   one becomes the faction or kind of people they stand for, in general
   terms, their name, profile and personal hooks dropped, a lorebook entry
   about them rewritten about that group, and a franchise's canon figures
-  stay as one line each. A scenario card is also trimmed to its frame:
-  location tours, daily life, role lists, plot hooks, narrator
-  instructions and style samples leave its description. Wordy prose in the fields the model reads is rewritten into
+  and the people its <Setting> already holds stay as one line each. A
+  converted scenario card is also trimmed to its frame: location tours,
+  daily life, role lists, plot hooks, narrator instructions and style
+  samples leave its description. A card already in its layout keeps what
+  it holds beyond the layout's defaults, such as secrets, deadlines, an
+  outfit or a longer opening, unless the request asks to trim it. Wordy prose in the fields the model reads is rewritten into
   the creator's terse notation, every fact kept but a scenario card's trim. A card whose description is not in the creator's subject or
   scenario layout is converted to it, the description replaced whole and
   every fact kept but a scenario card's trim. Blocks folded in from an

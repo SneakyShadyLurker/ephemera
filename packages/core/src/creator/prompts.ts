@@ -76,7 +76,7 @@ const PUNCTUATION_RULE = `Use colons and semicolons only inside the description'
  */
 export const SUBJECT_LAYOUT = `The description holds only the subjects: no current place, time of day, outfit or scene. The first message alone sets where and when play begins, so the scene can change while the subjects stay the same.
 
-Each subject is one XML block named after them in lowercase with underscores, as <mara_voss>; a single name stays single. Inside it, in this order, only what shapes how the subject acts, talks and reacts:
+Each subject is one XML block named after them in lowercase with underscores, as <mara_voss>, romanized where the name's script has no lowercase, as <lin_daiyu>; a single name stays single. Inside it, in this order, only what shapes how the subject acts, talks and reacts:
 
 <backgroundstory> Open with one line, in the same terse notation, giving their age, origin, where they live now and their work, and the decade or year when the story is not set in the present day, ending in its only full stop, so abbreviations go without points (St Petersburg, Dr). Then class, culture, faith, education, work and money where they shape the subject. People in their life outside the card's subjects as short unnamed lines, as in "overzealous, strict parents"; name one only where the player does. The formative events and what each left in them. Current circumstances and daily rhythm. Invent no secrets, hidden agendas, goals or unresolved conflicts the player did not ask for.
 
@@ -211,6 +211,13 @@ const SKIN_MARKS = `veins, scars, stretch marks, blemishes, goosebumps, sweat an
  * other families but MOSS share the wording.
  */
 const SKIN_BY_TONE = `Describe skin only by its tone, natural and true to life, leaving out pores, ${SKIN_MARKS}.`;
+
+/*
+ * A cover's steps and rules give way to the owner's direction, as its note in
+ * the message says (creator/message.ts), all but what stays fixed there.
+ */
+const DIRECTION_RULE =
+  "The owner's direction, when the message gives one, outranks every step and rule above, the place, the pose and the look included; only the exposure, the breast size word, the word limit, the plain-text answer and the rules on how the prompt is worded stay as they are.";
 
 /* A scene shows the moment as the chat leaves it, crying or sweating included. */
 const SCENE_LIQUIDS =
@@ -419,7 +426,7 @@ const CHARACTER_LOOKS_AND_RULES = (
   src = "the notes",
 ) => `${LOOKS(w, surface)}
 
-Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin}${surface === "scene" ? ` ${SCENE_LIQUIDS}` : ""} ${FORM_RULE(w)}
+Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin}${surface === "scene" ? ` ${SCENE_LIQUIDS}` : ""} ${FORM_RULE(w)}${surface === "scene" ? "" : ` ${DIRECTION_RULE}`}
 
 Return only the prompt as plain text.`;
 
@@ -530,7 +537,7 @@ Write one cohesive paragraph of plain natural language, at most ${w.words.poster
 5. The look: cinematic and dramatic, the subjects sharp, as a film still of the era the notes set the story in. For a story set in the 1950s to the 1990s, the colour, contrast and period details of a film of that decade, named as in 1970s. For a story set in any era before the 1950s, a black and white film still of that era. Otherwise a present-day film.
 6. The title: the Title from the notes, written exactly as given inside quotation marks, as large movie poster title lettering across the top or the bottom of the image, clear of every face, its typeface style and colour named to fit the genre, mood and era. Without a Title, the image holds no lettering.
 
-Rules: ${ETHNICITY_RULE()} Where the notes give none, each subject takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)}
+Rules: ${ETHNICITY_RULE()} Where the notes give none, each subject takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)} ${DIRECTION_RULE}
 
 Return only the prompt as plain text.`;
 
@@ -733,7 +740,7 @@ const SCENE_LOOKS = (c: SceneCast) =>
   `How ${c.them} look follows this order: a change the excerpt makes, such as hair cut or dyed, make-up, a wound, a disguise or a transformation, comes first; ${
     c.fromCard
       ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human, unless the excerpt changes them.`
-      : "then how the excerpt has described them; then the notes' People; where none of these says, choose what fits the setting."
+      : "then how the excerpt has described them; then that person's own line in the notes, where they have one, and the notes' People; where none of these says, choose what fits the setting."
   }`;
 
 /* What a scenario's scene takes from the notes: the world, never a fixed person. */

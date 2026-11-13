@@ -767,6 +767,33 @@ describe("creator requests and events", () => {
     }
   });
 
+  it("tells every cover, in its own rules, that the owner's direction outranks its steps", () => {
+    for (const model of ART_FAMILIES) {
+      for (const prompt of [
+        ...Object.values(ART_METAPROMPTS[model]),
+        SUBJECT_DIPTYCH_METAPROMPTS[model],
+      ]) {
+        expect(prompt).toContain(
+          "The owner's direction, when the message gives one, outranks every step and rule above, the place, the pose and the look included; only the exposure, the breast size word, the word limit, the plain-text answer and the rules on how the prompt is worded stay as they are.",
+        );
+      }
+      // A scene picture has no direction.
+      for (const prompt of Object.values(SCENE_METAPROMPTS[model])) {
+        expect(prompt).not.toContain("The owner's direction, when the message gives one");
+      }
+      // A scenario's person the player asked for keeps the looks the notes give them.
+      expect(SCENE_METAPROMPTS[model].scenario).toContain(
+        "then that person's own line in the notes, where they have one, and the notes' People",
+      );
+    }
+    // A name in a script without lowercase becomes a tag the parser reads.
+    for (const kind of ["subject", "group"] as const) {
+      expect(CARD_SYSTEM_PROMPTS[kind]).toContain(
+        "romanized where the name's script has no lowercase, as <lin_daiyu>",
+      );
+    }
+  });
+
   it("lets a Rework request keep what the consistency pass would change", () => {
     expect(REWORK_SYSTEM_PROMPT).toContain(
       "Second, make the whole card consistent, complete and believable, as far as the request allows. The request outranks everything this part would do",
@@ -1166,6 +1193,23 @@ describe("art source", () => {
     expect(source).not.toContain("Sample phrase.");
     expect(source.startsWith(`<Location>\n${LOCATION}\n</Location>`)).toBe(true);
     expect(source).not.toContain("Gulls cry");
+  });
+
+  it("bounds each subject's background so three subjects' looks still fit the art source", () => {
+    const long = "y".repeat(CREATOR_LIMITS.artBackgroundLength + 100);
+    const description = ["ada", "bo", "cy"]
+      .map((name) =>
+        subject(name, inner(long)).replace(
+          "Calm placeholder temperament.",
+          "z".repeat(CREATOR_LIMITS.artPersonalityLength),
+        ),
+      )
+      .join("\n");
+    const source = artSource("group", description, "");
+    expect(source).not.toContain("y".repeat(CREATOR_LIMITS.artBackgroundLength + 1));
+    expect(source).toContain("<cy>");
+    expect(source.split("Tall, placeholder build, grey eyes.").length - 1).toBe(3);
+    expect(textLength(source)).toBeLessThanOrEqual(CREATOR_LIMITS.artSourceLength);
   });
 
   it("bounds each subject's personality so later subjects still carry their own traits", () => {
