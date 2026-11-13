@@ -51,6 +51,14 @@ export const CARD_STYLE = `Write for a model, not a reader: the most detail in t
 export const contentPolicy = (source: string) =>
   `Write what ${source} calls for directly and completely, including sexual, violent or dark material. No disclaimers, warnings, commentary, softening, or omissions. Use ages as given.`;
 
+/*
+ * The rules below are defaults: what the player explicitly asks for wins over
+ * them, all but the parts the app parses and, on a subject card, the number
+ * of subjects it validates.
+ */
+export const playerAsksWin = (source: string) =>
+  `The rules below are defaults. Where ${source} explicitly asks for something they leave out or limit, such as another language, an altered version of a canon character, named people in a scenario, secrets, goals or deadlines, more standing pressures, an outfit, or a longer opening with dialogue or action, follow it. Only the sections, their tags and order, the description's blocks, the first message's Location line and the number of subjects stay exactly as given, since the app reads them.`;
+
 const EUROPEAN_UNITS = `Always use European units. Height in centimetres, weight in kilograms, bra sizes in EU cup sizes, all other measures metric.`;
 
 /** How the people a card holds talk, unless it gives `whom` another manner. */
@@ -68,7 +76,7 @@ const PUNCTUATION_RULE = `Use colons and semicolons only inside the description'
  */
 export const SUBJECT_LAYOUT = `The description holds only the subjects: no current place, time of day, outfit or scene. The first message alone sets where and when play begins, so the scene can change while the subjects stay the same.
 
-Each subject is one XML block named after them in lowercase with underscores, as <mara_voss>; a single name stays single. Inside it, in this order, only what shapes how the subject acts, talks and reacts:
+Each subject is one XML block named after them in lowercase with underscores, as <mara_voss>, romanized where the name's script has no lowercase, as <lin_daiyu>; a single name stays single. Inside it, in this order, only what shapes how the subject acts, talks and reacts:
 
 <backgroundstory> Open with one line, in the same terse notation, giving their age, origin, where they live now and their work, and the decade or year when the story is not set in the present day, ending in its only full stop, so abbreviations go without points (St Petersburg, Dr). Then class, culture, faith, education, work and money where they shape the subject. People in their life outside the card's subjects as short unnamed lines, as in "overzealous, strict parents"; name one only where the player does. The formative events and what each left in them. Current circumstances and daily rhythm. Invent no secrets, hidden agendas, goals or unresolved conflicts the player did not ask for.
 
@@ -78,7 +86,7 @@ Each subject is one XML block named after them in lowercase with underscores, as
 
 <vocabulary> How they speak: register, word choice, rhythm, accent or dialect, verbal habits and filler, oaths, what they avoid saying, shifts under anger, fear or desire. What they call strangers, friends and lovers; nicknames and endearments and how they warm with closeness; the name only intimates use; a name they hate. First-language words that slip out, if any. How they sound in intimacy. ${realVoice("them")} Two or three short sample phrases in quotation marks, one intimate, each something they would say aloud.`;
 
-export const SCENARIO_LAYOUT = `The description holds exactly four XML blocks, in this order, with no blocks nested inside them. It sets a bare frame and leaves the rest open for play: the narrator invents every person, place and event as play needs them. It holds no fixed characters: no named or individual people, no profiles and no cast or role list. The one exception is a franchise's canon figures and any real person the source names, each as one line in <Setting>: who they are and where they stand, never a profile or a scripted part.
+export const SCENARIO_LAYOUT = `The description holds exactly four XML blocks, in this order, with no blocks nested inside them. It sets a bare frame and leaves the rest open for play: the narrator invents every person, place and event as play needs them. It holds no fixed characters: no named or individual people, no profiles and no cast or role list. The exceptions are a franchise's canon figures, any real person the source names and any person the player explicitly asks the scenario to hold, each as one line in <Setting>: who they are and where they stand, never a profile or a scripted part unless the player asks for one.
 
 <Roleplay> The premise in a few lines. The role {{user}} holds and where they start; their personality and choices stay the player's. At most three standing pressures in the world, each a broad tension held by factions or institutions, never by a named person, with no secrets, deadlines or set outcome.
 
@@ -98,13 +106,13 @@ const subjectCardPrompt = (count: {
   name: string;
   naming: string;
 }) =>
-  `You write character cards for a private text-based roleplay app, read by another language model that plays ${count.cast} across a long session. ${contentPolicy("the description")}
+  `You write character cards for a private text-based roleplay app, read by another language model that plays ${count.cast} across a long session. ${contentPolicy("the description")} ${playerAsksWin("the description")}
 
-A real person the description names stays named, with an instruction to portray them as accurately as the model knows them. Franchise characters stay true to canon, by name.
+A real person the description names stays named, with an instruction to portray them as accurately as the model knows them. Franchise characters stay true to canon, by name, unless the description asks for an altered version, such as an alternate universe or a gender swap, which then wins where it differs.
 
 From the player's description, create ${count.subjects}. Fill its gaps with specific, coherent choices that fit it, the particular over the typical: a named town, a specific job, one formative event, a habit, a contradiction. Make each subject believable, layered and interesting to play with, without deciding where the story goes.
 
-Write for the model that plays them: plain English, third person, present tense, facts, tendencies and causes it can act on. No roleplay instructions, no repetition between blocks. ${count.naming}
+Write for the model that plays them: plain English, or the language the description asks for, third person, present tense, facts, tendencies and causes it can act on. No roleplay instructions, no repetition between blocks. ${count.naming}
 
 ${CARD_STYLE}
 
@@ -134,11 +142,11 @@ const GROUP_CARD_PROMPT = subjectCardPrompt({
   naming: CAST_NAMING,
 });
 
-const SCENARIO_CARD_PROMPT = `You write scenario cards for a private text-based roleplay app, read by another language model that runs the scenario as narrator and plays everyone but the player across a long session. ${contentPolicy("the description")}
+const SCENARIO_CARD_PROMPT = `You write scenario cards for a private text-based roleplay app, read by another language model that runs the scenario as narrator and plays everyone but the player across a long session. ${contentPolicy("the description")} ${playerAsksWin("the description")}
 
 A real person the description names gets their line in <Setting>, with an instruction to portray them as accurately as the model knows them. A franchise the description names is the setting, by name, at a stated point in its timeline; only the canon figures the description names or the premise centres on get their lines in <Setting>.
 
-Build a frame, not a plot or a cast: what the player gave plus what the narrator needs to start, nothing more, so play can take the world anywhere. Use plain English the narrator can act on. No repetition between blocks. ${SCENARIO_NAMING}
+Build a frame, not a plot or a cast: what the player gave plus what the narrator needs to start, nothing more, so play can take the world anywhere. Use plain English the narrator can act on, or the language the description asks for. No repetition between blocks. ${SCENARIO_NAMING}
 
 ${CARD_STYLE}
 
@@ -203,6 +211,13 @@ const SKIN_MARKS = `veins, scars, stretch marks, blemishes, goosebumps, sweat an
  * other families but MOSS share the wording.
  */
 const SKIN_BY_TONE = `Describe skin only by its tone, natural and true to life, leaving out pores, ${SKIN_MARKS}.`;
+
+/*
+ * A cover's steps and rules give way to the owner's direction, as its note in
+ * the message says (creator/message.ts), all but what stays fixed there.
+ */
+const DIRECTION_RULE =
+  "The owner's direction, when the message gives one, outranks every step and rule above, the place, the pose and the look included; only the exposure, the breast size word, the word limit, the plain-text answer and the rules on how the prompt is worded stay as they are.";
 
 /* A scene shows the moment as the chat leaves it, crying or sweating included. */
 const SCENE_LIQUIDS =
@@ -328,7 +343,7 @@ const ETHNICITY_RULE = (src = "the notes", cover = false) =>
  * world the card plays in; scene pictures and Scenario posters keep it.
  */
 const EVERYDAY_RULE =
-  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. When the owner's direction asks to show their kind, name it and show its visible traits from the notes instead, and the rest of this rule still holds. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places, and an era before the 1900s becomes the 1900s.";
+  "The cover shows someone you could meet in everyday life. A person the notes make not human is shown as an ordinary human of the age she looks: name no kind, and leave out what no human has, such as pointed ears, horns, a tail, fur, scales, or skin or eyes of an unnatural colour. An invented world, such as fantasy or sci-fi, becomes the present day, with today's clothing and places, and an era before the 1900s becomes the 1900s. The owner's direction may keep any of these as the notes give it: when it asks for their kind, name it and show its visible traits from the notes, and when it asks for their world or era, keep that world's or era's clothing and places.";
 
 /*
  * The cards keep European units, but Krea 2 renders numbers poorly, so every
@@ -353,7 +368,7 @@ const NAMES_RULE = (w: ArtWords, title = false) =>
  * scenario cover letters its title, quoted as given, like a movie poster.
  */
 const FORM_RULE = (w: ArtWords, title = false) =>
-  `State what is present, never what is absent. No lists of tags, no quality words such as "masterpiece" or "ultra detailed", no prompt weighting syntax, no words for grain or noise, no lettering or captions in the image${title ? " but the title" : ""}. In the text you write, never use colons, semicolons or em dashes${title ? ", except inside the quoted title" : ""}.${w.form(title)}`;
+  `Write the prompt in English, whatever language the notes use. State what is present, never what is absent. No lists of tags, no quality words such as "masterpiece" or "ultra detailed", no prompt weighting syntax, no words for grain or noise, no lettering or captions in the image${title ? " but the title" : ""}. In the text you write, never use colons, semicolons or em dashes${title ? ", except inside the quoted title" : ""}.${w.form(title)}`;
 
 /* What both character art metaprompts take from the notes, and the place, light and look. */
 const CHARACTER_SOURCE = (w: ArtWords) =>
@@ -411,7 +426,7 @@ const CHARACTER_LOOKS_AND_RULES = (
   src = "the notes",
 ) => `${LOOKS(w, surface)}
 
-Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin}${surface === "scene" ? ` ${SCENE_LIQUIDS}` : ""} ${FORM_RULE(w)}
+Rules: ${ETHNICITY_RULE(src, surface !== "scene")}${surface === "scene" ? "" : ` ${EVERYDAY_RULE}`} ${FIGURE_RULE(src, false, surface === "scene", surface !== "scene")} ${w.skin}${surface === "scene" ? ` ${SCENE_LIQUIDS}` : ""} ${FORM_RULE(w)}${surface === "scene" ? "" : ` ${DIRECTION_RULE}`}
 
 Return only the prompt as plain text.`;
 
@@ -522,7 +537,7 @@ Write one cohesive paragraph of plain natural language, at most ${w.words.poster
 5. The look: cinematic and dramatic, the subjects sharp, as a film still of the era the notes set the story in. For a story set in the 1950s to the 1990s, the colour, contrast and period details of a film of that decade, named as in 1970s. For a story set in any era before the 1950s, a black and white film still of that era. Otherwise a present-day film.
 6. The title: the Title from the notes, written exactly as given inside quotation marks, as large movie poster title lettering across the top or the bottom of the image, clear of every face, its typeface style and colour named to fit the genre, mood and era. Without a Title, the image holds no lettering.
 
-Rules: ${ETHNICITY_RULE()} Where the notes give none, each subject takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)}
+Rules: ${ETHNICITY_RULE()} Where the notes give none, each subject takes an ethnicity that fits the People. ${FIGURE_RULE("the notes", true)} ${w.skin} ${FORM_RULE(w, true)} ${DIRECTION_RULE}
 
 Return only the prompt as plain text.`;
 
@@ -725,7 +740,7 @@ const SCENE_LOOKS = (c: SceneCast) =>
   `How ${c.them} look follows this order: a change the excerpt makes, such as hair cut or dyed, make-up, a wound, a disguise or a transformation, comes first; ${
     c.fromCard
       ? `then the attached portrait, when there is one, for ${c.their} stable identity, their apparent age, ethnicity and phenotype, face, eye colour, skin tone and figure; then the notes. A person the notes make not human keeps their kind and its visible traits from the notes, such as pointed ears, horns, a tail or the colour of their skin and eyes, since a cover shows them as a human, unless the excerpt changes them.`
-      : "then how the excerpt has described them; then the notes' People; where none of these says, choose what fits the setting."
+      : "then how the excerpt has described them; then that person's own line in the notes, where they have one, and the notes' People; where none of these says, choose what fits the setting."
   }`;
 
 /* What a scenario's scene takes from the notes: the world, never a fixed person. */

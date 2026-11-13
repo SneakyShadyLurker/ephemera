@@ -984,19 +984,26 @@ describe("rework prompt", () => {
     expect(REWORK_SYSTEM_PROMPT).not.toContain("named people that shaped them");
   });
 
-  it("turns a scenario card's fixed characters into groups and trims it to its frame", () => {
+  it("turns a scenario card's fixed characters into groups and trims a converted one to its frame", () => {
     expect(REWORK_SYSTEM_PROMPT).toContain(
-      "A scenario card holds none, whether converted or already in its layout",
+      "A scenario card holds none, whether converted or already in its layout, beyond the people its <Setting> already holds as one line each",
     );
     expect(REWORK_SYSTEM_PROMPT).toContain(
       "becomes the faction or kind of people they stand for, in general terms",
     );
     expect(REWORK_SYSTEM_PROMPT).toContain(
-      "each named character or individual role it has other than {{user}}'s own",
+      "each other named character or individual role it has other than {{user}}'s own",
+    );
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "a franchise's canon figures, real people and the people <Setting> already holds stay",
     );
     expect(REWORK_SYSTEM_PROMPT).toContain("A scenario card gets no added depth");
     expect(REWORK_SYSTEM_PROMPT).toContain(
-      "A scenario card, converted or not, is also trimmed to its frame",
+      "A converted scenario card is also trimmed to its frame",
+    );
+    // What the player may have asked the creator for survives an unrelated Rework.
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "A card already in its layout keeps what it holds beyond the layout's defaults, such as a scenario's secrets, deadlines, plot hooks or further pressures, an outfit, or a longer first message with dialogue or action, unless the request asks to trim it",
     );
     expect(REWORK_SYSTEM_PROMPT).toContain("holds no fixed characters");
     expect(REWORK_SYSTEM_PROMPT).not.toContain("principal characters");

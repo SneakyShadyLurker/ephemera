@@ -278,6 +278,17 @@ describe("default prompt preset scenarios", () => {
   });
 });
 
+describe("default prompt preset writing as the player", () => {
+  it("writes as {{user}} only when the player asks, alike in Main and the note", () => {
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      "You never act as {{user}} unless the player asks you to write as them: otherwise never write {{user}}'s words",
+    );
+    expect(DEFAULT_NOTE_PROMPT).toContain(
+      "Never write for {{user}} unless asked to write as them.",
+    );
+  });
+});
+
 describe("default prompt preset reading the player", () => {
   it("takes {{user}}'s quotes as speech and asterisked text as actions, in Main and the note", () => {
     expect(DEFAULT_MAIN_PROMPT).toContain(

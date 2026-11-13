@@ -8,8 +8,14 @@ export const CREATOR_LIMITS = {
   savedDescriptionLength: 12_000,
   /** Each person's personality as art context, including later mannerisms. */
   artPersonalityLength: 12_000,
-  /** The owner's direction for the next art: a short steer, not a second description. */
-  artDirectionLength: 500,
+  /**
+   * Each person's background, and a Scenario's Setting, as art context: whole
+   * on a card the creator writes, bounded so three subjects' looks still fit
+   * the art source.
+   */
+  artBackgroundLength: 6_000,
+  /** The owner's direction for the next art: a steer, not a second description. */
+  artDirectionLength: 2_000,
   /** The owner's direction for an image card: a steer that may name personality, history and voice. */
   imageCardDirectionLength: 2_000,
   /** Ideas in one brainstorm list; the prompt asks for exactly this many. */
