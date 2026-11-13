@@ -55,15 +55,15 @@ const IMAGE_CARD_PEOPLE_NOTES =
 
 /*
  * The owner's direction for an image card rides last, as the art direction
- * does: it outranks the notes and the choices the image leaves open, never
- * the image on looks or the system prompt's format.
+ * does: it outranks the notes, the image and the system prompt's rules,
+ * never the sections and blocks the app parses.
  */
 const IMAGE_CARD_SUBJECT_DIRECTION =
-  "The owner's direction for this character follows. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the image leaves open, such as name, age, origin, history, personality, sexuality and way of speaking, and treat what it adds as part of the description. Only where it contradicts what the image plainly shows about how the person looks does the image win, because the image is the card's portrait. The card's format, fields and rules stay exactly as the instructions say.";
+  "The owner's direction for this character follows. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the image leaves open, such as name, age, origin, history, personality, sexuality and way of speaking, and treat what it adds as part of the description. It outranks the image too: where it changes how the person looks, follow it, since the portrait can be painted again, and it outranks the instructions' rules wherever it asks for something they leave out or limit. Only the card's sections, their tags and order, the description's blocks and the first message's Location line stay exactly as the instructions say, since the app reads them.";
 
 /** The direction text for a Multiple Subjects card and a Scenario. */
 const IMAGE_CARD_PEOPLE_DIRECTION =
-  "The owner's direction for this card follows. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the image leaves open, such as names, ages, origins, histories, personalities, sexuality, ways of speaking, the premise and the world, and treat what it adds as part of the description. Only where it contradicts what the image plainly shows about how someone looks does the image win, because the image is the card's portrait. The card's format, fields and rules stay exactly as the instructions say.";
+  "The owner's direction for this card follows. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the image leaves open, such as names, ages, origins, histories, personalities, sexuality, ways of speaking, the premise and the world, and treat what it adds as part of the description. It outranks the image too: where it changes how someone looks, follow it, since the portrait can be painted again, and it outranks the instructions' rules wherever it asks for something they leave out or limit. Only the card's sections, their tags and order, the description's blocks, the first message's Location line and the number of subjects stay exactly as the instructions say, since the app reads them.";
 
 const IMAGE_CARD_TEXTS: Record<CreatorKind, { request: string; notes: string; direction: string }> =
   {
@@ -105,12 +105,13 @@ export function imageCardPrompt(
 
 /*
  * The owner's direction for new art rides in the user message after the
- * notes, so the approved metaprompt stays as it is and keeps the last word on
- * the prompt's form: the direction outranks the notes and the choices the
- * metaprompt leaves open, never its framing, order, length or rules.
+ * notes, so the approved metaprompt stays one constant text: the direction
+ * outranks the notes, the portrait, the chosen look and the metaprompt's
+ * steps and rules, all but the exposure, the breast size word and how the
+ * prompt is written.
  */
 const ART_DIRECTION_NOTE =
-  "The owner's direction for this image follows the notes. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the instructions leave to you, such as the place, time of day, light, clothing, a state such as drunk or exhausted, posture, expression or mood, and treat what it adds as part of the notes. A place or time of day it names replaces the Location's. Work it into the steps where it belongs, keeping everything each step requires. The framing, the order of the steps, the word limit, the rules and the plain-text answer stay exactly as the instructions say.";
+  "The owner's direction for this image follows the notes. It is your primary direction and outranks the notes, the attached portrait, the chosen look and every step and rule of the instructions: wherever it speaks, follow it, such as for the framing, the camera, how many people are shown and how they stand together, the pose, the place, time of day, light, clothing, a state such as drunk or exhausted, expression, mood, era, world, a kind that is not human, the capture or the style, and treat what it adds as part of the notes. A place or time of day it names replaces the Location's. Where it says nothing, keep everything each step requires. Only the exposure the instructions ask for, the breast size word, the word limit, the plain-text answer and the rules on how the prompt is worded (names, numbers, skin and form) stay exactly as the instructions say.";
 
 /*
  * With the card's stored portrait attached, the look comes from the image and

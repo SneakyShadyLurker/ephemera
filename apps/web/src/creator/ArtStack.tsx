@@ -283,8 +283,8 @@ function ArtDirection({
         {children}
       </div>
       <p id={hintId} className="sr-only">
-        A place, light, outfit or mood, followed before the card. Enter paints new art; Shift and
-        Enter start a new line.
+        A place, light, outfit, framing, style or mood, followed before the card and the art rules.
+        Enter paints new art; Shift and Enter start a new line.
       </p>
       {left <= CREATOR_LIMITS.artDirectionLength / 5 && (
         <p className="text-meta text-reed tabular-nums transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">

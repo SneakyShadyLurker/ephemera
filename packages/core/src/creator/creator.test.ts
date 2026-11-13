@@ -705,7 +705,7 @@ describe("creator requests and events", () => {
     }
   });
 
-  it("lets the owner's direction show a non-human's kind on a character cover", () => {
+  it("lets the owner's direction keep a non-human's kind, an invented world or an era on a character cover", () => {
     for (const model of ART_FAMILIES) {
       for (const prompt of [
         ART_METAPROMPTS[model].subject,
@@ -713,7 +713,7 @@ describe("creator requests and events", () => {
         SUBJECT_DIPTYCH_METAPROMPTS[model],
       ]) {
         expect(prompt).toContain(
-          "When the owner's direction asks to show their kind, name it and show its visible traits from the notes",
+          "The owner's direction may keep any of these as the notes give it: when it asks for their kind, name it and show its visible traits from the notes, and when it asks for their world or era, keep that world's or era's clothing and places.",
         );
       }
     }
@@ -735,7 +735,48 @@ describe("creator requests and events", () => {
       }
     }
     expect(artPrompt("<Location>\nx\n</Location>", "Drunk.")).toContain(
-      "such as the place, time of day, light, clothing, a state such as drunk or exhausted, posture, expression or mood",
+      "the pose, the place, time of day, light, clothing, a state such as drunk or exhausted, expression, mood",
+    );
+  });
+
+  it("lets the player's explicit asks outrank every card prompt's defaults, all but what the app parses", () => {
+    for (const kind of KINDS) {
+      const prompt = CARD_SYSTEM_PROMPTS[kind];
+      expect(prompt).toContain(
+        "The rules below are defaults. Where the description explicitly asks for something they leave out or limit, such as another language, an altered version of a canon character, named people in a scenario",
+      );
+      expect(prompt).toContain(
+        "Only the sections, their tags and order, the description's blocks, the first message's Location line and the number of subjects stay exactly as given",
+      );
+      expect(prompt).toContain("or the language the description asks for");
+    }
+    expect(CARD_SYSTEM_PROMPTS.subject).toContain(
+      "Franchise characters stay true to canon, by name, unless the description asks for an altered version, such as an alternate universe or a gender swap",
+    );
+    expect(CARD_SYSTEM_PROMPTS.scenario).toContain(
+      "any person the player explicitly asks the scenario to hold, each as one line in <Setting>",
+    );
+    // Image models read English, whatever language the card is in.
+    for (const model of ART_FAMILIES) {
+      for (const prompt of [
+        ...Object.values(ART_METAPROMPTS[model]),
+        ...Object.values(SCENE_METAPROMPTS[model]),
+      ]) {
+        expect(prompt).toContain("Write the prompt in English, whatever language the notes use.");
+      }
+    }
+  });
+
+  it("lets a Rework request keep what the consistency pass would change", () => {
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "Second, make the whole card consistent, complete and believable, as far as the request allows. The request outranks everything this part would do",
+    );
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "where it asks to change only what it names, to change nothing else, or to keep something as it is",
+    );
+    expect(REWORK_SYSTEM_PROMPT).not.toContain("whatever the request");
+    expect(REWORK_SYSTEM_PROMPT).toContain(
+      "franchise characters stay true to canon unless the card or the request makes them an altered version",
     );
   });
 
@@ -1104,7 +1145,7 @@ describe("art source", () => {
   const LOCATION = "Location: a placeholder harbour, dusk.";
   const OPENING = `${LOCATION}\nGulls cry over the water.`;
 
-  it("sends the opening's Location line, then each subject's appearance, background opening and fuller personality", () => {
+  it("sends the opening's Location line, then each subject's appearance, whole background and fuller personality", () => {
     const description = [
       subject("ada").replace(
         "Calm placeholder temperament.",
@@ -1116,7 +1157,8 @@ describe("art source", () => {
     expect(source).toContain("<ada>");
     expect(source).toContain("<bo>");
     expect(source).toContain("Is 30 and lives in Testtown.");
-    expect(source).not.toContain("Works at the mill.");
+    // A lasting state or detail anywhere in the background reaches the picture.
+    expect(source).toContain("Works at the mill.");
     expect(source).toContain("Tall, placeholder build, grey eyes.");
     expect(source).toContain(
       "<temperament>\nCalm placeholder temperament. Wants placeholder things in private. Tilts her head with a sly smile.\n</temperament>",
@@ -1141,7 +1183,7 @@ describe("art source", () => {
     expect(textLength(source)).toBeLessThanOrEqual(CREATOR_LIMITS.artSourceLength);
   });
 
-  it("sends a scenario's title, the opening's Location line, the premise and the openings of Setting and Tone", () => {
+  it("sends a scenario's title, the opening's Location line, the premise and Setting, People and Tone whole", () => {
     const description = scenarioDescription()
       .replace(
         "Quiet placeholder mood.",
@@ -1156,9 +1198,9 @@ describe("art source", () => {
         "<Title>\nValley of Mills\n</Title>",
         `<Location>\n${LOCATION}\n</Location>`,
         "<Premise>\nA placeholder premise in one line.\n</Premise>",
-        "<Setting>\nA placeholder valley town. It is autumn. Mills line the river.\n</Setting>",
+        "<Setting>\nA placeholder valley town. It is autumn. Mills line the river. The guilds set the law.\n</Setting>",
         "<People>\nMillers in flour-white aprons.\n</People>",
-        "<Tone>\nPlaceholder drama. The mood is quiet.\n</Tone>",
+        '<Tone>\nPlaceholder drama. The mood is quiet. Past tense, short replies. "A sample line."\n</Tone>',
       ].join("\n\n"),
     );
   });
@@ -1443,14 +1485,19 @@ describe("artPrompt", () => {
     expect(artPrompt(SOURCE, null)).toBe(SOURCE);
   });
 
-  it("puts the direction after the notes, first in rank and inside the metaprompt's form", () => {
+  it("puts the direction after the notes, above every step and rule but the exposure, sizes and wording", () => {
     const prompt = artPrompt(SOURCE, "Golden hour on a rooftop.");
     expect(prompt.startsWith(`${SOURCE}\n\n`)).toBe(true);
-    expect(prompt).toContain("It is your primary direction");
+    expect(prompt).toContain(
+      "It is your primary direction and outranks the notes, the attached portrait, the chosen look and every step and rule of the instructions",
+    );
+    expect(prompt).toContain("such as for the framing, the camera, how many people are shown");
+    expect(prompt).toContain("the capture or the style");
     expect(prompt).toContain("A place or time of day it names replaces the Location's.");
     expect(prompt).toContain(
-      "The framing, the order of the steps, the word limit, the rules and the plain-text answer stay exactly as the instructions say.",
+      "Only the exposure the instructions ask for, the breast size word, the word limit, the plain-text answer and the rules on how the prompt is worded (names, numbers, skin and form) stay exactly as the instructions say.",
     );
+    expect(prompt).not.toContain("The framing, the order of the steps");
     expect(prompt.endsWith("<direction>\nGolden hour on a rooftop.\n</direction>")).toBe(true);
   });
 
@@ -1517,18 +1564,21 @@ describe("image card", () => {
     );
   });
 
-  it("puts the owner's direction last, after the notes, ranked above them but not above the image's looks", () => {
+  it("puts the owner's direction last, after the notes, ranked above them, the image's looks and the rules", () => {
     const notes = "A placeholder baker, 30, in Testtown.";
-    const direction = "Make her a retired sea captain, gruff but kind.";
+    const direction = "Make her a retired sea captain with red hair, gruff but kind.";
     const prompt = imageCardPrompt("subject", notes, direction);
     expect(prompt.startsWith(`${imageCardPrompt("subject", notes, null)}\n\n`)).toBe(true);
     expect(prompt).toContain("It is your primary direction");
     expect(prompt).toContain("before the notes and before any choice the image leaves open");
     expect(prompt).toContain(
-      "Only where it contradicts what the image plainly shows about how the person looks does the image win",
+      "It outranks the image too: where it changes how the person looks, follow it",
     );
     expect(prompt).toContain(
-      "The card's format, fields and rules stay exactly as the instructions say.",
+      "Only the card's sections, their tags and order, the description's blocks and the first message's Location line stay exactly as the instructions say",
+    );
+    expect(imageCardPrompt("group", notes, direction)).toContain(
+      "the first message's Location line and the number of subjects stay exactly",
     );
     expect(prompt.endsWith(`<direction>\n${direction}\n</direction>`)).toBe(true);
   });

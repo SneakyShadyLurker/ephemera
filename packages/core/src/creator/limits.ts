@@ -9,7 +9,7 @@ export const CREATOR_LIMITS = {
   /** Each person's personality as art context, including later mannerisms. */
   artPersonalityLength: 12_000,
   /** The owner's direction for the next art: a short steer, not a second description. */
-  artDirectionLength: 500,
+  artDirectionLength: 2_000,
   /** The owner's direction for an image card: a steer that may name personality, history and voice. */
   imageCardDirectionLength: 2_000,
   /** Ideas in one brainstorm list; the prompt asks for exactly this many. */

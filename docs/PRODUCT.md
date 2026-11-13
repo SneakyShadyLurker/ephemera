@@ -168,8 +168,13 @@ Version 1.0 holds everything below.
     profiles, cast or role list, since the narrator invents every
     person, place and event as play needs them, and its pressures belong
     to factions and institutions. A franchise the owner names is used by
-    name, the canon figures the premise needs and any real person named
-    only as one line each in `<Setting>`.
+    name, the canon figures the premise needs, any real person named and
+    any person the owner explicitly asks for only as one line each in
+    `<Setting>`. Every card rule is a default: what the owner explicitly
+    asks for wins, such as another language, an altered canon character,
+    named people in a scenario, secrets or deadlines, more pressures or a
+    longer opening, all but the sections, blocks, Location line and number
+    of subjects the app reads.
   - A Subject card's text calls its person `{{char}}`, so the card's name
     fills it in; Multiple Subjects name each person, and a Scenario
     names no one.
@@ -234,10 +239,11 @@ Version 1.0 holds everything below.
   its reasoning effort (the card's until others are chosen, kept for the
   session; the Settings image prompt model, when set, in place of the
   card's model), so the art changes without writing the card again. A short
-  direction typed under the four portraits, such as a place, light or
-  outfit, steers the next image prompt: the model follows it before the
-  card's notes, while the prompt keeps its framing, order, length and
-  rules; Enter paints with it, and it stays until the card is dropped. A Subject's
+  direction typed under the four portraits, up to 2,000 characters, such
+  as a place, light, outfit, framing, style or era, steers the next image
+  prompt: the model follows it before the card's notes, the portrait, the
+  chosen look and the prompt's own rules, all but its exposure, breast
+  sizes, length and wording; Enter paints with it, and it stays until the card is dropped. A Subject's
   portrait defaults to one person in a single frame. Its Composition choice,
   before creation and under New art, also offers a Diptych of two tall panels:
   the same subject a few seconds apart, standing, facing the camera on the
@@ -258,8 +264,8 @@ Version 1.0 holds everything below.
   film for the 1950s to the 1990s, or an early digital snapshot for
   the 2000s. A cover shows someone who could be met in everyday life: an
   earlier era becomes the 1900s, an invented world the present day, and a
-  person who is not human a human unless the owner's art direction asks for
-  their kind; scene pictures and AI Rework
+  person who is not human a human, each unless the owner's art direction
+  asks to keep the era, the world or the kind; scene pictures and AI Rework
   still take that person's kind from the card, not the cover. Choosing one
   outright names the capture only; the card keeps its own era within those
   limits. Look survives Rewrite, Discard, back to Describe and a
@@ -363,7 +369,8 @@ Version 1.0 holds everything below.
   not say. A model with no known context window, or a card too large for
   it, is refused before the model is called, and the composer reopens
   saying why.
-- Whatever the request, the model also goes through the whole card: it
+- Unless the request limits it, such as "change only the age" or "keep
+  her vague", the model also goes through the whole card: it
   fixes inconsistencies, deepens flat or generic characters into
   believable people without adding secrets, goals or named people the
   card lacks, adds what the card's layout lacks and moves misplaced
@@ -620,7 +627,8 @@ Version 1.0 holds everything below.
   order, the newest that fit, for the whole chat. Until it remembers
   anything of its own, the model is told that the chat is a new scene set
   some time later, the notebook's situation being where the last scene
-  ended, not where this one begins, and that everyone keeps what they
+  ended, unless its opening or the player picks up from there, and that
+  everyone keeps what they
   remember and where they stand with each other, so an opening that
   reads as a first meeting of people who know each other is a reunion.
   Those that go in are not recalled as well; those left out for room may

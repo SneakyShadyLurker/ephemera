@@ -747,6 +747,13 @@ describe("the story block's framing", () => {
     );
   });
 
+  it("lets a fresh chat pick up where the last scene ended when its opening or the player does", () => {
+    expect(NEW_SCENE).toContain(
+      "unless its opening or the player picks up where the last scene ended: then it goes on from that moment",
+    );
+    expect(NEW_SCENE).not.toContain("is not where this one begins");
+  });
+
   it("frames neither once the chat has memories of its own", () => {
     const text = memoryStoryText(notebook, { recap: [episode(1)], continued: true });
     expect(text).not.toContain(NEW_SCENE);

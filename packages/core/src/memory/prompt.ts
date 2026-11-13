@@ -385,7 +385,7 @@ export const STORY_HEADING = "The story so far";
 
 /** What the story block says, under its heading, while the chat has no memory of its own. */
 export const NEW_SCENE =
-  "This chat is a new scene, set some time after what is remembered here. Where the last scene ended is not where this one begins. Everyone keeps what they remember and where they stand with each other: an opening that reads as a first meeting of people who already know each other is a reunion.";
+  "This chat is a new scene, set some time after what is remembered here, unless its opening or the player picks up where the last scene ended: then it goes on from that moment. Everyone keeps what they remember and where they stand with each other: an opening that reads as a first meeting of people who already know each other is a reunion.";
 
 /**
  * What the story block says instead, under its heading, while the chat has

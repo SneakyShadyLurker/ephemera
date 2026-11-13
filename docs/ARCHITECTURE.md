@@ -1297,13 +1297,13 @@ content's path: the tab's memory and one request in the server.
   characters; a name and an opening.
   Sections the format does not ask for, tags included, are ignored.
   `artSource` takes from a card only what the art needs (each subject's
-  appearance, the first sentence of its background, which the layout opens
-  with age, origin, home, work and the era when not the present day, and
+  appearance, its whole background, which the layout opens with age,
+  origin, home, work and the era when not the present day, and
   up to 12,000 characters of its personality for expression and posing;
   for a Scenario its title,
-  which the cover letters like a movie poster, its premise, the first
-  sentences of Setting and Tone, for era, place, genre and mood, and
-  People whole, for the looks of the people a cover or scene shows), and `toSheetFields` maps a card onto card fields with
+  which the cover letters like a movie poster, its premise, and Setting,
+  People and Tone whole, for era, place, genre, mood and the looks of the
+  people a cover or scene shows), and `toSheetFields` maps a card onto card fields with
   the kind's one tag (`CREATOR_TAGS`: Subject, Multiple Subjects or
   Scenario). For the brainstorm, `limits.ts` adds the ten ideas of a list
   (`brainstormOptions`) and the three earlier lists a round carries
@@ -1397,8 +1397,9 @@ content's path: the tab's memory and one request in the server.
   writes the image prompt at that effort; the
   user message is the art source, followed, with a direction, by core's
   `artPrompt` note and the direction in `<direction>` tags. The note ranks
-  the direction above the notes and the metaprompt's open choices and
-  below its framing, order, word limit and rules, so the approved
+  the direction above the notes, the portrait, the chosen look and the
+  metaprompt's steps and rules, all but its exposure, breast size word,
+  word limit, plain-text answer and wording rules, so the approved
   metaprompt is sent unchanged either way. A sheet's new art may add
   `reference: { characterId }`: the server looks the character up in the
   requester's own instance (none found: error `not_found`, nothing sent),
@@ -1881,8 +1882,9 @@ content's path: the tab's memory and one request in the server.
   the model gets its vision copy as rework does, beside core's
   `imageCardPrompt`: the kind's request, then the notes in `<notes>` tags under a
   note that the image wins on looks, then the direction in `<direction>`
-  tags under a note that ranks it above the notes and the image's open
-  choices, never above the image on looks or the system prompt's format.
+  tags under a note that ranks it above the notes, the image and the
+  system prompt's rules, never above the sections and blocks the app
+  parses or the number of subjects.
   The saved reply model writes with the kind's system prompt at its default
   effort, the creators' one `maxOutputTokens` and chat's lifetime. Before
   the call the run ends with `no_model`, `text_only_model`,

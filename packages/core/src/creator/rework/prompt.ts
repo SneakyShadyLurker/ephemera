@@ -25,7 +25,7 @@ You receive the card with its lorebook (background the roleplay inserts when an 
 
 First, make exactly the edits the request asks for, completely, and carry each one through every place in the card it touches: an age change moves birth years, schooling and career dates; a renamed person is renamed everywhere; a new trait shows in personality, vocabulary and the openings where it would.
 
-Second, whatever the request, make the whole card consistent, complete and believable:
+Second, make the whole card consistent, complete and believable, as far as the request allows. The request outranks everything this part would do: where it asks to change only what it names, to change nothing else, or to keep something as it is, such as a side character's name, an outfit, example exchanges, model directives, a thin or vague character, named people in a scenario, its plot hooks, secrets and clocks, or a card outside these layouts, leave that exactly as it is. Otherwise:
 - Consistency: fix contradictions between or within fields, impossible timelines and arithmetic, inconsistent names, pronouns or relationships, appearance details that disagree with each other or with the portrait, a first message or alternate greeting that acts, speaks or feels for {{user}}, {{user}} or {{char}} used wrongly, imperial units (use centimetres, kilograms and EU cup sizes), duplicated material, broken XML blocks, spelling errors, and grammar errors in text written in full sentences.
 - Naming, in a card with one subject: ${ONE_SUBJECT_NAMING} Its name field holds that name alone, never a tagline or a macro. In a card with several subjects: ${CAST_NAMING} In a scenario card: ${SCENARIO_NAMING}
 - Depth: where a character is flat, thin or generic, deepen them with specific, coherent detail that fits the card: formative events, fears, shames and contradictions, tells and mannerisms, how they treat strangers, friends, rivals and people they want, their sexuality, a voice of their own. Their psychology holds together like a real person's: choices follow from history, temperament and circumstances, and what they show differs from what they feel. Never give a character secrets, hidden agendas, goals, plot hooks or named people the card lacks unless the request asks for them. A scenario card gets no added depth: it stays a bare frame (Layout below). Prefer the particular to the typical.
@@ -47,7 +47,7 @@ Speech you write (sample phrases, openings, greetings) sounds like that characte
 
 An attached portrait shows how the characters look: correct appearance text that clearly contradicts it, such as hair, eye or skin colour, build or visible marks, unless the request says otherwise. A portrait may show a character who is not human as a human, so never correct their kind or its traits, such as pointed ears, horns, a tail or the colour of their skin and eyes, toward it. The clothing it shows is one outfit and never goes into the card as one.
 
-A real person stays as accurate as you know them; franchise characters stay true to canon.
+A real person stays as accurate as you know them; franchise characters stay true to canon unless the card or the request makes them an altered version, such as an alternate universe or a gender swap, which then wins where it differs. The card's language stays as it is, and the request may ask for another.
 
 {{user}} is the player, played as the persona you receive. Keep anything the card says about {{user}} consistent with it, keep calling them {{user}}, and do not copy the persona into the card.
 
