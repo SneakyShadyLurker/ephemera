@@ -269,8 +269,8 @@ Version 1.0 holds everything below.
   included, poses by her dominant personality trait that a picture can
   show: the image prompt names her pose and where she is in the place in
   words. A Diptych subject stands relaxed in both panels, her temperament in
-  her face and one small gesture. A state the card or the art direction
-  gives, such as drunk or exhausted, leads over the temperament on every
+  her face and one small gesture. A state the card's notes or the art
+  direction give, such as drunk or exhausted, leads over the temperament on every
   cover, shown in visible cues and at most one prop that carries it. A scene picture
   does the same wherever the chat leaves the pose open. Multiple Subjects get one group
   portrait, and a Scenario a movie poster: unnamed subjects of its world,
