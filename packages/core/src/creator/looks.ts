@@ -83,7 +83,7 @@ export const ART_LOOKS: readonly ArtLook[] = [
       diptych:
         "Both panels are her reflection in a large mirror, head to feet inside the glass, her phone raised in one hand at about head height. In the left panel she faces the mirror, her face clearly visible in the glass, her eyes on the phone's screen. In the right panel she has turned her back to the mirror and looks over her shoulder at the phone's screen, her face clearly visible in profile. She is the only person in both panels.",
       group:
-        "One woman holds her phone raised at about head height before a large mirror, and every woman stands full length in the glass, head to feet, side by side with space between them, every face clearly visible in the reflection. The reflection fills the frame and these women are the only people in it.",
+        "One subject holds her phone raised at about head height before a large mirror, and every subject stands full length in the glass, head to feet, side by side with space between them, every face clearly visible in the reflection. The reflection fills the frame and these subjects are the only people in it.",
       scene:
         "The capture the excerpt gives, her own phone held at arm's length or raised to a mirror.",
     },

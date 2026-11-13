@@ -943,7 +943,7 @@ describe("rework prompt", () => {
 
   it("never corrects a non-human's kind toward a portrait that shows them as human", () => {
     expect(REWORK_SYSTEM_PROMPT).toContain(
-      "A portrait shows a character who is not human as a human woman, so never correct their kind or its traits",
+      "A portrait may show a character who is not human as a human, so never correct their kind or its traits",
     );
   });
 

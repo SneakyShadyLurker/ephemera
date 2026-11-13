@@ -110,7 +110,7 @@ export function imageCardPrompt(
  * metaprompt leaves open, never its framing, order, length or rules.
  */
 const ART_DIRECTION_NOTE =
-  "The owner's direction for this image follows the notes. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the instructions leave to you, such as the place, time of day, light, clothing, posture, expression or mood, and treat what it adds as part of the notes. A place or time of day it names replaces the Location's. Work it into the steps where it belongs, keeping everything each step requires. The framing, the order of the steps, the word limit, the rules and the plain-text answer stay exactly as the instructions say.";
+  "The owner's direction for this image follows the notes. It is your primary direction: wherever it speaks, follow it before the notes and before any choice the instructions leave to you, such as the place, time of day, light, clothing, a state such as drunk or exhausted, posture, expression or mood, and treat what it adds as part of the notes. A place or time of day it names replaces the Location's. Work it into the steps where it belongs, keeping everything each step requires. The framing, the order of the steps, the word limit, the rules and the plain-text answer stay exactly as the instructions say.";
 
 /*
  * With the card's stored portrait attached, the look comes from the image and
