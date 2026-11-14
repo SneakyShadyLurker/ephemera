@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { blankCard } from "../card/index.ts";
 import { castRefusalSchema, castSheetSchema, castUpdateRequestSchema } from "./api.ts";
 import { castFingerprintInput } from "./fingerprint.ts";
+import { sheetInstructions } from "./prompt.ts";
 import { emptyCastAnchor } from "./register.ts";
 
 const request = {
@@ -53,7 +54,12 @@ describe("the cast sheet", () => {
   it("fingerprints the card's described fields and kind, not its greeting", () => {
     const card = { ...blankCard("Mara"), description: "Keeps the light.", tags: ["Scenario"] };
     const input = castFingerprintInput(card);
-    expect(JSON.parse(input)).toEqual(["Mara", "Keeps the light.", "scenario"]);
+    expect(JSON.parse(input)).toEqual([
+      "Mara",
+      "Keeps the light.",
+      "scenario",
+      sheetInstructions(),
+    ]);
     const greeted = { ...card, firstMessage: "Hello." };
     expect(castFingerprintInput(greeted)).toBe(input);
   });
@@ -63,8 +69,15 @@ describe("the cast sheet", () => {
     const untagged = castFingerprintInput(card);
     const subject = castFingerprintInput({ ...card, tags: ["Subject"] });
     expect(subject).not.toBe(untagged);
-    expect(JSON.parse(untagged).at(-1)).toBeNull();
+    expect(JSON.parse(untagged).at(2)).toBeNull();
     expect(castFingerprintInput({ ...card, tags: [] })).toBe(untagged);
+  });
+
+  it("fingerprints the sheet instructions, so a sheet read under other instructions is no longer current", () => {
+    const card = { ...blankCard("Mara"), description: "Keeps the light." };
+    const current = castFingerprintInput(card);
+    expect(castFingerprintInput(card, sheetInstructions())).toBe(current);
+    expect(castFingerprintInput(card, `${sheetInstructions()} Older wording.`)).not.toBe(current);
   });
 });
 

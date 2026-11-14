@@ -221,6 +221,64 @@ describe("anchors and state", () => {
   });
 });
 
+describe("who a change makes present", () => {
+  const away = () => entry(1, "Mara Battin", { state: emptyCastState(false) });
+  const here = () => entry(2, "Ana Pires");
+  const quote = "Mara Battin and Ana Pires";
+  const applied = (value: unknown) => {
+    const counter = ids();
+    return applyCastChanges(register(away(), here()), changes(value), {
+      player: null,
+      newId: counter.newId,
+      shown: [quote],
+    });
+  };
+
+  it.each([
+    ["discovered", { discovered: { hair: { value: "red hair", basis: "seen", evidence: quote } } }],
+    ["continuity", { continuity: { goals: { value: "wants rest", evidence: quote } } }],
+    ["developments", { developments: { hair: { value: "red hair", evidence: quote } } }],
+    ["anchor", { anchor: { hair: "red hair" } }],
+    ["introduce", { introduce: { evidence: quote } }],
+  ])("keeps presence for a change with only %s", (_, change) => {
+    const result = applied({ cast: { "Mara Battin": change, "Ana Pires": change } });
+    expect(result.entries.map((at) => at.state.present)).toEqual([false, true]);
+  });
+
+  it("starts a new entry without a state away", () => {
+    const result = applied({ cast: { "Jonas Reyes": { introduce: { evidence: quote } } } });
+    expect(result.entries[2]?.anchor.name).toBe("Jonas Reyes");
+    expect(result.entries[2]?.state.present).toBe(false);
+  });
+
+  it("makes an entry present when its change sets a state field", () => {
+    const result = applied({ cast: { "Mara Battin": { state: { activity: "x" } } } });
+    expect(result.entries[0]?.state).toMatchObject({ present: true, activity: "x" });
+  });
+
+  it("keeps an entry away when its change says so, state or not", () => {
+    const result = applied({
+      cast: { "Mara Battin": { state: { present: false, activity: "x" } } },
+    });
+    expect(result.entries[0]?.state).toMatchObject({ present: false, activity: "x" });
+  });
+
+  it("clears a state field sent as an empty text without making the entry present", () => {
+    const base = register(
+      entry(1, "Mara Battin", { state: { ...emptyCastState(false), intoxication: "tipsy" } }),
+      entry(2, "Ana Pires", { state: { ...emptyCastState(true), arousal: "flushed" } }),
+    );
+    const { result } = apply(base, {
+      cast: {
+        "Mara Battin": { state: { intoxication: "" } },
+        "Ana Pires": { state: { arousal: "" } },
+      },
+    });
+    expect(result.entries[0]?.state).toEqual(emptyCastState(false));
+    expect(result.entries[1]?.state).toEqual(emptyCastState(true));
+  });
+});
+
 describe("a reply read again", () => {
   const previous = register(
     entry(1, "Ilse Brandt"),

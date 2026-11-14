@@ -3,6 +3,7 @@ import { castKey, firstWordKey, isOneWord } from "./key.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
+  CAST_STATE_FIELDS,
   type CastChange,
   type CastChanges,
   type CastEntry,
@@ -204,10 +205,14 @@ function changed(
     state: {
       ...entry.state,
       ...definedState(change.state),
-      present: change.state?.present ?? true,
+      present: change.state?.present ?? (holdsState(change.state) || entry.state.present),
     },
   };
 }
+
+/** Whether a change's state sets at least one text field; `""` clears say nothing of presence. */
+const holdsState = (state: CastChange["state"]): boolean =>
+  CAST_STATE_FIELDS.some((key) => (state?.[key] ?? "") !== "");
 
 /** The given state fields, without the ones the change left out. */
 const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =>
@@ -218,8 +223,9 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * to an entry by name or `aka` or a single first-name match (a fuller name
  * renames a one-word entry), then `was`, then an identity the reply's earlier
  * the chat knew before (`previous`), else a new entry; the player's names dropped; a set anchor field never
- * rewritten; state written as given, everyone named present unless the
- * change says otherwise; `absent` names marked away; new entries past
+ * rewritten; state written as given; an entry present when its change says so or
+ * sets a state field, otherwise keeping its presence (a new one away);
+ * `absent` names marked away; new entries past
  * `CAST_LIMITS.entries` refused. An entry is introduced by the keeper's
  * grounded `introduce` or by a shown turn writing its name (`namedInTurns`).
  */
@@ -270,7 +276,7 @@ export function applyCastChanges(
           role: change.role ?? "minor",
           anchor: emptyCastAnchor(name, change.gender ?? "other"),
           aka: [],
-          state: emptyCastState(true),
+          state: emptyCastState(false),
         },
         change,
       ),

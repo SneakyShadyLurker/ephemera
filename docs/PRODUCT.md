@@ -715,7 +715,8 @@ Version 1.0 holds everything below.
   a state that follows the scene (present or away, outfit garment by
   garment, the clothes' state such as undone, pushed aside, wet or torn
   and where taken-off pieces lie, position, activity, mood, arousal,
-  injuries, intoxication). The fixed anchor is the
+  injuries, intoxication). A field holds up to 240 characters; the
+  intimate body, outfit and clothes' state hold up to 480. The fixed anchor is the
   card or initial baseline. Evidence-backed developments can change current
   durable facts, and short voice, goals and knowledge cues carry continuity.
   Owner corrections take precedence over developments and the baseline.
@@ -741,7 +742,8 @@ Version 1.0 holds everything below.
   Scenario NPC receives one complete hidden canonical profile, while only facts
   grounded in what the player sees, is told or observes in conduct become public
   discoveries. A minor NPC can become principal as the story establishes their
-  importance. A person who left the scene stays in the register as away. Each reply variant keeps its own
+  importance. Someone the keeper gives a state counts as present, so a
+  person the story only speaks of stays away. A person who left the scene stays in the register as away. Each reply variant keeps its own
   snapshot: a swipe shows the cast as it stood after that variant, and
   editing or deleting history invalidates dependent snapshots, so catch-up
   starts from the last valid one. Deletion's Undo restores the snapshots.
@@ -770,7 +772,8 @@ Version 1.0 holds everything below.
   since its people are invented in play, unless an older card still
   describes some in full),
   read from the card alone by the cast model when a chat with it first
-  starts, and read again at the next chat once the card changes. A reading
+  starts, and read again at the next chat once the card or the
+  instructions for reading it change. A reading
   with fewer people than the card's kind promises is asked for once more. Every chat with the character
   starts with them in the cast. The sheet is character data, kept per
   user and encrypted, never part of an export, and deleted with its

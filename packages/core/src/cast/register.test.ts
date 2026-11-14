@@ -1,5 +1,6 @@
 import * as core from "@ephemera/core";
 import { describe, expect, it } from "vitest";
+import { repairObject } from "../memory/answer.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
   castAnchorSchema,
@@ -34,7 +35,7 @@ describe("clamping an owner's correction", () => {
     expect(castAnchorSchema.safeParse(anchor).success).toBe(true);
     expect(anchor.hair.length).toBeLessThanOrEqual(CAST_LIMITS.field);
     expect(anchor.name).toHaveLength(CAST_LIMITS.name);
-    expect(clamped?.state?.outfit?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    expect(clamped?.state?.outfit?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
     expect(clamped?.state?.present).toBe(false);
     expect(castStateSchema.partial().safeParse(clamped?.state).success).toBe(true);
   });
@@ -128,7 +129,7 @@ describe("clamping the keeper's answer", () => {
     expect(castChangesSchema.safeParse(answer).success).toBe(false);
     const parsed = castChangesSchema.parse(clampCastChanges(answer));
     const state = parsed.cast["Mara Battin"]?.state;
-    expect(state?.outfit?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    expect(state?.outfit?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
     expect(state?.mood).toBe("calm");
     expect(parsed).not.toHaveProperty("note");
   });
@@ -174,6 +175,73 @@ describe("clamping the keeper's answer", () => {
         discovered: parsed.cast.Mara?.discovered,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("an answer a model wrote loosely", () => {
+  it("reads one a closing brace short, its absent list inside cast", () => {
+    // What a model one brace short writes: `cast` never closes before `absent`.
+    const text =
+      '{"cast":{"Ilse Brandt":{"state":{"activity":"tending the bar"}},"absent":["Ana Pires"]}';
+    expect(repairObject(text, castChangesSchema, clampCastChanges)).toEqual({
+      cast: { "Ilse Brandt": { state: { activity: "tending the bar" } } },
+      absent: ["Ana Pires"],
+    });
+  });
+
+  it("refuses one cut off inside its absent list or a later NPC", () => {
+    expect(
+      repairObject('{"cast":{},"absent":["Ana', castChangesSchema, clampCastChanges),
+    ).toBeUndefined();
+    expect(
+      repairObject(
+        '{"cast":{"Mara Battin":{"state":{"mood":"calm"}},"Jonas Reyes":{"state":{"present":fal',
+        castChangesSchema,
+        clampCastChanges,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("moves an absent list out of cast only when the answer has none of its own", () => {
+    expect(clampCastChanges({ cast: { absent: ["Ana Pires"] } })).toEqual({
+      cast: {},
+      absent: ["Ana Pires"],
+    });
+    // An NPC's change is an object, so one keyed "absent" stays an entry.
+    expect(clampCastChanges({ cast: { absent: { state: { mood: "calm" } } }, absent: [] })).toEqual(
+      { cast: { absent: { state: { mood: "calm" } } }, absent: [] },
+    );
+  });
+
+  it("drops a change that is no object and keeps the others", () => {
+    const clamped = clampCastChanges({
+      cast: { "Ilse Brandt": { state: { mood: "calm" } }, "Ilse Brandt.note": "seen", Ana: null },
+      absent: [],
+    });
+    expect(castChangesSchema.parse(clamped)).toEqual({
+      cast: { "Ilse Brandt": { state: { mood: "calm" } } },
+      absent: [],
+    });
+  });
+
+  it("joins a field written as a list of strings", () => {
+    const clamped = clampCastChanges({
+      cast: {
+        "Ilse Brandt": {
+          anchor: { personality: ["dry", "watchful"] },
+          state: { mood: ["guarded", 3] },
+        },
+      },
+    });
+    expect(clamped).toEqual({
+      cast: {
+        "Ilse Brandt": {
+          anchor: { personality: "dry, watchful" },
+          state: { mood: ["guarded", 3] },
+        },
+      },
+    });
+    expect(castChangesSchema.safeParse(clamped).success).toBe(false);
   });
 });
 
@@ -246,5 +314,89 @@ describe("a gender as a model writes it", () => {
     expect(changeGender("Other")?.gender).toBe("other");
     expect(changeGender("unclear")).toEqual({ state: { mood: "calm" } });
     expect(changeGender(null)).toEqual({ state: { mood: "calm" } });
+  });
+});
+
+describe("field bounds", () => {
+  const atLong = "x".repeat(CAST_LIMITS.longField);
+  const overLong = "x".repeat(CAST_LIMITS.longField + 1);
+  const overShort = "x".repeat(CAST_LIMITS.field + 1);
+
+  it("gives intimate, outfit and disarray the long bound and every other field the short one", () => {
+    expect(CAST_LIMITS.longField).toBe(480);
+    expect(CAST_LIMITS.field).toBe(240);
+    const anchor = emptyCastAnchor("Mara", "female");
+    expect(castAnchorSchema.safeParse({ ...anchor, intimate: atLong }).success).toBe(true);
+    expect(castAnchorSchema.safeParse({ ...anchor, intimate: overLong }).success).toBe(false);
+    expect(castAnchorSchema.safeParse({ ...anchor, hair: overShort }).success).toBe(false);
+    const state = castStateSchema.partial();
+    expect(state.safeParse({ outfit: atLong, disarray: atLong }).success).toBe(true);
+    expect(state.safeParse({ outfit: overLong }).success).toBe(false);
+    expect(state.safeParse({ disarray: overLong }).success).toBe(false);
+    expect(state.safeParse({ mood: overShort }).success).toBe(false);
+  });
+
+  it("keeps a keeper answer's long fields whole up to their bound and cuts past it", () => {
+    const answer = (long: string) =>
+      castChangesSchema.parse(
+        clampCastChanges({
+          cast: {
+            Mara: {
+              anchor: { intimate: long, hair: overShort },
+              state: { outfit: long, disarray: long },
+              developments: { intimate: { value: long, evidence: long } },
+              discovered: { intimate: { value: long, basis: "seen", evidence: long } },
+            },
+          },
+        }),
+      ).cast.Mara;
+    const kept = answer(atLong);
+    expect(kept?.anchor?.intimate).toBe(atLong);
+    expect(kept?.state?.outfit).toBe(atLong);
+    expect(kept?.state?.disarray).toBe(atLong);
+    expect(kept?.developments?.intimate?.value).toBe(atLong);
+    expect(kept?.discovered?.intimate?.value).toBe(atLong);
+    expect(kept?.developments?.intimate?.evidence.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    expect(kept?.discovered?.intimate?.evidence.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    expect(kept?.anchor?.hair?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    const cut = answer(overLong);
+    for (const value of [
+      cut?.anchor?.intimate,
+      cut?.state?.outfit,
+      cut?.state?.disarray,
+      cut?.developments?.intimate?.value,
+      cut?.discovered?.intimate?.value,
+    ]) {
+      expect(value?.length).toBeGreaterThan(CAST_LIMITS.field);
+      expect(value?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
+    }
+  });
+
+  it("keeps a sheet answer's intimate whole up to its bound and cuts past it", () => {
+    const sheet = (intimate: string) =>
+      castSheetAnswerSchema.parse(
+        clampCastSheetAnswer({
+          cast: [{ name: "Mara", gender: "female", anchor: { intimate, hair: overShort } }],
+        }),
+      ).cast[0]?.anchor;
+    expect(sheet(atLong)?.intimate).toBe(atLong);
+    expect(sheet(overLong)?.intimate?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
+    expect(sheet(atLong)?.hair?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+  });
+
+  it("keeps an owner's long corrections whole up to their bound and cuts past it", () => {
+    const corrected = (long: string) =>
+      clampCastCorrection({
+        anchor: { intimate: long, hair: overShort },
+        state: { outfit: long, disarray: long },
+      });
+    const kept = corrected(atLong);
+    expect(kept?.anchor?.intimate).toBe(atLong);
+    expect(kept?.state).toEqual({ outfit: atLong, disarray: atLong });
+    expect(kept?.anchor?.hair?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    const cut = corrected(overLong);
+    expect(cut?.anchor?.intimate?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
+    expect(cut?.state?.outfit?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
+    expect(cut?.state?.disarray?.length).toBeLessThanOrEqual(CAST_LIMITS.longField);
   });
 });

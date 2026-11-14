@@ -1639,7 +1639,10 @@ describe("cast corrections", () => {
     const chat = castChat();
     await chat.say("Hi");
     await chat.answer({
-      cast: { "Ilse Brandt": { gender: "female" }, Mara: { gender: "female" } },
+      cast: {
+        "Ilse Brandt": { gender: "female", state: { position: "by the door" } },
+        Mara: { gender: "female" },
+      },
       absent: [],
     });
     chat.state().removeCast(uuid(100));

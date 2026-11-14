@@ -7,6 +7,7 @@ import {
   type CastRegister,
   type CharacterCard,
   castChangesSchema,
+  castFieldLimit,
   castFingerprintInput,
   castSheetResponseSchema,
   castUpdateResponseSchema,
@@ -344,10 +345,10 @@ describe("cast keeper", () => {
     );
     const { changes } = castUpdateResponseSchema.parse(await response.json());
     expect(changes.cast["Ilse Brandt"]?.introduce).toEqual({ evidence: text });
-    const values = Object.values(changes.cast["Ilse Brandt"]?.anchor ?? {});
+    const values = Object.entries(changes.cast["Ilse Brandt"]?.anchor ?? {});
     expect(values.length).toBeGreaterThan(0);
-    for (const value of values) {
-      expect(value?.length).toBeLessThanOrEqual(CAST_LIMITS.field);
+    for (const [key, value] of values) {
+      expect(value?.length).toBeLessThanOrEqual(castFieldLimit(key));
       expect(value).not.toBe("");
     }
     expect(changes.cast["Ilse Brandt"]).not.toHaveProperty("extra");

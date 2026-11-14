@@ -51,6 +51,44 @@ function closingBrace(text: string, start: number, budget: { left: number }): nu
   return -1;
 }
 
+/** The most closers `closedAtEnd` appends: an answer a brace or two short, never one cut off mid-way. */
+const MISSING_CLOSERS = 2;
+
+/**
+ * The block starting at `start` with the one or two closers it lacks
+ * appended, read as JSON would: the repair of an answer that is whole but
+ * for its last closing braces. Undefined when the block closes, closes out
+ * of order, lacks more than `MISSING_CLOSERS`, or anything but white space
+ * and a code fence follows its last closer (an unfinished string, key or
+ * value: an answer cut off, which loses what it had not written yet).
+ */
+function closedAtEnd(text: string, start: number): string | undefined {
+  const open: string[] = [];
+  let quoted = false;
+  let escaped = false;
+  let end = -1;
+  for (let at = start; at < text.length; at += 1) {
+    const char = text[at];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+      continue;
+    }
+    if (char === '"') quoted = true;
+    else if (char === "{") open.push("}");
+    else if (char === "[") open.push("]");
+    else if (char === "}" || char === "]") {
+      if (open.pop() !== char || open.length === 0) return undefined;
+      end = at + 1;
+    }
+  }
+  // Nothing opened after the last closer, so `open` is what stood open there.
+  if (end === -1 || open.length > MISSING_CLOSERS || !/^[\s`]*$/.test(text.slice(end)))
+    return undefined;
+  return text.slice(start, end) + open.reverse().join("");
+}
+
 /**
  * The last balanced `{ … }` block of a model's answer that reads as JSON
  * and, brought within its bounds by `clamp` (core's `clampMemoryAnswer` and
@@ -60,7 +98,9 @@ function closingBrace(text: string, start: number, budget: { left: number }): nu
  * those inside a block that already read as JSON, so a stray brace in the
  * prose costs one pass. The scan stops once it has read
  * `REPAIR_SCAN_PER_CHARACTER` times the answer's length, keeping what it
- * found. Undefined when no block validates.
+ * found. When no block validates and the answer's first object ends
+ * a closing brace or two short, that object is read once more with them
+ * appended (`closedAtEnd`), in one more pass over the text. Undefined when nothing validates.
  */
 export function repairObject<T>(
   text: string | undefined,
@@ -91,7 +131,16 @@ export function repairObject<T>(
     }
     start = text.indexOf("{", next);
   }
-  return found;
+  if (found !== undefined) return found;
+  const first = text.indexOf("{");
+  const closed = first === -1 ? undefined : closedAtEnd(text, first);
+  if (closed === undefined) return undefined;
+  try {
+    const parsed = schema.safeParse(clamp(JSON.parse(closed)));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
