@@ -49,6 +49,20 @@ afterEach(() => {
 });
 
 describe("sheet autosave", () => {
+  it("reports saving once while successive touches and commits keep editing", async () => {
+    const { owner, options, report, save } = setup();
+    for (let index = 0; index < 100; index++) {
+      owner.touch("name");
+      owner.update({ ...options, fields: { ...options.fields, name: `Edit ${index}` } });
+    }
+    expect(report.mock.calls).toEqual([[{ kind: "saving" }]]);
+    expect(await owner.flush()).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(report.mock.calls).toEqual([[{ kind: "saving" }], [{ kind: "saved" }]]);
+    owner.touch("name");
+    expect(report).toHaveBeenLastCalledWith({ kind: "saving" });
+  });
+
   it("after a lost answer, sends that save again alone before newer edits, so no false conflict", async () => {
     const { owner, options, save, report } = setup();
     let server: Saved = { ...options.fields, revision: LOADED };
