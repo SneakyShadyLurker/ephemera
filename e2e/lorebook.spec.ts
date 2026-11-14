@@ -12,6 +12,7 @@ import {
 } from "./support/entities.ts";
 import { canary } from "./support/env.ts";
 import { expect, test } from "./support/test.ts";
+import { codeArrived } from "./support/waits.ts";
 
 const card = async (page: Page, id: string) =>
   (await (await page.request.get(`/api/characters/${id}`)).json()) as {
@@ -616,7 +617,7 @@ test.describe("review fixes", () => {
     const shell = await (await page.request.get("/")).text();
     await page.goto("/");
     await expect(page.getByLabel("Message", { exact: true })).toBeVisible();
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     const engine = scripts.filter(({ text }) => text.includes("numberOfInstructions"));
     // It arrives with the preload after the first paint, in a chunk the page's entry never names.
     expect(engine.length).toBeGreaterThan(0);

@@ -40,6 +40,7 @@ import { createReworkCharacter, dock, openRework, submitRework } from "./support
 import { ownerRequest } from "./support/rework-fixtures.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { expect, test, unsafe } from "./support/test.ts";
+import { codeArrived, letPass } from "./support/waits.ts";
 
 /** Public turn identities and visibility, including the greeting while fixtures arrive. */
 const deletionMessages = (page: Page) =>
@@ -1650,7 +1651,7 @@ for (const aged of [false, true]) {
     if (aged) {
       release();
       await expect(castEntry(page, SHEET_WOMAN)).toHaveAttribute("data-present", "true");
-      await page.waitForTimeout(350);
+      await letPass(page, 350);
       hair = await openHair();
     } else {
       await page
@@ -2917,7 +2918,7 @@ for (const viewport of [
         }),
     );
     await nav.getByRole("link", { name: "Characters", exact: true }).click();
-    await page.waitForTimeout(1000);
+    await letPass(page, 1000);
     await expect(previous).toHaveText(/^Presets/);
     const first = await arrival;
     expect(first).toMatchObject({ heading: true, card: true });
@@ -2963,7 +2964,7 @@ test("a removed greeting retains its row while leaving, and the last leaves no l
 test("the palette editor leaves inert and folded, with its last contents", async ({ page }) => {
   await page.goto("/settings?section=appearance");
   // The editor's sample scene needs the preloaded Markdown renderer (app/preload.ts).
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "New palette" }).click();
   await page.getByRole("menuitem", { name: "Nord" }).click();

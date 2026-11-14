@@ -2360,8 +2360,10 @@ Playwright update left its build missing. Every test fails on a Content
 Security Policy violation and on an error its page did not catch
 (`e2e/support/test.ts`); a server a spec starts for itself comes from the
 `ownServer` fixture, which stops it when the test ends, by a timeout
-included. Lint refuses a fixed sleep and a wait for network idle in a
-spec: a test waits for the state it asserts. A coding agent gets
+included. A test waits for the state it asserts: lint refuses a fixed
+sleep and a wait for network idle in a spec, outside the two helpers of
+`e2e/support/waits.ts` (the page's code has arrived; a window to watch for
+what must not happen). A coding agent gets
 Playwright's failures-only report, a person the list.
 
 `e2e/motion.spec.ts` samples real geometry, focus and inertness through

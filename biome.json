@@ -45,6 +45,28 @@
   },
   "overrides": [
     {
+      "includes": ["e2e/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noPlaywrightWaitForTimeout": "error",
+            "noPlaywrightNetworkidle": "error",
+            "noPlaywrightWaitForNavigation": "error",
+            "noPlaywrightPagePause": "error",
+            "noPlaywrightForceOption": "error"
+          },
+          "style": {
+            "noPlaywrightElementHandle": "error",
+            "noPlaywrightWaitForSelector": "error",
+            "noPlaywrightEval": "error"
+          },
+          "complexity": {
+            "noPlaywrightUselessAwait": "error"
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/server/src/log.ts", "scripts/**", "e2e/support/**"],
       "linter": {
         "rules": {

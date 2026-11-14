@@ -51,6 +51,7 @@ import {
 import { dataDirContaining, filesContaining } from "./support/scan.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { appOrigin, expect, test, unsafe } from "./support/test.ts";
+import { letPass } from "./support/waits.ts";
 
 /*
  * Retention matrix, browser hops (docs/ARCHITECTURE.md § Retention
@@ -649,7 +650,7 @@ matrixRow("clear", async ({ page }) => {
   await expect(turns(page)).toHaveCount(0);
   await expectUpstreamAborted(line);
   // A late chunk of the aborted stream must not bring the reply back.
-  await page.waitForTimeout(500);
+  await letPass(page, 500);
   await expect(turns(page)).toHaveCount(0);
 
   // The variables a message sets are the chat's: Clear takes local and global ones alike.

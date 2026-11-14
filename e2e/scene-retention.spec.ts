@@ -14,6 +14,7 @@ import {
   scenePicture,
 } from "./support/scene.ts";
 import { expect } from "./support/test.ts";
+import { letPass } from "./support/waits.ts";
 
 /*
  * Retention matrix, Picture this scene (docs/ARCHITECTURE.md § Retention
@@ -129,7 +130,7 @@ matrixRow(
     await scope.expectClean();
     expect((await scope.state()).interrupted).toBe(1);
     // A late event of the aborted stream must not bring the item back.
-    await page.waitForTimeout(500);
+    await letPass(page, 500);
     await expect(sceneItems(page)).toHaveCount(0);
   },
   SCENE,

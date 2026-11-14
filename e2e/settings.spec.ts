@@ -35,6 +35,7 @@ import {
 import { boundHeaders, CANARY_MARKER, canary, UPSTREAM_PORT } from "./support/env.ts";
 import { openSettings, settingsTab } from "./support/settings.ts";
 import { expect, test, unsafe } from "./support/test.ts";
+import { codeArrived } from "./support/waits.ts";
 
 const canvas = (page: import("@playwright/test").Page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
@@ -363,7 +364,7 @@ test.describe("palette phone actions in the flow", () => {
         await page.setViewportSize({ width, height: 844 });
         await page.emulateMedia({ colorScheme: scheme });
         await page.goto("/settings?section=appearance");
-        await page.waitForLoadState("networkidle");
+        await codeArrived(page);
         await page.getByRole("button", { name: /^Your palettes/ }).click();
         await page.getByRole("button", { name: "New palette" }).click();
         await page.getByRole("menuitem", { name: /^Tokyo Night\b/ }).click();
@@ -496,7 +497,7 @@ for (const width of [390, 834]) {
   }) => {
     await page.setViewportSize({ width, height: 1112 });
     await page.goto("/settings?section=appearance");
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     await page.getByRole("button", { name: /^Your palettes/ }).click();
     await page.getByRole("button", { name: "New palette" }).click();
     await page.getByRole("menuitem", { name: /^Tokyo Night\b/ }).click();
@@ -792,7 +793,7 @@ test("a custom palette starts from a built-in, warns, saves, paints before scrip
   // The preload has the Markdown renderer in hand, so the editor's sample
   // scene opens without a Suspense reveal, a view transition that would
   // swallow the input typed meanwhile (app/preload.ts).
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "New palette" }).click();
   await page.getByRole("menuitem", { name: "Nord" }).click();
@@ -873,7 +874,7 @@ test("a colour set by hand stays when its key colour changes, and Cancel puts th
   // The preload has the Markdown renderer in hand, so the editor's sample
   // scene opens without a Suspense reveal, a view transition that would
   // swallow the input typed meanwhile (app/preload.ts).
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "New palette" }).click();
   await page.getByRole("menuitem", { name: "Lamplight" }).click();
@@ -909,7 +910,7 @@ test("in a shallow window the New palette menu fits it and reaches its first and
 }) => {
   await page.setViewportSize({ width: 900, height: 250 });
   await page.goto("/settings");
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   const trigger = page.getByRole("button", { name: "New palette" });
   const editor = page.getByRole("region", { name: "New palette" });
@@ -960,7 +961,7 @@ test("the palette editor's scrolls to its heading and to a named colour move at 
   const scrolls = await recordScrolls(page);
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto("/settings");
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "New palette" }).click();
   await page.getByRole("menuitem", { name: "Lamplight" }).click();
@@ -1016,7 +1017,7 @@ test("a palette edit whose answer was lost is saved by the next Save, not report
     return route.fallback();
   });
   await page.goto("/settings");
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "Edit Ash" }).click();
   const editor = page.getByRole("region", { name: /^Edit / });
@@ -1926,7 +1927,7 @@ test("a phone opens a category from the list, and its back control returns to th
 
 test("an unsaved palette stays open while another category is looked at", async ({ page }) => {
   await openSettings(page);
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "New palette" }).click();
   await page.getByRole("menuitem", { name: "Nord" }).click();

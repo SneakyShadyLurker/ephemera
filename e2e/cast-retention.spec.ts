@@ -17,6 +17,7 @@ import { exchange, storedMemory } from "./support/memory.ts";
 import { matrixRow, type Row, serverHopsHolding } from "./support/retention.ts";
 import { expect, unsafe } from "./support/test.ts";
 import type { MockModel, UpstreamRecordView } from "./support/upstream.ts";
+import { letPass } from "./support/waits.ts";
 
 /*
  * Retention matrix, the cast register's rows (docs/ARCHITECTURE.md §
@@ -141,7 +142,7 @@ matrixRow("castclear", async (row) => {
     .toEqual([true]);
   expect((await upstreamRecords(line, "cast"))[0]?.answer).toBeNull();
   // No late answer brings the cast back.
-  await page.waitForTimeout(500);
+  await letPass(page, 500);
   await expect(anyPanel(page)).toHaveCount(0);
 });
 

@@ -18,6 +18,7 @@ import {
 import { APP_ORIGIN, CANARY_MARKER, canary } from "./support/env.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { expect, test } from "./support/test.ts";
+import { codeArrived } from "./support/waits.ts";
 
 /*
  * Authelia expiry (PRINCIPLES.md 2), with the redirect SWAG sends and a mock
@@ -35,7 +36,7 @@ test.describe("sign-in expiry", () => {
     await patchSettings(request, { model: "mock-fast", characterId: null });
     await page.goto("/characters");
     // Let the gallery's mounted refresh and code preloads finish before expiring the session.
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     const composerFocus = await page.evaluateHandle(() => {
       const calls: { preventScroll: boolean }[] = [];
       const focus = HTMLElement.prototype.focus;
@@ -168,7 +169,7 @@ test.describe("sign-in expiry", () => {
     await send(page, canary("in"));
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     // The page's code has all arrived (app/preload.ts) before the session goes.
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     await page.evaluate(() => Object.assign(window, { kept: true }));
     let dialogs = 0;
     page.on("dialog", (dialog) => {
@@ -376,7 +377,7 @@ test.describe("sign-in expiry", () => {
     });
     await openChat(page, "mock-fast");
     // The renderer itself is in the module map before the reply arrives (app/preload.ts).
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     await send(page, "See:\n\n```js\nconst tide = 1;\n```");
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expect.poll(() => aborted).toBeGreaterThan(0);
@@ -488,7 +489,7 @@ test.describe("sign-in expiry", () => {
     await page.goto(`/characters/${id}`);
     await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     // The page's code has all arrived (app/preload.ts) before the session goes.
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     await expire(context);
     const description = "Written while signed out.";
     await page.getByRole("textbox", { name: "Description" }).fill(description);
@@ -510,7 +511,7 @@ test.describe("sign-in expiry", () => {
     await page.goto(`/characters/${id}`);
     await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
     // The page's code has all arrived (app/preload.ts) before the session goes.
-    await page.waitForLoadState("networkidle");
+    await codeArrived(page);
     await expire(context);
     let downloads = 0;
     page.on("download", () => downloads++);

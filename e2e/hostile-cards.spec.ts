@@ -14,6 +14,7 @@ import { beacons, chooseCharacter, chooseModel, lastReply, send } from "./suppor
 import { loreEntry } from "./support/entities.ts";
 import { canary, UPSTREAM_PORT } from "./support/env.ts";
 import { expect, test } from "./support/test.ts";
+import { letPass } from "./support/waits.ts";
 
 const BEACON = `http://127.0.0.1:${UPSTREAM_PORT}/__beacon`;
 
@@ -113,7 +114,7 @@ test("a hostile card stays inert text everywhere and fetches nothing", async ({ 
   expect(dom.scripts).toBe(0);
   expect(dom.styles).toBe(0);
   expect(dom.images.every((src) => src.startsWith("/api/characters/"))).toBe(true);
-  await page.waitForTimeout(300);
+  await letPass(page, 300);
   expect(await beacons()).toEqual(before);
 });
 
@@ -254,7 +255,7 @@ test("a hostile lorebook stays inert in the sheet, the lorebook screen and the i
   expect(dom.title).toBe("Ephemera");
   expect(dom.scripts).toBe(0);
   expect(dom.images.every((src) => src.startsWith("/api/characters/"))).toBe(true);
-  await page.waitForTimeout(300);
+  await letPass(page, 300);
   expect(await beacons()).toEqual(before);
 });
 
