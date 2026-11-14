@@ -543,7 +543,7 @@ describe("durable startup upgrade", () => {
         write.mockClear();
         expect(await verifyInstances({ dataDir: dir, key, log, write })).toBe(1);
         expect(write).not.toHaveBeenCalled();
-        expect(await readFile(file)).toEqual(durable);
+        expect((await readFile(file)).equals(durable)).toBe(true);
 
         expect(() => stores.events.update(noOp, { enabled: true }, 1)).toThrow();
         expect(storedEventSchema.parse(stores.events.get(noOp))).toMatchObject({
@@ -664,7 +664,7 @@ describe("durable startup upgrade", () => {
       write.mockClear();
       expect(await verifyInstances({ dataDir: dir, key, log, write })).toBe(1);
       expect(write).not.toHaveBeenCalled();
-      expect(await readFile(file)).toEqual(durable);
+      expect((await readFile(file)).equals(durable)).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -703,7 +703,7 @@ describe("durable startup upgrade", () => {
         }),
       ).rejects.toThrow("Injected write failure");
       expect(paths).toHaveLength(2);
-      expect(await readFile(failedFile)).toEqual(unchanged);
+      expect(unchanged !== undefined && (await readFile(failedFile)).equals(unchanged)).toBe(true);
       const write = vi.fn(writeEncryptedFile);
       expect(await verifyInstances({ dataDir: dir, key, log, write })).toBe(2);
       expect(write).toHaveBeenCalledTimes(1);
@@ -1056,7 +1056,7 @@ describe("native data version 1 to 2", () => {
       write.mockClear();
       expect(await verifyInstances({ dataDir: dir, key, log, write })).toBe(1);
       expect(write).not.toHaveBeenCalled();
-      expect(await readFile(file)).toEqual(durable);
+      expect((await readFile(file)).equals(durable)).toBe(true);
     } finally {
       database.close();
       await rm(dir, { recursive: true, force: true });

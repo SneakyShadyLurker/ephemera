@@ -238,6 +238,16 @@ export function fakeComfyui(options: FakeComfyuiOptions = {}) {
   const clients = new Map<string, FakeSocket>();
   const stops = new Map<string, () => void>();
   let freeMemoryRequested = false;
+  /** Waits `dispose` may clear, such as a late submit still to come. */
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const disposable = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        resolve();
+      }, ms);
+      timers.add(timer);
+    });
   const now = options.now ?? Date.now;
   const reap = () => {
     for (const [id, terminal] of state.terminal) {
@@ -693,7 +703,7 @@ export function fakeComfyui(options: FakeComfyuiOptions = {}) {
       }
       if (options.submit === "unauthorized" || options.submit === "forbidden")
         return new Response(null, { status: options.submit === "unauthorized" ? 401 : 403 });
-      if (options.lateSubmit !== undefined) await tick(options.lateSubmit);
+      if (options.lateSubmit !== undefined) await disposable(options.lateSubmit);
       if (mode === "private" && !state.leases.has(prompt_id))
         return new Response(null, { status: 400 });
       // Plain older servers may ignore the chosen id. A private job still belongs to its lease,
@@ -830,5 +840,11 @@ export function fakeComfyui(options: FakeComfyuiOptions = {}) {
     state.inputs.size === 0 &&
     state.outputs.size === 0;
 
-  return { fetch, socket, state, clean, reap };
+  /** Clears pending waits, so a late submit never lands after its test; what waited on one stops there. */
+  const dispose = () => {
+    for (const timer of timers) clearTimeout(timer);
+    timers.clear();
+  };
+
+  return { fetch, socket, state, clean, reap, dispose };
 }

@@ -85,6 +85,7 @@ export function createApp(config: AppConfig, deps: AppDeps) {
       workflows: deps.workflows,
       allowlist: deps.allowlist ?? createAllowlist([]),
       ...(deps.comfyuiSocket ? { comfyuiSocket: deps.comfyuiSocket } : {}),
+      ...(deps.comfyuiTiming ? { comfyuiTiming: deps.comfyuiTiming } : {}),
       ...(deps.shutdown ? { shutdown: deps.shutdown } : {}),
     }),
   );

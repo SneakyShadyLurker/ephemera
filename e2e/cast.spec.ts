@@ -281,7 +281,7 @@ async function expectStackFit(page: Page, state: string, names = true) {
         height: rect.height,
       };
     };
-    const describe = (node: Element | null) =>
+    const identify = (node: Element | null) =>
       node === null
         ? null
         : {
@@ -318,7 +318,7 @@ async function expectStackFit(page: Page, state: string, names = true) {
           [-18, 0, 18].map((y) => {
             const at = { x: (left + right) / 2 + x, y: (top + bottom) / 2 + y };
             const above = document.elementFromPoint(at.x, at.y);
-            return { ...at, hit: action.contains(above), above: describe(above) };
+            return { ...at, hit: action.contains(above), above: identify(above) };
           }),
         );
         const ancestors = [];
@@ -333,7 +333,7 @@ async function expectStackFit(page: Page, state: string, names = true) {
               name: animation instanceof CSSAnimation ? animation.animationName : null,
             }));
           ancestors.push({
-            node: describe(node),
+            node: identify(node),
             inert: node.hasAttribute("inert"),
             pointerEvents: style.pointerEvents,
             visibility: style.visibility,

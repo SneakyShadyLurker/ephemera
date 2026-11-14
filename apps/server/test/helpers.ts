@@ -69,12 +69,18 @@ export function integrationHeaders(extra: Record<string, string> = {}): Record<s
   };
 }
 
+/** ComfyUI's cleanup and recovery waits, short enough for a test; the app's tests run on them. */
+export const QUICK_COMFYUI = {
+  timing: { pollMs: 20, retryMs: 10, followUpPollMs: 50 },
+  recoveryTiming: { statusPollMs: 20 },
+} satisfies NonNullable<AppDeps["comfyuiTiming"]>;
+
 /** The bundled workflows with no variable set, as a server without either starts. */
 export const BUNDLED_WORKFLOWS: ServerWorkflows = loadWorkflowRegistry({});
 
 /**
- * The app over an in-memory registry unless `deps` brings one, and the
- * bundled workflows unless it brings others; tests reach a user's stores
+ * The app over an in-memory registry unless `deps` brings one, the bundled
+ * workflows unless it brings others, and QUICK_COMFYUI's waits; tests reach a user's stores
  * through `instances.instance(TEST_USER).stores`.
  */
 export function testApp(deps: Partial<AppDeps> = {}, overrides: Partial<AppConfig> = {}) {
@@ -89,7 +95,10 @@ export function testApp(deps: Partial<AppDeps> = {}, overrides: Partial<AppConfi
       log,
       defaultWorkflow: workflows.defaultWorkflow,
     });
-  const app = createApp({ ...config, ...overrides }, { log, ...deps, workflows, instances });
+  const app = createApp(
+    { ...config, ...overrides },
+    { log, comfyuiTiming: QUICK_COMFYUI, ...deps, workflows, instances },
+  );
   return { app, lines, instances };
 }
 

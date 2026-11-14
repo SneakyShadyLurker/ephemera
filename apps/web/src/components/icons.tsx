@@ -28,6 +28,7 @@ const SIZE_CLASS: Record<IconSize, string> = {
 };
 
 function icon(name: string, paths: ReactNode) {
+  // biome-ignore lint/correctness/noComponentHookFactories: called once per icon at module load, so each Icon keeps one identity.
   function Icon({ size = 20, className, ...props }: IconProps) {
     return (
       <svg

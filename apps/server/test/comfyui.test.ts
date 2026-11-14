@@ -1,7 +1,7 @@
 import { deflateSync } from "node:zlib";
 import { CREATOR_ART } from "@ephemera/core";
 import { encode } from "fast-png";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, onTestFinished, vi } from "vitest";
 import { createAllowlist } from "../src/comfyui/allowlist.ts";
 import { createWorkflowCatalog, runWorkflow } from "../src/comfyui/catalog.ts";
 import {
@@ -27,8 +27,10 @@ import {
 } from "../src/persistence/index.ts";
 import { pngChunks } from "../src/png.ts";
 import { type FakeComfyuiOptions, fakeComfyui, fakePng, UPSTREAM_SECRET } from "./fake-comfyui.ts";
+import { QUICK_COMFYUI } from "./helpers.ts";
 import { pngChunk } from "./image-fixtures.ts";
 import { serverRun, storeUserWorkflow, TEST_WORKFLOWS, userGraph } from "./test-workflows.ts";
+import { until } from "./vitest-helpers.ts";
 
 /** A portrait whose IHDR byte at `offset` (8 bit depth, 9 colour type, 12 interlace) is `value`. */
 function withHeaderByte(offset: number, value: number): Uint8Array {
@@ -132,7 +134,7 @@ describe("phase-aware completion and private recovery", () => {
       allowedOrigins: [BASE],
       executionTimeoutMs: 600_000,
       timing: QUICK,
-      recoveryTiming,
+      recoveryTiming: { ...QUICK_RECOVERY, ...recoveryTiming },
     });
     return { fake, client, sockets: () => sockets };
   }
@@ -568,7 +570,7 @@ describe("phase-aware completion and private recovery", () => {
         { acknowledgementMs: 200 },
       );
       const running = collect(client, { signal: controller.signal });
-      while (fake.state.prompts.size === 0) await new Promise((resolve) => setTimeout(resolve, 1));
+      await until(() => fake.state.prompts.size > 0);
       controller.abort();
       expect(await failure(running)).toMatchObject({ reason: "aborted" });
       expect(
@@ -1024,8 +1026,11 @@ describe("phase-aware completion and private recovery", () => {
 });
 
 /** Cleanup's waits, short enough for a test. */
-const QUICK: Partial<CleanupTiming> = { pollMs: 20, retryMs: 10, followUpPollMs: 50 };
+const QUICK: Partial<CleanupTiming> = QUICK_COMFYUI.timing;
+/** The private worker's status poll, short enough for a test. */
+const QUICK_RECOVERY: Partial<RecoveryTiming> = QUICK_COMFYUI.recoveryTiming;
 
+/** A client on a fake ComfyUI; its waits are QUICK unless a test names its own. */
 function setup(
   options: FakeComfyuiOptions = {},
   transport = { apiKey: "", ca: "" },
@@ -1042,8 +1047,8 @@ function setup(
     allowedOrigins: [BASE, "http://comfy.test:8188"],
     executionTimeoutMs: 600_000,
     log: createLogger((line) => lines.push(line)),
-    timing,
-    recoveryTiming,
+    timing: { ...QUICK, ...timing },
+    recoveryTiming: { ...QUICK_RECOVERY, ...recoveryTiming },
   });
   return { fake, client, lines };
 }
@@ -1890,7 +1895,8 @@ describe("ComfyUI generation", () => {
   });
 
   it("interrupts only its own running prompt when aborted mid-run, then removes it", async () => {
-    const { fake, client } = setup({ hang: true });
+    // The poll outlasts the fake's stop, so cleanup cancels once.
+    const { fake, client } = setup({ hang: true }, undefined, { pollMs: 250 });
     const controller = new AbortController();
     const run = (async () => {
       for await (const event of client.generate({
@@ -1913,7 +1919,7 @@ describe("ComfyUI generation", () => {
   });
 
   it("removes a prompt that is still stopping when the cleanup poll gives up, once it has stopped", async () => {
-    const { fake, client } = setup({ hang: true, stopDelay: 5_000 });
+    const { fake, client } = setup({ hang: true, stopDelay: 4_500 });
     const controller = new AbortController();
     const run = (async () => {
       for await (const event of client.generate({
@@ -1940,6 +1946,7 @@ describe("ComfyUI generation", () => {
   /** A client whose run is aborted as soon as its submit goes out, so the submit gets no answer. */
   function abortedAtSubmit(options: FakeComfyuiOptions, timing: Partial<CleanupTiming> = QUICK) {
     const fake = fakeComfyui(options);
+    onTestFinished(fake.dispose);
     const controller = new AbortController();
     const client = createComfyui({
       fetch: (input, init) => {

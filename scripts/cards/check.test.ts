@@ -181,6 +181,8 @@ describe("the real-card check", () => {
         cwd: new URL("../../", import.meta.url).pathname,
         stdout: "pipe",
         stderr: "pipe",
+        // A hung check is killed, so both runs end inside the test's own limit.
+        timeout: 25_000,
       });
       const [out, err, code] = await Promise.all([
         new Response(child.stdout).text(),

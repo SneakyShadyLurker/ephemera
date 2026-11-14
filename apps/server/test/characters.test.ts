@@ -7,7 +7,7 @@ import {
 } from "@ephemera/core";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { PORTRAIT_CACHE_CONTROL } from "../src/http.ts";
 import {
   createMemoryPortraitFiles,
@@ -35,7 +35,8 @@ import {
 } from "./image-fixtures.ts";
 
 function setup() {
-  const db = openUserDatabase(undefined).db;
+  const { db, close } = openUserDatabase(undefined);
+  onTestFinished(close);
   const stores = createStores(db, createMemoryPortraitFiles());
   const store = stores.characters;
   const { app, lines } = testApp({ instances: sharedStores(stores) });

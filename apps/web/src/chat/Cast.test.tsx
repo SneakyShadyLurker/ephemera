@@ -308,6 +308,7 @@ describe("the roster", () => {
       {} as HTMLElement,
       "inline-end",
     );
+    // biome-ignore lint/correctness/noComponentHookFactories: a probe rendered to static markup, with no state to lose.
     function Surface() {
       const [open, anchored, shown] = [
         useCastSurface((surface) => surface.open),

@@ -778,6 +778,7 @@ test.describe("Native lorebook controls", () => {
     });
     await page.goto(`/characters/${id}/lorebook`);
     const list = entries(page);
+    // biome-ignore lint/performance/useDomNodeTextContent: the order as rendered is what this reads.
     const text = (await list.innerText()).replace(/\s+/g, " ");
     const heads = [
       "Before the character",

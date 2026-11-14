@@ -6,7 +6,7 @@ import {
   type PromptPreset,
   type SamplerPreset,
 } from "@ephemera/core";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   createCharacterStore,
   createMemoryPortraitFiles,
@@ -18,8 +18,10 @@ import {
 } from "../src/persistence/index.ts";
 import { samplePortrait } from "./helpers.ts";
 
+/** A fresh database's stores; the database closes when the test finishes. */
 function stores() {
-  const { db } = openUserDatabase(undefined);
+  const { db, close } = openUserDatabase(undefined);
+  onTestFinished(close);
   const presets = createPresetStore(db);
   const files = createMemoryPortraitFiles();
   return {

@@ -3,7 +3,7 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import { chooseModel, lastReply, send, turns, upstreamRecords } from "./support/chat.ts";
 import { appServer, CANARY_MARKER, canary, E2E_DIR, RESTART_PORT } from "./support/env.ts";
-import { startServer as start, stopServer } from "./support/own-server.ts";
+import { stopServer } from "./support/own-server.ts";
 import {
   expectBackForwardRestoresNothing,
   expectClipboardUnchanged,
@@ -28,7 +28,6 @@ import { expect, test } from "./support/test.ts";
 
 const RESTART = appServer(RESTART_PORT, `${E2E_DIR}restart/`);
 const { origin: ORIGIN, dir: DIR, data: DATA, tmp: TMP, home: HOME, log: LOG } = RESTART;
-const startServer = (log: Parameters<typeof start>[1]) => start(RESTART, log);
 
 /**
  * Sends a canary on mock-stall, whose stream stays open after the reply, and
@@ -42,14 +41,20 @@ async function sendHeld(page: Page) {
   return line;
 }
 
-test(`retention matrix: ${MATRIX_ROWS.rst.row}`, async ({ browserName, playwright, user }) => {
+test(`retention matrix: ${MATRIX_ROWS.rst.row}`, async ({
+  browserName,
+  ownServer,
+  playwright,
+  user,
+}) => {
   // Two held replies (the SIGTERM one waits out the 8 s drain), two restarts and a profile scan; generous for a loaded machine.
   test.setTimeout(180_000);
   await rm(DIR, { recursive: true, force: true });
   await mkdir(TMP, { recursive: true });
   await mkdir(HOME, { recursive: true });
   const log = createWriteStream(LOG, { flags: "a" });
-  let server = await startServer(log);
+  const startServer = () => ownServer(RESTART, log);
+  let server = await startServer();
   const profile = await openProfile(playwright[browserName], ORIGIN, user);
   const { context, page } = profile;
   try {
@@ -66,7 +71,7 @@ test(`retention matrix: ${MATRIX_ROWS.rst.row}`, async ({ browserName, playwrigh
         });
         // The chat stays in the tab.
         await expect(turns(page).filter({ hasText: line })).toHaveCount(2);
-        server = await startServer(log);
+        server = await startServer();
         await chooseModel(page, "mock-slow");
         const again = canary("rst");
         await send(page, again);

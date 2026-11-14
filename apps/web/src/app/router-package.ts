@@ -35,6 +35,7 @@ function lazyWithoutReload(importer: Importer, exportName = "default") {
       });
     return loading;
   };
+  // biome-ignore lint/correctness/noComponentHookFactories: called once per route at module load, so each Lazy keeps one identity.
   function Lazy(props: object) {
     if (failed) throw new ChunkLoadError();
     if (component === undefined) use(load());

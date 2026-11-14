@@ -1,5 +1,5 @@
-import { existsSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALWAYS_SPECS, AREAS, SOURCE_AREAS, SPEC_AREAS } from "../../e2e/areas.ts";
 import { importersOf, usersOf } from "./graph.ts";
@@ -206,6 +206,27 @@ describe("the plan for a change", () => {
   it("takes the whole suite for the mock servers' own imports", () => {
     expect(plan("apps/server/test/fake-upstream.ts")).toBe("all");
     expect(plan("apps/server/test/fake-comfyui.ts")).toBe("all");
+    // The graphs the mock ComfyUI's workflows are read from.
+    expect(plan("apps/server/test/fixtures/workflows/moss-fixture.json")).toBe("all");
+  });
+
+  it("leaves no file a mock server imports out of the e2e choice", () => {
+    // The mock servers run beside the tests, so Playwright's graph of the test process misses them.
+    const transpiler = new Bun.Transpiler({ loader: "ts" });
+    const seen = new Set<string>();
+    const pending = ["mock-upstream.ts", "mock-comfyui.ts", "app-server.ts"].map((name) =>
+      join("e2e/support", name),
+    );
+    for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const { path } of transpiler.scan(readFileSync(join(ROOT, file), "utf8")).imports) {
+        if (path.startsWith(".")) pending.push(relative(ROOT, resolve(ROOT, dirname(file), path)));
+      }
+    }
+    expect(seen.size).toBeGreaterThan(10);
+    // The area table only names specs for env.ts to check a focus against.
+    expect([...seen].filter((file) => areasOf(file) === "none")).toEqual(["e2e/areas.ts"]);
   });
 
   it("takes the whole suite for source no area owns", () => {
@@ -228,7 +249,7 @@ describe("the plan for a change", () => {
 
   it("runs a changed spec, a spec that imports a changed file, and no deleted one", () => {
     expect(plan("e2e/chat.spec.ts")).toEqual(["chat.spec.ts", "csp.spec.ts"]);
-    expect(specsFor(["apps/server/test/image-fixtures.ts"], [], ["design.spec.ts"])).toEqual([
+    expect(specsFor(["apps/server/test/helpers.ts"], [], ["design.spec.ts"])).toEqual([
       "csp.spec.ts",
       "design.spec.ts",
     ]);

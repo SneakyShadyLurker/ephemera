@@ -5,7 +5,7 @@
  */
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { APP_SERVERS, E2E_DIR, isAppServerName, RUN_STARTED } from "./env.ts";
-import { spawnServer } from "./own-server.ts";
+import { spawnServer, stopServer } from "./own-server.ts";
 
 const name = process.argv[2];
 if (!isAppServerName(name)) throw new Error(`no app server named ${name}`);
@@ -29,11 +29,9 @@ child.stderr?.on("data", (chunk: Buffer) => {
   process.stderr.write(chunk);
 });
 
+// The server ends first, so its last lines reach the log before this wrapper leaves.
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
-  process.on(signal, () => {
-    child.kill();
-    process.exit(0);
-  });
+  process.on(signal, () => void stopServer(child, signal).then(() => process.exit(0)));
 }
 child.once("exit", (code) => {
   process.exitCode = code ?? 1;
