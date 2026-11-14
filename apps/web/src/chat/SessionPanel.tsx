@@ -227,7 +227,7 @@ function CharacterField() {
               )}
               <span className={cn("min-w-0 flex-1 truncate", !current && "text-reed")}>
                 {current?.name ?? "No character"}
-              </span>
+              </span>{" "}
               <span className="shrink-0 pr-1 text-note text-reed">
                 {current ? "Change" : "Choose"}
               </span>

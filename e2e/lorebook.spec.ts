@@ -86,7 +86,7 @@ test("the owner creates a lorebook from the sheet and edits an entry that autosa
   // The row stands after the character, marked always on.
   await expect(
     entries(page).getByRole("button", { name: "Edit The Grey Lantern" }),
-  ).toHaveAccessibleDescription(/order 40/);
+  ).toHaveAccessibleName(/, 40 in order$/);
   await expect(entries(page).getByRole("button", { name: "Edit The Grey Lantern" })).toContainText(
     "Always on",
   );
@@ -510,7 +510,7 @@ for (const { name, width, height, scheme } of [
     expect(await seriousAxeViolations(page)).toEqual([]);
     if (name !== "desktop") {
       // The entry replaced the list; Back returns to it.
-      await page.getByRole("button", { name: "Entries" }).click();
+      await page.getByRole("button", { name: "Entries", exact: true }).click();
       await expect(entries(page)).toBeVisible();
     }
   });
@@ -563,7 +563,7 @@ test.describe("review fixes", () => {
     await page.goto(`/characters/${id}/lorebook`);
     await entries(page).getByRole("button", { name: "Edit Two" }).click();
     await expect(page.getByRole("textbox", { name: "Title" })).toHaveValue("Two");
-    await page.getByRole("button", { name: "Entries" }).click();
+    await page.getByRole("button", { name: "Entries", exact: true }).click();
     await expect(entries(page).getByRole("button", { name: "Edit Two" })).toBeFocused();
 
     await entries(page).getByRole("button", { name: "Edit Two" }).click();
@@ -630,7 +630,9 @@ test.describe("review fixes", () => {
 test.describe("Native lorebook controls", () => {
   /** Unrelated native settings stay through edits. */
   const NATIVE = { sticky: 0 };
-  const row = (page: Page, name: string) => page.getByRole("button", { name, exact: true });
+  /** A settings row's button, named by its question and its answer: "Timing: No timing limits". */
+  const row = (page: Page, name: string) =>
+    page.getByRole("button", { name: new RegExp(`^${name}: `) });
   const pressed = (page: Page, group: string, name: string) =>
     page.getByRole("group", { name: group }).getByRole("button", { name, exact: true });
   /** An entry's own number field, not the book's of the same name. */
@@ -658,18 +660,13 @@ test.describe("Native lorebook controls", () => {
     for (const width of [360, 390, 820, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       const matching = row(page, "Matching");
-      await expect(matching).toHaveAccessibleDescription(
-        "Book's last 2 messages, any case, whole words",
-      );
+      const answer = "Book's last 2 messages, any case, whole words";
+      await expect(matching).toHaveAccessibleName(`Matching: ${answer}`);
       expect(await matching.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-      const description = await matching.evaluate((node) => {
-        const target = document.getElementById(node.getAttribute("aria-describedby") ?? "");
-        const box = target?.getBoundingClientRect();
-        return box && { left: box.left, right: box.right, height: box.height };
-      });
-      expect(description?.left).toBeGreaterThanOrEqual(0);
-      expect(description?.right).toBeLessThanOrEqual(width);
-      expect(description?.height).toBeGreaterThan(0);
+      const box = await matching.getByText(answer, { exact: true }).boundingBox();
+      expect(box?.x).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? Number.POSITIVE_INFINITY) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+      expect(box?.height).toBeGreaterThan(0);
     }
 
     // The secondary condition: the quiet button reveals the field with focus in it.
@@ -686,8 +683,8 @@ test.describe("Native lorebook controls", () => {
     await choose(page, "Placement", "In the chat");
     await setNumber(page, "Depth", "3");
     await choose(page, "Role", "User");
-    await expect(row(page, "Placement and order")).toHaveAccessibleDescription(
-      "In the chat at depth 3 as user, order 100",
+    await expect(row(page, "Placement and order")).toHaveAccessibleName(
+      "Placement and order: In the chat at depth 3 as user, order 100",
     );
 
     await row(page, "Timing").click();
@@ -712,8 +709,8 @@ test.describe("Native lorebook controls", () => {
     // Default clears the explicit override.
     await pressed(page, "Match case", "Default").click();
     await expect(page.getByText("Default is off", { exact: true })).toBeVisible();
-    await expect(row(page, "Matching")).toHaveAccessibleDescription(
-      "Last 5 messages, inside words too, any case",
+    await expect(row(page, "Matching")).toHaveAccessibleName(
+      "Matching: Last 5 messages, inside words too, any case",
     );
 
     // The book-wide rules wait under Book settings, closed, so the entries lead the pane.
@@ -792,11 +789,13 @@ test.describe("Native lorebook controls", () => {
     expect(heads).toEqual(heads.toSorted((a, b) => a - b));
     await expect(list).toContainText("Entries in the chat sit among the messages, deepest first");
     const edit = (title: string) => list.getByRole("button", { name: `Edit ${title}` });
-    await expect(edit("Deep gull")).toHaveAccessibleDescription(
-      "order 100 Depth 4, system, chained only, timing set, deep",
+    await expect(edit("Deep gull")).toHaveAccessibleName(
+      "Edit Deep gull, Depth 4, system, chained only, timing set, deep, 100 in order",
     );
-    await expect(edit("Fog note")).toHaveAccessibleDescription("order 100 Below, fog");
-    await expect(edit("Log example")).toHaveAccessibleDescription("order 100 Before, log");
+    await expect(edit("Fog note")).toHaveAccessibleName("Edit Fog note, Below, fog, 100 in order");
+    await expect(edit("Log example")).toHaveAccessibleName(
+      "Edit Log example, Before, log, 100 in order",
+    );
 
     await edit("Before harbour").focus();
     const order = [
@@ -852,7 +851,7 @@ test.describe("Native lorebook controls", () => {
       ],
     });
     await page.goto(`/characters/${id}/lorebook?entry=0`);
-    await expect(row(page, "Event pool")).toHaveAccessibleDescription("None");
+    await expect(row(page, "Event pool")).toHaveAccessibleName("Event pool: None");
     await row(page, "Event pool").click();
     // The book's other pool names are offered while typing.
     await expect(page.locator("datalist option")).toHaveAttribute("value", "Weather");
@@ -860,14 +859,14 @@ test.describe("Native lorebook controls", () => {
     await names.fill("Weather");
     await names.press("Enter");
     await setNumber(page, "Weight", "300");
-    await expect(row(page, "Event pool")).toHaveAccessibleDescription("Weather; weight 300");
+    await expect(row(page, "Event pool")).toHaveAccessibleName("Event pool: Weather; weight 300");
     await saved(page);
     expect((await card(page, id)).card.lorebook?.entries[0]).toMatchObject({
       settings: { ...NATIVE, poolNames: ["Weather"], poolWeight: 300 },
     });
 
     await page.reload();
-    await expect(row(page, "Event pool")).toHaveAccessibleDescription("Weather; weight 300");
+    await expect(row(page, "Event pool")).toHaveAccessibleName("Event pool: Weather; weight 300");
     await expect(entries(page).getByRole("button", { name: "Edit Gull omen" })).toContainText(
       "pool Weather",
     );
@@ -944,8 +943,8 @@ test.describe("Native lorebook controls", () => {
     await page.goto(`/characters/${id}/lorebook`);
     await entries(page).getByRole("button", { name: "Edit Lamp" }).click();
     await row(page, "Chaining").click();
-    await expect(row(page, "Chaining")).toHaveAccessibleDescription(
-      "The book doesn't chain entries",
+    await expect(row(page, "Chaining")).toHaveAccessibleName(
+      "Chaining: The book doesn't chain entries",
     );
     await page.getByRole("button", { name: "Open book settings" }).click();
     const chaining = page.getByRole("switch", { name: "Chaining" });
@@ -956,8 +955,8 @@ test.describe("Native lorebook controls", () => {
 
     await entries(page).getByRole("button", { name: "Edit Lamp" }).click();
     await expect(row(page, "Chaining")).toHaveAttribute("aria-expanded", "true");
-    await expect(row(page, "Chaining")).toHaveAccessibleDescription(
-      "Its keywords or another entry, and its text can bring in others",
+    await expect(row(page, "Chaining")).toHaveAccessibleName(
+      "Chaining: Its keywords or another entry, and its text can bring in others",
     );
     await expect(page.getByRole("button", { name: "Open book settings" })).toHaveCount(0);
     await expect

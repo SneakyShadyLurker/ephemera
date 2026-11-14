@@ -436,9 +436,6 @@ function Row({
   const bad = new Set(entryKeyProblems(entry).map((problem) => problem.key));
   const settings = entrySettings(entry);
   const cues = entryCues(entry, settings);
-  const cuesId = useId();
-  const orderId = useId();
-  const poolsId = useId();
   const pools = settings.poolNames;
   return (
     <li
@@ -452,41 +449,39 @@ function Row({
       {open && (
         <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-ink" />
       )}
+      {/*
+       * Named by its words, in reading order: "Edit" and the title lead, its
+       * cues follow, its order number last, read after the cues although it
+       * stands first. Speech input matches the name against the visible words.
+       */}
       <button
         type="button"
         data-row=""
         tabIndex={tabStop ? 0 : -1}
-        aria-label={`Edit ${title}`}
-        aria-describedby={`${orderId} ${pools.length > 0 ? `${poolsId} ` : ""}${cuesId}`}
         aria-current={open ? "true" : undefined}
         onFocus={() => onFocus(index)}
         onClick={() => onOpen(index)}
         className={cn(rowLayout("entry"), "grid-cols-[2.25rem_minmax(0,1fr)_auto]")}
       >
-        <span
-          id={orderId}
-          className="self-baseline pt-px text-right text-meta text-reed tabular-nums"
-        >
-          <span className="sr-only">order </span>
-          {entry.insertionOrder}
-        </span>
-        <span className={ROW_CONTENT}>
+        <span className={cn(ROW_CONTENT, "col-start-2 row-start-1")}>
           <span
             className={cn(
               "truncate text-ui transition-colors duration-(--duration-tint-quick) ease-fade",
               entry.enabled ? "text-ink" : "text-reed",
             )}
           >
+            <span className="name-only">Edit </span>
             {title}
             {pools.length > 0 && (
               // Its event pools, quiet beside the title; the line truncates them first.
-              <span id={poolsId} className="text-meta text-reed">
+              <span className="text-meta text-reed">
                 <span aria-hidden="true"> · </span>
                 {poolsText(pools)}
               </span>
             )}
-          </span>
-          <span id={cuesId} className="truncate text-meta text-reed">
+            <span className="name-only">,</span>
+          </span>{" "}
+          <span className="truncate text-meta text-reed">
             {cues.map((cue) => (
               <span key={cue.text} className={cue.ink ? "text-ink" : undefined}>
                 {cue.text},{" "}
@@ -528,9 +523,14 @@ function Row({
                   `, and ${formatCount(entry.keys.length - ROW_KEYS)} more`}
               </>
             )}
+            <span className="name-only">,</span>
           </span>
+        </span>{" "}
+        <span className="col-start-1 row-start-1 self-baseline pt-px text-right text-meta text-reed tabular-nums">
+          {entry.insertionOrder}
+          <span className="name-only"> in order</span>
         </span>
-        <NextIcon size={16} className="text-reed" />
+        <NextIcon size={16} className="col-start-3 row-start-1 text-reed" />
       </button>
       <label className="grid size-9 place-items-center touch:size-11">
         <span className="sr-only">{title} enabled</span>

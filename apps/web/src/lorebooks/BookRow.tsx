@@ -1,6 +1,6 @@
 import type { EmbeddedLorebook } from "@ephemera/core";
 import { Link } from "@tanstack/react-router";
-import { type CSSProperties, useId, useRef, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { useFormFactor } from "@/app/form-factor.ts";
 import { GLIDE } from "@/app/glide.ts";
 import { useOnScreen } from "@/app/KeptScroll.tsx";
@@ -38,7 +38,7 @@ const NAME =
 function Linked({ characters, className }: { characters: LinkedCharacter[]; className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-baseline gap-2", className)}>
-      <Leaves characters={characters} small className="self-center" />
+      <Leaves characters={characters} small className="self-center" />{" "}
       <span className={characters.length === 0 ? "text-reed" : "text-ink"}>
         {linkedText(characters.length)}
       </span>
@@ -68,7 +68,6 @@ export function BookRow({
   onError: (text: string) => void;
 }) {
   const { book, characters } = row;
-  const metaId = useId();
   const name = book.name.trim() || "Untitled lorebook";
   const opened = useLibrary((state) => state.opened === book.id);
   const nameRef = useRef<HTMLSpanElement>(null);
@@ -81,8 +80,6 @@ export function BookRow({
       <Link
         to="/lorebooks/$id"
         params={{ id: book.id }}
-        aria-label={name}
-        aria-describedby={metaId}
         onClick={() => setOpened(book.id)}
         className={LINK}
       >
@@ -90,15 +87,15 @@ export function BookRow({
           <span className="flex min-w-0 items-center gap-2">
             <span ref={nameRef} style={style} title={book.name} className={cn(NAME, GLIDE)}>
               {name}
-            </span>
+            </span>{" "}
             {arrived && (
               <span className="shrink-0 rounded-sm bg-surface-selected px-1.5 text-ink text-meta transition-opacity duration-(--duration-arrive) ease-fade starting:opacity-0">
                 Imported
               </span>
             )}
-          </span>
-          <span id={metaId} className={ROW_META}>
-            <ActivationCounts counts={book} />
+          </span>{" "}
+          <span className={ROW_META}>
+            <ActivationCounts counts={book} />{" "}
             <Linked characters={characters} className="max-tablet:basis-full" />
           </span>
         </span>
@@ -189,22 +186,19 @@ export function EmbeddedRow({
 }) {
   const phone = useFormFactor() === "phone";
   const title = `${book.name.trim() || "A character"}'s lorebook`;
-  const metaId = useId();
   return (
     <li className={ROW}>
       <Link
         to="/characters/$id/lorebook"
         params={{ id: book.characterId }}
-        aria-label={title}
-        aria-describedby={metaId}
         className={cn(LINK, "grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3")}
       >
         <PortraitLeaf id={book.characterId} name={book.name} version={portrait} className="w-5" />
         <span className={ROW_CONTENT}>
           <span title={title} className={NAME}>
             {title}
-          </span>
-          <span id={metaId} className="text-meta text-reed">
+          </span>{" "}
+          <span className="text-meta text-reed">
             {book.entries === 0 ? "No entries" : countOf(book.entries, "entry", "entries")}
           </span>
         </span>

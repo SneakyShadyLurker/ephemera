@@ -158,7 +158,7 @@ test("a prompt preset's blocks are toggled, moved, added, placed in the chat, re
   await expect(history).toBeChecked();
 
   await page.getByRole("switch", { name: "Send Persona description" }).click();
-  await expect(page.getByRole("button", { name: /^Persona description: off/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Persona description: Off\./ })).toBeVisible();
 
   await page.getByRole("button", { name: /^Example dialogue:/ }).click();
   await page.getByRole("button", { name: "Move Example dialogue earlier" }).click();
@@ -191,7 +191,7 @@ test("a prompt preset's blocks are toggled, moved, added, placed in the chat, re
   await saved(page);
 
   await page.reload();
-  await expect(page.getByRole("button", { name: /^Persona description: off/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Persona description: Off\./ })).toBeVisible();
   await expect(band(page)).toContainText("System, 3 messages from the end");
   await expect
     .poll(() => rowsFrom(page, "dialogueExamples"))

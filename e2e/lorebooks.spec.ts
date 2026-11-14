@@ -27,11 +27,15 @@ import { expect, test, unsafe } from "./support/test.ts";
 
 const entries = (page: Page) => page.getByRole("list", { name: "Entries in prompt order" });
 const library = (page: Page) => page.getByRole("list", { name: "Lorebooks", exact: true });
-/** A library book's row: its link, its counts and links, its More menu. */
+/** A library book's row: its link, named by the book's name and then its counts; its More menu. */
 const bookRow = (page: Page, name: string) =>
   library(page)
     .getByRole("listitem")
-    .filter({ has: page.getByRole("link", { name, exact: true }) });
+    .filter({
+      has: page.getByRole("link", {
+        name: new RegExp(`^${RegExp.escape(name)} (Imported )?(No entries|[\\d,]+ entr)`),
+      }),
+    });
 const linkedBooks = (page: Page) => page.getByRole("list", { name: "Linked lorebooks" });
 const linkedCharacters = (page: Page) => page.getByRole("region", { name: "Linked characters" });
 const find = (page: Page) => page.getByRole("searchbox", { name: "Find lorebooks and characters" });
@@ -107,13 +111,14 @@ for (const width of [360, 390, 820, 1440]) {
       await document.fonts.ready;
       return fixtures.map((fixture) => {
         const row = Array.from(list.querySelectorAll<HTMLElement>("[data-book]")).find(
-          (node) => node.querySelector("a")?.getAttribute("aria-label") === fixture.name,
+          (node) => node.querySelector("a span[title]")?.getAttribute("title") === fixture.name,
         );
         if (!row) throw new Error(`Missing row ${fixture.name}`);
         const link = row.querySelector("a");
         if (!link) throw new Error("Missing book link");
-        const meta = document.getElementById(link.getAttribute("aria-describedby") ?? "");
-        if (!meta) throw new Error("Missing described metadata");
+        // The link's content: the name's line, then the metadata line.
+        const meta = link.firstElementChild?.lastElementChild;
+        if (!meta) throw new Error("Missing metadata");
         const linkage =
           fixture.links === 0
             ? "Not linked"
@@ -480,7 +485,7 @@ test("a book linked to two characters from its editor shows on both sheets; unli
   await expect(bookRow(page, name)).toContainText("Linked to 1 character");
   // Ada has no portrait: her leaf holds her initial, large enough to read and within the leaf.
   const leaf = bookRow(page, name).locator(`[title="${ada}"] > span`).filter({ visible: true });
-  await expect(leaf).toHaveText("A");
+  await expect(leaf.locator("[data-initial]")).toHaveAttribute("data-initial", "A");
   const { size, width } = await leaf.evaluate((el) => ({
     size: Number.parseFloat(getComputedStyle(el.firstElementChild ?? el).fontSize),
     width: el.getBoundingClientRect().width,
@@ -721,15 +726,15 @@ test("in a library book, By chance and a keyword entry's chance show their marke
   );
 
   await entries(page).getByRole("button", { name: "Edit Fog" }).click();
-  await page.getByRole("button", { name: "Timing", exact: true }).click();
+  await page.getByRole("button", { name: /^Timing: / }).click();
   const chance = page
     .locator("section[aria-labelledby='entry-title']")
     .getByRole("textbox", { name: "Chance in percent" });
   await chance.fill("40");
   await chance.press("Tab");
-  await expect(
-    page.getByRole("button", { name: "Timing", exact: true }),
-  ).toHaveAccessibleDescription(/^40% chance when it matches/);
+  await expect(page.getByRole("button", { name: /^Timing: / })).toHaveAccessibleName(
+    /^Timing: 40% chance when it matches/,
+  );
   await expect(entries(page).getByRole("button", { name: "Edit Fog" })).toContainText("40% chance");
   await expect
     .poll(async () => (await storedBook(page, id)).book.entries.map((entry) => entry.settings), {
@@ -793,7 +798,7 @@ test("the library leads, the cards' books follow and Events closes the page; Fin
   const top = async (locator: Locator) => (await locator.boundingBox())?.y ?? Number.NaN;
   const shelf = page.getByRole("heading", { name: "Library", exact: true });
   const cards = page.getByRole("heading", { name: "In character cards" });
-  const events = page.getByRole("button", { name: "Events", exact: true });
+  const events = page.getByRole("button", { name: /^Events: / });
   expect(await top(shelf)).toBeLessThan(await top(cards));
   expect(await top(cards)).toBeLessThan(await top(events));
   // Find spans the list's column; a book's link state sits by its name, not at the far edge.
@@ -806,7 +811,7 @@ test("the library leads, the cards' books follow and Events closes the page; Fin
     (list?.width ?? 0) / 2,
   );
   // The Events chevron sits beside its label.
-  const label = await events.getByText("Events", { exact: true }).boundingBox();
+  const label = await events.getByText("Events:", { exact: true }).boundingBox();
   const chevron = await events.locator("svg").first().boundingBox();
   expect((chevron?.x ?? 0) - ((label?.x ?? 0) + (label?.width ?? 0))).toBeLessThanOrEqual(12);
 });
@@ -1203,7 +1208,7 @@ for (const { name, width, height, scheme } of [
     expect(await seriousAxeViolations(page)).toEqual([]);
 
     await entries(page).getByRole("button", { name: "Edit Omen" }).click();
-    await page.getByRole("button", { name: "Event pool", exact: true }).click();
+    await page.getByRole("button", { name: /^Event pool: / }).click();
     await expect(page.getByRole("switch", { name: "Prioritize this entry" })).toBeVisible();
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);

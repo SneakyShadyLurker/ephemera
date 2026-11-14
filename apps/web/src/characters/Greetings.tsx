@@ -219,14 +219,12 @@ export function Greetings({
                       // Opening one folds its row away as its editor unfolds, so the height eases.
                       <>
                         <Unfold show={open !== key}>
-                          <OpenRow
-                            label={`${label}: ${text === "" ? "empty" : text.slice(0, 80)}`}
-                            onOpen={() => setOpen(key)}
-                            className="h-11 px-1 touch:h-12"
-                          >
+                          <OpenRow onOpen={() => setOpen(key)} className="h-11 px-1 touch:h-12">
                             <span className="w-6 shrink-0 text-right text-meta text-reed tabular-nums">
+                              <span className="name-only">Alternate </span>
                               {number}
-                            </span>
+                              <span className="name-only">:</span>
+                            </span>{" "}
                             <span
                               className={cn(
                                 "min-w-0 flex-1 truncate text-ui",
