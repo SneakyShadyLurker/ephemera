@@ -219,7 +219,8 @@ container and its deploy checklist are in
 `bun run dev` serves the app with live reload at `http://localhost:5173`
 from the same `.env`. `bun run check` runs typecheck, lint, unit tests and
 the persistence audit; `bun run test:e2e` runs the Playwright flows and
-retention scans.
+retention scans in Chromium, which `bun run e2e:browsers` installs once and
+again after a Playwright update.
 
 ## Model providers
 
