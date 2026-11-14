@@ -321,15 +321,17 @@ describe("POST /api/creator/card", () => {
     const { app, upstream } = setup({
       upstream: { chunks: [SUBJECT_ANSWER], catalog: offering("low", "high") },
     });
-    for (const reasoning of ["high", "xhigh", "max"] as const) {
+    for (const reasoning of ["high", "medium", "max", "minimal"] as const) {
       await cardEvents(
         await app.request("/api/creator/card", postJson({ ...cardRequest(), reasoning })),
       );
     }
-    const [high, xhigh, max] = upstream.records.map((record) => record.body);
+    const [high, medium, max, minimal] = upstream.records.map((record) => record.body);
     expect(high).toMatchObject({ reasoning_effort: "high" });
-    expect(xhigh).not.toHaveProperty("reasoning_effort");
-    expect(max).not.toHaveProperty("reasoning_effort");
+    // One it lacks goes as the nearest lower one, or as its default with nothing lower.
+    expect(medium).toMatchObject({ reasoning_effort: "low" });
+    expect(max).toMatchObject({ reasoning_effort: "high" });
+    expect(minimal).not.toHaveProperty("reasoning_effort");
   });
 
   it("sends one cache key for a request's calls, its retry included, and a new one per request", async () => {
@@ -1262,17 +1264,17 @@ describe("POST /api/creator/art", () => {
 
   it("narrows the image prompt's effort to what the model offers, and keys the call", async () => {
     const { app, upstream } = setup({
-      upstream: { chunks: [IMAGE_PROMPT], catalog: offering("low") },
+      upstream: { chunks: [IMAGE_PROMPT], catalog: offering("medium") },
     });
-    for (const reasoning of ["low", "xhigh"] as const) {
+    for (const reasoning of ["xhigh", "low"] as const) {
       const all = await artEvents(
         await app.request("/api/creator/art", postJson({ ...artRequest, reasoning })),
       );
       expect(all.at(-1)).toEqual({ type: "done" });
     }
-    const [low, xhigh] = upstream.records.map((record) => record.body);
-    expect(low).toMatchObject({ reasoning_effort: "low" });
-    expect(xhigh).not.toHaveProperty("reasoning_effort");
+    const [xhigh, low] = upstream.records.map((record) => record.body);
+    expect(xhigh).toMatchObject({ reasoning_effort: "medium" });
+    expect(low).not.toHaveProperty("reasoning_effort");
     const [one, two] = cacheKeys(upstream);
     expect(one).toEqual(expect.any(String));
     expect(two).not.toBe(one);
@@ -1948,7 +1950,7 @@ describe("POST /api/creator/rework", () => {
     const { app, upstream, characterId } = reworkSetup({
       upstream: { chunks: [REWORK_ANSWER], catalog: offering("high") },
     });
-    for (const reasoning of ["high", "max"] as const) {
+    for (const reasoning of ["max", "low"] as const) {
       await reworkEvents(
         await app.request(
           "/api/creator/rework",
@@ -1956,9 +1958,9 @@ describe("POST /api/creator/rework", () => {
         ),
       );
     }
-    const [high, max] = upstream.records.map((record) => record.body);
-    expect(high).toMatchObject({ reasoning_effort: "high" });
-    expect(max).not.toHaveProperty("reasoning_effort");
+    const [max, low] = upstream.records.map((record) => record.body);
+    expect(max).toMatchObject({ reasoning_effort: "high" });
+    expect(low).not.toHaveProperty("reasoning_effort");
     const [one, two] = cacheKeys(upstream);
     expect(one).toEqual(expect.any(String));
     expect(two).not.toBe(one);

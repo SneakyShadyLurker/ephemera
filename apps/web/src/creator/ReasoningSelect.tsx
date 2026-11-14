@@ -19,9 +19,9 @@ const LIT: Record<ReasoningEffort, number> = {
 const BARS = [0, 1, 2, 3, 4, 5] as const;
 
 /**
- * The efforts `model` offers, and the one to send: the owner's pick when the
- * model offers it, else the model default, as an unlisted model follows the
- * saved one.
+ * The efforts `model` offers, and the one to send (`effortFor`): the owner's
+ * pick when the model offers it, else the nearest lower one it offers, else
+ * the model default. The pick itself is kept for the models that offer it.
  */
 export function useEffortChoice(model: string | null, chosen: ReasoningEffort) {
   const info = useModelInfo(model);

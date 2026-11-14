@@ -298,7 +298,7 @@ describe("POST /api/chat with prompt assembly", () => {
     });
   });
 
-  it("sends no reasoning effort the model does not offer, and says so", async () => {
+  it("sends the nearest lower effort for one the model does not offer, and says so", async () => {
     const catalog: CatalogEntry[] = [
       {
         slug: "low-only",
@@ -328,9 +328,8 @@ describe("POST /api/chat with prompt assembly", () => {
         ),
       ),
     );
-    expect(upstream.records[0]?.body).not.toHaveProperty("reasoning_effort");
-    expect(upstream.records[0]?.body).toMatchObject({ temperature: 0.5 });
-    expect(prompt.settings).toEqual({ temperature: 0.5 });
+    expect(upstream.records[0]?.body).toMatchObject({ temperature: 0.5, reasoning_effort: "low" });
+    expect(prompt.settings).toEqual({ temperature: 0.5, reasoning: "low" });
     expect(prompt.reasoningNotOffered).toBe("high");
   });
 
@@ -395,10 +394,18 @@ describe("POST /api/chat with prompt assembly", () => {
       expect(prompt.reasoningNotOffered).toBeNull();
     });
 
-    it("is not sent when the model does not offer it, and says so", async () => {
+    it("goes as the nearest lower effort when the model does not offer it, and says so", async () => {
       const { body, prompt } = await sent({ samplerReasoning: "low", reasoningEffort: "max" });
-      expect(body).not.toHaveProperty("reasoning_effort");
+      expect(body).toMatchObject({ reasoning_effort: "high" });
+      expect(prompt.settings).toEqual({ reasoning: "high" });
       expect(prompt.reasoningNotOffered).toBe("max");
+    });
+
+    it("is not sent when the model offers nothing lower, and says so", async () => {
+      const { body, prompt } = await sent({ samplerReasoning: "high", reasoningEffort: "minimal" });
+      expect(body).not.toHaveProperty("reasoning_effort");
+      expect(prompt.settings).toEqual({});
+      expect(prompt.reasoningNotOffered).toBe("minimal");
     });
   });
 });

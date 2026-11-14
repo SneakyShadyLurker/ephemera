@@ -423,15 +423,16 @@ export function createGeneration(
         };
       }
 
-      // An effort the model does not offer is not sent; the inspector says so.
+      // An effort the model does not offer goes as the one `effortFor` puts in its place; the inspector says so.
       const settings = callSettings(sampler, request.reasoningEffort);
       let reasoningNotOffered: InspectedPrompt["reasoningNotOffered"] = null;
-      if (
-        settings.reasoning !== undefined &&
-        effortFor(resolved.info, settings.reasoning) !== settings.reasoning
-      ) {
-        reasoningNotOffered = settings.reasoning;
-        delete settings.reasoning;
+      if (settings.reasoning !== undefined) {
+        const effort = effortFor(resolved.info, settings.reasoning);
+        if (effort !== settings.reasoning) {
+          reasoningNotOffered = settings.reasoning;
+          if (effort === "provider-default") delete settings.reasoning;
+          else settings.reasoning = effort;
+        }
       }
 
       return {

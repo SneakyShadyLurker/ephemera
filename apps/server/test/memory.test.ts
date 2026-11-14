@@ -1143,12 +1143,21 @@ describe("memory API", () => {
         supported_reasoning_levels: [{ effort: "low" }, { effort: "medium" }],
       },
     ];
-    const turns = [answer(reply), answer(chapterObject), answer(reply), answer(chapterObject)];
+    const turns = [
+      answer(reply),
+      answer(chapterObject),
+      answer(reply),
+      answer(chapterObject),
+      answer(reply),
+      answer(chapterObject),
+    ];
     const { app, stores, upstream, characterId } = setup(turns, { catalog });
     const sent = (index: number) => upstream.records[index]?.body as Record<string, unknown>;
+    // One the model lacks goes as the nearest lower one, or as its default with nothing lower.
     for (const [reasoning, expected] of [
       ["medium", "medium"],
-      ["xhigh", undefined],
+      ["xhigh", "medium"],
+      ["minimal", undefined],
     ] as const) {
       const recap = seed(stores, characterId, MEMORY_LIMITS.recapCount + 1);
       const before = upstream.records.length;

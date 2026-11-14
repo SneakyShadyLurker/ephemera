@@ -422,8 +422,9 @@ test("reasoning follows the model's offered levels and is sent with the rework",
   await expect(reasoning).toHaveText("Model default");
   await chooseReworkModel(page, "mock-fast");
   await choose(panel, "Reasoning", "Extra high");
+  // A model without the level takes the nearest lower one it offers.
   await chooseReworkModel(page, "mock-lowonly");
-  await expect(reasoning).toHaveText("Model default");
+  await expect(reasoning).toHaveText("Low");
   await reasoning.click();
   await expect(page.getByRole("option")).toHaveText(["Model default", "Low"]);
   await page.keyboard.press("Escape");
@@ -431,9 +432,10 @@ test("reasoning follows the model's offered levels and is sent with the rework",
 
   const fallback = page.waitForRequest("**/api/creator/rework");
   await submitRework(page, { request: ownerRequest(base, "kept-default"), model: "mock-lowonly" });
-  const fallbackRequest = (await fallback).postDataJSON();
-  expect(fallbackRequest).toMatchObject({ model: "mock-lowonly" });
-  expect(fallbackRequest).not.toHaveProperty("reasoning");
+  expect((await fallback).postDataJSON()).toMatchObject({
+    model: "mock-lowonly",
+    reasoning: "low",
+  });
   await expect(dock(page)).toContainText("3 changes to apply");
   await dock(page).getByRole("button", { name: "Discard", exact: true }).click();
 

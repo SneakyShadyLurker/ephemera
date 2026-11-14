@@ -356,7 +356,8 @@ Version 1.0 holds everything below.
   and desktop, a bottom drawer on phones. The owner writes what should change, picks a model
   (the saved one by default), its reasoning effort and the persona `{{user}}`
   is. Reasoning offers the model's supported levels and starts at Model
-  default; an unsupported choice falls back to that default. The choice
+  default; an unsupported choice falls back to the nearest lower level the
+  model offers, or to that default when it offers nothing lower. The choice
   stays in tab memory until leaving the sheet, a reload or `pagehide`.
   On phones, Chat and AI Rework share a labelled toolbar below the title,
   leaving room for the character's name and More actions above.
@@ -691,8 +692,8 @@ Version 1.0 holds everything below.
 - Settings > Memory & cast holds memory's settings: Open new chats where the story left
   off, on by default (off, the card's greeting opens every chat), the
   model memory calls use (the reply's
-  by default) and its effort (one the model does not offer goes as its
-  default), the size that starts a memory, how many
+  by default) and its effort (one the model does not offer goes as the
+  nearest lower level it offers, else its default), the size that starts a memory, how many
   recent turns stay out, and the recap budget: Automatic by default, the
   room memory has in the memory model's context window, or a number that
   caps it.
@@ -862,7 +863,10 @@ Version 1.0 holds everything below.
   story stays consistent with.
 - Sampler presets: model, max output tokens, temperature, top-p,
   frequency and presence penalty, seed, reasoning effort (low to maximum,
-  as the model offers) where the model supports it. Session's Reasoning
+  as the model offers) where the model supports it. An effort the reply's
+  model does not offer goes as the nearest lower level it offers, never
+  Off, or as the model's default when it offers nothing lower; the preset
+  keeps its own, and the sheet, Session and the inspector say what is sent. Session's Reasoning
   can override the effort in the open tab. The context window is
   the model's own, not a preset value; Settings can cap it per model. Each
   sampler parameter keeps its label and value on one row, with a slider

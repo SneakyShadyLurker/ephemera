@@ -32,8 +32,8 @@ export const artSessionDeps = {
   artStatus: (workflow) => queryClient.fetchQuery(artStatusQuery(workflow)),
   workflow: () => currentSettings().comfyuiWorkflow,
   imagePromptModel: () => currentSettings().imagePromptModel,
-  // As the reasoning picker narrows it: an effort the model lacks goes as its default; an
-  // unlisted model offers every effort.
+  // As the reasoning picker narrows it: an effort the model lacks goes as the nearest lower one
+  // it offers, else as its default; an unlisted model offers every effort.
   artEffort: async (model, reasoning) => effortFor(await modelInfo(model), reasoning),
   signedIn: signIn.signedIn,
   // A candidate kept goes through the server's one portrait pipeline.

@@ -42,6 +42,7 @@ import {
 } from "../personas/queries.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
 import {
+  effortInPlace,
   type PresetKind,
   presetsQuery,
   REASONING_LABELS,
@@ -496,8 +497,9 @@ export function SamplerPresetSelect({ labelId }: { labelId: string }) {
 
 /**
  * How replies are drawn. A preset that names a model switches the chat to it;
- * an effort the chat's model does not offer is not sent, and this says so
- * while the tab's Reasoning follows the preset.
+ * an effort the chat's model does not offer goes as the nearest lower one it
+ * offers, else as its default, and this says so while the tab's Reasoning
+ * follows the preset.
  */
 function SamplerPresetField() {
   const { presets, chosen, choose } = useSamplerChoice();
@@ -519,7 +521,7 @@ function SamplerPresetField() {
       {overridden && `${chosen.name} names ${named}; this chat now uses ${settings.model}.`}
       {overridden && unsupported && " "}
       {unsupported &&
-        `${chosen.name} asks for ${REASONING_LABELS[effort].toLowerCase()} reasoning; ${model.id} doesn't offer it, so none is sent.`}
+        `${chosen.name} asks for ${REASONING_LABELS[effort].toLowerCase()} reasoning; ${model.id} doesn't offer it, so ${effortInPlace(model, effort) ?? "none"} is sent.`}
     </>
   );
   return (
@@ -540,7 +542,8 @@ function SamplerPresetField() {
 /**
  * The reasoning effort of this tab's replies, over the sampler preset's:
  * never saved, so a reload, or choosing a sampler preset, follows the
- * preset again. An effort the chat's model does not offer is not sent.
+ * preset again. An effort the chat's model does not offer goes as the nearest
+ * lower one it offers, else as its default.
  */
 function ReasoningField() {
   const settings = useSettings();
@@ -560,7 +563,7 @@ function ReasoningField() {
       summary="Applies in this tab"
       status={
         unsupported
-          ? `${model.id} doesn't offer ${REASONING_LABELS[override].toLowerCase()} reasoning, so none is sent.`
+          ? `${model.id} doesn't offer ${REASONING_LABELS[override].toLowerCase()} reasoning, so ${effortInPlace(model, override) ?? "none"} is sent.`
           : undefined
       }
     >

@@ -1,6 +1,8 @@
 import {
   clipText,
+  effortFor,
   MAX_JSON_BYTES,
+  type ModelInfo,
   PRESET_LIMITS,
   type PromptBlock,
   type PromptPreset,
@@ -191,6 +193,18 @@ export const REASONING_LABELS: Record<SamplerValues["reasoning"], string> = {
   xhigh: "Extra high",
   max: "Maximum",
 };
+
+/**
+ * The effort sent in place of one `model` does not offer (`effortFor`), as a
+ * sentence names it; null when the model default goes, so none is sent.
+ */
+export function effortInPlace(
+  model: ModelInfo | undefined,
+  chosen: SamplerValues["reasoning"],
+): string | null {
+  const effort = effortFor(model, chosen);
+  return effort === "provider-default" ? null : REASONING_LABELS[effort].toLowerCase();
+}
 
 /** "12 blocks, 10 on, 3 custom". */
 export function promptSummary(blocks: PromptBlock[]): string {
