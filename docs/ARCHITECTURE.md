@@ -2353,8 +2353,7 @@ runs once more at the end, alone (`retryStrategy: "isolated"`), once the
 suite's own load is gone; passing then, it is reported as flaky, never as
 passed, and a test flaky on a quiet machine is a defect. The retention
 scans are the teardown of the browser projects, so a failed test leaves
-the scans of everything that ran. Workers take three quarters of the
-cores, less the cores other work already holds, down to four. A start
+the scans of everything that ran. A start
 check launches Chromium once and names the install command when a
 Playwright update left its build missing. Every test fails on a Content
 Security Policy violation and on an error its page did not catch

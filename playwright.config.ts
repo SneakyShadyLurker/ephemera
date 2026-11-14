@@ -1,4 +1,3 @@
-import { availableParallelism, loadavg } from "node:os";
 import { defineConfig, devices } from "@playwright/test";
 import { APP_SERVERS, COMFYUI_PORT, FOCUSED_SPECS, UPSTREAM_PORT } from "./e2e/support/env.ts";
 
@@ -19,18 +18,6 @@ const SERIAL = /(prompt-behavior|vast-lorebook|art-transport)\.spec\.ts$/;
 
 /** The retention scans: they run once every other project is done, whether or not a test failed. */
 const SCANS = "server-writes";
-
-/*
- * Measured on 16 cores: 75% keeps per-test times flat; all cores add no
- * speed, only load flakes. Cores other work already holds (another
- * worktree's suite) are left to it, down to four workers; `--workers`
- * overrides the count.
- */
-const cores = availableParallelism();
-const workers = Math.max(
-  4,
-  Math.min(Math.floor(cores * 0.75), Math.floor(cores - (loadavg()[0] ?? 0))),
-);
 
 /** A coding agent reads the failures and the summary; a person watches the list. */
 const agent = [process.env.AI_AGENT, process.env.CLAUDECODE, process.env.CODEX_THREAD_ID].some(
@@ -55,7 +42,8 @@ export default defineConfig({
   testDir: "e2e",
   // Local runs are the only runs: a focused test would silently skip the retention matrix.
   forbidOnly: true,
-  workers,
+  // Measured on 16 cores: 75% keeps per-test times flat; all cores add no speed, only load flakes.
+  workers: "75%",
   /*
    * A failed test runs once more at the end, alone, when this suite's own
    * load is gone. Passing then, it is reported as flaky, never as passed.

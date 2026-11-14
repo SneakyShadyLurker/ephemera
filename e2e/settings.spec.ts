@@ -1173,7 +1173,7 @@ test("the settings screen sets the default persona and the model", async ({ page
   // The list draws each persona as the Session panel does: its leaf, every name at one x.
   await page.getByRole("combobox", { name: "Default persona" }).click();
   const option = page.getByRole("option", { name: persona, exact: true });
-  await expect(option.locator('[aria-hidden="true"]').first()).toHaveText("D");
+  await expect(option.locator("[data-initial]")).toHaveAttribute("data-initial", "D");
   const nameX = async (name: string) =>
     (await page.getByRole("option", { name, exact: true }).getByText(name).boundingBox())?.x;
   expect(
