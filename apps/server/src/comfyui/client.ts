@@ -1,9 +1,7 @@
-import { inflate } from "node:zlib";
 import {
   type ArtStreamEvent,
   type ArtSurface,
   CREATOR_ART,
-  type CreatorErrorCode,
   type NodeMetaMap,
   nodeMetaFrom,
   objectInfoSchema,
@@ -11,11 +9,25 @@ import {
 } from "@ephemera/core";
 import { z } from "zod";
 import type { UpstreamFetch } from "../catalog.ts";
-import { readBoundedJson, timedOut } from "../lifetime.ts";
+import { timedOut } from "../lifetime.ts";
 import type { Logger } from "../log.ts";
-import { pngChunks } from "../png.ts";
 import type { RunWorkflow } from "./catalog.ts";
-import { fillWorkflow, requiredModels, type Workflow, type WorkflowGraph } from "./workflow.ts";
+import { createLease, type jobStatusSchema } from "./lease.ts";
+import { createRetirement } from "./retirement.ts";
+import {
+  ComfyuiError,
+  type ComfyuiFailure,
+  discard,
+  MAX_SMALL_BYTES,
+  missing,
+  ok,
+  portraitShaped,
+  privateGraph,
+  readJson,
+  STATUS_TIMEOUT_MS,
+  sleep,
+} from "./shared.ts";
+import { fillWorkflow, type Workflow } from "./workflow.ts";
 
 /*
  * The ComfyUI client for card portraits (PRINCIPLES.md 1 and 2). It sends one
@@ -32,9 +44,6 @@ import { fillWorkflow, requiredModels, type Workflow, type WorkflowGraph } from 
  * Failures carry a reason, never ComfyUI's text.
  */
 
-/** Below Bun's 10 s idle timeout, which would otherwise cut the status request first. */
-const STATUS_TIMEOUT_MS = 8_000;
-const OUTPUT_TIMEOUT_MS = 60_000;
 /** Request-owned waits; tests can shorten them without changing worker retention. */
 export interface RecoveryTiming {
   /** How long a run waits in a busy worker's waiting list for its lease. */
@@ -60,13 +69,6 @@ const RECOVERY_TIMING: RecoveryTiming = {
   renewalTimeoutMs: 4_000,
   terminalLimitMs: 600_000,
 };
-/**
- * Lease release, plain cleanup's queue poll and each later cleanup call run
- * on a deadline of this length each, never on the request's signal.
- */
-const CLEANUP_TIMEOUT_MS = 4_000;
-/** Tries of a lease release, history delete or cache release before it counts as failed. */
-const CLEANUP_ATTEMPTS = 3;
 
 /** The waits of cleanup; tests shorten them. */
 export interface CleanupTiming {
@@ -89,61 +91,15 @@ const TIMING: CleanupTiming = {
   runningLimitMs: 5 * 60_000,
   uncertainLimitMs: 60_000,
 };
-/** Handshake, lease and submit answers, and one text frame. */
-const MAX_SMALL_BYTES = 64 * 1024;
 /** Every node and model of the install; a large one is a few megabytes. */
 const MAX_OBJECT_INFO_BYTES = 32 * 1024 * 1024;
-/** Every queued graph, other clients' included. */
-const MAX_QUEUE_BYTES = 16 * 1024 * 1024;
 /** The whole batch, below four times the per-image cap. */
 const MAX_BATCH_BYTES = CREATOR_ART.batchBytes;
 /** A binary frame's envelope around its image, and room for the run's text frames. */
 const FRAME_SLACK_BYTES = 64 * 1024;
 
-const COMFYUI_FAILURES = [
-  /** The address's origin is not in COMFYUI_ALLOWED_ORIGINS: nothing is sent. */
-  "not_allowed",
-  /** No answer, a refused redirect, or an error status. */
-  "unreachable",
-  /** The bearer token is missing or wrong. */
-  "unauthorized",
-  /** A token is configured and the address is plain http: nothing is sent. */
-  "insecure",
-  /** Atelier's private worker answered but is not ready, or refused the lease. */
-  "not_ready",
-  /** ComfyUI refused the graph (validation or node errors). */
-  "rejected",
-  /** The private worker did not take the reference image as a job input. */
-  "upload",
-  /** The run failed or was interrupted inside ComfyUI. */
-  "execution",
-  /** The WebSocket failed or closed before the run finished. */
-  "socket",
-  /** A response, frame or image was larger than its cap. */
-  "oversized",
-  /** An answer ComfyUI should not give, such as another prompt id. */
-  "invalid_response",
-  /** Not exactly the run's count of PNGs of 1024 x 1536 in the layout the browser decodes. */
-  "invalid_output",
-  /** The caller's signal ended the run. */
-  "aborted",
-  /** The workflow has classes the allowlist no longer admits: nothing is sent. */
-  "blocked",
-] as const;
-type ComfyuiFailure = (typeof COMFYUI_FAILURES)[number];
-
-/** A content-free failure: its message and fields name the reason only. */
-export class ComfyuiError extends Error {
-  override name = "ComfyuiError";
-  readonly reason: ComfyuiFailure;
-  /** What the art stream reports (packages/core creator schema). */
-  readonly code: CreatorErrorCode;
-  constructor(reason: ComfyuiFailure, code: CreatorErrorCode = "comfyui") {
-    super(`ComfyUI failed: ${reason}`);
-    this.reason = reason;
-    this.code = code;
-  }
-}
+/** The content-free failure (shared.ts), exported here for the client's callers. */
+export { ComfyuiError };
 
 /** The part of a WebSocket the client uses; Bun's native WebSocket satisfies it. */
 export interface ComfySocket {
@@ -280,31 +236,15 @@ const privacySchema = z.object({
     max_execution_seconds: z.int().positive(),
   }),
 });
-type WorkerLimits = z.infer<typeof privacySchema>["limits"];
+export type WorkerLimits = z.infer<typeof privacySchema>["limits"];
 type Privacy = z.infer<typeof privacySchema>;
 type Handshake =
   | ({ mode: "plain" } & Partial<Record<keyof Privacy, never>>)
   | ({ mode: "private" } & Privacy);
-const jobStatusSchema = z.strictObject({
-  state: z.enum(["leased", "queued", "running", "completed", "failed", "released"]),
-  outputs: z
-    .array(
-      z.strictObject({
-        id: z.uuid(),
-        bytes: z.int().min(1).max(CREATOR_ART.imageBytes),
-        mediaType: z.literal("image/png"),
-      }),
-    )
-    .max(CREATOR_ART.count),
-});
 const leaseSchema = z.object({ protocol: z.literal(2), ready: z.literal(true) });
 const submitSchema = z.object({
   prompt_id: z.string().min(1).max(128),
   node_errors: z.record(z.string(), z.unknown()).optional(),
-});
-const queueSchema = z.object({
-  queue_running: z.array(z.array(z.unknown())),
-  queue_pending: z.array(z.array(z.unknown())),
 });
 const messageSchema = z.object({
   type: z.string(),
@@ -332,27 +272,6 @@ const progressStateSchema = z.object({
     ),
   }),
 });
-
-/** The parsed JSON body, undefined when it is not JSON; throws when it passes `max`. */
-async function readJson(response: Response, max: number, signal?: AbortSignal): Promise<unknown> {
-  const read = await readBoundedJson(response, max, signal);
-  signal?.throwIfAborted();
-  if (!read.ok) throw new ComfyuiError("oversized");
-  return read.json;
-}
-
-const discard = async (response: Response) => {
-  await response.body?.cancel().catch(() => {});
-};
-
-/** Fails an error status without reading its body, which may echo the prompt. */
-async function ok(response: Response): Promise<Response> {
-  if (response.ok) return response;
-  await discard(response);
-  throw new ComfyuiError(
-    response.status === 401 || response.status === 403 ? "unauthorized" : "unreachable",
-  );
-}
 
 /** A busy worker's waiting-list place, 1 being next; anything but a positive safe integer is unknown. */
 function queuePosition(header: string | null): number | undefined {
@@ -388,77 +307,11 @@ function failure(error: unknown, signal: AbortSignal): ComfyuiError {
   return error instanceof ComfyuiError ? error : new ComfyuiError("unreachable");
 }
 
-const sleep = (ms: number, signal: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    if (signal.aborted) return reject(signal.reason);
-    const abort = () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", abort);
-      resolve();
-    }, ms);
-    signal.addEventListener("abort", abort, { once: true });
-  });
-
-/**
- * What the instance lacks for a workflow: classes it does not have, that the
- * submission allowlist or the server's allowlist (`blocked`) refuses, or that
- * it reports as output nodes other than the graph's own save node; and the
- * model files its combos do not list.
- */
-function missing(
-  workflow: Workflow,
-  meta: NodeMetaMap,
-  allowedNodes?: readonly string[],
-  blocked: readonly string[] = [],
-) {
-  const classes = new Set(Object.values(workflow.graph).map((node) => node.class_type));
-  const output = Object.hasOwn(workflow.graph, workflow.output)
-    ? workflow.graph[workflow.output]?.class_type
-    : undefined;
-  const missingNodes = [...classes].filter((name) => {
-    const node = meta.get(name);
-    return (
-      blocked.includes(name) ||
-      node === undefined ||
-      (node.outputNode && name !== output) ||
-      (allowedNodes !== undefined && !allowedNodes.includes(name))
-    );
-  });
-  // A blocked reason that names no class of the graph (an unreadable graph) is missing too.
-  missingNodes.push(...blocked.filter((name) => !classes.has(name)));
-  const missingModels = requiredModels(workflow.graph, meta)
-    .filter(
-      ({ classType, input, file }) => !meta.get(classType)?.inputs[input]?.choices?.includes(file),
-    )
-    .map((model) => model.file);
-  return { missingNodes, missingModels: [...new Set(missingModels)] };
-}
-
 /** The workflow as the instance runs it: on the private worker, its private graph. */
 function asRun<T extends Workflow>(workflow: T, privacy: Handshake): T {
   return privacy.mode === "private"
     ? { ...workflow, graph: privateGraph(workflow.graph, "readiness") }
     : workflow;
-}
-
-/** The graph as the private worker runs it: its LoadImage reads the job's in-memory inputs. */
-function privateGraph(graph: WorkflowGraph, lease?: string): WorkflowGraph {
-  return Object.fromEntries(
-    Object.entries(graph).map(([id, node]) => [
-      id,
-      node.class_type === "LoadImage"
-        ? { ...node, class_type: "AtelierLoadImage" }
-        : node.class_type === "SaveImageWebsocket" && lease !== undefined
-          ? {
-              class_type: "AtelierSaveImages",
-              inputs: { images: node.inputs.images, job_id: lease },
-            }
-          : node,
-    ]),
-  );
 }
 
 /** SaveImageWebsocket's frame: event 1 (image) with format 2 (PNG), or event 4 with JSON metadata. */
@@ -484,71 +337,6 @@ function framedPng(frame: Uint8Array, promptId: string, output: string): Uint8Ar
   return parsed.data.prompt_id === promptId && parsed.data.node_id === output
     ? frame.subarray(start)
     : undefined;
-}
-
-/** Chunks a candidate may carry: no palette, transparency key, ICC profile, compressed text or animation. */
-const CANDIDATE_CHUNKS = new Set(["IHDR", "IDAT", "IEND", "tEXt", "pHYs", "sRGB", "gAMA", "cHRM"]);
-
-/**
- * Inflates `data` to at most `limit` bytes, with how much of it the zlib
- * stream used: Node stops at the stream's end and ignores anything after it.
- */
-function inflateBounded(data: Buffer, limit: number): Promise<{ output: number; used: number }> {
-  return new Promise((resolve, reject) => {
-    inflate(data, { maxOutputLength: limit, info: true }, (error, result) => {
-      if (error) return reject(error);
-      // With `info`, Node answers the buffer and its engine; the type names only the buffer.
-      const { buffer, engine } = result as unknown as {
-        buffer: Buffer;
-        engine: { bytesWritten: number };
-      };
-      resolve({ output: buffer.byteLength, used: engine.bytesWritten });
-    });
-  });
-}
-
-/**
- * A candidate in the one layout the browser decodes (apps/web creator/art.ts):
- * the batch's size, 8-bit RGB or RGBA, not interlaced, one IHDR and
- * otherwise only `CANDIDATE_CHUNKS`, and image data that is one zlib stream
- * inflating to exactly its scanlines.
- * Inflation stops there, so a small file cannot expand to gigabytes in the
- * tab, nor carry data the tab's decoder would keep copying. Read in memory;
- * the pixels are not kept.
- */
-async function portraitShaped(png: Uint8Array): Promise<boolean> {
-  const chunks = pngChunks(png);
-  const header = chunks?.[0];
-  if (chunks === undefined || header?.type !== "IHDR" || header.data.byteLength !== 13) {
-    return false;
-  }
-  // One IHDR only: a second one could describe other pixels than the first.
-  const allowed = chunks.every(
-    (chunk, index) => (chunk.type === "IHDR") === (index === 0) && CANDIDATE_CHUNKS.has(chunk.type),
-  );
-  if (!allowed) return false;
-  const view = new DataView(header.data.buffer, header.data.byteOffset, 13);
-  const [depth, colourType, compression, filter, interlace] = header.data.subarray(8);
-  const channels = colourType === 2 ? 3 : colourType === 6 ? 4 : 0;
-  if (
-    view.getUint32(0) !== CREATOR_ART.width ||
-    view.getUint32(4) !== CREATOR_ART.height ||
-    depth !== 8 ||
-    channels === 0 ||
-    compression !== 0 ||
-    filter !== 0 ||
-    interlace !== 0
-  ) {
-    return false;
-  }
-  const scanlines = CREATOR_ART.height * (1 + CREATOR_ART.width * channels);
-  const data = Buffer.concat(chunks.filter((chunk) => chunk.type === "IDAT").map((c) => c.data));
-  try {
-    const { output, used } = await inflateBounded(data, scanlines);
-    return output === scanlines && used === data.byteLength;
-  } catch {
-    return false;
-  }
 }
 
 type SocketEvent =
@@ -637,7 +425,7 @@ function socketEvents(socket: ComfySocket, signal: AbortSignal, discardBinary: b
 }
 
 /** Why a cleanup ended unresolved; the log line's only detail. */
-type Unresolved =
+export type Unresolved =
   | "lease_release"
   | "queue_delete"
   | "history_delete"
@@ -900,223 +688,6 @@ export function createComfyui(deps: ComfyuiDeps) {
   }
 
   /**
-   * The workflow's reference graph when the private worker has every node
-   * class and model it needs, read from one `/object_info` answer and the
-   * submission allowlist; otherwise the text graph runs. Logs name reasons only.
-   */
-  async function usableReference(
-    baseUrl: string,
-    workflow: RunWorkflow,
-    signal: AbortSignal,
-    allowedNodes: string[] | undefined,
-  ): Promise<Workflow | undefined> {
-    const { reference } = workflow;
-    if (reference === undefined) return undefined;
-    const { missingNodes, missingModels } = missing(
-      { ...reference, graph: privateGraph(reference.graph, "readiness") },
-      await inventory(baseUrl, signal),
-      allowedNodes,
-    );
-    if (missingNodes.length === 0 && missingModels.length === 0) return reference;
-    deps.log?.warn({
-      event: "comfyui.reference",
-      referenceGraph: false,
-      errorClass: missingNodes.length > 0 ? "missing_nodes" : "missing_models",
-    });
-    return undefined;
-  }
-
-  /**
-   * Puts the image into the leased job as an in-memory input, under a fresh
-   * asset id; the lease's release removes it with the job. Answers the
-   * reference the graph's image input names.
-   */
-  async function upload(
-    baseUrl: string,
-    lease: string,
-    image: Uint8Array<ArrayBuffer>,
-    signal: AbortSignal,
-  ) {
-    const asset = crypto.randomUUID();
-    try {
-      const path = `/atelier/v1/jobs/${lease}/inputs/${asset}`;
-      await discard(await ok(await call(baseUrl, path, signal, { method: "PUT", bytes: image })));
-    } catch (error) {
-      if (signal.aborted) throw error;
-      throw new ComfyuiError("upload");
-    }
-    return `${lease}:${asset}`;
-  }
-
-  /** Sanitized, lease-scoped authority. Native history is never requested in private mode. */
-  async function jobStatus(baseUrl: string, lease: string, signal: AbortSignal) {
-    signal = AbortSignal.any([signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)]);
-    const response = await call(baseUrl, `/atelier/v1/jobs/${lease}`, signal);
-    if (response.status === 404) {
-      await discard(response);
-      throw new ComfyuiError("execution");
-    }
-    const parsed = jobStatusSchema.safeParse(
-      await readJson(await ok(response), MAX_SMALL_BYTES, signal),
-    );
-    if (!parsed.success) throw new ComfyuiError("invalid_response");
-    if (parsed.data.state === "failed" || parsed.data.state === "released")
-      throw new ComfyuiError("execution");
-    return parsed.data;
-  }
-
-  /** Download only this completed lease's ordered assets, each bounded before and during reading. */
-  async function download(
-    baseUrl: string,
-    lease: string,
-    output: z.infer<typeof jobStatusSchema>["outputs"][number],
-    signal: AbortSignal,
-  ) {
-    for (let attempt = 0; ; attempt++) {
-      signal.throwIfAborted();
-      const attemptSignal = AbortSignal.any([signal, AbortSignal.timeout(OUTPUT_TIMEOUT_MS)]);
-      let retryableStatus = false;
-      try {
-        const response = await call(
-          baseUrl,
-          `/atelier/v1/jobs/${lease}/outputs/${output.id}`,
-          attemptSignal,
-        );
-        retryableStatus =
-          response.status === 408 ||
-          response.status === 429 ||
-          (response.status >= 500 && response.status <= 599);
-        await ok(response);
-        if (
-          response.headers.get("Content-Type")?.split(";")[0]?.trim() !== "image/png" ||
-          response.body === null
-        ) {
-          await discard(response);
-          throw new ComfyuiError("invalid_output");
-        }
-        const png = new Uint8Array(output.bytes);
-        const reader = response.body.getReader();
-        const cancel = () => {
-          void reader.cancel().catch(() => {});
-        };
-        attemptSignal.addEventListener("abort", cancel, { once: true });
-        if (attemptSignal.aborted) cancel();
-        let offset = 0;
-        try {
-          for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-            attemptSignal.throwIfAborted();
-            if (offset + chunk.value.byteLength > png.byteLength)
-              throw new ComfyuiError("oversized");
-            png.set(chunk.value, offset);
-            offset += chunk.value.byteLength;
-          }
-          attemptSignal.throwIfAborted();
-        } finally {
-          attemptSignal.removeEventListener("abort", cancel);
-          await reader.cancel().catch(() => {});
-        }
-        if (offset !== png.byteLength || !(await portraitShaped(png)))
-          throw new ComfyuiError("invalid_output");
-        return png;
-      } catch (error) {
-        if (signal.aborted || (error instanceof ComfyuiError && !retryableStatus) || attempt === 2)
-          throw error;
-        await sleep(timing.retryMs, signal);
-      }
-    }
-  }
-
-  /** Renewal never creates a lease. A missing lease is terminal, not a reason to retry. */
-  async function renew(baseUrl: string, lease: string, signal: AbortSignal) {
-    for (let attempt = 0; ; attempt++) {
-      signal.throwIfAborted();
-      const attemptSignal = AbortSignal.any([
-        signal,
-        AbortSignal.timeout(recoveryTiming.renewalTimeoutMs),
-      ]);
-      let transient = false;
-      try {
-        const response = await call(baseUrl, `/atelier/v1/jobs/${lease}/renew`, attemptSignal, {
-          method: "POST",
-        });
-        transient = response.status === 408 || response.status === 429 || response.status >= 500;
-        if (response.status === 404) {
-          await discard(response);
-          throw new ComfyuiError("execution");
-        }
-        const answer = z
-          .strictObject({ ok: z.literal(true) })
-          .safeParse(await readJson(await ok(response), MAX_SMALL_BYTES, attemptSignal));
-        if (!answer.success) throw new ComfyuiError("invalid_response");
-        return;
-      } catch (error) {
-        if (signal.aborted || (error instanceof ComfyuiError && !transient) || attempt === 2)
-          throw error;
-        await sleep(timing.retryMs, signal);
-      }
-    }
-  }
-
-  /** Owns all output work, including renewal, until every reader/request has stopped. */
-  async function retrieve(
-    baseUrl: string,
-    lease: string,
-    outputs: z.infer<typeof jobStatusSchema>["outputs"],
-    signal: AbortSignal,
-    earliestCompletion: number,
-    limits: WorkerLimits | undefined,
-  ) {
-    if (limits === undefined) throw new ComfyuiError("not_ready");
-    const budget =
-      Math.min(recoveryTiming.terminalLimitMs, limits.terminal_max_seconds * 1_000) -
-      (performance.now() - earliestCompletion);
-    if (budget <= 0) throw new ComfyuiError("execution");
-    const owned = new AbortController();
-    const retrievalSignal = AbortSignal.any([
-      signal,
-      owned.signal,
-      AbortSignal.timeout(Math.ceil(budget)),
-    ]);
-    let renewal: Promise<void> | undefined;
-    try {
-      await renew(baseUrl, lease, retrievalSignal);
-      renewal = (async () => {
-        for (;;) {
-          await sleep(
-            Math.min(recoveryTiming.renewalMs, limits.terminal_idle_seconds * 500),
-            retrievalSignal,
-          );
-          await renew(baseUrl, lease, retrievalSignal);
-        }
-      })().catch((error: unknown) => {
-        if (!retrievalSignal.aborted) owned.abort(error);
-      });
-      const pngs: Uint8Array[] = new Array(outputs.length);
-      let cursor = 0;
-      const workers = Array.from({ length: Math.min(4, outputs.length) }, async () => {
-        try {
-          for (;;) {
-            retrievalSignal.throwIfAborted();
-            const index = cursor++;
-            const output = outputs[index];
-            if (output === undefined) return;
-            pngs[index] = await download(baseUrl, lease, output, retrievalSignal);
-          }
-        } catch (error) {
-          owned.abort(error);
-          throw error;
-        }
-      });
-      await Promise.allSettled(workers);
-      retrievalSignal.throwIfAborted();
-      return pngs;
-    } finally {
-      owned.abort();
-      await renewal;
-    }
-  }
-
-  /**
    * Runs cleanup apart from the run that needs it; a failure inside it is
    * already handled. The promise settles when the cleanup has ended and never
    * rejects, for a caller that must not start before it.
@@ -1136,222 +707,23 @@ export function createComfyui(deps: ComfyuiDeps) {
     while (pending.size > 0) await Promise.all(pending);
   }
 
-  const unresolved = (reason: Unresolved) =>
-    deps.log?.warn({ event: "comfyui.cleanup.unresolved", errorClass: reason });
-
-  /** One cleanup request, tried up to `CLEANUP_ATTEMPTS` times on a deadline each; false when all failed. */
-  async function retried(request: (signal: AbortSignal) => Promise<void>): Promise<boolean> {
-    for (let attempt = 1; ; attempt++) {
-      try {
-        await request(AbortSignal.timeout(CLEANUP_TIMEOUT_MS));
-        return true;
-      } catch {
-        if (attempt === CLEANUP_ATTEMPTS) return false;
-      }
-      await new Promise((resolve) => setTimeout(resolve, timing.retryMs));
-    }
-  }
-
-  /**
-   * Releases a lease, which removes or interrupts its job without waiting
-   * for ownership silence or its execution budget. An unconfirmed release
-   * is tried again and an exhausted retry is logged.
-   */
-  async function release(baseUrl: string, id: string) {
-    const released = await retried((signal) =>
-      send(baseUrl, `/atelier/v1/jobs/${id}`, signal, { method: "DELETE" }),
-    );
-    if (!released) unresolved("lease_release");
-  }
-
-  /** Where a prompt stands in a plain instance's queue. */
-  async function placed(
-    baseUrl: string,
-    id: string,
-    signal: AbortSignal,
-  ): Promise<"pending" | "running" | "out"> {
-    const response = await ok(await call(baseUrl, "/queue", signal));
-    const queue = queueSchema.safeParse(await readJson(response, MAX_QUEUE_BYTES, signal));
-    if (!queue.success) throw new ComfyuiError("invalid_response");
-    const has = (items: unknown[][]) => items.some((item) => item[1] === id);
-    if (has(queue.data.queue_pending)) return "pending";
-    return has(queue.data.queue_running) ? "running" : "out";
-  }
-
-  /** Whether a plain instance's history holds the prompt; its entry is never read further. */
-  async function inHistory(baseUrl: string, id: string, signal: AbortSignal): Promise<boolean> {
-    const response = await ok(await call(baseUrl, `/history/${id}`, signal));
-    const entries = await readJson(response, MAX_QUEUE_BYTES, signal);
-    return typeof entries === "object" && entries !== null && Object.hasOwn(entries, id);
-  }
-
-  /** Atomic own-job cancellation never falls back to a global interrupt. */
-  async function cancel(baseUrl: string, id: string, signal: AbortSignal) {
-    const response = await call(baseUrl, `/api/jobs/${encodeURIComponent(id)}/cancel`, signal, {
-      method: "POST",
-    });
-    await discard(await ok(response));
-  }
-
-  /** One successful cache release per observation phase, shared by cleanup and follow-up. */
-  interface CacheCleanup {
-    released: boolean;
-    releasedAfterRetirement: boolean;
-  }
-
-  /** Scoped history deletion may repeat; instance-wide eviction needs failure or fresh retirement evidence. */
-  async function forget(baseUrl: string, id: string, cache: CacheCleanup, retired: boolean) {
-    const deleted = await retried((signal) =>
-      send(baseUrl, "/history", signal, { method: "POST", body: { delete: [id] } }),
-    );
-    if (!deleted) unresolved("history_delete");
-    if (cache.released && (!retired || cache.releasedAfterRetirement)) return;
-    const freed = await retried((signal) =>
-      send(baseUrl, "/free", signal, {
-        method: "POST",
-        body: { unload_models: false, free_memory: true },
-      }),
-    );
-    if (!freed) unresolved("cache_release");
-    else {
-      cache.released = true;
-      cache.releasedAfterRetirement = retired;
-    }
-  }
-
-  /** Waits `ms`; true when the follow-up's limit passed or the process is stopping, for a last check. */
-  const pause = (ms: number, limit: AbortSignal) =>
-    sleep(ms, AbortSignal.any([limit, stopping])).then(
-      () => false,
-      () => true,
-    );
-
-  /**
-   * A prompt cleanup could not settle, tied to no request: one still running
-   * when the poll gave up (such as a batch that finishes its current node
-   * before it stops), one whose submit got no answer, which ComfyUI may still
-   * admit, or one behind a queue that could not be read. It checks the queue
-   * at its interval, repeating scoped cancellation while the id is pending
-   * or running; once it has left the queue, its history entry and the
-   * cache go. Every outcome behind an unreadable queue still gets scoped
-   * history deletion. Cache release repeats only after failure or observed
-   * later retirement. A prompt that may arrive late is
-   * also looked for in the history. It stops at its limit, or after one last check when the process
-   * stops, and logs a prompt it could not see leave.
-   */
-  async function followUp(
-    baseUrl: string,
-    id: string,
-    {
-      late,
-      limitMs,
-      cache,
-      cancelUnknown,
-    }: {
-      late: boolean;
-      limitMs: number;
-      cache: CacheCleanup;
-      cancelUnknown: boolean;
-    },
-  ) {
-    const limit = AbortSignal.timeout(limitMs);
-    let seen = false;
-    let last: "pending" | "running" | "out" | "unknown" = "unknown";
-    for (let final = false; !final; ) {
-      final = await pause(timing.followUpPollMs, limit);
-      // Own history is inserted atomically with retirement; a global queue read need not work.
-      if (
-        await inHistory(baseUrl, id, AbortSignal.timeout(CLEANUP_TIMEOUT_MS)).catch(() => false)
-      ) {
-        await forget(baseUrl, id, cache, true);
-        return;
-      }
-      const signal = AbortSignal.timeout(CLEANUP_TIMEOUT_MS);
-      last = await placed(baseUrl, id, signal).catch(() => "unknown" as const);
-      if (last === "pending" || last === "running") seen = true;
-      if (last === "pending" || last === "running") {
-        // A successful cancel can miss native execution's handoff. Only leaving the queue settles it.
-        await cancel(baseUrl, id, signal).catch(() => {});
-      } else if (last === "out") {
-        if (!late || seen || (await inHistory(baseUrl, id, signal).catch(() => false))) {
-          await forget(baseUrl, id, cache, true);
-          return;
-        }
-      } else {
-        // Retirement may have happened during a failed/stalled queue read. Check with a fresh deadline.
-        const retired = await inHistory(baseUrl, id, AbortSignal.timeout(CLEANUP_TIMEOUT_MS)).catch(
-          () => false,
-        );
-        if (!retired && cancelUnknown)
-          await cancel(baseUrl, id, AbortSignal.timeout(CLEANUP_TIMEOUT_MS)).catch(() => {});
-        await forget(baseUrl, id, cache, retired);
-        if (retired) return;
-      }
-    }
-    if (last === "pending" || last === "running") unresolved("still_queued");
-    else if (last === "unknown") unresolved("queue_unreadable");
-  }
-
-  /**
-   * Plain ComfyUI: validated success first gets a bounded wait for native
-   * task_done. Failed or aborted runs repeat atomic cancellation of their
-   * own id while the job remains pending or running. Cleanup prefers observed
-   * retirement before deleting history and dropping the cache, but an unreadable
-   * queue cannot suppress those attempts past the bounded wait. ComfyUI moves a
-   * finished prompt from the queue to its history in one step, so a prompt
-   * in neither stays out. A submit without an answer may still be admitted
-   * later, and a queue that cannot be read says nothing; both, and a prompt
-   * still running when the poll's deadline passes, are left to a follow-up.
-   */
-  async function clean(baseUrl: string, id: string, answered: boolean, completed: boolean) {
-    const poll = AbortSignal.timeout(CLEANUP_TIMEOUT_MS);
-    const cache: CacheCleanup = { released: false, releasedAfterRetirement: false };
-    let retired = false;
-    let seen = false;
-    let running = false;
-    try {
-      for (;;) {
-        if (await inHistory(baseUrl, id, poll).catch(() => false)) {
-          retired = true;
-          break;
-        }
-        const where = await placed(baseUrl, id, poll).catch((error: unknown) => {
-          if (completed && !poll.aborted) return "unknown" as const;
-          throw error;
-        });
-        if (where === "unknown") {
-          await sleep(timing.pollMs, poll);
-          continue;
-        }
-        running = where === "running";
-        if (where === "pending" || where === "running") {
-          seen = true;
-          if (!completed) await cancel(baseUrl, id, poll);
-          await sleep(timing.pollMs, poll);
-        } else {
-          retired = answered || seen;
-          break;
-        }
-      }
-    } catch {
-      // The queue could not be read or the poll gave up: remove the prompt by its id where that cannot touch another.
-      if (!completed && !(await retried((signal) => cancel(baseUrl, id, signal))))
-        unresolved("queue_delete");
-    }
-    // A stalled queue must not suppress retention cleanup. History may already prove native retirement.
-    if (!retired)
-      retired = await inHistory(baseUrl, id, AbortSignal.timeout(CLEANUP_TIMEOUT_MS)).catch(
-        () => false,
-      );
-    await forget(baseUrl, id, cache, retired);
-    if (retired) return;
-    await followUp(baseUrl, id, {
-      late: !answered && !seen,
-      cache,
-      cancelUnknown: !completed,
-      limitMs: running && answered ? timing.runningLimitMs : timing.uncertainLimitMs,
-    });
-  }
+  const { clean, retried, unresolved } = createRetirement({
+    timing,
+    stopping,
+    log: deps.log,
+    call,
+    send,
+  });
+  const { usableReference, upload, jobStatus, retrieve, release } = createLease({
+    timing,
+    recoveryTiming,
+    log: deps.log,
+    call,
+    send,
+    inventory,
+    retried,
+    unresolved,
+  });
 
   /**
    * One batch: progress while ComfyUI works, then exactly `count` PNGs, or a

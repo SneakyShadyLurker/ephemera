@@ -1540,7 +1540,18 @@ content's path: the tab's memory and one request in the server.
 - **ComfyUI client** (`apps/server/src/comfyui/`): the standard API
   (`/object_info`, `/prompt`, `/ws`) through the app's one outbound fetch and
   Bun's WebSocket, with the requested workflow filled by JSON-safe
-  substitution. The workflows are API-format graphs from two sets, merged
+  substitution. `createComfyui` (`comfyui/client.ts`) owns the client's
+  types, its transport, the handshake and `/object_info` reads and the run
+  with its socket, and composes two modules that reach it through a host
+  seam: the private worker's lease protocol (`comfyui/lease.ts`: the
+  reference graph's readiness, the image upload, the lease's status, its
+  outputs with their renewal, and its release) and a plain instance's
+  retirement (`comfyui/retirement.ts`: the queue poll, scoped cancellation,
+  history deletion, cache release and the follow-up). A module imports only
+  types from the client; what they share at runtime (the content-free
+  failure, bounded reads, the abortable wait, what an instance lacks for a
+  graph, the private graph and the candidate PNG check) lives in the leaf
+  `comfyui/shared.ts`. The workflows are API-format graphs from two sets, merged
   for each request into one catalog (`comfyui/catalog.ts`): the user's
   own, stored in their instance and named `user-<uuid>`, then the
   server's files. Nothing of a user's graph outlives the request, so a
