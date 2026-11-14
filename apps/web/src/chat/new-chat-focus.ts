@@ -1,5 +1,5 @@
 /** A presentation handoff to the mounted composer. No consumer means no request is kept. */
-export interface NewChatArrival {
+interface NewChatArrival {
   epoch: number;
   characterId: string | null;
 }

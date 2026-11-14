@@ -58,9 +58,9 @@ type SaveOutcome =
  * Saves a palette: a new one (`updatedAt` null) into its empty slot, a saved
  * one over the save it names. Why it was not saved comes in words after
  * "Not saved: ". A slot another tab filled meanwhile is refused with
- * `slotTaken` and the slot still free, if any, unless it holds this very palette (a save whose answer was
- * lost); a palette another tab changed or deleted is refused, and the list
- * reloads to show it.
+ * `slotTaken` and the slot still free, if any; a palette another tab changed
+ * or deleted is refused, and the list reloads to show it. A refused slot that
+ * holds this very palette (a save whose answer was lost) is saved.
  */
 export async function saveCustomPalette(
   slot: CustomSlot,
@@ -74,10 +74,12 @@ export async function saveCustomPalette(
       updatedAt === null
         ? await api.palettes[":slot"].$post({ param, json: input }, init)
         : await api.palettes[":slot"].$put({ param, json: { ...input, updatedAt } }, init);
-    if (response.status === 409 && updatedAt === null) {
+    if (response.status === 409) {
+      // A save whose answer was lost left this very palette there: it is saved.
       const list = await freshList();
       const there = list.find((palette) => palette.slot === slot);
       if (there !== undefined && sameAs(there, input)) return { ok: true, palette: there };
+      if (updatedAt !== null) return { ok: false, reason: "it changed in another tab" };
       const free = CUSTOM_SLOTS.find((other) => !list.some((palette) => palette.slot === other));
       return {
         ok: false,
@@ -85,13 +87,9 @@ export async function saveCustomPalette(
         slotTaken: { free },
       };
     }
-    if (response.status === 409 || response.status === 404) {
+    if (response.status === 404) {
       void freshList();
-      return {
-        ok: false,
-        reason:
-          response.status === 409 ? "it changed in another tab" : "it was deleted in another tab",
-      };
+      return { ok: false, reason: "it was deleted in another tab" };
     }
     if (!response.ok) {
       return { ok: false, reason: failureWords(failureOf(response.status)) };

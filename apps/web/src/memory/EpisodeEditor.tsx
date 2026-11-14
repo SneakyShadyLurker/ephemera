@@ -21,7 +21,7 @@ import { ResponsiveEditor } from "@/components/ui/editor-shell";
 import { SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { countOf } from "@/lib/text";
+import { charLimit, countOf } from "@/lib/text";
 import { InlineStatus, NoticeCard } from "../app/NoticeCard.tsx";
 import { chatStore, useChat } from "../chat/session.ts";
 import { latestMemory } from "../chat/store.ts";
@@ -393,7 +393,7 @@ function EpisodeDialog({
               id={titleId}
               rows={1}
               value={fields.name}
-              maxLength={MEMORY_LIMITS.title}
+              {...charLimit(MEMORY_LIMITS.title, fields.name)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !isComposing(event)) event.preventDefault();
               }}
@@ -408,7 +408,10 @@ function EpisodeDialog({
             <textarea
               id={summaryId}
               value={fields.summary}
-              maxLength={chapter ? MEMORY_LIMITS.chapterSummary : MEMORY_LIMITS.summary}
+              {...charLimit(
+                chapter ? MEMORY_LIMITS.chapterSummary : MEMORY_LIMITS.summary,
+                fields.summary,
+              )}
               onChange={(event) => edit({ summary: event.target.value })}
               // Grows with its text to a bound, then scrolls inside, so the cues stay within reach.
               className={cn(FIELD, "max-h-[min(18rem,36dvh)] min-h-32 font-story")}

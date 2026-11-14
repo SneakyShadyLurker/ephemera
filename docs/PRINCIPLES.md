@@ -289,8 +289,8 @@ never as clean.
   OpenAI-compatible upstream and ComfyUI, and nothing else. The ComfyUI address comes only from settings,
   never from card or model text, and must be one of the origins the owner
   allows on the server; its token and certificate live only on the server,
-  the token goes to an allowed origin only, and redirects are never
-  followed. The browser's policy does not change: candidate portraits are
+  the token goes to an allowed origin only. Neither upstream's redirects
+  are ever followed. The browser's policy does not change: candidate portraits are
   drawn from memory, not loaded from a URL.
 
 ## 3. Untrusted content stays inert

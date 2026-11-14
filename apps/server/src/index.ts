@@ -135,7 +135,7 @@ server = Bun.serve({
   },
 });
 
-log.info({ event: "listening", route: `${config.host}:${server.port}` });
+log.info({ event: "listening", address: `${config.host}:${server.port}` });
 
 /**
  * An orderly stop: no new requests, creator runs end, in-flight responses

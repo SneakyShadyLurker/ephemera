@@ -24,8 +24,7 @@
   },
   "private": true,
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch src/index.ts",
-    "start": "bun src/index.ts"
+    "dev": "bun --env-file=../../.env --watch src/index.ts"
   },
   "type": "module"
 }

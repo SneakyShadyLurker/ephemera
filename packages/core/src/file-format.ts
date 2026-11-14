@@ -3,13 +3,13 @@ import { isRecord } from "./card/json.ts";
 import { CARD_LIMITS } from "./card/limits.ts";
 import { utf8Bytes } from "./tokens.ts";
 
-export const NATIVE_FORMATS = [
+const NATIVE_FORMATS = [
   "ephemera.character",
   "ephemera.lorebook",
   "ephemera.prompt-preset",
   "ephemera.sampler-preset",
 ] as const;
-export type NativeFormat = (typeof NATIVE_FORMATS)[number];
+type NativeFormat = (typeof NATIVE_FORMATS)[number];
 
 /** Own native markers reserve parsing, including malformed, unknown and mixed packets. */
 export function isNativeFileAttempt(value: unknown): boolean {

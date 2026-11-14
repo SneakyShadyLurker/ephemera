@@ -68,7 +68,7 @@ export function withChunks(png: Uint8Array, chunks: readonly Uint8Array[]): Uint
 // Pixel/color information is uncompressed except IDAT. A small uncompressed
 // eXIf chunk can carry orientation. Text never reaches sharp; one bounded ICC
 // profile may reach it for color conversion, then is stripped from output.
-const PORTRAIT_CHUNKS = new Set([
+const UPLOAD_CHUNKS = new Set([
   "IHDR",
   "PLTE",
   "IDAT",
@@ -107,7 +107,7 @@ export function pngPortraitInput(chunks: PngChunk[]): Uint8Array | undefined {
   }
   const kept = chunks.filter(
     (chunk) =>
-      PORTRAIT_CHUNKS.has(chunk.type) ||
+      UPLOAD_CHUNKS.has(chunk.type) ||
       chunk === profile ||
       (chunk.type === "eXIf" && chunk.data.byteLength <= 65_536),
   );

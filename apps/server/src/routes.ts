@@ -4,12 +4,15 @@ import {
   exportFileName,
   MAX_JSON_BYTES,
   MAX_REQUEST_BYTES,
+  type PreCallRefusalStatus,
   type portraitResponseSchema,
 } from "@ephemera/core";
 import { zValidator } from "@hono/zod-validator";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { createMiddleware } from "hono/factory";
 import { z } from "zod";
+import { createGate } from "./gate.ts";
 import { NO_STORE, PORTRAIT_CACHE_CONTROL } from "./http.ts";
 import { ImageError, toPortrait } from "./images.ts";
 import type { Logger } from "./log.ts";
@@ -38,16 +41,46 @@ export const jsonLimit = bodyLimit({ maxSize: MAX_JSON_BYTES, onError: payloadTo
 
 export const uploadLimit = bodyLimit({ maxSize: MAX_REQUEST_BYTES, onError: payloadTooLarge });
 
-/** The default hook echoes validation issues; answer without detail. */
+/** Uploads read and decoded at once, across all users. */
+const UPLOADS_AT_ONCE = 2;
+const uploads = createGate(UPLOADS_AT_ONCE);
+
+/**
+ * An upload's turn, taken before its body is read. An upload buffers up to
+ * `MAX_REQUEST_BYTES` and may decode a 25-megapixel image, so a burst of
+ * them waits in line instead of filling the process's memory side by side.
+ */
+export const uploadTurn = createMiddleware(async (c, next) => {
+  const release = await uploads.enter(c.req.raw.signal);
+  // The client left while waiting: nothing is read, and no one reads this answer.
+  if (release === undefined) return c.json({ error: "request_timeout" as const }, 408);
+  try {
+    await next();
+  } finally {
+    release();
+  }
+});
+
 /** A request the route cannot take as sent. */
 export const invalidRequest = (c: Context) => c.json({ error: "invalid_request" as const }, 400);
 
+/** The default hook echoes validation issues; answer without detail. */
 export const invalid = (result: { success: boolean }, c: Context) => {
   if (!result.success) return invalidRequest(c);
 };
 
 /** One uploaded file, parsed by Hono's form validator after the size limit. */
 export const fileForm = zValidator("form", z.object({ file: z.instanceof(File) }), invalid);
+
+/**
+ * An imported file with the id its record takes. The client chooses the id,
+ * so an import sent again after a lost answer cannot store a second copy.
+ */
+export const importForm = zValidator(
+  "form",
+  z.object({ file: z.instanceof(File), id: z.uuid().optional() }),
+  invalid,
+);
 
 export const fileBytes = async (file: File) => new Uint8Array(await file.arrayBuffer());
 
@@ -56,7 +89,10 @@ export const idParam = zValidator("param", z.object({ id: z.uuid() }), invalid);
 export const notFound = (c: Context) => c.json({ error: "not_found" as const }, 404);
 
 /** Each refusal code's status, for a route's refusals before its model call. */
-export type RefusalStatuses<E extends string> = Record<Exclude<E, "aborted">, 404 | 409 | 422>;
+export type RefusalStatuses<E extends string> = Record<
+  Exclude<E, "aborted">,
+  Extract<PreCallRefusalStatus, 404 | 409 | 422>
+>;
 
 /**
  * Answers a request refused before its model call: the deadline 408
@@ -71,7 +107,8 @@ export function refusedBeforeCall<E extends string>(
   error: E,
   statuses: RefusalStatuses<E>,
 ) {
-  if (error === "aborted") return c.json({ error: "request_timeout" as const }, 408);
+  const deadline = 408 satisfies PreCallRefusalStatus;
+  if (error === "aborted") return c.json({ error: "request_timeout" as const }, deadline);
   const code = error as Exclude<E, "aborted">;
   const status = statuses[code];
   log.warn({ event, model, status, errorClass: code });
@@ -186,7 +223,7 @@ const matches = (header: string | undefined, tag: string) =>
 export function createPortraitApi(store: FromUser<PortraitStore>, log: Logger, kind: PortraitKind) {
   const event = `${kind}.portrait`;
   return new Hono<UserEnv>()
-    .put(PORTRAIT_PATH, idParam, uploadLimit, fileForm, async (c) => {
+    .put(PORTRAIT_PATH, idParam, uploadTurn, uploadLimit, fileForm, async (c) => {
       let portrait: Awaited<ReturnType<typeof toPortrait>>;
       try {
         portrait = await toPortrait(await fileBytes(c.req.valid("form").file));

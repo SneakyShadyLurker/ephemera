@@ -215,6 +215,21 @@ export function logCallError(
 export const waitOf = ({ retryAfterS }: { retryAfterS?: number | undefined }) =>
   retryAfterS === undefined ? {} : { retryAfterS };
 
+/**
+ * A bounded model call's refusal as its route answers it: the deadline
+ * (`aborted`) as `request_timeout`, a busy provider with its wait.
+ */
+export const refusalBody = <E extends string>(refused: {
+  error: E;
+  retryAfterS?: number | undefined;
+}) => ({
+  error:
+    refused.error === "aborted"
+      ? ("request_timeout" as const)
+      : (refused.error as Exclude<E, "aborted">),
+  ...waitOf(refused),
+});
+
 /** The chat stream's error text for a failed call. */
 export const streamFailure = (error: unknown): StreamFailure =>
   callFailure(error).upstream ?? "generation_failed";
@@ -387,6 +402,9 @@ export function createUpstream(
   log: Logger,
 ) {
   const off = { cache: false, streamUsage: false };
+  /** The configured upstream and nothing else: a redirect comes back as the 3xx it is (PRINCIPLES.md 2). */
+  const ask = (input: string | URL | Request, init?: RequestInit) =>
+    fetch(input, { ...init, redirect: "manual" });
   async function send(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     let request = init;
     if (off.cache) {
@@ -395,7 +413,7 @@ export function createUpstream(
         request = without(init, body, ["cache"]);
       }
     }
-    let response = await fetch(input, request);
+    let response = await ask(input, request);
     const dropped = new Set<Refusable>();
     while (response.status === 400 || response.status === 422) {
       const body = requestBody(request);
@@ -411,7 +429,7 @@ export function createUpstream(
       for (const name of refused) dropped.add(name);
       await response.body?.cancel().catch(() => {});
       request = without(request, body, refused);
-      response = await fetch(input, request);
+      response = await ask(input, request);
     }
     if (response.ok) {
       if (dropped.has("cache") && !off.cache) {

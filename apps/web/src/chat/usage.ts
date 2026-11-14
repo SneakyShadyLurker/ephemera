@@ -1,4 +1,9 @@
-import type { CallAccounting, CallPurpose, CallRecord } from "@ephemera/core";
+import {
+  type CallAccounting,
+  type CallPurpose,
+  type CallRecord,
+  UPSTREAM_FAILURES,
+} from "@ephemera/core";
 
 export const LEDGER_LIMIT = 512;
 export interface UsageRequest {
@@ -23,6 +28,24 @@ export interface UsageHandle {
   receive: (accounting: CallAccounting) => void;
   finish: (unknown?: "completed" | "failed" | "aborted") => void;
 }
+/**
+ * How a bounded model call ended when no receipt of it arrived, for
+ * `UsageHandle.finish`: nothing once a receipt came, and nothing for a
+ * refusal before the model was asked, since no call was made. `failed` is
+ * the route's own code for a call that ran and gave nothing usable; the
+ * request's and the provider's failures are every route's.
+ */
+export function unknownEnd(
+  outcome: { ok: true } | { ok: false; reason: string },
+  call: { received: boolean; aborted: boolean; failed: string },
+): "completed" | "failed" | "aborted" | undefined {
+  if (call.received) return undefined;
+  if (outcome.ok) return "completed";
+  if (call.aborted) return "aborted";
+  const ran: readonly string[] = ["unreachable", "timeout", call.failed, ...UPSTREAM_FAILURES];
+  return ran.includes(outcome.reason) ? "failed" : undefined;
+}
+
 export function startUsage(ledger: UsageLedger, request: UsageRequest): UsageLedger {
   if (ledger.running.some((item) => item.id === request.id)) return ledger;
   if (ledger.running.length >= 64) return { ...ledger, truncated: true };

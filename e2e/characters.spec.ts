@@ -193,7 +193,11 @@ test("a newer gallery choice supersedes the start waiting for personas", async (
   for (const name of [earlier, newer])
     await createCharacterViaApi(request, name, { firstMessage: `${name} waits.` });
   await patchSettings(request, { model: "mock-fast", characterId: null });
+  // The chosen model's window comes from the catalog, which the app asks for as it loads. An
+  // arrival that finds it still loading drops its focus for good, so the catalog answers first.
+  const models = page.waitForResponse("**/api/models");
   await page.goto("/characters");
+  await models;
   const held = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   await page.route("**/api/personas", async (route) => {
@@ -1090,7 +1094,7 @@ test("going to the last section keeps the app in place, the sheet header in view
   await page.setViewportSize({ width: 820, height: 1180 });
   const id = await createCharacterViaApi(page.request, uniqueName("Jump"));
   await page.goto(`/characters/${id}`);
-  await page.getByRole("button", { name: "Go to section" }).click();
+  await page.getByRole("button", { name: "Sections", exact: true }).click();
   await page.getByRole("menuitem", { name: "Creator notes" }).click();
   await expect(page.getByRole("textbox", { name: "Creator notes" })).toBeFocused();
   // Only the sheet scrolls; the app around it never moves, so its header stays at the top.
@@ -1104,7 +1108,7 @@ test("going to the last section keeps the app in place, the sheet header in view
       }),
     )
     .toEqual([]);
-  const header = await page.getByRole("button", { name: "Go to section" }).boundingBox();
+  const header = await page.getByRole("button", { name: "Sections", exact: true }).boundingBox();
   expect(header?.y).toBeGreaterThanOrEqual(0);
 });
 

@@ -61,6 +61,7 @@ import {
   registerAt,
 } from "./cast-slice.ts";
 import { createSceneSlice, type SceneDeps, type SceneSliceState } from "./scene-slice.ts";
+import { shownReply } from "./shown-reply.ts";
 import type { PartialReplyFinishReason, PreviewResult, ReplyUpdate } from "./transport.ts";
 import {
   emptyUsage,
@@ -69,11 +70,14 @@ import {
   startUsage,
   type UsageHandle,
   type UsageLedger,
+  unknownEnd,
 } from "./usage.ts";
+
+export { shownReply };
 
 export type MessageStatus = "complete" | "streaming" | "stopped" | "failed" | "waiting";
 
-export type ReplyFailure = "unreachable" | "server" | "provider" | "stream" | "unreadable";
+type ReplyFailure = "unreachable" | "server" | "provider" | "stream" | "unreadable";
 
 /** One alternate reply (a swipe). Chat content: lives only in this in-memory store (PRINCIPLES.md 1). */
 export interface Reply {
@@ -185,9 +189,6 @@ export type Deleted =
     };
 
 export type EditTarget = "text" | "reasoning";
-
-export const shownReply = (message: AssistantMessage): Reply =>
-  message.replies[message.shown] ?? (message.replies[0] as Reply);
 
 /** Yields the reply so far, update by update; throws when generation fails. */
 export type StreamReply = (
@@ -1422,22 +1423,11 @@ export function createChatStore(
         outcome = { ok: false, reason: "unreachable", lost: true };
       }
       accounting.finish(
-        received
-          ? undefined
-          : outcome.ok
-            ? "completed"
-            : controller.signal.aborted
-              ? "aborted"
-              : [
-                    "unreachable",
-                    "timeout",
-                    "aborted",
-                    "memory_failed",
-                    "upstream_busy",
-                    "upstream_signed_out",
-                  ].includes(outcome.reason)
-                ? "failed"
-                : undefined,
+        unknownEnd(outcome, {
+          received,
+          aborted: controller.signal.aborted,
+          failed: "memory_failed",
+        }),
       );
       if (remembering === controller) remembering = undefined;
       // Cleared, reset or another character meanwhile: the server's write stands, this chat moves on.

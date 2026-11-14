@@ -354,6 +354,38 @@ test("a persona is created, edited, given a portrait, duplicated and deleted", a
   expect(gone.status()).toBe(404);
 });
 
+test("a name holds its limit in characters, emoji included, and a paste past it is cut", async ({
+  page,
+}) => {
+  const tail = uniqueName("Moon");
+  // 150 emoji are 300 UTF-16 units: within the 200-character limit the schema counts.
+  const name = `${"🌙".repeat(150)}${tail}`;
+  const room = 200 - 150 - tail.length;
+  const id = await createPersonaViaApi(page.request, name);
+  await page.goto(`/personas/${id}`);
+  const field = page.getByRole("textbox", { name: "Name" });
+  await expect(field).toHaveValue(name);
+
+  // The name takes more typing, up to its limit in characters.
+  await field.focus();
+  await field.evaluate((node: HTMLTextAreaElement) =>
+    node.setSelectionRange(node.value.length, node.value.length),
+  );
+  await page.keyboard.insertText("x".repeat(100));
+  await expect(field).toHaveValue(name + "x".repeat(room));
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+
+  // Plain text over the emoji fits the field's units and not its characters: it is cut at its end.
+  await field.selectText();
+  await page.keyboard.insertText("y".repeat(340));
+  await expect(field).toHaveValue("y".repeat(200));
+  await page.keyboard.insertText("z");
+  await expect(field).toHaveValue("y".repeat(200));
+  await expect(page.locator("header").getByText("Saved", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("y".repeat(200));
+});
+
 test("a new chat starts as the bound persona, else the default; turns keep their persona", async ({
   page,
 }) => {

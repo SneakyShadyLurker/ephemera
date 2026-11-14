@@ -290,6 +290,25 @@ describe("an upstream that rejects the session cache extensions", () => {
     },
   );
 
+  it("never follows a redirect: every call, the retry without a refused field included, asks for the redirect itself", async () => {
+    const upstream = rejecting(() => refusal(400));
+    const redirects: RequestInit["redirect"][] = [];
+    const client = createUpstream(
+      config,
+      (input, init) => {
+        redirects.push(init?.redirect);
+        return upstream.fetch(input, init);
+      },
+      quiet,
+    );
+    await generateText({
+      model: client.model("fake-model", null),
+      prompt: "synthetic",
+      ...client.settings({ temperature: 0.5 }, cacheKey),
+    });
+    expect(redirects).toEqual(["manual", "manual"]);
+  });
+
   it("answers a whole-reply call without them, keeping the rest of the body", async () => {
     const upstream = rejecting(() => refusal(400));
     const lines: string[] = [];

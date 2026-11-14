@@ -17,7 +17,7 @@ import type { ArtFamily } from "./prompts.ts";
 export const ART_LOOK_IDS = ["snapshot", "selfie", "film", "digital", "monochrome"] as const;
 export type ArtLookId = (typeof ART_LOOK_IDS)[number];
 
-export interface ArtLook {
+interface ArtLook {
   id: ArtLookId;
   /** When Auto picks it, as the clause after "Pick it when": on a cover, and in a scene picture. */
   when: { cover: string; scene: string };

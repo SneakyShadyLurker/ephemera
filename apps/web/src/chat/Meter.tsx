@@ -1,5 +1,5 @@
 import { Meter } from "@base-ui/react/meter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { HeaderAction } from "@/app/Browse.tsx";
 import { useUi } from "@/app/ui.ts";
@@ -42,12 +42,23 @@ function useLevel(): Level | null {
   return useSetting((settings) => settings.model) === null ? null : value;
 }
 
+/**
+ * The stage the meter last showed. Every part of the meter follows the same
+ * level, so they agree while mounted; one that mounts later (the header swaps
+ * its phone and wide parts) starts from here instead of from quiet, or it
+ * would stay hidden inside the hysteresis band while the others show.
+ */
+const shown: { stage: MeterStage } = { stage: "quiet" };
+
 /** The level and its stage, which remembers the previous one for the hysteresis. */
 function useMeter(): { value: Level | null; stage: MeterStage } {
   const value = useLevel();
-  const [previous, setPrevious] = useState<MeterStage>("quiet");
+  const [previous, setPrevious] = useState<MeterStage>(() => shown.stage);
   const stage = value === null ? "quiet" : meterStage(value, previous);
   if (stage !== previous) setPrevious(stage);
+  useEffect(() => {
+    shown.stage = stage;
+  }, [stage]);
   return { value, stage };
 }
 

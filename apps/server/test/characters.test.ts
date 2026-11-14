@@ -233,6 +233,30 @@ describe("import", () => {
     expect(store.get(jsonId)?.portrait).toBeNull();
   });
 
+  it("stores an import sent again under its id once, portrait included", async () => {
+    const { app, store } = setup();
+    const id = crypto.randomUUID();
+    const send = () => {
+      const form = fileForm(pngWithText({ chara: cardChunk(v2("Seraphina")) }, 20, 30), "card.png");
+      form.append("id", id);
+      return app.request("/api/characters/import", formRequest("POST", form));
+    };
+    const first = await send();
+    expect(first.status).toBe(201);
+    const version = store.get(id)?.portrait;
+    const again = await send();
+    expect(again.status).toBe(201);
+    expect(await again.json()).toEqual(await first.json());
+    expect(store.list().filter((character) => character.name === "Seraphina")).toHaveLength(1);
+    expect(store.get(id)?.portrait).toBe(version);
+
+    const invalid = fileForm(Buffer.from(JSON.stringify(v2("Mara"))), "mara.json");
+    invalid.append("id", "not-a-uuid");
+    expect((await app.request("/api/characters/import", formRequest("POST", invalid))).status).toBe(
+      400,
+    );
+  });
+
   it.each([
     ["malformed JSON", Buffer.from("{nope"), 422, "not_json"],
     ["a JSON non-card", Buffer.from('{"hello":"world"}'), 422, "not_a_card"],

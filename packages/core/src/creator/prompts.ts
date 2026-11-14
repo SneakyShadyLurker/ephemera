@@ -56,7 +56,7 @@ export const contentPolicy = (source: string) =>
  * them, all but the parts the app parses and, on a subject card, the number
  * of subjects it validates.
  */
-export const playerAsksWin = (source: string) =>
+const playerAsksWin = (source: string) =>
   `The rules below are defaults. Where ${source} explicitly asks for something they leave out or limit, such as another language, an altered version of a canon character, named people in a scenario, secrets, goals or deadlines, more standing pressures, an outfit, or a longer opening with dialogue or action, follow it. Only the sections, their tags and order, the description's blocks, the first message's Location line and the number of subjects stay exactly as given, since the app reads them.`;
 
 const EUROPEAN_UNITS = `Always use European units. Height in centimetres, weight in kilograms, bra sizes in EU cup sizes, all other measures metric.`;

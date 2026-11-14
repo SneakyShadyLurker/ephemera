@@ -3,7 +3,7 @@ import { CREATOR_ART } from "./limits.ts";
 import { artControlEventSchema } from "./schema.ts";
 
 export const ART_STREAM_TYPE = "application/vnd.ephemera.art-stream.v1";
-export const ART_FRAME_HEADER_BYTES = 5;
+const ART_FRAME_HEADER_BYTES = 5;
 export const ART_CONTROL_BYTES = 64 * 1024;
 export const ART_KEEPALIVE = new Uint8Array(ART_FRAME_HEADER_BYTES);
 

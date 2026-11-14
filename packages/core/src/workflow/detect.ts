@@ -15,10 +15,7 @@ import type { SlotTarget } from "./slots.ts";
  */
 
 /** Each text encoder's prompt inputs. */
-export const TEXT_INPUTS: ReadonlyMap<string, readonly string[]> = new Map<
-  string,
-  readonly string[]
->([
+const TEXT_INPUTS: ReadonlyMap<string, readonly string[]> = new Map<string, readonly string[]>([
   ["CLIPTextEncode", ["text"]],
   ["CLIPTextEncodeSDXL", ["text_g", "text_l"]],
   ["CLIPTextEncodeSDXLRefiner", ["text"]],
@@ -35,7 +32,7 @@ export const TEXT_INPUTS: ReadonlyMap<string, readonly string[]> = new Map<
 ]);
 
 /** The empty-latent classes by name; any `Empty...LatentImage` with the size inputs counts too. */
-export const EMPTY_LATENTS: ReadonlySet<string> = new Set([
+const EMPTY_LATENTS: ReadonlySet<string> = new Set([
   "EmptyLatentImage",
   "EmptySD3LatentImage",
   "EmptyFlux2LatentImage",
@@ -45,7 +42,7 @@ const EMPTY_LATENT_PATTERN = /^Empty.*LatentImage$/;
 const SIZE_INPUTS = ["width", "height", "batch_size"];
 
 /** Each sampler or guider's positive conditioning input. */
-export const SAMPLER_POSITIVE: ReadonlyMap<string, string> = new Map<string, string>([
+const SAMPLER_POSITIVE: ReadonlyMap<string, string> = new Map<string, string>([
   ["KSampler", "positive"],
   ["KSamplerAdvanced", "positive"],
   ["SamplerCustom", "positive"],
@@ -59,10 +56,7 @@ export const SAMPLER_POSITIVE: ReadonlyMap<string, string> = new Map<string, str
  * conditioning on; `ConditioningZeroOut` is a negative marker and stops it.
  * Combine and Concat pass both sides, so both encoders are chosen.
  */
-export const PASS_THROUGH: ReadonlyMap<string, readonly string[]> = new Map<
-  string,
-  readonly string[]
->([
+const PASS_THROUGH: ReadonlyMap<string, readonly string[]> = new Map<string, readonly string[]>([
   ["FluxGuidance", ["conditioning"]],
   ["ConditioningSetTimestepRange", ["conditioning"]],
   ["ConditioningSetArea", ["conditioning"]],

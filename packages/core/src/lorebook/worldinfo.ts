@@ -30,7 +30,7 @@ const ENTRY_FIELDS: ReadonlySet<string> = new Set([
 ]);
 
 /** Recognized top-level book fields in foreign input. */
-export const BOOK_FIELDS = [
+const BOOK_FIELDS = [
   "name",
   "description",
   "scan_depth",

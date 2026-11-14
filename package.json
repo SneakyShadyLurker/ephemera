@@ -12,7 +12,6 @@
   "scripts": {
     "dev": "bun run --parallel --filter @ephemera/server --filter @ephemera/web dev",
     "build": "bun run --filter @ephemera/web build",
-    "start": "EPHEMERA_STATIC_DIR=apps/web/dist bun apps/server/src/index.ts",
     "typecheck": "bun run --parallel 'typecheck:*'",
     "typecheck:core": "tsc --noEmit -p packages/core",
     "typecheck:server": "tsc --noEmit -p apps/server",

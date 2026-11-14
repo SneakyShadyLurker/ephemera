@@ -68,7 +68,7 @@ export const castSheetRequestSchema = z.strictObject({
 export type CastSheetRequest = z.infer<typeof castSheetRequestSchema>;
 
 /** Why the server answered a keeper or sheet call with no result, as its body names it. */
-export const CAST_REFUSALS = ["cast_failed", ...COMMON_REFUSALS, "aborted", "not_found"] as const;
+const CAST_REFUSALS = ["cast_failed", ...COMMON_REFUSALS, "aborted", "not_found"] as const;
 export type CastRefusal = (typeof CAST_REFUSALS)[number];
 
 /** A refusal's body: one of the reasons, or the request outliving its deadline. */

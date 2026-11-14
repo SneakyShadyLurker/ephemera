@@ -2,6 +2,7 @@ import { usesSecondary } from "../../lorebook/activate.ts";
 import { joinKeywords } from "../../lorebook/keys.ts";
 import { entrySettings } from "../../lorebook/settings.ts";
 import type { PersonaFields } from "../../persona.ts";
+import { tagged } from "../../prompt/tagged.ts";
 import { fieldKey, fieldText, type ReworkField, type TextKey } from "./fields.ts";
 import type { ReworkCard } from "./schema.ts";
 
@@ -19,8 +20,6 @@ const PERSONA_NOTE =
   "The player plays {{user}} as the persona below. Treat it as context for the card: wherever the card or the request concerns {{user}}, keep it consistent with this persona. {{user}} is never one of the card's characters. Always call them {{user}}, never by the persona's name, and do not copy the persona into the card, because the roleplay supplies it separately.";
 
 const PORTRAIT_NOTE = "The portrait is attached.";
-
-const tagged = (key: string, text: string): string => `<${key}>\n${text}\n</${key}>`;
 
 /** A field as sent: its key's tags around its current text; nothing when the card lacks it. */
 function sent(card: ReworkCard, field: ReworkField): string[] {

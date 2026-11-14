@@ -25,7 +25,7 @@ import { Switch, SwitchField } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { oneOf } from "@/lib/one-of.ts";
-import { countOf } from "@/lib/text";
+import { charLimit, countOf } from "@/lib/text";
 import { COMPACT_LABEL, FIELD, FIELD_LABEL, HELP, TITLE_FIELD } from "../sheet/fields.ts";
 import { Labelled } from "../sheet/Labelled.tsx";
 import { DepthField, RoleField } from "../sheet/RoleFields.tsx";
@@ -163,7 +163,7 @@ export function EntryEditor(props: EntryEditorProps) {
           aria-label="Title"
           value={entry.comment ?? ""}
           placeholder={entryTitle({ ...entry, comment: "" }, index)}
-          maxLength={CARD_LIMITS.textLength}
+          {...charLimit(CARD_LIMITS.textLength, entry.comment ?? "")}
           autoComplete="off"
           onChange={(event) => onChange({ comment: event.target.value })}
           className={cn(TITLE_FIELD, "min-w-48 flex-1 basis-48 py-0.5 text-heading")}
@@ -185,7 +185,7 @@ export function EntryEditor(props: EntryEditorProps) {
           id={contentId}
           value={entry.content}
           rows={4}
-          maxLength={CARD_LIMITS.textLength}
+          {...charLimit(CARD_LIMITS.textLength, entry.content)}
           onChange={(event) => onChange({ content: event.target.value })}
           className={FIELD}
         />

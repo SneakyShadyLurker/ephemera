@@ -52,15 +52,21 @@ describe("a select's groups", () => {
     expect(html).toMatch(/>Mine<\/div><span id=/);
   });
 
-  it("leaves a select without groups as it was", () => {
+  it("renders a select without groups as its options alone", () => {
     const html = renderToStaticMarkup(
       <Select defaultValue="a">
         <SelectItem value="a">A</SelectItem>
+        <SelectItem value="b">B</SelectItem>
       </Select>,
     );
     expect(html).not.toContain('role="group"');
-    expect(html).toContain(
-      '<div data-selected="" role="option" aria-selected="true" tabindex="-1" class="flex h-9 cursor-default select-none items-center gap-2 rounded-sm pr-2 pl-3 text-ink text-ui outline-none data-highlighted:bg-surface-hover touch:h-11"><div class="min-w-0 flex-1 truncate">A</div>',
+    const options = [...html.matchAll(/<div ([^>]*\brole="option"[^>]*)>/g)].map(
+      ([, attributes]) => attributes ?? "",
     );
+    expect(options).toHaveLength(2);
+    expect(options[0]).toContain('aria-selected="true"');
+    expect(options[1]).toContain('aria-selected="false"');
+    expect(html).toContain(">A</div>");
+    expect(html).toContain(">B</div>");
   });
 });

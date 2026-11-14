@@ -18,10 +18,10 @@ import {
  */
 
 /** The `blocked` entry of a stored graph `describeWorkflow` cannot read. */
-export const INVALID_GRAPH = "invalid_graph";
+const INVALID_GRAPH = "invalid_graph";
 
 /** A workflow as the catalog gives it. */
-export interface CatalogWorkflow extends Workflow {
+interface CatalogWorkflow extends Workflow {
   /**
    * Classes the allowlist no longer admits for an imported graph (an operator
    * removed one from the env list): the workflow stays listed, never runs.

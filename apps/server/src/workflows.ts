@@ -77,11 +77,11 @@ type Logged = Pick<LogFields, "nodes" | "checked" | "errorClass" | "format">;
 type WorkflowsEnv = UserEnv & LifetimeEnv & { Variables: { logged: Logged } };
 
 /** How a route reaches the requester's own workflows (api.ts). */
-export type WorkflowStoreFor = (c: {
+type WorkflowStoreFor = (c: {
   var: { user: { stores: Pick<Stores, "workflows"> } };
 }) => WorkflowStore;
 
-export interface WorkflowsDeps {
+interface WorkflowsDeps {
   log: Logger;
   /** The server's node policy, applied in its `import` context. */
   allowlist: NodeAllowlist;

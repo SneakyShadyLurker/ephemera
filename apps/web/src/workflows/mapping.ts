@@ -16,14 +16,14 @@ import {
  */
 
 /** One node a place fills, with the inputs it fills there. */
-export interface MappingTarget {
+interface MappingTarget {
   title: string;
   node: string;
   inputs: string[];
 }
 
 /** A Select for a place detection could not settle. */
-export interface MappingChoice {
+interface MappingChoice {
   place: ChoicePlace;
   label: "Prompt node" | "Size node" | "Output node";
   ask: string;

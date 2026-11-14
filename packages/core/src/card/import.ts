@@ -5,6 +5,7 @@ import { importedNoteDepth, importedNoteRole } from "../imports/character-note.t
 import { stripDecorators } from "../imports/decorators.ts";
 import { ignoredFeatureList } from "../imports/foreign-features.ts";
 import { convertForeignEntrySettings } from "../imports/lorebook-settings.ts";
+import { type ConversionReport, emptyConversionReport } from "../imports/report.ts";
 import {
   characterFileSchema,
   legacyCharacterFileSchema,
@@ -27,6 +28,8 @@ import {
   storedLorebookDataSchema,
 } from "./schema.ts";
 import { uniqueTags } from "./tags.ts";
+
+export { type ConversionReport, emptyConversionReport };
 
 /** Imports V2/V3 cards into native data. Recognized foreign settings are converted once; unknown extensions and transport metadata are discarded. Flat V1 files are retired. */
 
@@ -61,7 +64,7 @@ function reportTrims(trimmed: ReadonlySet<CardTrim>, report: ConversionReport): 
   for (const trim of CARD_TRIMS) if (trimmed.has(trim)) report.changed.push(TRIM_SENTENCES[trim]);
 }
 
-export type CardImportResult =
+type CardImportResult =
   | {
       ok: true;
       card: CharacterCard;
@@ -204,11 +207,21 @@ const looseData = z.object({
   modification_date: optionalNumber,
 });
 
-/** A keyword list within the limits: overlong keywords left out, then the first `L.tags`. */
+/**
+ * A keyword list within the limits: overlong keywords left out, then the
+ * first `L.tags`. A keyword is measured as written and as conversion will
+ * write it, since its legacy placeholders grow into macros.
+ */
 function fitKeywords(value: unknown, trimmed: Set<CardTrim>): unknown {
   const list = toList(value);
   if (!Array.isArray(list)) return value;
-  const kept = list.filter((key) => textLength(key) <= L.shortTextLength).slice(0, L.tags);
+  const kept = list
+    .filter(
+      (key) =>
+        textLength(key) <= L.shortTextLength &&
+        textLength(normalizeMacroAliases(key)) <= L.shortTextLength,
+    )
+    .slice(0, L.tags);
   if (kept.length < list.length) trimmed.add("keywords");
   return kept;
 }
@@ -350,7 +363,7 @@ export function normalizeCard(value: unknown): CardImportResult {
 
 export type LorebookImportError = "too_large" | "field_too_long" | "invalid";
 
-export type LorebookImportResult =
+type LorebookImportResult =
   | { ok: true; book: Lorebook; report: ConversionReport }
   | { ok: false; error: LorebookImportError; field?: string };
 
@@ -395,18 +408,6 @@ export function parseCardText(text: string): CardImportResult {
   return normalizeCard(value);
 }
 
-/** Content-free import and migration diagnostics. No untrusted text is interpolated. */
-export interface ConversionReport {
-  kept: string[];
-  changed: string[];
-  skipped: string[];
-}
-export const emptyConversionReport = (): ConversionReport => ({
-  kept: [],
-  changed: [],
-  skipped: [],
-});
-
 function convertForeignBook(
   book: z.infer<typeof looseLorebook>,
   report: ConversionReport,
@@ -416,12 +417,12 @@ function convertForeignBook(
       report.changed.push("Higher recursion delay levels became recursive-only activation.");
     else report.skipped.push(`Unsupported lorebook feature omitted: ${feature}.`);
   }
+  let outlets = false;
   const entries = book.entries.map((entry) => {
     const { settings: converted, outlet } = convertForeignEntrySettings(entry);
     const { secondaryKeys, ...settings } = converted;
     const content = stripDecorators(entry.content);
-    if (outlet)
-      report.changed.push("An unsupported outlet entry was disabled; its text was retained.");
+    if (outlet) outlets = true;
     return withoutUndefined({
       keys: entry.keys.map(normalizeMacroAliases),
       content:
@@ -440,6 +441,8 @@ function convertForeignBook(
       ...(Object.keys(settings).length ? { settings } : {}),
     });
   });
+  if (outlets)
+    report.changed.push("Unsupported outlet entries were disabled; their text was retained.");
   return withoutUndefined({
     name: book.name,
     description: book.description,

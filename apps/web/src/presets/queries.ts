@@ -208,7 +208,7 @@ export function promptSummary(blocks: PromptBlock[]): string {
     .join(", ");
 }
 
-export type PresetImport = FileImport<z.infer<typeof presetImportResponseSchema>>;
+type PresetImport = FileImport<z.infer<typeof presetImportResponseSchema>>;
 
 /** Every refusal the import route can answer in words, so a new one fails the typecheck here. */
 type ImportRefusal = InferResponseType<typeof api.presets.import.$post, 422>["error"];
@@ -228,7 +228,7 @@ function presetNameFromFile(fileName: string): string {
  * Imports one native preset or a foreign Chat Completion preset pair. The file is untrusted: parsed as JSON here, validated
  * and mapped by the server (packages/core), never interpreted otherwise.
  */
-export async function importPreset(file: File): Promise<PresetImport> {
+async function importPreset(file: File): Promise<PresetImport> {
   // The file goes inside a JSON body: past that body's ceiling, the server would refuse it.
   if (file.size > MAX_JSON_BYTES) return tooLargeImport(file);
   let parsed: unknown;
@@ -238,11 +238,10 @@ export async function importPreset(file: File): Promise<PresetImport> {
     return { key: crypto.randomUUID(), ok: false, file: file.name, reason: "it isn't valid JSON" };
   }
   const name = presetNameFromFile(file.name);
-  const promptId = crypto.randomUUID();
-  const samplerId = crypto.randomUUID();
   return importFile(
+    "presets",
     file,
-    (init) =>
+    (init, { id: promptId, pairId: samplerId }) =>
       api.presets.import.$post({ json: { promptId, samplerId, name, file: parsed } }, { init }),
     IMPORT_REASONS,
     (body) => presetImportResponseSchema.safeParse(body).data,

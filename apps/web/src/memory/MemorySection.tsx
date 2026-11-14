@@ -17,7 +17,7 @@ import { memoryOnIn, memoryQuery } from "./queries.ts";
 const HELP = SHEET_HELP;
 
 /** Said wherever memory is offered: what it keeps, and what it never does. */
-export const MEMORY_KEPT =
+const MEMORY_KEPT =
   "Memories are kept with the character, encrypted like its card. The chat itself is never kept. Changing persona continues this character's story under the new player name. Duplicate the character for independent memory.";
 
 const MEMORY_DETAIL = `Turned off, saved memories stay. ${MEMORY_KEPT}`;

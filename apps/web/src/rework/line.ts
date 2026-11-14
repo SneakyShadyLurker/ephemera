@@ -1,6 +1,6 @@
 import { andList, countOf, MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
 import { isFailure, type SaveStatus, saveStatusText } from "../sheet/autosave.ts";
-import { invalidField, type ReworkState } from "./store.ts";
+import { invalidField, type ReworkView } from "./store.ts";
 
 /*
  * What the rework's dock says in its one line, for each phase and ending.
@@ -22,7 +22,7 @@ export interface Line {
 }
 
 /** Why the server refused the card as sent, naming the field its schema refuses when one does. */
-function refusedText(state: Pick<ReworkState, "base">): string {
+function refusedText(state: Pick<ReworkView, "base">): string {
   const problem = state.base === null ? null : invalidField(state.base);
   if (problem === null) return "This card has a field Ephemera can't send as it is.";
   const how = problem.kind === "empty" ? "is empty" : "is over the limit";
@@ -35,7 +35,7 @@ function refusedText(state: Pick<ReworkState, "base">): string {
  * change Previous and Next are on.
  */
 export function lineOf(
-  state: ReworkState,
+  state: ReworkView,
   model: string | null,
   current: string | null,
   save: SaveStatus | null,

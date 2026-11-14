@@ -105,6 +105,7 @@ export function ChoiceList({
                     variant="outline"
                     aria-label={`${choice.checked ? actions.remove : actions.add} ${choice.name}`}
                     disabled={choice.pending || choice.disabled}
+                    focusableWhenDisabled
                     onClick={() => onToggle(choice, !choice.checked)}
                   >
                     {choice.checked ? actions.remove : actions.add}

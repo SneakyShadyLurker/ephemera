@@ -48,8 +48,8 @@ export type CastGender = CastAnchor["gender"];
  * from the card/initial baseline (tab memory only), and the anchor a keeper
  * change or a sheet item carries.
  */
-export const castDevelopmentsSchema = castAnchorSchema.omit({ name: true, gender: true }).partial();
-export type CastDevelopments = z.infer<typeof castDevelopmentsSchema>;
+const castDevelopmentsSchema = castAnchorSchema.omit({ name: true, gender: true }).partial();
+type CastDevelopments = z.infer<typeof castDevelopmentsSchema>;
 
 /** A remembered person: fixed details only, name and gender required, with no chat identity or scene state. */
 export const rememberedCastAnchorSchema = castAnchorSchema.partial().extend({
@@ -64,7 +64,7 @@ export const castContinuitySchema = z.strictObject({
   goals: field.exactOptional(),
   knowledge: field.exactOptional(),
 });
-export type CastContinuity = z.infer<typeof castContinuitySchema>;
+type CastContinuity = z.infer<typeof castContinuitySchema>;
 
 const groundedValue = z.strictObject({
   value: field.min(1),
@@ -122,7 +122,6 @@ export const castEntrySchema = z.strictObject({
   state: castStateSchema,
 });
 export type CastEntry = z.infer<typeof castEntrySchema>;
-export type CastRole = CastEntry["role"];
 
 /** Introduction order; the panel and both prompt texts keep it. */
 export const castRegisterSchema = z.strictObject({
@@ -222,15 +221,23 @@ function clampChange(value: unknown): unknown {
           }),
       ]),
     );
+  // An ungrounded development or continuity cue says nothing, but must not discard
+  // the NPC's valid anchor, state or other cues.
+  const grounded = (fields: unknown): unknown =>
+    isRecord(fields)
+      ? Object.fromEntries(
+          Object.entries(fields).filter(([, item]) => groundedValue.safeParse(item).success),
+        )
+      : fields;
   const clamped = clampKeys(value, {
     was: clampName,
     role: keep,
     gender: readGender,
     anchor: (anchor) => clampKeys(anchor, anchorClamps),
     state: (state) => clampKeys(state, { present: keep, ...fieldClamps(CAST_STATE_FIELDS) }),
-    developments: (fields) => clampKeys(fields, groundedClamps(CAST_ANCHOR_FIELDS)),
+    developments: (fields) => grounded(clampKeys(fields, groundedClamps(CAST_ANCHOR_FIELDS))),
     continuity: (fields) =>
-      clampKeys(fields, groundedClamps(Object.keys(castContinuitySchema.shape))),
+      grounded(clampKeys(fields, groundedClamps(Object.keys(castContinuitySchema.shape)))),
     introduce: (item) => clampKeys(item, { evidence: (text) => clampText(text, L.field) }),
     discovered: (fields) => {
       const clamped = clampKeys(
@@ -271,7 +278,7 @@ function clampChange(value: unknown): unknown {
 /**
  * The keeper's answer, parsed from JSON, brought within `CAST_LIMITS` before
  * `castChangesSchema` reads it: strings cut, keys the schema does not name
- * dropped, blank names, unreadable genders and unusable introductions and discovery items dropped, `cast` capped
+ * dropped, blank names, unreadable genders and unusable introductions, discovery items, developments and continuity cues dropped, `cast` capped
  * at `entries`. Other values it cannot mend still fail the schema.
  */
 export const clampCastChanges = (value: unknown): unknown =>

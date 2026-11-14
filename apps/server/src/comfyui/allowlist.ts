@@ -351,10 +351,10 @@ export const REFUSED_NODE_CLASSES: ReadonlySet<string> = new Set([
 export const REFUSED_PATTERN = /^(Save|Preview)|Save$/;
 
 /** Where a graph comes from: a server file at start, or a graph a user imports. */
-export type AllowlistContext = "file" | "import";
+type AllowlistContext = "file" | "import";
 
 /** Why a class is refused in a context. */
-export type RefusalReason = "refused_writes" | "not_allowed" | "reference_only";
+type RefusalReason = "refused_writes" | "not_allowed" | "reference_only";
 
 export interface NodeAllowlist {
   allows(classType: string, context?: AllowlistContext): boolean;

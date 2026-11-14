@@ -2,6 +2,7 @@ import { type ComponentProps, useRef, useState } from "react";
 import { EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { charLimitOf } from "@/lib/text";
 
 /** The open prose face keeps a quiet editing cue even before focus. */
 export function ProseField({
@@ -28,6 +29,7 @@ export function ProseField({
     <span className="relative grid min-w-0 w-full">
       <textarea
         {...props}
+        {...charLimitOf(props)}
         ref={(element) => {
           field.current = element;
           if (typeof ref === "function") return ref(element);

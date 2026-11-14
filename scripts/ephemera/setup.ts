@@ -10,7 +10,12 @@ import { userInfo } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { autocomplete, confirm, log, note, password, select, text } from "@clack/prompts";
-import { ConfigError, DEFAULT_PORT, loadConfig } from "../../apps/server/src/config.ts";
+import {
+  ConfigError,
+  DEFAULT_PORT,
+  loadConfig,
+  passesEnvRule,
+} from "../../apps/server/src/config.ts";
 import { usernameSchema } from "../../apps/server/src/identity.ts";
 import { modelIdSchema } from "../../packages/core/src/chat.ts";
 import {
@@ -55,12 +60,6 @@ function suggestedUser(): string {
   return usernameSchema.safeParse(name).success ? name : "me";
 }
 
-const isOrigin = (value: string) => URL.canParse(value) && new URL(value).origin === value;
-const isHttpUrl = (value: string) =>
-  URL.canParse(value) && /^https?:$/.test(new URL(value).protocol);
-const isPort = (value: string) =>
-  /^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 65_535;
-
 function describe(check: ModelsCheck): string {
   if (check.ok) return `Connected: ${models(check.models.length)} available`;
   if (check.reason === "unreachable") return "Nothing answered at that address";
@@ -77,9 +76,6 @@ export class DataKeyMissingError extends Error {
   }
 }
 
-const validProxyKey = (value: string | undefined) => (value ?? "").length >= 32;
-const validDataKey = (value: string | undefined) => /^[0-9a-fA-F]{64}$/.test(value ?? "");
-
 /**
  * The proxy key and data key `.env` needs: a valid one there is kept; one
  * the shell supplies is written there, since `.env` is what the server
@@ -88,13 +84,13 @@ const validDataKey = (value: string | undefined) => /^[0-9a-fA-F]{64}$/.test(val
  */
 export function missingKeys(file: Record<string, string>, shell: Env): Record<string, string> {
   const values: Record<string, string> = {};
-  if (!validProxyKey(file.EPHEMERA_PROXY_KEY)) {
-    values.EPHEMERA_PROXY_KEY = validProxyKey(shell.EPHEMERA_PROXY_KEY)
+  if (!passesEnvRule("proxyKey", file.EPHEMERA_PROXY_KEY)) {
+    values.EPHEMERA_PROXY_KEY = passesEnvRule("proxyKey", shell.EPHEMERA_PROXY_KEY)
       ? (shell.EPHEMERA_PROXY_KEY as string)
       : key();
   }
-  if (!validDataKey(file.EPHEMERA_DATA_KEY)) {
-    if (validDataKey(shell.EPHEMERA_DATA_KEY)) {
+  if (!passesEnvRule("dataKey", file.EPHEMERA_DATA_KEY)) {
+    if (passesEnvRule("dataKey", shell.EPHEMERA_DATA_KEY)) {
       values.EPHEMERA_DATA_KEY = shell.EPHEMERA_DATA_KEY as string;
     } else if (librariesExist(effectiveEnv(shell, file))) {
       throw new DataKeyMissingError();
@@ -157,13 +153,13 @@ export async function access(
             placeholder: "https://ephemera.example.com",
             initialValue: wasProxy ? (current.EPHEMERA_ORIGIN ?? "") : "",
             validate: (value) =>
-              isOrigin(value ?? "")
+              passesEnvRule("origin", value)
                 ? undefined
                 : "An exact origin, like https://ephemera.example.com",
           }),
         )
       : (flags.behindProxy ?? "");
-    if (!isOrigin(origin))
+    if (!passesEnvRule("origin", origin))
       fail("--behind-proxy needs an exact origin, like https://ephemera.example.com");
     return { EPHEMERA_ORIGIN: origin, EPHEMERA_LOCAL_USER: "", EPHEMERA_LOCAL_PORT: "" };
   }
@@ -188,7 +184,7 @@ export async function access(
           message: "Port to open it on",
           initialValue: String(wasLocal?.port ?? DEFAULT_LOCAL_PORT),
           validate: (value) =>
-            !isPort(value ?? "")
+            !passesEnvRule("port", value)
               ? "A port from 1 to 65535"
               : Number(value) === serverPort
                 ? `The server itself uses ${serverPort}`
@@ -196,7 +192,7 @@ export async function access(
         }),
       )
     : (flags.port ?? String(wasLocal?.port ?? DEFAULT_LOCAL_PORT));
-  if (!isPort(port)) fail("--port takes a port from 1 to 65535");
+  if (!passesEnvRule("port", port)) fail("--port takes a port from 1 to 65535");
   if (Number(port) === serverPort)
     fail(`--port must differ from the server's own port, ${serverPort}`);
   return { EPHEMERA_LOCAL_USER: user, EPHEMERA_LOCAL_PORT: port };
@@ -295,7 +291,7 @@ export async function provider(
       flags.upstream ??
       process.env.EPHEMERA_UPSTREAM_BASE_URL ??
       current.EPHEMERA_UPSTREAM_BASE_URL;
-    if (!baseUrl || !isHttpUrl(baseUrl)) {
+    if (!baseUrl || !passesEnvRule("upstreamUrl", baseUrl)) {
       fail(
         "Name the model provider: --upstream <base URL>, with its key in EPHEMERA_UPSTREAM_API_KEY.",
       );
@@ -351,7 +347,8 @@ export async function provider(
               message: "Base URL",
               initialValue: preset?.baseUrl.replace("<host>", "localhost") ?? "",
               placeholder: "https://api.example.com/v1",
-              validate: (value) => (isHttpUrl(value ?? "") ? undefined : "An http or https URL"),
+              validate: (value) =>
+                passesEnvRule("upstreamUrl", value) ? undefined : "An http or https URL",
             }),
           );
     // A key goes only to the address it was saved for.

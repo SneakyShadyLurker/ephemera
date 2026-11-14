@@ -5,6 +5,7 @@ import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { PlusIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { charLimit } from "@/lib/text";
 import { LIST_X } from "../lorebook/EntryList.tsx";
 import type { BookContext } from "../lorebook/LorebookEditor.tsx";
 import { FIELD, FIELD_LABEL, HELP, TITLE_FIELD } from "../sheet/fields.ts";
@@ -70,7 +71,7 @@ export function BookHead({
             aria-label="Name"
             value={context.name}
             placeholder="Name"
-            maxLength={CARD_LIMITS.nameLength}
+            {...charLimit(CARD_LIMITS.nameLength, context.name)}
             autoComplete="off"
             aria-invalid={blank || undefined}
             aria-describedby={blank ? problemId : undefined}
@@ -155,7 +156,7 @@ function Description({ value, onChange }: { value: string; onChange: (value: str
         id={fieldId}
         value={value}
         rows={2}
-        maxLength={CARD_LIMITS.textLength}
+        {...charLimit(CARD_LIMITS.textLength, value)}
         onChange={(event) => onChange(event.target.value)}
         onBlur={() => {
           // A press on a control below blurs the field before its click lands; closing

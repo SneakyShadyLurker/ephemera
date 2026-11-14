@@ -20,6 +20,7 @@ import { ROW_CONTENT, ROW_FRAME, rowLayout } from "@/components/ui/row-layout";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { charLimit } from "@/lib/text";
 import { artStatusQuery } from "../creator/queries.ts";
 import { WorkflowSelect } from "../creator/WorkflowSelect.tsx";
 import {
@@ -256,7 +257,7 @@ export function WorkflowRow({
                 aria-describedby={problem !== null ? problemId : undefined}
                 autoComplete="off"
                 spellCheck={false}
-                maxLength={WORKFLOW_LIMITS.nameLength}
+                {...charLimit(WORKFLOW_LIMITS.nameLength, draft)}
                 value={draft}
                 onChange={(event) => {
                   setDraft(event.target.value);

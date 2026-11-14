@@ -18,7 +18,7 @@ const n = new Intl.NumberFormat("en", { notation: "compact" });
  * folded; null before the memory first loads, for a character gone or with
  * memory off.
  */
-export function useMemoryStatus(): { characterId: string; remembered: number } | null {
+function useMemoryStatus(): { characterId: string; remembered: number } | null {
   const characterId = useSetting((settings) => settings.characterId);
   const memory = useQuery({
     ...memoryQuery(characterId ?? ""),
@@ -34,7 +34,7 @@ export function useMemoryStatus(): { characterId: string; remembered: number } |
  * chat rather than to the character's sheet: the Memory mark, and the
  * phone's chat menu item (its `render`).
  */
-export function MemoryLink({
+function MemoryLink({
   characterId,
   ...props
 }: { characterId: string } & Omit<ComponentProps<typeof Link>, "to" | "params" | "search">) {
@@ -45,24 +45,6 @@ export function MemoryLink({
       search={{ from: "chat" }}
       {...props}
     />
-  );
-}
-
-/**
- * How many turns are remembered, set in a control's top corner so the
- * control keeps its width and nothing beside it moves; nothing while none are.
- */
-export function RememberedCount({ count }: { count: number }) {
-  if (count === 0) return null;
-  return (
-    <span
-      key={count}
-      aria-hidden="true"
-      data-remembered-count=""
-      className="pointer-events-none absolute top-0.5 right-0 min-w-4 rounded-full bg-surface-selected px-1 text-center font-medium text-ink text-tag tabular-nums transition-[opacity,scale] duration-(--duration-arrive) ease-spring starting:scale-(--arrive-scale) starting:opacity-0 touch:top-1 touch:right-0.5"
-    >
-      {n.format(count)}
-    </span>
   );
 }
 

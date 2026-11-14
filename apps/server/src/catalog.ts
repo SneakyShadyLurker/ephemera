@@ -32,6 +32,7 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
   /** `rich` when the catalog came from the rich query; a plain list never replaces such a one. */
   let cached: { models: ModelInfo[]; at: number; rich: boolean } | undefined;
   let refreshing: Promise<CatalogResult> | undefined;
+  const servedRich = () => cached?.rich === true;
 
   /** One model list request; `fallback` when a plain list may still answer. */
   async function ask(
@@ -47,6 +48,8 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
             ? {}
             : { Authorization: `Bearer ${config.upstreamApiKey}` },
         signal: bounded,
+        // The configured upstream and nothing else: a redirect is a failure (PRINCIPLES.md 2).
+        redirect: "manual",
       });
     } catch (error) {
       // A caller that left is no sign of the upstream's health.
@@ -54,13 +57,20 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
       return { result: { ok: false, error: "upstream_unavailable" }, fallback: false };
     }
     if (!response.ok) {
-      await response.body?.cancel();
+      await response.body?.cancel().catch(() => {});
       log.warn({ event: "upstream.models", status: response.status });
       const refused = response.status >= 400 && response.status < 500;
       return { result: { ok: false, error: "upstream_unavailable" }, fallback: refused };
     }
-    const body = await readBoundedJson(response, MAX_CATALOG_BYTES).catch(() => undefined);
-    const models = modelsFromCatalog(body?.ok === true ? body.json : undefined);
+    let body: Awaited<ReturnType<typeof readBoundedJson>>;
+    try {
+      body = await readBoundedJson(response, MAX_CATALOG_BYTES);
+    } catch (error) {
+      // A body that stopped arriving is the upstream failing to answer, not an invalid catalog.
+      if (!signal.aborted) log.warn({ event: "upstream.models", errorClass: errorClass(error) });
+      return { result: { ok: false, error: "upstream_unavailable" }, fallback: false };
+    }
+    const models = modelsFromCatalog(body.ok ? body.json : undefined);
     if (models === undefined) {
       log.warn({ event: "upstream.models", errorClass: "InvalidModelCatalog" });
       return { result: { ok: false, error: "upstream_invalid" }, fallback: true };
@@ -82,9 +92,12 @@ export function createCatalog(config: AppConfig, fetch: UpstreamFetch, log: Logg
       cached = { models: rich.result.models, at: Date.now(), rich: true };
       return rich.result;
     }
-    if (!rich.fallback || cached?.rich === true) return rich.result;
+    if (!rich.fallback || servedRich()) return rich.result;
     const { result } = await ask(base, signal, bounded);
-    if (result.ok) cached = { models: result.models, at: Date.now(), rich: false };
+    // Checked again: another load's rich catalog may have arrived during this query.
+    if (result.ok && !servedRich()) {
+      cached = { models: result.models, at: Date.now(), rich: false };
+    }
     return result;
   }
 

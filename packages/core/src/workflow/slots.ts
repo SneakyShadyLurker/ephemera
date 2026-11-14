@@ -45,7 +45,7 @@ const PLACEHOLDER = {
 /** Any placeholder text, whole or embedded, as `fillWorkflow` recognises it. */
 const ANY_PLACEHOLDER = /\{\{\w*\}\}/;
 
-export type ApplySlotsResult =
+type ApplySlotsResult =
   | { ok: true; graph: WorkflowGraph }
   | { ok: false; refusal: { error: "embedded_placeholder"; nodes: string[] } };
 

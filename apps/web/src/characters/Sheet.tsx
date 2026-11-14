@@ -807,7 +807,7 @@ function SectionsMenu() {
   return (
     <div className="flex shrink-0 items-center gap-1">
       <Menu>
-        <MenuTrigger render={<Button aria-label="Go to section" className="px-2 touch:px-2" />}>
+        <MenuTrigger render={<Button className="px-2 touch:px-2" />}>
           <SectionsIcon size={16} />
           Sections
         </MenuTrigger>

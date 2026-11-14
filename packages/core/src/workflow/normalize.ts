@@ -5,7 +5,7 @@ import type { NodeMetaMap } from "./meta.ts";
 import { type NodeTitles, nodeLabel } from "./report.ts";
 
 /** Whether a class is the sanctioned output, or one nothing may admit; the server's allowlist owns both. */
-export type ClassPredicate = (classType: string) => boolean;
+type ClassPredicate = (classType: string) => boolean;
 
 /**
  * The image outputs a graph can end in: nodes whose `images` input is linked

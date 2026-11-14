@@ -204,6 +204,14 @@ interface ReworkDeps {
 }
 
 /** While the model works or its changes are under review, the sheet takes no edits. */
+/**
+ * A run as its surfaces show it: everything but the answer's raw text and
+ * reading position, which change with every streamed delta.
+ */
+export type ReworkView = Omit<ReworkState, "answer" | "parsedUpTo" | "malformed">;
+export const reworkView = ({ answer, parsedUpTo, malformed, ...view }: ReworkState): ReworkView =>
+  view;
+
 export const isLocked = (state: Pick<ReworkState, "phase">): boolean =>
   state.phase === "working" || state.phase === "waiting" || state.phase === "review";
 

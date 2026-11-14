@@ -191,7 +191,7 @@ export const MAX_MACRO_WORK = 32 * MAX_MACRO_OUTPUT;
  * parsing units (the lorebook scan reserves 21 ns per unit), so a full
  * state cannot make every substitution or card field reread free.
  */
-export const MACRO_STATE_VARIABLE_WORK = 2;
+const MACRO_STATE_VARIABLE_WORK = 2;
 /** One foreground action's budget, including intermediate JSON work and state recounts. */
 export function createMacroWorkBudget(): MacroWorkBudget {
   let work = 0;
@@ -637,10 +637,11 @@ class Evaluation {
     return "";
   }
 
-  private shorthand(raw: string, depth: number, offset: number): string | undefined {
+  /** `raw` stands at `at` in the source. */
+  private shorthand(raw: string, depth: number, at: number): string | undefined {
     const match =
       /^([.$])([a-z](?:[a-z0-9_-]*[a-z0-9])?)\s*(?:(\|\|=|\?\?=|\|\||\?\?|\+\+|--|\+=|-=|==|!=|>=|<=|=|>|<)\s*([\s\S]*))?$/i.exec(
-        raw.trim(),
+        raw.replace(/^\s*#\s*/, "").trim(),
       );
     if (!match) return undefined;
     const namespace = match[1] === "$" ? this.state.global : this.state.local;
@@ -650,7 +651,10 @@ class Evaluation {
     if (operator === undefined) return previous ?? "";
     if ((operator === "||" || operator === "||=") && truthy(previous)) return previous ?? "";
     if ((operator === "??" || operator === "??=") && previous !== undefined) return previous;
-    const value = this.fragment((match[4] ?? "").trim(), depth + 1, offset);
+    // The operand is evaluated where it stands in the source, so an operand
+    // this refuses is rendered again from what it already evaluated to.
+    const operand = (match[4] ?? "").trim();
+    const value = this.fragment(operand, depth + 1, at + raw.lastIndexOf(operand));
     switch (operator) {
       case "||":
       case "??":
@@ -696,14 +700,16 @@ class Evaluation {
     }
   }
 
-  private condition(raw: string, depth: number, offset: number): boolean {
+  /** `raw` stands at `at` in the source. */
+  private condition(raw: string, depth: number, at: number): boolean {
     let condition = raw.trim();
     const inverted = condition.startsWith("!");
     if (inverted) condition = condition.slice(1).trimStart();
+    const conditionAt = at + raw.lastIndexOf(condition);
     const value =
-      this.shorthand(condition, depth, offset) ??
+      this.shorthand(condition, depth, conditionAt) ??
       this.simple(condition.toLowerCase()) ??
-      this.fragment(condition, depth + 1, offset);
+      this.fragment(condition, depth + 1, conditionAt);
     return inverted ? !truthy(value) : truthy(value);
   }
 
@@ -953,7 +959,12 @@ class Evaluation {
               break;
             }
           }
-          const selected = this.condition(parsed.argument ?? "", depth, node.at);
+          const condition = parsed.argument ?? "";
+          const selected = this.condition(
+            condition,
+            depth,
+            node.at + 2 + node.raw.lastIndexOf(condition),
+          );
           value = selected
             ? this.render(sequence, depth + 1, index + 1, alternative)
             : alternative < closing
@@ -966,7 +977,7 @@ class Evaluation {
         }
         index = closing;
       } else {
-        value = this.shorthand(node.raw.replace(/^\s*#\s*/, ""), depth, node.at);
+        value = this.shorthand(node.raw, depth, node.at + 2);
         if (value === undefined && parsed) {
           // Inline comments, like scoped comments, process nested expressions
           // before removing their own output.

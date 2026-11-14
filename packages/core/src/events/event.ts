@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { hasTag, tagsSchema, uniqueTags } from "../card/tags.ts";
+import { isOneLine } from "../lines.ts";
 import { closeSentence } from "../prompt/sentence.ts";
 import { storedFields, withRevision } from "../revision.ts";
 
@@ -61,12 +62,7 @@ export type EventScope = z.infer<typeof eventScopeSchema>;
 /** What an event's editor sets. */
 export const eventFieldsSchema = z.strictObject({
   /** One line: trimmed, never a line break. */
-  text: z
-    .string()
-    .trim()
-    .min(1)
-    .max(EVENT_LIMITS.text)
-    .refine((text) => !/[\n\r\u0085\u2028\u2029]/.test(text), "one line"),
+  text: z.string().trim().min(1).max(EVENT_LIMITS.text).refine(isOneLine, "one line"),
   /** Percent, with at most one decimal. */
   chance: z
     .number()
@@ -90,7 +86,7 @@ export const eventPatchRequestSchema = withRevision(eventFieldsSchema.partial())
 export const storedEventSchema = eventFieldsSchema
   .extend({
     /** Converted saved text keeps its exact length; only disabled events may be blank. */
-    text: z.string().refine((text) => !/[\n\r\u0085\u2028\u2029]/.test(text), "one line"),
+    text: z.string().refine(isOneLine, "one line"),
     id: z.uuid(),
     ...storedFields,
   })

@@ -54,7 +54,7 @@ export const FORBIDDEN_KEYS: ReadonlySet<string> = new Set([
   "prototype",
 ]);
 
-export const safeKey = (pattern: RegExp) =>
+const safeKey = (pattern: RegExp) =>
   z
     .string()
     .regex(pattern)
@@ -65,7 +65,7 @@ export const safeKey = (pattern: RegExp) =>
  * drops an own `__proto__` key from a record silently, so the key schema
  * alone would accept an object carrying one.
  */
-export const safeRecord = <K extends z.core.$ZodRecordKey, V extends z.ZodType>(key: K, value: V) =>
+const safeRecord = <K extends z.core.$ZodRecordKey, V extends z.ZodType>(key: K, value: V) =>
   z
     .unknown()
     .refine(
@@ -114,6 +114,13 @@ export const workflowNameSchema = z
   .min(1)
   .max(WORKFLOW_LIMITS.nameLength)
   .regex(/^[^\p{Cc}]+$/u);
+
+/**
+ * Whether two workflow names are one name. A user's names are unique
+ * regardless of ASCII case only, the fold the store's index applies.
+ */
+export const sameWorkflowName = (a: string, b: string): boolean => asciiLower(a) === asciiLower(b);
+const asciiLower = (text: string) => text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 
 /** The reserved top-level `ephemera` key of a server file: its family and name, both optional. */
 const ephemeraMetaSchema = z.strictObject({

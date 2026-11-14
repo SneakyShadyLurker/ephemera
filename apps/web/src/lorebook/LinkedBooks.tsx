@@ -232,6 +232,7 @@ export function LinkedBooks({
               <Button
                 aria-label={`Unlink ${book.name}`}
                 disabled={off || (id !== null && links.pendingOf(book.id, id) !== undefined)}
+                focusableWhenDisabled
                 onClick={() => void unlink(book.id, book.name)}
               >
                 Unlink

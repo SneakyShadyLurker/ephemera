@@ -13,7 +13,7 @@ export type Section = (typeof SECTIONS)[number];
 export const sectionSchema = z.enum(SECTIONS);
 
 /** Where Settings opens on tablet and desktop when no category is asked for. */
-export const DEFAULT_SECTION: Section = "appearance";
+const DEFAULT_SECTION: Section = "appearance";
 
 /** Where a `window` link lands: Context, inside Model setup. */
 export const WINDOW_SECTION: Section = "setup";

@@ -28,7 +28,7 @@ export function inTransition(update: () => void, type?: CreatorTransitionType): 
  * through rather than crossfading two text layouts, and the screen header
  * stays above the frame and the name as they glide.
  */
-export type CreatorTransitionType = "creator-complete";
+type CreatorTransitionType = "creator-complete";
 
 /** The shared-element name of a kind's label, from its panel to the describe state's control. */
 export const kindTransition = (kind: string) => `creator-kind-${kind}`;

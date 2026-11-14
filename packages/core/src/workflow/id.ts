@@ -26,5 +26,3 @@ export function userWorkflowUuid(id: string): string | undefined {
   const uuid = id.slice(USER_WORKFLOW_PREFIX.length);
   return workflowUuidSchema.safeParse(uuid).success ? uuid : undefined;
 }
-
-export const isUserWorkflowId = (id: string): boolean => userWorkflowUuid(id) !== undefined;

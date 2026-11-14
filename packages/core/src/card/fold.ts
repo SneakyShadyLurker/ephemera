@@ -1,4 +1,5 @@
 import { EXAMPLE_SEPARATOR } from "../prompt/examples.ts";
+import { tagged } from "../prompt/tagged.ts";
 import type { LegacyStoredCharacterCard, StoredCharacterCard } from "./schema.ts";
 
 /** The tagged blocks the removed card fields fold into, in fold order. */
@@ -18,8 +19,6 @@ export interface LegacyFields {
   systemPrompt: string;
   postHistoryInstructions: string;
 }
-
-const tagged = (tag: LegacyBlock, text: string): string => `<${tag}>\n${text}\n</${tag}>`;
 
 /** The description with every non-empty legacy field appended as a tagged block. */
 export function foldLegacyFields(description: string, legacy: LegacyFields): string {

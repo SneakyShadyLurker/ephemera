@@ -171,6 +171,43 @@ describe("an upstream without the rich catalog", () => {
     expect(lines.join("\n")).not.toContain("leaked");
   });
 
+  it("reports a body that stops arriving as the upstream failing, without the plain list", async () => {
+    const { seen, fetch } = recording(
+      async () =>
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              controller.error(new TypeError("leaked reset"));
+            },
+          }),
+        ),
+    );
+    const { app, lines } = testApp({ fetch });
+    const response = await app.request("/api/models", { headers: ownerHeaders() });
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "upstream_unavailable" });
+    expect(seen).toEqual([rich]);
+    expect(modelLogs(lines)).toEqual([expect.objectContaining({ errorClass: "TypeError" })]);
+    expect(lines.join("\n")).not.toContain("leaked");
+  });
+
+  it("never follows a redirect", async () => {
+    const redirects: RequestInit["redirect"][] = [];
+    const { app, lines } = testApp({
+      fetch: async (_input, init) => {
+        redirects.push(init?.redirect);
+        return new Response(null, {
+          status: 307,
+          headers: { Location: "https://elsewhere.test/" },
+        });
+      },
+    });
+    const response = await app.request("/api/models", { headers: ownerHeaders() });
+    expect(response.status).toBe(502);
+    expect(redirects).toEqual(["manual"]);
+    expect(modelLogs(lines)).toEqual([expect.objectContaining({ status: 307 })]);
+  });
+
   it("does not ask again after a server error or an unreachable upstream", async () => {
     for (const answer of [
       async () => new Response("down", { status: 500 }),
@@ -296,6 +333,68 @@ describe("the catalog for generation", () => {
       }
     },
   );
+
+  it("keeps a served catalog when a refusal's connection drops as its body is cancelled", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      let down = false;
+      const upstream = fakeUpstream({ models: ["a"] });
+      const catalog = createCatalog(
+        config,
+        async (input, init) =>
+          down
+            ? new Response(
+                new ReadableStream({
+                  cancel() {
+                    throw new Error("connection reset");
+                  },
+                }),
+                { status: 500 },
+              )
+            : upstream.fetch(input, init),
+        createLogger(() => {}),
+      );
+      const signal = new AbortController().signal;
+      const served = await catalog.current(signal);
+      expect(served).toHaveLength(1);
+      down = true;
+      vi.setSystemTime(Date.now() + 120_000);
+      expect(await catalog.current(signal)).toEqual(served);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a rich catalog that arrives while another load asks for the plain list", async () => {
+    const upstream = fakeUpstream({ models: ["a"] });
+    const plainAsked = Promise.withResolvers<void>();
+    const releasePlain = Promise.withResolvers<void>();
+    let richQueries = 0;
+    const catalog = createCatalog(
+      config,
+      async (input, init) => {
+        if (!new URL(String(input)).searchParams.has("client_version")) {
+          plainAsked.resolve();
+          await releasePlain.promise;
+          return Response.json({ object: "list", data: [{ id: "a", object: "model" }] });
+        }
+        richQueries += 1;
+        return richQueries === 1
+          ? new Response(null, { status: 429 })
+          : upstream.fetch(input, init);
+      },
+      createLogger(() => {}),
+    );
+    const signal = new AbortController().signal;
+    const first = catalog.load(signal);
+    await plainAsked.promise;
+    expect(await catalog.load(signal)).toMatchObject({ ok: true });
+    releasePlain.resolve();
+    expect(await first).toMatchObject({ ok: true });
+    expect(await catalog.current(signal)).toEqual([
+      expect.objectContaining({ id: "a", contextWindow: FAKE_WINDOW }),
+    ]);
+  });
 
   it("shares one catalog request among requests that arrive together", async () => {
     let requests = 0;

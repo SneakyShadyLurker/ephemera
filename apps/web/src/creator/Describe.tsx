@@ -17,6 +17,7 @@ import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { charLimit } from "@/lib/text";
 import { modelsQuery, useModelOptions } from "../api.ts";
 import { useChatPersona } from "../chat/character.ts";
 import { PersonaSelect } from "../personas/PersonaSelect.tsx";
@@ -231,7 +232,7 @@ export function Describe({ scroller }: { scroller: RefObject<HTMLDivElement | nu
           onChange={(event) => setDescription(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder={copy.placeholder}
-          maxLength={CREATOR_LIMITS.descriptionLength}
+          {...charLimit(CREATOR_LIMITS.descriptionLength, description)}
           autoComplete="off"
           translate="no"
           aria-describedby={unavailable === null ? example : `${example} ${reason}`}

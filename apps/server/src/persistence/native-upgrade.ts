@@ -8,7 +8,7 @@ import {
   upgradeLegacyPromptPreset,
 } from "@ephemera/core";
 
-export const NATIVE_DATA_VERSION = 2;
+const NATIVE_DATA_VERSION = 2;
 
 export class NativeDataError extends Error {
   override name = "NativeDataError";

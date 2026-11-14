@@ -8,7 +8,7 @@ import type { Order } from "./filter.ts";
  * The gallery's presentation state, kept in memory while the tab is open so
  * the search and filters survive a visit to a sheet. Never chat content.
  */
-export interface GalleryState {
+interface GalleryState {
   query: string;
   tags: string[];
   order: Order;

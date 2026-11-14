@@ -1,4 +1,4 @@
-import { addKeywords, type KeyProblem, splitKeywords } from "@ephemera/core";
+import { addKeywords, type KeyProblem, splitKeywords, textLength } from "@ephemera/core";
 import { type ReactNode, useId, useState } from "react";
 import { cn } from "@/lib/cn";
 import { FIELD_LABEL } from "@/sheet/fields.ts";
@@ -92,7 +92,7 @@ export function KeywordsField({
           // Only as a person's action reveals the field, never on a page's first load.
           autoFocus: focusOnMount,
         }}
-        onDraft={(draft) => setTyped(draft.length)}
+        onDraft={(draft) => setTyped(textLength(draft))}
         onChange={onChange}
       >
         {counted && maxLength !== undefined && (

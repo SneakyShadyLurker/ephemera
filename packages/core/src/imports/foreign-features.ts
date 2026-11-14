@@ -8,7 +8,7 @@ import { convertForeignEntrySettings, SILLYTAVERN_ENTRY_KEYS } from "./lorebook-
  * these codes to report omissions before discarding unsupported metadata.
  */
 
-export const IGNORED_FEATURES = [
+const IGNORED_FEATURES = [
   "priority",
   "groupScoring",
   "automation",
@@ -58,7 +58,7 @@ export function ignoredEntryFeatures(entry: Record<string, unknown>): IgnoredFea
 }
 
 /** Which ignored features the book itself uses, apart from its entries. */
-export function ignoredBookFeatures(book: Record<string, unknown>): IgnoredFeature[] {
+function ignoredBookFeatures(book: Record<string, unknown>): IgnoredFeature[] {
   return Object.keys(isJsonObject(book.extensions) ? book.extensions : {}).some(
     (key) => key !== "ephemera",
   )

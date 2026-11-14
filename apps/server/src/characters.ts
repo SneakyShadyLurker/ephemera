@@ -22,8 +22,8 @@ import {
   createPortraitApi,
   duplicated,
   fileBytes,
-  fileForm,
   idParam,
+  importForm,
   invalid,
   invalidRequest,
   jsonLimit,
@@ -33,6 +33,7 @@ import {
   payloadTooLarge,
   removed,
   uploadLimit,
+  uploadTurn,
 } from "./routes.ts";
 import type { FromUser, UserEnv } from "./user.ts";
 
@@ -58,8 +59,9 @@ export function createCharactersApi(store: FromUser<CharacterStore>, log: Logger
         return c.json({ id: store(c).create(card, undefined, id) }, 201);
       },
     )
-    .post(IMPORT_PATH, uploadLimit, fileForm, async (c) => {
-      const result = await readCardFile(await fileBytes(c.req.valid("form").file));
+    .post(IMPORT_PATH, uploadTurn, uploadLimit, importForm, async (c) => {
+      const { file, id: requested } = c.req.valid("form");
+      const result = await readCardFile(await fileBytes(file));
       if (!result.ok) {
         log.warn({ event: "characters.import", errorClass: result.error });
         if (result.error === "too_large" || result.error === "image_too_large") {
@@ -70,7 +72,7 @@ export function createCharactersApi(store: FromUser<CharacterStore>, log: Logger
           422,
         );
       }
-      const id = store(c).create(result.card, result.portrait);
+      const id = store(c).create(result.card, result.portrait, requested);
       const body = { id, name: result.card.name, report: result.report };
       return c.json(body satisfies z.input<typeof importResponseSchema>, 201);
     })

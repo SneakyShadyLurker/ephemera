@@ -143,7 +143,7 @@ export function fillWorkflow(template: WorkflowGraph, values: WorkflowValues): W
 }
 
 /** A model file a loader node of the workflow needs. */
-export interface RequiredModel {
+interface RequiredModel {
   classType: string;
   input: string;
   file: string;
