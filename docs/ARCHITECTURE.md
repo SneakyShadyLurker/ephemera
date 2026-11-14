@@ -2367,7 +2367,9 @@ included. A test waits for the state it asserts: lint refuses
 Playwright's sleep and its wait for network idle in a spec, and the two
 waits no state can stand for go through `e2e/support/waits.ts` (the
 page's code has arrived; a window to watch for what must not happen),
-never through a timer written in the spec. A coding agent gets
+never through a timer written in the spec. A test that compares a
+position or a size waits for `document.fonts.ready` before its first
+measurement, since text is narrower in the fallback face. A coding agent gets
 Playwright's failures-only report, a person the list.
 
 `e2e/motion.spec.ts` samples real geometry, focus and inertness through
