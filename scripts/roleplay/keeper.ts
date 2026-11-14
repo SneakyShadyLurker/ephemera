@@ -1,7 +1,7 @@
 import { isRecord } from "../../packages/core/src/card/json.ts";
 import { applyCastChanges } from "../../packages/core/src/cast/apply.ts";
 import { groundedCastChanges } from "../../packages/core/src/cast/effective.ts";
-import { CAST_LIMITS } from "../../packages/core/src/cast/limits.ts";
+import { CAST_LIMITS, castFieldLimit } from "../../packages/core/src/cast/limits.ts";
 import { keeperInstructions, keeperMessage } from "../../packages/core/src/cast/prompt.ts";
 import {
   type CastChanges,
@@ -86,22 +86,24 @@ function keeperWire(id: KeeperFixtureId): WireMessage[] {
   ];
 }
 
-/** Text values of a parsed answer past the field bound: anchor and state fields, evidenced items' values. */
+/** Text values of a parsed answer past their field's bound: anchor and state fields, evidenced items' values. */
 function valuesOverBound(value: unknown): number {
   if (!isRecord(value) || !isRecord(value.cast)) return 0;
-  const over = (text: unknown) =>
-    typeof text === "string" && text.trim().length > CAST_LIMITS.field;
+  const over = ([key, text]: [string, unknown]) =>
+    typeof text === "string" && text.trim().length > castFieldLimit(key);
   let count = 0;
   for (const change of Object.values(value.cast)) {
     if (!isRecord(change)) continue;
     for (const key of ["anchor", "state"]) {
       const fields = change[key];
-      if (isRecord(fields)) count += Object.values(fields).filter(over).length;
+      if (isRecord(fields)) count += Object.entries(fields).filter(over).length;
     }
     for (const key of ["developments", "continuity", "discovered"]) {
       const fields = change[key];
       if (isRecord(fields))
-        count += Object.values(fields).filter((item) => isRecord(item) && over(item.value)).length;
+        count += Object.entries(fields).filter(
+          ([field, item]) => isRecord(item) && over([field, item.value]),
+        ).length;
     }
   }
   return count;

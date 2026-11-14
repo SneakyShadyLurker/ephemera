@@ -740,7 +740,8 @@ replay carries it.
    `repairObject`: the last
    balanced `{ … }` block that parses and validates, so a draft before the
    final object or a stray brace in prose costs nothing (blocks inside one
-   that parsed are not candidates), each brought within `MEMORY_LIMITS` by
+   that parsed are not candidates), and, when none validates, the answer's
+   first object with the closing braces it lacks appended, each brought within `MEMORY_LIMITS` by
    core's clamp (strings cut at a word break, lists sliced, blank lines
    and unknown keys dropped) before the strict parse. An answer that ends
    at its output limit (`length`) is unusable even when it parses; an
@@ -1030,7 +1031,11 @@ people's records directly and folds the records of away people under their names
    and discovered or owner-corrected fields. The narrator, scene and memory keep
    canonical context. Identity recovery strips discoveries, developments and
    continuity so future-scene facts and knowledge cannot leak back. A register
-   holds at most `CAST_LIMITS.entries`, 40, in introduction order. Names
+   holds at most `CAST_LIMITS.entries`, 40, in introduction order. A field
+   holds at most `CAST_LIMITS.field`, 240 characters, and `intimate`,
+   `outfit` and `disarray` at most `CAST_LIMITS.longField`, 480
+   (`castFieldLimit`, which every schema, clamp and input uses); evidence
+   quotes stay at 240. Names
    match by `castKey` (compatibility-decomposed, marks stripped, lower
    case, whitespace collapsed), never as ids.
 2. **The chain.** The slice keeps a snapshot per reply id, greetings and
@@ -1142,9 +1147,10 @@ people's records directly and folds the records of away people under their names
    an entry while there is room. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
    continuity without overriding owner corrections, merges grounded discoveries
-   monotonically within the branch, writes the state as given and marks every
-   entry named present unless the change says otherwise, and marks the
-   `absent` names away. A change that resolves to a removed entry leaves
+   monotonically within the branch, writes the state as given (`""` clears
+   a field), takes `present` from the change when it says so, else marks
+   an entry present when its state sets a field and otherwise keeps its
+   presence, a new entry starting away, and marks the `absent` names away. A change that resolves to a removed entry leaves
    it as it was, so the keeper cannot add it back. An entry becomes
    `introduced` by the keeper's grounded `introduce`, or when a turn of the
    batch writes its name (`namedInTurns`): the whole name, an earlier one,
@@ -1162,8 +1168,9 @@ people's records directly and folds the records of away people under their names
 6. **The cast sheet.** A character's sheet is character data derived from
    the card alone: the people its card names, by its kind, with their
    anchors and no state, at most eight. Its fingerprint is sha256 of the
-   card's name, description and kind
-   (`castFingerprintInput`); a greeting is not part of it. `GET
+   card's name, description and kind and of the sheet instructions' text
+   (`castFingerprintInput`), so a sheet read under other instructions is
+   no longer current; a greeting is not part of it. `GET
    /api/cast/sheets/:characterId` answers `{ sheet, current }` and never
    reads the card through a model. `POST` with the cast model, its effort
    and `force` answers the stored sheet at once when it is current and

@@ -52,6 +52,37 @@ function closingBrace(text: string, start: number, budget: { left: number }): nu
 }
 
 /**
+ * The block starting at `start` with the closers it still lacks appended
+ * after its last closer, read as JSON would: the repair of an answer whose
+ * object never closes because it is a brace or two short. Undefined when
+ * the block closes, closes out of order or has no closer at all (an answer
+ * cut inside its first value).
+ */
+function closedAtEnd(text: string, start: number): string | undefined {
+  const open: string[] = [];
+  let quoted = false;
+  let escaped = false;
+  let kept: { end: number; closers: string } | undefined;
+  for (let at = start; at < text.length; at += 1) {
+    const char = text[at];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+      continue;
+    }
+    if (char === '"') quoted = true;
+    else if (char === "{") open.push("}");
+    else if (char === "[") open.push("]");
+    else if (char === "}" || char === "]") {
+      if (open.pop() !== char || open.length === 0) return undefined;
+      kept = { end: at + 1, closers: [...open].reverse().join("") };
+    }
+  }
+  return kept === undefined ? undefined : text.slice(start, kept.end) + kept.closers;
+}
+
+/**
  * The last balanced `{ … }` block of a model's answer that reads as JSON
  * and, brought within its bounds by `clamp` (core's `clampMemoryAnswer` and
  * `clampChapterOutput`), checks against `schema`: the one repair of an
@@ -60,7 +91,9 @@ function closingBrace(text: string, start: number, budget: { left: number }): nu
  * those inside a block that already read as JSON, so a stray brace in the
  * prose costs one pass. The scan stops once it has read
  * `REPAIR_SCAN_PER_CHARACTER` times the answer's length, keeping what it
- * found. Undefined when no block validates.
+ * found. When no block validates and the answer's first object never
+ * closes, that object is read once more with its missing closers appended
+ * (`closedAtEnd`). Undefined when nothing validates.
  */
 export function repairObject<T>(
   text: string | undefined,
@@ -91,7 +124,16 @@ export function repairObject<T>(
     }
     start = text.indexOf("{", next);
   }
-  return found;
+  if (found !== undefined) return found;
+  const first = text.indexOf("{");
+  const closed = first === -1 ? undefined : closedAtEnd(text, first);
+  if (closed === undefined) return undefined;
+  try {
+    const parsed = schema.safeParse(clamp(JSON.parse(closed)));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

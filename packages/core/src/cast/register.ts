@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isRecord } from "../card/json.ts";
 import { clampKeys, clampText, cutText } from "../memory/clamp.ts";
 import { castKey } from "./key.ts";
-import { CAST_LIMITS as L } from "./limits.ts";
+import { castFieldLimit, CAST_LIMITS as L } from "./limits.ts";
 
 /*
  * The cast register's shapes: one entry per NPC, a fixed anchor and a
@@ -13,6 +13,8 @@ import { CAST_LIMITS as L } from "./limits.ts";
  */
 
 const field = z.string().trim().max(L.field);
+/** An anchor or state field's text, within its key's bound. */
+const text = (key: string) => z.string().trim().max(castFieldLimit(key));
 const name = z.string().trim().min(1).max(L.name);
 
 /** Fixed once written: the keeper fills empty fields, never rewrites set ones. */
@@ -20,25 +22,25 @@ export const castAnchorSchema = z.strictObject({
   /** The full name, as the chat writes it. */
   name,
   gender: z.enum(["female", "male", "other"]),
-  age: field,
-  ethnicity: field,
-  skin: field,
-  face: field,
+  age: text("age"),
+  ethnicity: text("ethnicity"),
+  skin: text("skin"),
+  face: text("face"),
   /** Sexual experience. */
-  experience: field,
+  experience: text("experience"),
   /** Relationship status. */
-  relationship: field,
-  height: field,
-  weight: field,
-  build: field,
-  hair: field,
-  eyes: field,
+  relationship: text("relationship"),
+  height: text("height"),
+  weight: text("weight"),
+  build: text("build"),
+  hair: text("hair"),
+  eyes: text("eyes"),
   /** "" for a male until a turn or the card establishes it. */
-  intimate: field,
+  intimate: text("intimate"),
   /** Keywords. */
-  personality: field,
+  personality: text("personality"),
   /** Fetishes and taboos, one field. */
-  fetishes: field,
+  fetishes: text("fetishes"),
 });
 export type CastAnchor = z.infer<typeof castAnchorSchema>;
 export type CastGender = CastAnchor["gender"];
@@ -66,44 +68,55 @@ export const castContinuitySchema = z.strictObject({
 });
 type CastContinuity = z.infer<typeof castContinuitySchema>;
 
-const groundedValue = z.strictObject({
-  value: field.min(1),
-  evidence: z.string().trim().min(1).max(L.field),
-});
-const discoveryValue = groundedValue.extend({
-  basis: z.enum(["seen", "told", "demonstrated"]),
-});
+/** A grounded value for the field `key`: its text within the key's bound, evidence within `field`. */
+const groundedValue = (key: string) =>
+  z.strictObject({
+    value: text(key).min(1),
+    evidence: z.string().trim().min(1).max(L.field),
+  });
+type GroundedValue = ReturnType<ReturnType<typeof groundedValue>["exactOptional"]>;
+const discoveryValue = (key: string) =>
+  groundedValue(key).extend({
+    basis: z.enum(["seen", "told", "demonstrated"]),
+  });
+type DiscoveryValue = ReturnType<ReturnType<typeof discoveryValue>["exactOptional"]>;
 const discoveriesChange = z.strictObject(
   Object.fromEntries(
-    Object.keys(castDevelopmentsSchema.shape).map((key) => [key, discoveryValue.exactOptional()]),
-  ) as Record<keyof CastDevelopments, ReturnType<typeof discoveryValue.exactOptional>>,
+    Object.keys(castDevelopmentsSchema.shape).map((key) => [
+      key,
+      discoveryValue(key).exactOptional(),
+    ]),
+  ) as Record<keyof CastDevelopments, DiscoveryValue>,
 );
 export type CastDiscoveries = z.infer<typeof discoveriesChange>;
 const introduction = z.strictObject({ evidence: z.string().trim().min(1).max(L.field) });
 const developmentsChange = z.strictObject(
   Object.fromEntries(
-    Object.keys(castDevelopmentsSchema.shape).map((key) => [key, groundedValue.exactOptional()]),
-  ) as Record<keyof CastDevelopments, ReturnType<typeof groundedValue.exactOptional>>,
+    Object.keys(castDevelopmentsSchema.shape).map((key) => [
+      key,
+      groundedValue(key).exactOptional(),
+    ]),
+  ) as Record<keyof CastDevelopments, GroundedValue>,
 );
 const continuityChange = z.strictObject(
   Object.fromEntries(
-    Object.keys(castContinuitySchema.shape).map((key) => [key, groundedValue.exactOptional()]),
-  ) as Record<keyof CastContinuity, ReturnType<typeof groundedValue.exactOptional>>,
+    Object.keys(castContinuitySchema.shape).map((key) => [key, groundedValue(key).exactOptional()]),
+  ) as Record<keyof CastContinuity, GroundedValue>,
 );
 
 /** Volatile: the keeper rewrites what changed. */
 export const castStateSchema = z.strictObject({
   present: z.boolean(),
   /** Every garment worn now, underwear and footwear included. */
-  outfit: field,
+  outfit: text("outfit"),
   /** The clothes' state while not worn as normal: undone, pushed aside, wet, torn; pieces taken off and where. */
-  disarray: field,
-  position: field,
-  activity: field,
-  mood: field,
-  arousal: field,
-  injuries: field,
-  intoxication: field,
+  disarray: text("disarray"),
+  position: text("position"),
+  activity: text("activity"),
+  mood: text("mood"),
+  arousal: text("arousal"),
+  injuries: text("injuries"),
+  intoxication: text("intoxication"),
 });
 export type CastState = z.infer<typeof castStateSchema>;
 
@@ -200,8 +213,16 @@ const GENDER_WORDS = new Map<string, CastGender>([
 const readGender = (value: unknown): CastGender | undefined =>
   typeof value === "string" ? GENDER_WORDS.get(value.trim().toLowerCase()) : undefined;
 
+/** A field a model wrote as a list of strings, such as personality keywords, as one comma-joined text. */
+const fieldText = (value: unknown): unknown =>
+  Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value.join(", ")
+    : value;
+
 const fieldClamps = (keys: readonly string[]) =>
-  Object.fromEntries(keys.map((key) => [key, (value: unknown) => clampText(value, L.field)]));
+  Object.fromEntries(
+    keys.map((key) => [key, (value: unknown) => clampText(fieldText(value), castFieldLimit(key))]),
+  );
 const anchorClamps = fieldClamps(CAST_ANCHOR_FIELDS);
 const keep = (value: unknown): unknown => value;
 
@@ -216,8 +237,8 @@ function clampChange(value: unknown): unknown {
         key,
         (item: unknown) =>
           clampKeys(item, {
-            value: (text) => clampText(text, L.field),
-            evidence: (text) => clampText(text, L.field),
+            value: (value) => clampText(value, castFieldLimit(key)),
+            evidence: (value) => clampText(value, L.field),
           }),
       ]),
     );
@@ -226,7 +247,9 @@ function clampChange(value: unknown): unknown {
   const grounded = (fields: unknown): unknown =>
     isRecord(fields)
       ? Object.fromEntries(
-          Object.entries(fields).filter(([, item]) => groundedValue.safeParse(item).success),
+          Object.entries(fields).filter(
+            ([key, item]) => groundedValue(key).safeParse(item).success,
+          ),
         )
       : fields;
   const clamped = clampKeys(value, {
@@ -238,7 +261,7 @@ function clampChange(value: unknown): unknown {
     developments: (fields) => grounded(clampKeys(fields, groundedClamps(CAST_ANCHOR_FIELDS))),
     continuity: (fields) =>
       grounded(clampKeys(fields, groundedClamps(Object.keys(castContinuitySchema.shape)))),
-    introduce: (item) => clampKeys(item, { evidence: (text) => clampText(text, L.field) }),
+    introduce: (item) => clampKeys(item, { evidence: (value) => clampText(value, L.field) }),
     discovered: (fields) => {
       const clamped = clampKeys(
         fields,
@@ -247,9 +270,9 @@ function clampChange(value: unknown): unknown {
             key,
             (item: unknown) =>
               clampKeys(item, {
-                value: (text) => clampText(text, L.field),
+                value: (value) => clampText(value, castFieldLimit(key)),
                 basis: keep,
-                evidence: (text) => clampText(text, L.field),
+                evidence: (value) => clampText(value, L.field),
               }),
           ]),
         ),
@@ -258,7 +281,9 @@ function clampChange(value: unknown): unknown {
       // An unusable discovery cannot establish player knowledge, but must not discard
       // the NPC's valid anchor, introduction, state or other discoveries.
       return Object.fromEntries(
-        Object.entries(clamped).filter(([, item]) => discoveryValue.safeParse(item).success),
+        Object.entries(clamped).filter(
+          ([key, item]) => discoveryValue(key).safeParse(item).success,
+        ),
       );
     },
   });
@@ -278,11 +303,22 @@ function clampChange(value: unknown): unknown {
 /**
  * The keeper's answer, parsed from JSON, brought within `CAST_LIMITS` before
  * `castChangesSchema` reads it: strings cut, keys the schema does not name
- * dropped, blank names, unreadable genders and unusable introductions, discovery items, developments and continuity cues dropped, `cast` capped
+ * dropped, blank names, unreadable genders and unusable introductions, discovery items, developments and continuity cues dropped, a field written as a list of strings joined, an `absent` list inside `cast` moved out, `cast` capped
  * at `entries`. Other values it cannot mend still fail the schema.
  */
+/**
+ * An answer whose `cast` object holds the `absent` list: what a model one
+ * closing brace short writes. The list moves to where the answer's shape
+ * has it; no NPC's change is a list.
+ */
+function withHoistedAbsent(value: unknown): unknown {
+  if (!isRecord(value) || "absent" in value || !isRecord(value.cast)) return value;
+  const { absent, ...cast } = value.cast;
+  return Array.isArray(absent) ? { ...value, cast, absent } : value;
+}
+
 export const clampCastChanges = (value: unknown): unknown =>
-  clampKeys(value, {
+  clampKeys(withHoistedAbsent(value), {
     cast: (cast) =>
       isRecord(cast)
         ? Object.fromEntries(
@@ -401,7 +437,7 @@ export function clampCastCorrection(patch: CastCorrectionPatch): CastCorrectionP
   const anchor: Partial<CastAnchor> = { ...patch.anchor };
   for (const key of CAST_ANCHOR_FIELDS) {
     const value = anchor[key];
-    if (value !== undefined) anchor[key] = cutText(value, L.field);
+    if (value !== undefined) anchor[key] = cutText(value, castFieldLimit(key));
   }
   if (anchor.name !== undefined) {
     anchor.name = cutText(anchor.name, L.name);
@@ -410,7 +446,7 @@ export function clampCastCorrection(patch: CastCorrectionPatch): CastCorrectionP
   const state: Partial<CastState> = { ...patch.state };
   for (const key of CAST_STATE_FIELDS) {
     const value = state[key];
-    if (value !== undefined) state[key] = cutText(value, L.field);
+    if (value !== undefined) state[key] = cutText(value, castFieldLimit(key));
   }
   return {
     ...(patch.anchor === undefined ? {} : { anchor }),

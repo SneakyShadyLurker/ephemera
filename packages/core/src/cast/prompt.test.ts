@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankCard } from "../card/index.ts";
+import { CAST_LIMITS } from "./limits.ts";
 import {
   castCanon,
   KEEPER_OPENING,
@@ -10,7 +11,12 @@ import {
   sheetMessage,
   sheetShortfall,
 } from "./prompt.ts";
-import { emptyCastAnchor, emptyCastState } from "./register.ts";
+import {
+  castChangesSchema,
+  clampCastChanges,
+  emptyCastAnchor,
+  emptyCastState,
+} from "./register.ts";
 
 const names = { char: "Mara", user: "Ash" };
 const register = {
@@ -183,5 +189,56 @@ describe("the sheet prompt", () => {
     const untagged = sheetMessage({ ...card, tags: ["romance"] });
     expect(untagged).toContain("Kind: none");
     expect(untagged).toContain("Mara waits for {{user}}.");
+  });
+});
+
+describe("the keeper's and sheet's shared rules", () => {
+  const both = [keeperInstructions(), sheetInstructions()];
+
+  it("says how to clear a state field and that an omitted one stays", () => {
+    const instructions = keeperInstructions();
+    expect(instructions).toContain("Every entry, key and field you leave out stays as it is");
+    expect(instructions).toContain('a state field that no longer holds is sent as ""');
+  });
+
+  it("takes whoever gets a state as present, so someone only spoken of gets none", () => {
+    expect(keeperInstructions()).toContain(
+      "Whoever you give a state is taken as present, so someone the turns only speak of gets no state, and a new NPC in the scene always gets one.",
+    );
+  });
+
+  it("states both field bounds and that a longer value is cut", () => {
+    for (const instructions of both) {
+      expect(instructions).toContain(`at most ${CAST_LIMITS.field} characters`);
+      expect(instructions).toContain(`"intimate" at most ${CAST_LIMITS.longField}`);
+      expect(instructions).toContain("a longer one is cut");
+    }
+    expect(keeperInstructions()).toContain(
+      `"outfit" and "disarray" at most ${CAST_LIMITS.longField}`,
+    );
+  });
+
+  it("puts a source's stated facts into the field's form, adding none", () => {
+    for (const instructions of both) {
+      expect(instructions).toContain("Record only what the source states and add nothing.");
+      expect(instructions).toContain("a stated cup size converted to EU");
+      expect(instructions).toContain('such as "in her forties"');
+      expect(instructions).toContain("Where it gives no height or weight, leave them empty.");
+      expect(instructions).not.toContain("copying its words exactly");
+      expect(instructions).not.toContain("Never overwrite an owner's corrected field");
+    }
+  });
+
+  it("shows a clear, someone only spoken of and a continuity cue in an example that parses", () => {
+    const instructions = keeperInstructions();
+    const example = instructions.slice(instructions.indexOf("For example")).split("\n")[1] ?? "";
+    const answer = castChangesSchema.parse(clampCastChanges(JSON.parse(example)));
+    expect(answer).toEqual(castChangesSchema.parse(JSON.parse(example)));
+    expect(answer.cast["Mara Battin"]?.state?.intoxication).toBe("");
+    expect(answer.cast["Mara Battin"]?.continuity?.goals?.value).toBeTruthy();
+    expect(answer.cast["Ana Pires"]).toEqual({
+      gender: "female",
+      introduce: { evidence: "my sister Ana" },
+    });
   });
 });

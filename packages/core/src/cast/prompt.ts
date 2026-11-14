@@ -34,7 +34,10 @@ const anchorKeys = (
 - "intimate": the intimate body. For a woman, in this order: one exact EU cup size (never a range), the breasts' size and shape, the nipples and areolae; the pussy described graphically, with its lips, clit and hair; then the ass's size and shape. ${man}
 - "personality": personality keywords.
 - "fetishes": fetishes and taboos together, such as "fetishes: cum, pregnancy; taboos: none".
-Metric units throughout. Each detail appears once: build never mentions the chest, and no state field repeats the body. Every value reads on its own and names what it describes, as in "green almond-shaped eyes", "wavy brown bob with a loose texture", "freckled fair skin with a pink undertone" or "oval face, small upturned nose, full lips"; never a bare "blue" or "round".`;
+Metric units throughout. Each detail appears once: build never mentions the chest, and no state field repeats the body. Every value reads on its own and names what it describes, as in "green almond-shaped eyes", "wavy brown bob with a loose texture", "freckled fair skin with a pink undertone" or "oval face, small upturned nose, full lips"; never a bare "blue" or "round". Every value holds at most ${L.field} characters, "intimate" at most ${L.longField}; a longer one is cut, so write within the bound.`;
+
+/** How keeper and sheet put a source's stated facts into the anchor's fields. */
+const EXTRACTED = `Record only what the source states and add nothing. Keep its descriptive words, put into the field's form: stated measures converted to metric, a stated cup size converted to EU. Where it gives no cup size, describe the breasts as it does and give none. Where it gives no exact age, write the age as it does, such as "in her forties". Where it gives no height or weight, leave them empty.`;
 
 /** The keeper instructions' first sentence, for the mock upstream to know the call by. */
 export const KEEPER_OPENING =
@@ -48,7 +51,7 @@ The anchor's keys, in this order:
 ${anchorKeys("For a man, his cock and balls. Outside a Scenario's new-NPC canonical completion, only once a turn shows them; until then leave it empty.")}
 
 The state's keys:
-- "present": true while the NPC is in the scene, false once they left it.
+- "present": true while the NPC is in the scene, false once they left it. Whoever you give a state is taken as present, so someone the turns only speak of gets no state, and a new NPC in the scene always gets one.
 - "outfit": every garment they have on now, outer layers to underwear and footwear, each with its colour and material as shown and, once a turn establishes it, how it shapes the body, such as "padded push-up bra" or "chest binder"; a piece taken off leaves it.
 - "disarray": the state of their clothes, only while not worn as normal: undone, open, pushed aside, pulled up or down, wet, torn or stained, garment by garment; then the pieces taken off and where they are now.
 - "position": where they are and their posture.
@@ -57,12 +60,12 @@ The state's keys:
 - "arousal": only while it outwardly shows or is communicated.
 - "injuries": only while seen or communicated.
 - "intoxication": only while perceptibly drunk or high.
-Each state value reads on its own as well and names what it describes, as in "grey hoodie over black jeans" or "leaning on the bar by the door"; never a bare "grey" or "sitting".
+Each state value reads on its own as well and names what it describes, as in "grey hoodie over black jeans" or "leaning on the bar by the door"; never a bare "grey" or "sitting". Every state value holds at most ${L.field} characters, "outfit" and "disarray" at most ${L.longField}; a longer one is cut, so write within the bound.
 
 Rules:
-- Answer only with changes. Every entry, key and field you leave out stays as it is.
+- Answer only with changes. Every entry, key and field you leave out stays as it is; a state field that no longer holds is sent as "", such as arousal that has passed, an injury healed or clothes set right again.
 - The canonical anchor is the NPC's complete truth, not what the player knows. An anchor field once set is fixed: never send it again, never paraphrase or correct it. Fill an empty one only.
-- Except for a new NPC in a Scenario, extract an anchor only from explicit canon or turn evidence, copying its words exactly. Leave unknown fields empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
+- Except for a new NPC in a Scenario, an anchor comes only from explicit canon and turn evidence. ${EXTRACTED} Leave every field they do not settle empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
 - For a new NPC in a Scenario, create one complete, coherent canonical anchor at introduction: preserve every established fact and invent what remains hidden, including anatomy, personality and preferences. This is the only permitted gap filling. Invented canon is not player discovery.
 - Name everyone who left the scene in "absent".
 - When a known NPC is named more fully, such as "Ilse" becoming "Ilse Brandt", key the change by the full name and give the earlier one in "was".
@@ -71,7 +74,7 @@ Rules:
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
 - "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge.
-Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning. Never overwrite an owner's corrected field.
+Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning.
 
 The Cast panel shows player knowledge, never hidden canon:
 - "introduce": {"evidence":"exact short quote"} for each NPC the shown turns let the player meet, see, hear or learn of, named or not. The register marks who is introduced with "introduced": true. Anyone without it has not been, a card's own subjects included, however long they have been in the register: introduce them with the first turns that show them to the player. Only an NPC the turns keep out of the player's sight and knowledge stays unintroduced. Once introduced, omit this key.
@@ -86,8 +89,8 @@ Return one JSON object with exactly these keys:
 - "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys), "state" (the state's keys), "developments", "continuity", "introduce" and "discovered". {} when nothing changed.
 - "absent": the names of the NPCs no longer in the scene at the end of the turns; [] when none.
 
-For example, where Mara Battin was introduced before and the turns bring in Jonas Reyes:
-{"cast":{"Mara Battin":{"state":{"outfit":"a white bath towel","disarray":"towel slipping at her chest; her jeans and grey T-shirt on the bathroom floor","activity":"drying her hair","mood":"flustered"}},"Jonas Reyes":{"role":"minor","gender":"male","anchor":{"age":"34","ethnicity":"Mexican-American","build":"broad, heavy-set build"},"state":{"position":"standing behind the bar","activity":"polishing a glass"},"introduce":{"evidence":"Jonas looks up from the glass he is polishing"},"discovered":{"build":{"value":"broad, heavy-set build","basis":"seen","evidence":"a broad, heavy-set man behind the bar"}}}},"absent":["Ana Pires"]}
+For example, where Mara Battin was introduced before, the turns bring in Jonas Reyes, and Mara, sober again, speaks of her sister Ana Pires, who is elsewhere:
+{"cast":{"Mara Battin":{"state":{"outfit":"a white bath towel","disarray":"towel slipping at her chest; her jeans and grey T-shirt on the bathroom floor","activity":"drying her hair","mood":"flustered","intoxication":""},"continuity":{"goals":{"value":"wants Ana to take her spare room","evidence":"I keep telling Ana to take the spare room"}}},"Jonas Reyes":{"role":"minor","gender":"male","anchor":{"age":"34","ethnicity":"Mexican-American","build":"broad, heavy-set build"},"state":{"position":"standing behind the bar","activity":"polishing a glass"},"introduce":{"evidence":"Jonas looks up from the glass he is polishing"},"discovered":{"build":{"value":"broad, heavy-set build","basis":"seen","evidence":"a broad, heavy-set man behind the bar"}}},"Ana Pires":{"gender":"female","introduce":{"evidence":"my sister Ana"}}},"absent":["Tomas Vidal"]}
 
 Answer with the JSON object alone, with nothing before or after it and no code fence.`;
 
@@ -202,7 +205,7 @@ Record the card's subjects, from the card alone, by the kind the message names:
 - No kind: the one to three people the card describes; a world without them has none.
 Never record the player, whom the card calls {{user}}. A card with no one to record answers with an empty list.
 
-For each person, extract only what the card explicitly states, copying its words exactly. Leave unknown anchor fields empty or omitted. Never invent gap-filling details, including hidden anatomy or history, to complete the record. The narrator establishes new details when the story needs them.
+For each person, the card is the only source. ${EXTRACTED} Leave every anchor field the card does not settle empty or omitted. Never invent gap-filling details, including hidden anatomy or history, to complete the record. The narrator establishes new details when the story needs them.
 
 The anchor's keys, in this order:
 ${anchorKeys("For a man, his cock and balls when the card states them; otherwise leave it empty.")}

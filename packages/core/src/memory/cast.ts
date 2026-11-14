@@ -1,5 +1,5 @@
 import { castKey } from "../cast/key.ts";
-import { CAST_LIMITS } from "../cast/limits.ts";
+import { CAST_LIMITS, castFieldLimit } from "../cast/limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
   type CastSheetEntry,
@@ -53,7 +53,7 @@ export function fillMemoryCastEntries(
       name: cutText(fillUserPlaceholder(entry.anchor.name, user), CAST_LIMITS.name),
     };
     for (const field of CAST_ANCHOR_FIELDS)
-      anchor[field] = cutText(fillUserPlaceholder(anchor[field], user), CAST_LIMITS.field);
+      anchor[field] = cutText(fillUserPlaceholder(anchor[field], user), castFieldLimit(field));
     return { ...entry, anchor };
   });
 }

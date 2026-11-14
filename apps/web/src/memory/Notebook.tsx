@@ -3,6 +3,7 @@ import {
   CAST_LIMITS,
   type CastAnchorField,
   type CastGender,
+  castFieldLimit,
   MEMORY_LIMITS,
   type MemoryState,
   memoryNotebookSchema,
@@ -955,7 +956,7 @@ function CastPersonForm({
         </div>
       </div>
       <div className="grid gap-3 tablet:grid-cols-2">
-        {CAST_ANCHOR_FIELDS.map((key) => field(key, CAST_FIELD_LABELS[key], CAST_LIMITS.field))}
+        {CAST_ANCHOR_FIELDS.map((key) => field(key, CAST_FIELD_LABELS[key], castFieldLimit(key)))}
       </div>
       <InlineStatus tone="error" as="p" role="status" className="empty:sr-only">
         {full &&

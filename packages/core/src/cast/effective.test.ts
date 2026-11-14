@@ -230,8 +230,10 @@ describe("durable developments and compact continuity", () => {
   it("asks for grounded developments and removes independent gap filling", () => {
     expect(keeperInstructions()).toContain('"developments"');
     expect(keeperInstructions()).toContain("exact short quote");
-    expect(keeperInstructions()).toContain("Leave unknown fields empty or omitted");
-    expect(sheetInstructions()).toContain("Leave unknown anchor fields empty or omitted");
+    expect(keeperInstructions()).toContain("Leave every field they do not settle empty or omitted");
+    expect(sheetInstructions()).toContain(
+      "Leave every anchor field the card does not settle empty or omitted",
+    );
     expect(sheetInstructions()).not.toContain("fill a gap consistently");
   });
 });

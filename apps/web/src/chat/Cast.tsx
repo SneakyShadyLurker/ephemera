@@ -1,8 +1,8 @@
 import {
-  CAST_LIMITS,
   type CastAnchor,
   type CastEntry,
   type CastState,
+  castFieldLimit,
   castModelOf,
 } from "@ephemera/core";
 import { AnimatePresence } from "motion/react";
@@ -1695,7 +1695,7 @@ function EditableValue({
         aria-label={label}
         data-cast-field={field}
         value={draft.text}
-        {...charLimit(CAST_LIMITS.field, draft.text)}
+        {...charLimit(castFieldLimit(field), draft.text)}
         rows={1}
         autoComplete="off"
         onChange={(event) => setDraft({ ...draft, text: event.target.value })}

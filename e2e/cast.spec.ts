@@ -5,7 +5,7 @@ import {
   castSheetResponseSchema,
   castUpdateResponseSchema,
 } from "../packages/core/src/cast/api.ts";
-import { CAST_LIMITS } from "../packages/core/src/cast/limits.ts";
+import { castFieldLimit } from "../packages/core/src/cast/limits.ts";
 import { PALETTES } from "../packages/core/src/palettes.ts";
 import { callAccountingSchema } from "../packages/core/src/usage.ts";
 import { openSheet, uniqueName } from "./support/cards.ts";
@@ -2034,7 +2034,7 @@ test("a value corrects where it stands, Escape and leaving unchanged keep it, an
   await outfit.click();
   await expect(box).toBeFocused();
   await expect(box).toHaveValue(KEEPER_WOMAN_OUTFIT);
-  await expect(box).toHaveAttribute("maxlength", String(CAST_LIMITS.field));
+  await expect(box).toHaveAttribute("maxlength", String(castFieldLimit("outfit")));
   await box.fill("a red scarf");
   await page.keyboard.press("Escape");
   await expect(box).toHaveCount(0);

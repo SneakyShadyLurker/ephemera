@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { CAST_LIMITS } from "../cast/limits.ts";
 import { CREATOR_LIMITS } from "../creator/limits.ts";
 import { answerRoom, repairObject, unnamedAnswer } from "./answer.ts";
@@ -69,6 +70,22 @@ describe("repairObject", () => {
     expect(repairObject("I cannot.", chapterOutputSchema)).toBeUndefined();
     expect(repairObject(`{"title": "cut short`, chapterOutputSchema)).toBeUndefined();
     expect(repairObject(undefined, chapterOutputSchema)).toBeUndefined();
+  });
+
+  it("reads an object a closing brace short, once nothing else validates", () => {
+    const whole = JSON.stringify(final);
+    // The root never closes: its last closer is an inner one.
+    const nested = z.strictObject({ note: z.strictObject({ lines: z.array(z.string()) }) });
+    expect(repairObject('{"note":{"lines":["a","b"]}', nested)).toEqual({
+      note: { lines: ["a", "b"] },
+    });
+    expect(repairObject('Here: {"note":{"lines":["a","b"]', nested)).toEqual({
+      note: { lines: ["a", "b"] },
+    });
+    // A closed object that validates still wins over the fallback.
+    expect(repairObject(`{"note":{"lines":["a"]} ${whole}`, chapterOutputSchema)).toEqual(final);
+    // Closers out of order are not this repair's case.
+    expect(repairObject('{"note":{"lines":["a"}', nested)).toBeUndefined();
   });
 
   it("bounds its scan: thousands of unclosed braces end it instead of costing a pass each", () => {

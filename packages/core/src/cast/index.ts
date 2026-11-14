@@ -32,7 +32,7 @@ export {
 } from "./effective.ts";
 export { castFingerprintInput } from "./fingerprint.ts";
 export { castKey } from "./key.ts";
-export { CAST_LIMITS } from "./limits.ts";
+export { CAST_LIMITS, castFieldLimit } from "./limits.ts";
 export {
   castCanon,
   castCardKind,
