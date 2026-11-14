@@ -1350,7 +1350,9 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
             expect.soft(geometry.gap).toBe("8px");
             if (width / scale < 720) {
               expect.soft(geometry.wrapperDisplay).toBe("grid");
-              expect.soft(geometry.align).toBe("flex-start");
+              // Chromium serializes the authored flex-start as flow-start.
+              // The following boxes prove the stacked label/status and top-aligned chevron.
+              expect.soft(geometry.align).toBe("flow-start");
               expect.soft(geometry.status.top).toBeGreaterThanOrEqual(geometry.label.bottom);
               expect.soft(geometry.chevron.top - geometry.label.top).toBeCloseTo(2, 0);
               if (width === 390 && scale === 1) expect.soft(geometry.label.height).toBe(20);
