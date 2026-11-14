@@ -214,14 +214,17 @@ const readGender = (value: unknown): CastGender | undefined =>
   typeof value === "string" ? GENDER_WORDS.get(value.trim().toLowerCase()) : undefined;
 
 /** A field a model wrote as a list of strings, such as personality keywords, as one comma-joined text. */
-const fieldText = (value: unknown): unknown =>
+export const castFieldText = (value: unknown): unknown =>
   Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value.join(", ")
     : value;
 
 const fieldClamps = (keys: readonly string[]) =>
   Object.fromEntries(
-    keys.map((key) => [key, (value: unknown) => clampText(fieldText(value), castFieldLimit(key))]),
+    keys.map((key) => [
+      key,
+      (value: unknown) => clampText(castFieldText(value), castFieldLimit(key)),
+    ]),
   );
 const anchorClamps = fieldClamps(CAST_ANCHOR_FIELDS);
 const keep = (value: unknown): unknown => value;
@@ -303,7 +306,7 @@ function clampChange(value: unknown): unknown {
 /**
  * The keeper's answer, parsed from JSON, brought within `CAST_LIMITS` before
  * `castChangesSchema` reads it: strings cut, keys the schema does not name
- * dropped, blank names, unreadable genders and unusable introductions, discovery items, developments and continuity cues dropped, a field written as a list of strings joined, an `absent` list inside `cast` moved out, `cast` capped
+ * dropped, blank names, unreadable genders and unusable introductions, discovery items, developments and continuity cues dropped, a field written as a list of strings joined, a change that is no object dropped, an `absent` list inside `cast` moved out, `cast` capped
  * at `entries`. Other values it cannot mend still fail the schema.
  */
 /**
@@ -324,7 +327,8 @@ export const clampCastChanges = (value: unknown): unknown =>
         ? Object.fromEntries(
             Object.entries(cast)
               .map(([key, change]) => [clampName(key), clampChange(change)] as const)
-              .filter(([key]) => key !== "")
+              // A change that is no object says nothing of anyone, and must not discard the others.
+              .filter(([key, change]) => key !== "" && isRecord(change))
               .slice(0, L.entries),
           )
         : cast,

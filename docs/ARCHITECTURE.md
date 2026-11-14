@@ -741,7 +741,8 @@ replay carries it.
    balanced `{ … }` block that parses and validates, so a draft before the
    final object or a stray brace in prose costs nothing (blocks inside one
    that parsed are not candidates), and, when none validates, the answer's
-   first object with the closing braces it lacks appended, each brought within `MEMORY_LIMITS` by
+   first object with the one or two closing braces it lacks appended (never
+   an answer cut off inside a value), each brought within `MEMORY_LIMITS` by
    core's clamp (strings cut at a word break, lists sliced, blank lines
    and unknown keys dropped) before the strict parse. An answer that ends
    at its output limit (`length`) is unusable even when it parses; an

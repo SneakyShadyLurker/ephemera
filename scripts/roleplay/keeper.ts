@@ -6,6 +6,7 @@ import { keeperInstructions, keeperMessage } from "../../packages/core/src/cast/
 import {
   type CastChanges,
   castChangesSchema,
+  castFieldText,
   clampCastChanges,
 } from "../../packages/core/src/cast/register.ts";
 import { repairObject } from "../../packages/core/src/memory/answer.ts";
@@ -89,8 +90,11 @@ function keeperWire(id: KeeperFixtureId): WireMessage[] {
 /** Text values of a parsed answer past their field's bound: anchor and state fields, evidenced items' values. */
 function valuesOverBound(value: unknown): number {
   if (!isRecord(value) || !isRecord(value.cast)) return 0;
-  const over = ([key, text]: [string, unknown]) =>
-    typeof text === "string" && text.trim().length > castFieldLimit(key);
+  // Measured as the clamp reads it: a field written as a list of strings is its joined text.
+  const over = ([key, value]: [string, unknown]) => {
+    const text = castFieldText(value);
+    return typeof text === "string" && text.trim().length > castFieldLimit(key);
+  };
   let count = 0;
   for (const change of Object.values(value.cast)) {
     if (!isRecord(change)) continue;

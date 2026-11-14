@@ -319,6 +319,18 @@ describe("cast keeper evaluation", () => {
     expectPrivate(report);
   });
 
+  it("counts a field written as a list by its joined length, as the clamp reads it", async () => {
+    const mood = Array.from({ length: 60 }, (_, at) => `word${at}`);
+    const fetch = vi.fn<ComparisonFetch>(async () =>
+      reply(JSON.stringify({ cast: { "Ada Brenner": { state: { mood } } }, absent: [] })),
+    );
+    const report = await runKeeperEvaluation(
+      [...args, "--live", "--repetitions", "1", "--fixtures", "quiet", "--max-calls", "1"],
+      { env, fetch },
+    );
+    expect(report).toMatchObject({ totals: { valid: 1, valuesOverBound: 1 } });
+  });
+
   it("never calls past --max-calls and stops at the run's deadline", async () => {
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(GOOD[fixtureOf(init)]));
     for (const [input, planned] of [

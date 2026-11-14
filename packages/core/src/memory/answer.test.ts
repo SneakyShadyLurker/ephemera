@@ -88,6 +88,36 @@ describe("repairObject", () => {
     expect(repairObject('{"note":{"lines":["a"}', nested)).toBeUndefined();
   });
 
+  it("never completes an answer cut off mid-way, which would lose its unwritten rest", () => {
+    const lists = z.strictObject({
+      note: z.strictObject({ lines: z.array(z.string()) }),
+      more: z.array(z.string()).default([]),
+    });
+    // An unfinished string, a dangling key and an unfinished literal after the last closer.
+    expect(repairObject('{"note":{"lines":["a"]},"more":["b', lists)).toBeUndefined();
+    expect(repairObject('{"note":{"lines":["a"]},"mo', lists)).toBeUndefined();
+    expect(repairObject('{"note":{"lines":["a"]},"more":nul', lists)).toBeUndefined();
+    // More than two closers short is cut off, not a slip.
+    const deep = z.strictObject({
+      a: z.strictObject({ b: z.strictObject({ c: z.array(z.string()) }) }),
+    });
+    expect(repairObject('{"a":{"b":{"c":["x"]', deep)).toBeUndefined();
+    // A fence after the last closer is still the whole answer.
+    expect(repairObject('```json\n{"note":{"lines":["a"]}\n```', lists)).toEqual({
+      note: { lines: ["a"] },
+      more: [],
+    });
+  });
+
+  it("reads deep nesting short of its closers in one linear pass", () => {
+    const depth = 200_000;
+    // Four closers short: every closer is read once, and nothing is completed.
+    const text = `{"a":${"[".repeat(depth)}${"]".repeat(depth - 3)}`;
+    const started = performance.now();
+    expect(repairObject(text, z.strictObject({ a: z.unknown() }))).toBeUndefined();
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+
   it("bounds its scan: thousands of unclosed braces end it instead of costing a pass each", () => {
     const strays = "{".repeat(100_000);
     // Each unclosed brace would scan to the end; the budget stops after a few such passes.

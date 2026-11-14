@@ -189,6 +189,19 @@ describe("an answer a model wrote loosely", () => {
     });
   });
 
+  it("refuses one cut off inside its absent list or a later NPC", () => {
+    expect(
+      repairObject('{"cast":{},"absent":["Ana', castChangesSchema, clampCastChanges),
+    ).toBeUndefined();
+    expect(
+      repairObject(
+        '{"cast":{"Mara Battin":{"state":{"mood":"calm"}},"Jonas Reyes":{"state":{"present":fal',
+        castChangesSchema,
+        clampCastChanges,
+      ),
+    ).toBeUndefined();
+  });
+
   it("moves an absent list out of cast only when the answer has none of its own", () => {
     expect(clampCastChanges({ cast: { absent: ["Ana Pires"] } })).toEqual({
       cast: {},
@@ -198,6 +211,17 @@ describe("an answer a model wrote loosely", () => {
     expect(clampCastChanges({ cast: { absent: { state: { mood: "calm" } } }, absent: [] })).toEqual(
       { cast: { absent: { state: { mood: "calm" } } }, absent: [] },
     );
+  });
+
+  it("drops a change that is no object and keeps the others", () => {
+    const clamped = clampCastChanges({
+      cast: { "Ilse Brandt": { state: { mood: "calm" } }, "Ilse Brandt.note": "seen", Ana: null },
+      absent: [],
+    });
+    expect(castChangesSchema.parse(clamped)).toEqual({
+      cast: { "Ilse Brandt": { state: { mood: "calm" } } },
+      absent: [],
+    });
   });
 
   it("joins a field written as a list of strings", () => {
