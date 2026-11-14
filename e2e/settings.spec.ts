@@ -996,6 +996,43 @@ test("the palette editor's scrolls to its heading and to a named colour move at 
   await expect.poll(() => canvas(page)).toBe(LIGHT);
 });
 
+test("a palette edit whose answer was lost is saved by the next Save, not reported as another tab's", async ({
+  page,
+}) => {
+  const created = await page.request.post("/api/palettes/1", {
+    headers: unsafe(),
+    data: plainPalette("Ash"),
+  });
+  expect(created.status()).toBe(200);
+  const puts: number[] = [];
+  await page.route("**/api/palettes/1", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    puts.push(puts.length);
+    // The first save is stored, and its answer never reaches the tab.
+    if (puts.length === 1) {
+      expect((await route.fetch()).status()).toBe(200);
+      return route.abort();
+    }
+    return route.fallback();
+  });
+  await page.goto("/settings");
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("button", { name: /^Your palettes/ }).click();
+  await page.getByRole("button", { name: "Edit Ash" }).click();
+  const editor = page.getByRole("region", { name: /^Edit / });
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Ember");
+  await editor.getByRole("button", { name: "Save palette" }).click();
+  await expect(editor.getByText(/^Not saved: .+ Your changes are still here\.$/)).toBeVisible();
+
+  await editor.getByRole("button", { name: "Save palette" }).click();
+  await expect(editor).toBeHidden();
+  await expect(
+    page.getByRole("radiogroup", { name: "Your palettes" }).getByRole("radio", { name: "Ember" }),
+  ).toBeVisible();
+  expect(puts).toHaveLength(2);
+  await expect(page.getByText("changed in another tab")).toHaveCount(0);
+});
+
 test("three custom palettes fill the row, and no new one is offered", async ({ page }) => {
   for (const [slot, name] of [
     [1, "Ash"],

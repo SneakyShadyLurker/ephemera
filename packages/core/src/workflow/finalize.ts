@@ -78,7 +78,7 @@ export type WorkflowRefusal = z.infer<typeof workflowRefusalSchema>;
 export const nodeTitleSchema = z.string().max(256);
 
 /** A node the user can choose for a place, as the panel lists it. */
-export const candidateSchema = z.strictObject({
+const candidateSchema = z.strictObject({
   node: nodeIdSchema,
   title: nodeTitleSchema,
   classType: classTypeSchema,

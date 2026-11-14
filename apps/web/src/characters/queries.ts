@@ -113,7 +113,7 @@ export function deleteCharacter(id: string): Promise<boolean> {
 }
 
 /** One file's native import report, what was fitted to the limits included. */
-export type ImportOutcome = FileImport<ImportResponse>;
+type ImportOutcome = FileImport<ImportResponse>;
 
 /** Every refusal the import route can answer in words, so a new one fails the typecheck here. */
 type ImportRefusal = InferResponseType<typeof api.characters.import.$post, 422>["error"];
@@ -131,8 +131,9 @@ const IMPORT_REASONS: Record<ImportRefusal, string> = {
 /** Imports one card file; never throws, so a batch reports every file. */
 export function importCard(file: File): Promise<ImportOutcome> {
   return importFile(
+    "characters",
     file,
-    (init) => api.characters.import.$post({ form: { file } }, { init }),
+    (init, { id }) => api.characters.import.$post({ form: { file, id } }, { init }),
     IMPORT_REASONS,
     (body) => importResponseSchema.safeParse(body).data,
   );

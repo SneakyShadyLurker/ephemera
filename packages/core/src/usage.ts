@@ -13,7 +13,7 @@ export const callUsageSchema = z.strictObject({
 });
 export type CallUsage = z.infer<typeof callUsageSchema>;
 
-export const callPurposeSchema = z.enum([
+const callPurposeSchema = z.enum([
   "narration",
   "scene.prompt",
   "cast.update",

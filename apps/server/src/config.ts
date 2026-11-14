@@ -42,10 +42,26 @@ const optional = <T extends z.ZodType<string>>(schema: T) =>
 /** The port the server listens on unless `EPHEMERA_PORT` says otherwise; Vite's dev proxy targets it. */
 export const DEFAULT_PORT = 8790;
 
+/**
+ * The rules of the variables `./ephemera` asks for or makes, each as the
+ * server reads it: `envSchema` is built from them, and setup checks a value
+ * against the same rule before it keeps or writes it.
+ */
+export const envRules = {
+  origin: originSchema,
+  upstreamUrl: z.url({ protocol: /^https?$/ }),
+  proxyKey: z.string().min(32),
+  /** 32 random bytes as 64 hex characters. */
+  dataKey: z.string().regex(/^[0-9a-fA-F]{64}$/),
+  port: z.coerce.number().int().min(1).max(65_535),
+};
+
+/** Whether `value` passes a variable's rule. */
+export const passesEnvRule = (rule: keyof typeof envRules, value: string | undefined): boolean =>
+  envRules[rule].safeParse(value).success;
+
 const envSchema = z.object({
-  EPHEMERA_UPSTREAM_BASE_URL: z
-    .url({ protocol: /^https?$/ })
-    .transform((url) => url.replace(/\/+$/, "")),
+  EPHEMERA_UPSTREAM_BASE_URL: envRules.upstreamUrl.transform((url) => url.replace(/\/+$/, "")),
   /** Empty or unset for a local server that needs no key. */
   EPHEMERA_UPSTREAM_API_KEY: optional(z.string()),
   /**
@@ -55,22 +71,19 @@ const envSchema = z.object({
   EPHEMERA_UPSTREAM_SESSION_CACHE: optional(z.enum(["on", "off"])).transform(
     (value) => value !== "off",
   ),
-  EPHEMERA_PROXY_KEY: z.string().min(32),
+  EPHEMERA_PROXY_KEY: envRules.proxyKey,
   /** Atelier's key for the image card route only; unset closes that route to everyone but SWAG. */
   EPHEMERA_INTEGRATION_KEY: optional(z.string().min(32)),
-  /** The master key every user's database is encrypted under: 32 random bytes as 64 hex characters. */
-  EPHEMERA_DATA_KEY: z
-    .string()
-    .regex(/^[0-9a-fA-F]{64}$/)
-    .transform((hex) => Buffer.from(hex, "hex")),
-  EPHEMERA_ORIGIN: originSchema,
+  /** The master key every user's database is encrypted under. */
+  EPHEMERA_DATA_KEY: envRules.dataKey.transform((hex) => Buffer.from(hex, "hex")),
+  EPHEMERA_ORIGIN: envRules.origin,
   EPHEMERA_HOST: z.string().min(1).default("127.0.0.1"),
-  EPHEMERA_PORT: z.coerce.number().int().min(1).max(65_535).default(DEFAULT_PORT),
+  EPHEMERA_PORT: envRules.port.default(DEFAULT_PORT),
   EPHEMERA_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
   EPHEMERA_STATIC_DIR: z.string().min(1).optional(),
   /** The deployed commit, set by the image; unset in development and tests. */
   EPHEMERA_BUILD_REVISION: optional(z.string().regex(BUILD_REVISION)),
-  /** The SQLite database of every persisted entity; the repository's ignored data/ in development. */
+  /** The data directory, each user's encrypted database and portraits under `users/`; the repository's ignored data/ in development. */
   EPHEMERA_DATA_DIR: z
     .string()
     .min(1)

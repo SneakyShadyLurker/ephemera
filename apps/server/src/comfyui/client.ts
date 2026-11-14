@@ -487,7 +487,7 @@ function framedPng(frame: Uint8Array, promptId: string, output: string): Uint8Ar
 }
 
 /** Chunks a candidate may carry: no palette, transparency key, ICC profile, compressed text or animation. */
-const PORTRAIT_CHUNKS = new Set(["IHDR", "IDAT", "IEND", "tEXt", "pHYs", "sRGB", "gAMA", "cHRM"]);
+const CANDIDATE_CHUNKS = new Set(["IHDR", "IDAT", "IEND", "tEXt", "pHYs", "sRGB", "gAMA", "cHRM"]);
 
 /**
  * Inflates `data` to at most `limit` bytes, with how much of it the zlib
@@ -510,7 +510,7 @@ function inflateBounded(data: Buffer, limit: number): Promise<{ output: number; 
 /**
  * A candidate in the one layout the browser decodes (apps/web creator/art.ts):
  * the batch's size, 8-bit RGB or RGBA, not interlaced, one IHDR and
- * otherwise only `PORTRAIT_CHUNKS`, and image data that is one zlib stream
+ * otherwise only `CANDIDATE_CHUNKS`, and image data that is one zlib stream
  * inflating to exactly its scanlines.
  * Inflation stops there, so a small file cannot expand to gigabytes in the
  * tab, nor carry data the tab's decoder would keep copying. Read in memory;
@@ -524,7 +524,7 @@ async function portraitShaped(png: Uint8Array): Promise<boolean> {
   }
   // One IHDR only: a second one could describe other pixels than the first.
   const allowed = chunks.every(
-    (chunk, index) => (chunk.type === "IHDR") === (index === 0) && PORTRAIT_CHUNKS.has(chunk.type),
+    (chunk, index) => (chunk.type === "IHDR") === (index === 0) && CANDIDATE_CHUNKS.has(chunk.type),
   );
   if (!allowed) return false;
   const view = new DataView(header.data.buffer, header.data.byteOffset, 13);

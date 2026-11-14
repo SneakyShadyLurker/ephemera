@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCastChanges, registerFromSheet, withSheet } from "./apply.ts";
+import { applyCastChanges, withSheet } from "./apply.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
   type CastChanges,
@@ -310,9 +310,9 @@ describe("the cast sheet", () => {
       aka: [],
     }) satisfies CastSheetEntry;
 
-  it("seeds a register with every entry away, in sheet order", () => {
+  it("seeds an empty register with every entry away, in sheet order", () => {
     const sheet = { entries: [sheetEntry(1, "Mara Battin"), sheetEntry(2, "Ana Pires")] };
-    const seeded = registerFromSheet(sheet);
+    const seeded = withSheet(sheet, register());
     expect(seeded.entries.map((at) => [at.id, at.state])).toEqual([
       [uuid(1), emptyCastState(false)],
       [uuid(2), emptyCastState(false)],

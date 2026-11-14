@@ -8,7 +8,7 @@
  * Verified against ComfyUI 0df1646a on 2026-10-28.
  */
 
-export interface ModelInputExceptions {
+interface ModelInputExceptions {
   /** `_name` or `_path` combos that choose a setting, not a file, on any class. */
   notFiles: ReadonlySet<string>;
   /** Inputs that hold a model file under another name, by node class. */

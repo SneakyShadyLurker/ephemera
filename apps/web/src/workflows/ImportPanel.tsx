@@ -29,7 +29,7 @@ import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { countOf } from "@/lib/text";
+import { charLimit, countOf } from "@/lib/text";
 import { artWorkflowsQuery } from "../creator/queries.ts";
 import { FAMILY_NAMES } from "../settings/pictures.ts";
 import { PANEL_COMMIT, PANEL_FOOTER } from "../settings/SettingRow.tsx";
@@ -105,7 +105,7 @@ export type WorkflowDraft =
   | { mode: "replace"; workflow: WorkflowSummary; file: File };
 
 /** What the import panel gets from the Pictures category that holds the file picker. */
-export interface ImportPanelProps {
+interface ImportPanelProps {
   draft: WorkflowDraft;
   /** Another file chosen or dropped while this one is open, until `onIncoming` answers. */
   incoming: WorkflowDraft | null;
@@ -949,7 +949,7 @@ function Fields({
             id={nameId}
             autoComplete="off"
             spellCheck={false}
-            maxLength={WORKFLOW_LIMITS.nameLength}
+            {...charLimit(WORKFLOW_LIMITS.nameLength, draft.name)}
             disabled={disabled}
             aria-invalid={problem !== null}
             aria-describedby={problem !== null || note !== null ? `${nameId}-help` : undefined}

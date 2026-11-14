@@ -1,4 +1,8 @@
-import { type CallAccounting, callAccountingSchema } from "@ephemera/core";
+import {
+  type CallAccounting,
+  callAccountingSchema,
+  PRE_CALL_REFUSAL_STATUSES,
+} from "@ephemera/core";
 import { z } from "zod";
 import { notReached, signedOutNow } from "./signin/signin.ts";
 
@@ -8,9 +12,6 @@ import { notReached, signedOutNow } from "./signin/signin.ts";
  * of 200 at once and one JSON text when the call settles.
  */
 
-/** The statuses with which Ephemera refuses a model call before making it. */
-const REFUSED_BEFORE_CALL = [400, 404, 408, 409, 413, 422];
-
 /**
  * Whether the server refused before any model call; it then records that no
  * call was made, so the usage ledger shows none running.
@@ -19,7 +20,7 @@ export function refusedBeforeCall(
   status: number,
   onAccounting?: (accounting: CallAccounting) => void,
 ): boolean {
-  const refused = REFUSED_BEFORE_CALL.includes(status);
+  const refused = (PRE_CALL_REFUSAL_STATUSES as readonly number[]).includes(status);
   if (refused) onAccounting?.({ calls: [], truncated: false });
   return refused;
 }
@@ -113,7 +114,7 @@ export type SharedCallFailure =
   | "no_model";
 
 /** A failure's way out: the call again, or the Settings that set the window or the model. */
-export type CallFailureAction = "retry" | "window" | "settings";
+type CallFailureAction = "retry" | "window" | "settings";
 
 /**
  * What a shared failure says after the call's subject ("The cast was not

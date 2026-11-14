@@ -10,9 +10,9 @@ import { WORKFLOW_LIMITS } from "./graph.ts";
  */
 
 /** Sockets and widgets on one UI node, and values in one `widgets_values`. */
-export const UI_SLOTS = 256;
+const UI_SLOTS = 256;
 /** Links in one graph or definition. */
-export const UI_LINKS = WORKFLOW_LIMITS.uiNodes * WORKFLOW_LIMITS.inputsPerNode;
+const UI_LINKS = WORKFLOW_LIMITS.uiNodes * WORKFLOW_LIMITS.inputsPerNode;
 
 /** The ids a definition's links use for its input and output boundary. */
 export const SUBGRAPH_INPUT = "-10";

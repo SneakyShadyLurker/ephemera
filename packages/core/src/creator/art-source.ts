@@ -1,4 +1,5 @@
 import { clipText } from "../card/limits.ts";
+import { tagged } from "../prompt/tagged.ts";
 import { CREATOR_LIMITS as C } from "./limits.ts";
 import { locationLine } from "./location.ts";
 import {
@@ -29,8 +30,6 @@ export function leadingSentences(text: string, count: number): string {
   }
   return kept.join(" ");
 }
-
-export const tagged = (name: string, text: string): string => `<${name}>\n${text}\n</${name}>`;
 
 /**
  * A character's looks: its appearance, with its bounded background for age,

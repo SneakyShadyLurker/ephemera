@@ -30,8 +30,9 @@ import {
 } from "@ephemera/core";
 import type { StoreApi } from "zustand/vanilla";
 import type { CastFailure, CastSheetOutcome, CastUpdateOutcome } from "../cast/queries.ts";
-import { type AssistantMessage, type ChatMessage, shownReply } from "./store.ts";
-import type { UsageHandle } from "./usage.ts";
+import { shownReply } from "./shown-reply.ts";
+import type { AssistantMessage, ChatMessage } from "./store.ts";
+import { type UsageHandle, unknownEnd } from "./usage.ts";
 
 /*
  * The cast register (PRINCIPLES.md 1): a snapshot per reply of
@@ -928,22 +929,11 @@ export function createCastSlice(
         })
         .catch((): CastUpdateOutcome => ({ ok: false, reason: "unreachable" }));
       accounting?.finish(
-        received
-          ? undefined
-          : outcome.ok
-            ? "completed"
-            : controller.signal.aborted
-              ? "aborted"
-              : [
-                    "unreachable",
-                    "timeout",
-                    "aborted",
-                    "cast_failed",
-                    "upstream_busy",
-                    "upstream_signed_out",
-                  ].includes(outcome.reason)
-                ? "failed"
-                : undefined,
+        unknownEnd(outcome, {
+          received,
+          aborted: controller.signal.aborted,
+          failed: "cast_failed",
+        }),
       );
       return outcome;
     };
@@ -1131,24 +1121,14 @@ export function createCastSlice(
       )
       .catch((): CastSheetOutcome => ({ ok: false, reason: "unreachable" }));
     accounting?.finish(
-      received
+      // An answer without a sheet counts as no call.
+      outcome.ok && outcome.sheet === null
         ? undefined
-        : outcome.ok
-          ? outcome.sheet === null
-            ? undefined
-            : "completed"
-          : controller.signal.aborted
-            ? "aborted"
-            : [
-                  "unreachable",
-                  "timeout",
-                  "aborted",
-                  "cast_failed",
-                  "upstream_busy",
-                  "upstream_signed_out",
-                ].includes(outcome.reason)
-              ? "failed"
-              : undefined,
+        : unknownEnd(outcome, {
+            received,
+            aborted: controller.signal.aborted,
+            failed: "cast_failed",
+          }),
     );
     // Cleared, another character, or another request since: it is not this chat's.
     if (

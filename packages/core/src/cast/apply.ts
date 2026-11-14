@@ -19,7 +19,7 @@ import {
  * over a register. Chat content in and out; nothing is kept.
  */
 
-export interface ApplyOptions {
+interface ApplyOptions {
   /** The persona's name: never an entry. Null drops nothing. */
   player: string | null;
   /** A new entry's id; called once per new entry. */
@@ -291,11 +291,6 @@ export function applyCastChanges(
   }
   return { entries };
 }
-
-/** A register seeded from a cast sheet: every entry away, in sheet order, ids as the sheet has them. */
-export const registerFromSheet = (sheet: { entries: readonly CastSheetEntry[] }): CastRegister => ({
-  entries: sheet.entries.map((entry) => ({ ...entry, state: emptyCastState(false) })),
-});
 
 /**
  * The sheet laid over a register (the web's overlay): for every sheet entry,

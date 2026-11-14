@@ -213,7 +213,7 @@ export function characterProblems(block: AnswerBlock): CardProblem[] {
   return problems;
 }
 
-export function descriptionProblems(kind: CreatorKind, blocks: AnswerBlock[]): CardProblem[] {
+function descriptionProblems(kind: CreatorKind, blocks: AnswerBlock[]): CardProblem[] {
   if (kind !== "scenario") {
     const { min, max } = SUBJECT_COUNTS[kind];
     const problems: CardProblem[] =

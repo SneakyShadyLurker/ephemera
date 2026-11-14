@@ -367,6 +367,22 @@ describe("lorebooks API", () => {
     expect(stores.lorebooks.links()[0]?.lorebookIds).toEqual(books.slice(1, LOREBOOK_LINKS));
   });
 
+  it("stores an import sent again under its id once", async () => {
+    const { app, stores } = setup();
+    const id = crypto.randomUUID();
+    const send = () => {
+      const form = fileForm(JSON.stringify(worldInfo()), "Harbour Town.json");
+      form.append("id", id);
+      return app.request("/api/lorebooks/import", formRequest("POST", form));
+    };
+    const first = await send();
+    expect(first.status).toBe(201);
+    const again = await send();
+    expect(again.status).toBe(201);
+    expect(await again.json()).toEqual(await first.json());
+    expect(stores.lorebooks.list().map((book) => book.id)).toEqual([id]);
+  });
+
   it("imports a World Info file with its report, named by the file, and logs nothing of it", async () => {
     const { app, lines, stores } = setup();
     const response = await app.request(

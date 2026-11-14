@@ -78,7 +78,7 @@ export const scanTextOf = (turn: Pick<ChatTurn, "content" | "scanText">): string
   withoutHighlights(turn.scanText ?? turn.content);
 
 /** The browser's clock and time zone, for `{{time}}` and `{{date}}`. */
-export const clockSchema = z.strictObject({
+const clockSchema = z.strictObject({
   now: z.number().int().min(0).max(8.64e15),
   timeZone: z.string().max(64).refine(isTimeZone, "unknown time zone"),
 });
@@ -253,6 +253,16 @@ export const retryAfterSchema = z.number().int().nonnegative().max(MAX_RETRY_AFT
  * busy provider and a signed-out one.
  */
 export const COMMON_REFUSALS = [...PROMPT_REFUSALS, ...UPSTREAM_FAILURES] as const;
+
+/**
+ * The statuses with which a model-call route refuses before it asks the
+ * model: a body it cannot take (400, 413), a record that is gone or was
+ * changed (404, 409), the deadline (408) and the route's own refusals (422).
+ * The server answers a call it never made with these alone, and the app
+ * reads each of them as "no call was made".
+ */
+export const PRE_CALL_REFUSAL_STATUSES = [400, 404, 408, 409, 413, 422] as const;
+export type PreCallRefusalStatus = (typeof PRE_CALL_REFUSAL_STATUSES)[number];
 
 /** A model-call route's refusal body: one of its `codes`, or the request outliving its deadline. */
 export const refusalBodySchema = <const T extends readonly [string, ...string[]]>(codes: T) =>

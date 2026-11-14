@@ -159,7 +159,7 @@ export function refreshLibrary(queryClient: QueryClient, id?: string): Promise<v
 }
 
 /** One file's import: the book made and what changed on the way, or why it was refused. */
-export type LorebookImport = FileImport<ImportResponse>;
+type LorebookImport = FileImport<ImportResponse>;
 
 /** Every refusal the import route can answer in words, so a new one fails the typecheck here. */
 type ImportRefusal = InferResponseType<typeof api.lorebooks.import.$post, 422>["error"];
@@ -172,10 +172,11 @@ const IMPORT_REASONS: Record<ImportRefusal, string> = {
 };
 
 /** Imports one World Info or lorebook file; never throws, so a batch reports every file. */
-export function importLorebook(file: File): Promise<LorebookImport> {
+function importLorebook(file: File): Promise<LorebookImport> {
   return importFile(
+    "lorebooks",
     file,
-    (init) => api.lorebooks.import.$post({ form: { file } }, { init }),
+    (init, { id }) => api.lorebooks.import.$post({ form: { file, id } }, { init }),
     IMPORT_REASONS,
     (body) => importResponseSchema.safeParse(body).data,
   );

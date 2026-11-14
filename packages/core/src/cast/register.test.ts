@@ -74,6 +74,38 @@ describe("clamping the keeper's answer", () => {
     });
   });
 
+  it.each([
+    { value: "short now", evidence: "" },
+    { value: " ", evidence: "Mara cut it" },
+    { value: "short now" },
+    null,
+  ])("drops an ungrounded development or continuity cue without losing the NPC: %j", (cue) => {
+    const kept = { value: "a limp", evidence: "Mara favours her left leg" };
+    const goals = { value: "find the ledger", evidence: "Mara asks about the ledger" };
+    const parsed = castChangesSchema.parse(
+      clampCastChanges({
+        cast: {
+          Mara: {
+            state: { mood: "calm" },
+            developments: { hair: cue, build: kept },
+            continuity: { voice: cue, goals },
+          },
+        },
+        absent: ["Ilse"],
+      }),
+    );
+    expect(parsed).toEqual({
+      cast: {
+        Mara: {
+          state: { mood: "calm" },
+          developments: { build: kept },
+          continuity: { goals },
+        },
+      },
+      absent: ["Ilse"],
+    });
+  });
+
   it.each([true, "Ilse smiles", { evidence: " " }, {}])(
     "drops an unusable introduction without losing the NPC: %j",
     (introduce) => {

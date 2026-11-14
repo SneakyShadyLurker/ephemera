@@ -12,7 +12,7 @@ export { incompleteForAutomaticKeep } from "./complete.ts";
 export { legacyBlocks } from "./legacy-blocks.ts";
 export { CREATOR_ART, CREATOR_LIMITS } from "./limits.ts";
 export { formatLocationLine } from "./location.ts";
-export { ART_LOOK_IDS, ART_LOOKS, type ArtLook, type ArtLookId } from "./looks.ts";
+export { ART_LOOK_IDS, ART_LOOKS, type ArtLookId } from "./looks.ts";
 export {
   artPrompt,
   BRAINSTORM_MORE,
@@ -51,12 +51,10 @@ export * from "./rework/index.ts";
 export { savedCardArtSource, savedCardKind, taggedCardKind } from "./saved-art-source.ts";
 export {
   artControlEventSchema,
-  artLookIdSchema,
   type BlockTokens,
   type BrainstormOption,
   type BrainstormRound,
   brainstormOptionSchema,
-  brainstormRoundSchema,
   type CardProblem,
   type CardSection,
   type CreatorArtComposition,

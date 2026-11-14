@@ -90,29 +90,24 @@ export const workflowGraphReplaceSchema = z.strictObject({
 export type WorkflowGraphReplace = z.infer<typeof workflowGraphReplaceSchema>;
 
 /** One node as the import panel names it: display metadata, never part of the graph. */
-export const workflowNodeInfoSchema = z.strictObject({
+const workflowNodeInfoSchema = z.strictObject({
   id: nodeIdSchema,
   title: nodeTitleSchema,
   classType: classTypeSchema,
 });
 
-export const WORKFLOW_FORMATS = ["api", "ui"] as const;
+const WORKFLOW_FORMATS = ["api", "ui"] as const;
 
 /**
  * Why an import refuses a node class: it writes or reads ComfyUI's files,
  * it is not on the allowlist, it loads a reference image, or the live
  * ComfyUI reports it as an output node.
  */
-export const BLOCKED_REASONS = [
-  "refused_writes",
-  "not_allowed",
-  "reference_only",
-  "output_node",
-] as const;
+const BLOCKED_REASONS = ["refused_writes", "not_allowed", "reference_only", "output_node"] as const;
 export type BlockedReason = (typeof BLOCKED_REASONS)[number];
 
 /** A node class an import refuses, with why. */
-export const blockedNodeSchema = z.strictObject({
+const blockedNodeSchema = z.strictObject({
   classType: classTypeSchema,
   reason: z.enum(BLOCKED_REASONS),
 });

@@ -134,6 +134,28 @@ describe("foreign character import", () => {
     });
     if (result.ok) expect(result.card.lorebook?.entries[0]?.keys).toEqual(["lamp"]);
   });
+  it("fits a keyword by the length its legacy placeholders grow to", () => {
+    const grows = `<USER>${"x".repeat(194)}`;
+    const fits = `<USER>${"x".repeat(192)}`;
+    // Past the limit as written, within it once its alias shortens: left out all the same.
+    const shrinks = `{{charifnotgroup}}${"x".repeat(192)}`;
+    const result = normalizeCard({
+      spec: "chara_card_v2",
+      data: {
+        name: "Mara",
+        character_book: {
+          entries: [{ keys: [grows, shrinks, fits], secondary_keys: [grows], content: "Light." }],
+        },
+      },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      report: { changed: ["Some lorebook keywords were left out to fit the keyword limits."] },
+    });
+    if (!result.ok) return;
+    expect(result.card.lorebook?.entries[0]?.keys).toEqual([`{{user}}${"x".repeat(192)}`]);
+    expect(result.card.lorebook?.entries[0]?.secondaryKeys ?? []).toEqual([]);
+  });
   it("rejects malformed fields, overlong text and hostile nested extensions", () => {
     const bad = (data: object) =>
       normalizeCard({ spec: "chara_card_v2", data: { name: "Mara", ...data } });

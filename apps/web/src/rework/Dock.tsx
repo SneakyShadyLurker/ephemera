@@ -2,6 +2,7 @@ import { fieldLabel, type ReworkCard, type Unplaced } from "@ephemera/core";
 import { AnimatePresence, useIsPresent } from "motion/react";
 import * as m from "motion/react-m";
 import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from "react";
+import { useShallow } from "zustand/shallow";
 import { fade, MotionScope, spring } from "@/app/motion.tsx";
 import { motionPx } from "@/app/motion-tokens.ts";
 import { scrollBehavior, useReducedMotion } from "@/app/reduced-motion.ts";
@@ -21,7 +22,8 @@ import {
   acceptedChanges,
   leftByUndo,
   type ReviewChange,
-  type ReworkState,
+  type ReworkView,
+  reworkView,
 } from "./store.ts";
 
 /*
@@ -102,7 +104,8 @@ type DockProps = {
 };
 
 export function Dock(props: DockProps) {
-  const live = useRework((state) => state);
+  // Without the answer's raw text: a delta that only grows it leaves the dock alone.
+  const live = useRework(useShallow(reworkView));
   useFirstChangeScroll();
   const hidden = live.phase === "idle" || (live.phase === "review" && isRefusal(live.failure));
   const { model } = useModelChoice(live.model);
@@ -126,7 +129,7 @@ function DockPresenter({
   returnFocus,
   live,
   model,
-}: DockProps & { live: ReworkState; model: ReturnType<typeof useModelChoice>["model"] }) {
+}: DockProps & { live: ReworkView; model: ReturnType<typeof useModelChoice>["model"] }) {
   const present = useIsPresent();
   const reduced = useReducedMotion();
   const view = live;

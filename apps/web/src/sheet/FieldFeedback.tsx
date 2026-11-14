@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { charLimitOf } from "@/lib/text";
 import type { SaveStatus } from "./autosave.ts";
 import { InlineSave } from "./InlineSave.tsx";
 
@@ -46,7 +47,7 @@ export function FieldFeedback({ value, children }: { value: unknown; children: R
 export function AuthoringField(props: ComponentProps<"textarea">) {
   return (
     <FieldFeedback value={props.value}>
-      <textarea {...props} />
+      <textarea {...props} {...charLimitOf(props)} />
     </FieldFeedback>
   );
 }
@@ -54,7 +55,7 @@ export function AuthoringField(props: ComponentProps<"textarea">) {
 export function AuthoringInput(props: ComponentProps<"input">) {
   return (
     <FieldFeedback value={props.value}>
-      <input {...props} />
+      <input {...props} {...charLimitOf(props)} />
     </FieldFeedback>
   );
 }

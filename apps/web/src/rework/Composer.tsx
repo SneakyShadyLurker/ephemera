@@ -8,6 +8,7 @@ import { SwitchField } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
 import { oneOf } from "@/lib/one-of.ts";
+import { charLimit } from "@/lib/text";
 import { useModelInfo } from "../api.ts";
 import { useChatPersona } from "../chat/character.ts";
 import { useModelChoice } from "../creator/Describe.tsx";
@@ -171,7 +172,7 @@ export function Composer({
           onChange={(event) => reworkStore.getState().setRequest(event.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Make her a decade older and fix anything that no longer fits."
-          maxLength={REWORK_LIMITS.requestLength}
+          {...charLimit(REWORK_LIMITS.requestLength, request)}
           autoComplete="off"
           translate="no"
           aria-describedby={described || undefined}

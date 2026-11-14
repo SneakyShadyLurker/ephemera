@@ -1,4 +1,3 @@
-import { type ConversionReport, emptyConversionReport } from "../card/import.ts";
 import { isRecord } from "../card/json.ts";
 import { SOURCE_PLACEHOLDER } from "../preset/defaults.ts";
 import {
@@ -8,6 +7,7 @@ import {
   storedPromptPresetDataSchema,
 } from "../preset/prompt.ts";
 import { normalizeMacroAliases } from "./aliases.ts";
+import { type ConversionReport, emptyConversionReport } from "./report.ts";
 
 /** The source blocks that read the card fields the native card no longer has. */
 export const RETIRED_SOURCE_BLOCKS: ReadonlySet<unknown> = new Set(["charPersonality", "scenario"]);

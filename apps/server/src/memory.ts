@@ -75,7 +75,7 @@ import {
 } from "./routes.ts";
 import { type StreamContext, streamedResponse, streamSignal } from "./streams.ts";
 import { countText } from "./tokens.ts";
-import { type Upstream, waitOf } from "./upstream.ts";
+import { refusalBody, type Upstream } from "./upstream.ts";
 import { callRecorder } from "./usage.ts";
 import type { UserEnv } from "./user.ts";
 
@@ -287,8 +287,7 @@ function writeRefusal(
   }
   write(
     JSON.stringify({
-      error: error === "aborted" ? "request_timeout" : error,
-      ...waitOf(refused),
+      ...refusalBody(refused),
       ...(accounting === undefined ? {} : { accounting }),
     }),
   );

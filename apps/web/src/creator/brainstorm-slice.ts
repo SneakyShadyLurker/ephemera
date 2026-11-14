@@ -32,7 +32,7 @@ export type StreamBrainstorm = (
  * writing the ideas, waiting for a sign-in, stopped by the player, failed, or
  * complete with the validated list.
  */
-export type BrainstormStatus =
+type BrainstormStatus =
   | "idle"
   | "classifying"
   | "writing"
@@ -130,7 +130,7 @@ const NEW_LIST: Pick<BrainstormSession, "picked" | "edits" | "scroll"> = {
 const running = (status: BrainstormStatus) =>
   status === "classifying" || status === "writing" || status === "waiting";
 
-export interface BrainstormSliceDeps {
+interface BrainstormSliceDeps {
   streamBrainstorm: StreamBrainstorm;
   /** False while the Authelia session is gone. */
   signedIn: () => boolean;

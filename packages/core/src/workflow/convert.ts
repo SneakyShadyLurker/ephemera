@@ -261,7 +261,7 @@ function promotedValues(
 }
 
 /** Counts what flattening materializes; tests read it, the public API never does. */
-export type MaterializeProbe = (id: string) => void;
+type MaterializeProbe = (id: string) => void;
 
 /**
  * Every node of the file at its execution id, instances expanded. Each node

@@ -389,6 +389,7 @@ export function GreetingActions({ message }: { message: AssistantMessage }) {
             label="Previous greeting"
             onClick={() => void swipe(-1)}
             disabled={busy || message.shown === 0}
+            focusableWhenDisabled
           >
             <PreviousIcon size={16} />
           </IconAction>
@@ -401,6 +402,7 @@ export function GreetingActions({ message }: { message: AssistantMessage }) {
             label="Next greeting"
             onClick={() => void swipe(1)}
             disabled={busy || message.shown === count - 1}
+            focusableWhenDisabled
           >
             <NextIcon size={16} />
           </IconAction>

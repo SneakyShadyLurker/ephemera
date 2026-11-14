@@ -9,6 +9,7 @@ import {
 import { CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { charLimitOf } from "@/lib/text";
 import { FOCUS_WITHIN } from "./fields.ts";
 
 /**
@@ -128,6 +129,7 @@ export function TokenField({
       })}
       <input
         {...inputProps}
+        {...charLimitOf({ maxLength: inputProps.maxLength, value: draft })}
         ref={field}
         value={draft}
         autoComplete="off"

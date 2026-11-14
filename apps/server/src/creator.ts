@@ -373,7 +373,7 @@ interface Ended {
 }
 
 /** A failed call's code: a busy or signed-out provider, the deadline, or any other failure. */
-export const failedCode = (failure: CallFailure | undefined, signal: AbortSignal) =>
+const failedCode = (failure: CallFailure | undefined, signal: AbortSignal) =>
   failure?.upstream === undefined
     ? { code: timedOut(signal) ? ("timeout" as const) : ("upstream" as const) }
     : { code: failure.upstream, ...waitOf(failure) };
@@ -411,7 +411,7 @@ export function admittedWorkflow(
 }
 
 /** What an art run paints from: the route's own source for the image prompt. */
-export interface ArtSource {
+interface ArtSource {
   /** The stored portrait (PNG) that goes to a model reading images, read where its failure answers `reference`. */
   portrait?: () => Promise<Uint8Array | undefined>;
   /** Whether the portrait's top third also goes to the workflow's reference graph. */

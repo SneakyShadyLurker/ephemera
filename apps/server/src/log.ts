@@ -7,6 +7,8 @@ import type { FinishReason } from "ai";
  */
 export interface LogFields {
   event: string;
+  /** The host and port the server listens on, at start. */
+  address?: string;
   route?: string;
   method?: string;
   status?: number;
@@ -37,6 +39,7 @@ export interface LogFields {
 
 const ALLOWED_KEYS = [
   "event",
+  "address",
   "route",
   "method",
   "status",

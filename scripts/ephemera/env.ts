@@ -15,7 +15,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
-import { DEFAULT_PORT } from "../../apps/server/src/config.ts";
+import { DEFAULT_PORT, envRules } from "../../apps/server/src/config.ts";
 import { type Username, usernameSchema } from "../../apps/server/src/identity.ts";
 
 /** The code: a Git checkout, or one version of an installed copy. */
@@ -149,10 +149,11 @@ export class LocalAccessError extends Error {
 export function localAccess(env: Env): LocalAccess | undefined {
   const named = env.EPHEMERA_LOCAL_USER ?? "";
   const portText = env.EPHEMERA_LOCAL_PORT ?? "";
-  const port = portText === "" ? DEFAULT_LOCAL_PORT : Number(portText);
+  const read = envRules.port.safeParse(portText === "" ? DEFAULT_LOCAL_PORT : portText);
+  const port = read.success ? read.data : Number.NaN;
   const invalid = [
     ...(named !== "" && !usernameSchema.safeParse(named).success ? ["EPHEMERA_LOCAL_USER"] : []),
-    ...(!Number.isInteger(port) || port < 1 || port > 65_535 ? ["EPHEMERA_LOCAL_PORT"] : []),
+    ...(read.success ? [] : ["EPHEMERA_LOCAL_PORT"]),
   ];
   if (invalid.length > 0) {
     throw new LocalAccessError(`Invalid environment variables: ${invalid.join(", ")}`);

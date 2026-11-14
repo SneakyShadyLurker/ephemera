@@ -1,8 +1,6 @@
 import {
   CAST_LIMITS,
-  CAST_STATE_FIELDS,
   type CastAnchor,
-  type CastAnchorField,
   type CastEntry,
   type CastState,
   castModelOf,
@@ -31,7 +29,7 @@ import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui
 import { EditorBody, EditorFooter, EditorHeader } from "@/components/ui/editor-shell";
 import { Popover, PopoverContent, PopoverTitle } from "@/components/ui/popover";
 import { cn } from "@/lib/cn";
-import { formatCount } from "@/lib/text";
+import { charLimit, formatCount } from "@/lib/text";
 import { useContextWindow } from "../api.ts";
 import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
@@ -47,6 +45,7 @@ import {
   castFieldText,
   closeCast,
   discoveredRegister,
+  isAnchorField,
   latestChange,
   listedEntries,
   openCast,
@@ -99,9 +98,6 @@ const SECTIONS: readonly (readonly [string, readonly TextField[]])[] = [
 
 /** A section's quiet label: a heading in reading mode, a legend in edit mode. */
 const SECTION_LABEL = cn(COMPACT_LABEL, "font-sans");
-
-const isAnchorField = (field: TextField): field is CastAnchorField =>
-  !(CAST_STATE_FIELDS as readonly string[]).includes(field);
 
 /**
  * The roster's state line: how she feels, then what she is doing, so a line
@@ -1699,7 +1695,7 @@ function EditableValue({
         aria-label={label}
         data-cast-field={field}
         value={draft.text}
-        maxLength={CAST_LIMITS.field}
+        {...charLimit(CAST_LIMITS.field, draft.text)}
         rows={1}
         autoComplete="off"
         onChange={(event) => setDraft({ ...draft, text: event.target.value })}

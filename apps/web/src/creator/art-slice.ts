@@ -66,7 +66,7 @@ export type ArtRun =
   | { status: "complete" };
 
 /** Which of the batch's pictures a run of a one-picture workflow paints. */
-export type ArtPicture = NonNullable<Extract<ArtStreamEvent, { type: "progress" }>["picture"]>;
+type ArtPicture = NonNullable<Extract<ArtStreamEvent, { type: "progress" }>["picture"]>;
 
 /** A candidate portrait: PNG bytes in memory, never a URL. */
 export type ArtImage = Uint8Array<ArrayBuffer>;

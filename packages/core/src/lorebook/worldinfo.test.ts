@@ -92,6 +92,13 @@ describe("foreign World Info imports", () => {
     expect(result.book.entries[0]).toMatchObject({ enabled: false, content: "Keep this text." });
     expect(result.report.changed.join(" ")).toContain("outlet");
   });
+  it("reports any number of outlet entries once", () => {
+    const outlet = { ...foreignEntry, position: "7" };
+    const result = importWorldInfo({ entries: { a: outlet, b: outlet, c: outlet } });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.report.changed.filter((line) => line.includes("outlet"))).toHaveLength(1);
+  });
   it("reports omitted foreign metadata without interpolating its contents", () => {
     const result = importWorldInfo({
       extensions: { private: "SECRET" },

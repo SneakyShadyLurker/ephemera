@@ -9,9 +9,9 @@ import { classTypeSchema, inputNameSchema } from "./graph.ts";
  * reachable ComfyUI has none.
  */
 
-export type InputKind = "INT" | "FLOAT" | "STRING" | "BOOLEAN" | "COMBO" | "LINK";
+type InputKind = "INT" | "FLOAT" | "STRING" | "BOOLEAN" | "COMBO" | "LINK";
 
-export interface InputMeta {
+interface InputMeta {
   kind: InputKind;
   /**
    * A widget the frontend follows with a `fixed` or `randomize` control, as
@@ -88,7 +88,7 @@ export const objectInfoSchema = z.preprocess(
     }),
   ),
 );
-export type ObjectInfo = z.infer<typeof objectInfoSchema>;
+type ObjectInfo = z.infer<typeof objectInfoSchema>;
 
 const choicesOf = (values: unknown): string[] =>
   Array.isArray(values)

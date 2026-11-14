@@ -23,8 +23,8 @@ import {
   attachment,
   duplicated,
   fileBytes,
-  fileForm,
   idParam,
+  importForm,
   invalid,
   invalidRequest,
   jsonLimit,
@@ -118,8 +118,8 @@ export function createLorebooksApi(store: FromUser<LorebookStore>, log: Logger) 
         throw error;
       }
     })
-    .post(IMPORT_PATH, jsonLimit, fileForm, async (c) => {
-      const { file } = c.req.valid("form");
+    .post(IMPORT_PATH, jsonLimit, importForm, async (c) => {
+      const { file, id: requested } = c.req.valid("form");
       const bytes = await fileBytes(file);
       if (bytes.byteLength > CARD_LIMITS.cardJsonBytes) return refuse(c, "too_large");
       const parsed = parseFile(bytes);
@@ -129,7 +129,7 @@ export function createLorebooksApi(store: FromUser<LorebookStore>, log: Logger) 
       const name = importedName(result.book, file.name);
       let id: string;
       try {
-        id = store(c).create({ name, book: result.book }, crypto.randomUUID());
+        id = store(c).create({ name, book: result.book }, requested ?? crypto.randomUUID());
       } catch (error) {
         if (bookOutgrew(error)) return refuse(c, "too_large");
         throw error;

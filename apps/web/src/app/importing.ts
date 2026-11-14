@@ -1,3 +1,4 @@
+import { MAX_REQUEST_BYTES } from "@ephemera/core";
 import { z } from "zod";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
@@ -25,33 +26,73 @@ export type FileImport<T> = { key: string; file: string } & (
 /** What an import says when a file is past the body limit, whichever route refused it. */
 const TOO_LARGE = "it is larger than Ephemera accepts";
 
+/** The ids an import's records take: one record, or a pair made from one file. */
+export type ImportIds = { id: string; pairId: string };
+
+/**
+ * The ids of imports whose answer never came, by the kind of import and a
+ * digest of the file's bytes (never its text). Such an import may have been
+ * stored, so the same file sent to the same import again carries the same
+ * ids and the server stores it once.
+ */
+const unanswered = new Map<string, ImportIds>();
+
+/**
+ * The key of `file` in `unanswered`; undefined, so nothing is kept for it,
+ * when its bytes cannot be read or it is past what any import accepts: such
+ * a file is refused by the server unread, and is never read here either.
+ */
+async function importKey(kind: string, file: File): Promise<string | undefined> {
+  if (file.size > MAX_REQUEST_BYTES) return undefined;
+  try {
+    const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+    const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0"));
+    return `${kind}\n${hex.join("")}`;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Sends one file's import; never throws, so a batch reports every file.
+ * `kind` names the import, and `send` gives the route the ids its records take.
  * `reasons` words each refusal code the route answers with 422 (typed from
  * the route, so a new code fails the typecheck there); `read` parses the
  * success body with its core schema.
  */
 export async function importFile<Refusal extends string, T extends object>(
+  kind: string,
   file: File,
-  send: (init: { signal: AbortSignal }) => Promise<Response>,
+  send: (init: { signal: AbortSignal }, ids: ImportIds) => Promise<Response>,
   reasons: Record<Refusal, string>,
   read: (body: unknown) => T | undefined,
 ): Promise<FileImport<T>> {
   const key = crypto.randomUUID();
   const fail = (reason: string): FileImport<T> => ({ key, ok: false, file: file.name, reason });
+  const held = await importKey(kind, file);
+  const ids = (held === undefined ? undefined : unanswered.get(held)) ?? {
+    id: crypto.randomUUID(),
+    pairId: crypto.randomUUID(),
+  };
+  // Until an answer is read, the import may have been stored under these ids.
+  if (held !== undefined) unanswered.set(held, ids);
+  const answered = <Outcome>(outcome: Outcome): Outcome => {
+    if (held !== undefined) unanswered.delete(held);
+    return outcome;
+  };
   try {
-    const response = await send({ signal: AbortSignal.timeout(IMPORT_TIMEOUT_MS) });
-    if (response.status === 413) return fail(TOO_LARGE);
+    const response = await send({ signal: AbortSignal.timeout(IMPORT_TIMEOUT_MS) }, ids);
+    if (response.status === 413) return answered(fail(TOO_LARGE));
     // A body cut off or not Ephemera's is that file's failure, never a thrown batch.
     const body: unknown = await response.json().catch(() => undefined);
     if (response.ok) {
       const imported = read(body);
       return imported === undefined
         ? fail(notReached())
-        : { key, ok: true, file: file.name, ...imported };
+        : answered({ key, ok: true, file: file.name, ...imported });
     }
     const refusal = response.status === 422 ? refusalOf(body, reasons) : undefined;
-    return fail(refusal ?? notReached());
+    return refusal === undefined ? fail(notReached()) : answered(fail(refusal));
   } catch {
     return fail(notReached());
   }
@@ -83,7 +124,7 @@ export const tooLargeImport = <T>(file: File): FileImport<T> => ({
 });
 
 /** The import running now: files done of all files queued onto it. */
-export type ImportProgress = { done: number; total: number };
+type ImportProgress = { done: number; total: number };
 
 /** "Importing…" for one file, "Importing 2 of 5…" for a batch. */
 export const importProgress = ({ done, total }: ImportProgress): string =>

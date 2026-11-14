@@ -9,7 +9,7 @@ import {
   setAnchorFields,
 } from "../cast/register.ts";
 import { cutText } from "./clamp.ts";
-import { fillUserPlaceholder } from "./prompt.ts";
+import { fillUserPlaceholder } from "./placeholder.ts";
 
 /** Invalid owner lines remain editable, but lend no identity to a chat. */
 export function readMemoryCastLine(line: string): RememberedCastAnchor | null {

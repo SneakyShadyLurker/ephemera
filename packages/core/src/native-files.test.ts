@@ -3,6 +3,7 @@ import {
   blankCard,
   characterCardSchema,
   characterPatchRequestSchema,
+  normalizeCard,
   storedCharacterCardSchema,
   upgradeLegacyCharacterCard,
   upgradeLegacyLorebook,
@@ -19,10 +20,8 @@ import {
 } from "./lorebook/stored.ts";
 import { importWorldInfo } from "./lorebook/worldinfo.ts";
 import {
-  parseNativeFileText,
   serializeCharacter,
   serializeLorebook,
-  serializePromptPreset,
   toCharacterFile,
   toLorebookFile,
   toPromptPresetFile,
@@ -44,6 +43,21 @@ import { type AssemblyInput, assemblePrompt, flatten } from "./prompt/assemble.t
 import { EXAMPLE_SEPARATOR } from "./prompt/examples.ts";
 
 const options = { newId: () => "00000000-0000-4000-8000-000000000001", models: undefined };
+
+/** What the import of a native file's kind stores of it; undefined when that import refuses it. */
+function imported(file: { format: string }): unknown {
+  if (file.format === "ephemera.character") {
+    const result = normalizeCard(file);
+    return result.ok ? result.card : undefined;
+  }
+  if (file.format === "ephemera.lorebook") {
+    const result = importWorldInfo(file);
+    return result.ok ? result.book : undefined;
+  }
+  const result = importPresetFile(file, "Ignored", options);
+  if (!result.ok || result.format === "foreign") return undefined;
+  return result.format === "prompt" ? result.prompt : result.sampler;
+}
 const input = (): AssemblyInput => ({
   preset: defaultPromptPreset(),
   character: {
@@ -98,7 +112,7 @@ describe("native file contracts", () => {
       toPromptPresetFile(defaultPromptPreset()),
       toSamplerPresetFile(defaultSamplerPreset()),
     ]) {
-      expect(parseNativeFileText(JSON.stringify(packet))).toEqual(packet);
+      expect(imported(packet)).toEqual(packet.data);
       expect(packet).not.toHaveProperty("id");
     }
     expect(defaultPromptPreset().blocks[0]).toMatchObject({ content: DEFAULT_MAIN_PROMPT });
@@ -140,7 +154,7 @@ describe("native file contracts", () => {
         data: { ...defaultSamplerPreset(), id: "forbidden" },
       },
     ])
-      expect(() => parseNativeFileText(JSON.stringify(packet))).toThrow();
+      expect(imported(packet)).toBeUndefined();
   });
   it("writes each format at its own version and still reads version-1 lorebook and sampler files", () => {
     expect(NATIVE_VERSIONS).toEqual({
@@ -150,16 +164,16 @@ describe("native file contracts", () => {
       "ephemera.sampler-preset": 1,
     });
     expect(JSON.parse(serializeCharacter(blankCard("Mara")))).toMatchObject({ version: 2 });
-    expect(JSON.parse(serializePromptPreset(defaultPromptPreset()))).toMatchObject({ version: 2 });
+    expect(toPromptPresetFile(defaultPromptPreset())).toMatchObject({ version: 2 });
     expect(JSON.parse(serializeLorebook({ entries: [] }))).toMatchObject({ version: 1 });
     const book = { format: "ephemera.lorebook", version: 1, data: { entries: [] } };
-    expect(parseNativeFileText(JSON.stringify(book))).toEqual(book);
+    expect(imported(book)).toEqual(book.data);
     const sampler = {
       format: "ephemera.sampler-preset",
       version: 1,
       data: defaultSamplerPreset(),
     };
-    expect(parseNativeFileText(JSON.stringify(sampler))).toEqual(sampler);
+    expect(imported(sampler)).toEqual(sampler.data);
     const legacy = {
       format: "ephemera.character",
       version: 1,
@@ -172,7 +186,11 @@ describe("native file contracts", () => {
         postHistoryInstructions: "",
       },
     };
-    expect(parseNativeFileText(JSON.stringify(legacy))).toEqual(legacy);
+    expect(normalizeCard(legacy)).toMatchObject({
+      ok: true,
+      version: 1,
+      card: { name: "Mara", description: "<personality>\nWry.\n</personality>" },
+    });
   });
   it("imports a version-1 prompt preset export with the retired blocks and locks removed", () => {
     const old = { format: "ephemera.prompt-preset", version: 1, data: versionOnePreset() };
@@ -196,7 +214,6 @@ describe("native file contracts", () => {
         ],
       },
     });
-    expect(parseNativeFileText(JSON.stringify(old))).toEqual({ ...old, data: expected });
     const current = toPromptPresetFile(defaultPromptPreset());
     expect(importPresetFile(current, "Ignored", options)).toEqual({
       ok: true,
@@ -213,7 +230,7 @@ describe("native file contracts", () => {
     expect(
       importPresetFile({ ...old, data: { ...versionOnePreset(), blocks: [] } }, "X", options),
     ).toEqual({ ok: false, reason: "not_a_preset" });
-    expect(() => parseNativeFileText(JSON.stringify({ ...old, version: 2 }))).toThrow();
+    expect(importPresetFile({ ...old, version: 2 }, "Ignored", options).ok).toBe(false);
   });
   it("imports a native lorebook file's entries with the removed macros as written", () => {
     const entry = { keys: [], content: "Text", enabled: true, insertionOrder: 1, useRegex: false };
@@ -415,11 +432,9 @@ describe("pure saved-data upgrades", () => {
         characterPatchRequestSchema.safeParse({ [field]: converted, revision: 1 }).success,
       ).toBe(false);
       expect(() => toCharacterFile(card)).toThrow();
-      expect(() =>
-        parseNativeFileText(
-          JSON.stringify({ format: "ephemera.character", version: 2, data: card }),
-        ),
-      ).toThrow();
+      expect(normalizeCard({ format: "ephemera.character", version: 2, data: card }).ok).toBe(
+        false,
+      );
       expect(characterCardSchema.safeParse({ ...card, [field]: "Reduced" }).success).toBe(true);
     }
     const card = upgradeLegacyCharacterCard({
@@ -508,11 +523,13 @@ describe("pure saved-data upgrades", () => {
         }).success,
       ).toBe(false);
       expect(() => toPromptPresetFile(upgraded)).toThrow();
-      expect(() =>
-        parseNativeFileText(
-          JSON.stringify({ format: "ephemera.prompt-preset", version: 1, data: upgraded }),
-        ),
-      ).toThrow();
+      expect(
+        importPresetFile(
+          { format: "ephemera.prompt-preset", version: 1, data: upgraded },
+          "Ignored",
+          options,
+        ).ok,
+      ).toBe(false);
     },
   );
   it("preserves recognized legacy pool names beyond former text editor limits", () => {
@@ -764,7 +781,7 @@ describe("public native write boundaries", () => {
     const room = CARD_LIMITS.cardJsonBytes - size(JSON.stringify(packet));
     card.characterNote.prompt = "語".repeat(Math.floor(room / 3)) + "x".repeat(room % 3);
     expect(size(JSON.stringify(packet))).toBe(CARD_LIMITS.cardJsonBytes);
-    expect(parseNativeFileText(JSON.stringify(toCharacterFile(card)))).toEqual(packet);
+    expect(normalizeCard(toCharacterFile(card))).toMatchObject({ ok: true, card });
     card.characterNote.prompt += "x";
     expect(() => toCharacterFile(card)).toThrow();
   });

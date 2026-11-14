@@ -2,6 +2,7 @@ import {
   type ArtFamily,
   type CreatorArtStatus,
   type CreatorArtUnavailable,
+  sameWorkflowName,
   WORKFLOW_LIMITS,
   workflowNameSchema,
 } from "@ephemera/core";
@@ -152,8 +153,7 @@ export function renameProblem(name: string, others: readonly string[]): string |
       ? `Keep the name to ${WORKFLOW_LIMITS.nameLength} characters.`
       : "Leave control characters out of the name.";
   }
-  const lower = next.toLowerCase();
-  return others.some((other) => other.toLowerCase() === lower) ? nameTakenLine(next) : null;
+  return others.some((other) => sameWorkflowName(other, next)) ? nameTakenLine(next) : null;
 }
 
 /** A name another of the user's workflows has, in the tab's check or the server's. */

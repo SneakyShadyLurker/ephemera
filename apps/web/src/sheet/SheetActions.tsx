@@ -24,7 +24,7 @@ import { notReached } from "../signin/signin.ts";
 import type { CreateOutcome } from "./saving.ts";
 
 /** One export the actions offer: its label and the file it downloads. */
-export interface SheetExport {
+interface SheetExport {
   label: string;
   file: ExportTarget;
 }

@@ -30,7 +30,6 @@ export {
   type PromptReasoning,
   type PromptRole,
   presetNameSchema,
-  promptActionsSchema,
   promptPresetPatchRequestSchema,
   promptPresetSchema,
   promptRoleSchema,

@@ -26,7 +26,7 @@ export const creatorArtCompositionSchema = z.enum(["regular", "diptych"]);
 export type CreatorArtComposition = z.infer<typeof creatorArtCompositionSchema>;
 
 /** A capture look from the catalogue (looks.ts). */
-export const artLookIdSchema = z.enum(ART_LOOK_IDS);
+const artLookIdSchema = z.enum(ART_LOOK_IDS);
 
 /** How long the model thinks before writing; absent, its default. */
 export const creatorReasoningSchema = z.enum(REASONING_EFFORTS).exactOptional();
@@ -57,7 +57,7 @@ export const brainstormOptionSchema = z.strictObject({
 export type BrainstormOption = z.infer<typeof brainstormOptionSchema>;
 
 /** One earlier list and what the player said after it; no feedback for a kind switch or a plain "new ideas". */
-export const brainstormRoundSchema = z.strictObject({
+const brainstormRoundSchema = z.strictObject({
   kind: creatorKindSchema,
   options: z.array(brainstormOptionSchema).min(1).max(C.brainstormOptions),
   feedback: z.string().trim().min(1).max(C.descriptionLength).optional(),
@@ -372,7 +372,7 @@ export const creatorImageCardEventSchema = z.discriminatedUnion("type", [
 ]);
 export type CreatorImageCardEvent = z.infer<typeof creatorImageCardEventSchema>;
 
-export const artProgressSchema = z
+const artProgressSchema = z
   .strictObject({
     accounting: callAccountingSchema.exactOptional(),
     type: z.literal("progress"),

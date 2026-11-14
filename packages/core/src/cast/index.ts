@@ -1,5 +1,4 @@
 export {
-  CAST_REFUSALS,
   type CallUsage,
   type CastRefusal,
   type CastSheet,
@@ -16,9 +15,7 @@ export {
   castUpdateResponseSchema,
 } from "./api.ts";
 export {
-  type ApplyOptions,
   applyCastChanges,
-  registerFromSheet,
   resolveCastEntry,
   withKnownIdentities,
   withSheet,
@@ -54,14 +51,11 @@ export {
   type CastAnchorField,
   type CastChange,
   type CastChanges,
-  type CastContinuity,
   type CastCorrectionPatch,
-  type CastDevelopments,
   type CastDiscoveries,
   type CastEntry,
   type CastGender,
   type CastRegister,
-  type CastRole,
   type CastSheetAnswer,
   type CastSheetEntry,
   type CastState,
@@ -69,7 +63,6 @@ export {
   castAnchorSchema,
   castChangesSchema,
   castContinuitySchema,
-  castDevelopmentsSchema,
   castEntrySchema,
   castRegisterSchema,
   castSheetAnswerSchema,

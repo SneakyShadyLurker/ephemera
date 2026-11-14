@@ -3,6 +3,7 @@ import {
   EVENT_LIMITS,
   type EventScope,
   hasTag,
+  oneLine,
   sameTag,
   tagKey,
 } from "@ephemera/core";
@@ -16,7 +17,7 @@ import { Radio, RadioGroup } from "@/components/ui/radio-group";
 import { cn } from "@/lib/cn";
 import { byName } from "@/lib/find";
 import { isComposing } from "@/lib/keys.ts";
-import { countOf, formatCount } from "@/lib/text";
+import { charLimit, countOf, formatCount } from "@/lib/text";
 import { tagCounts } from "../characters/filter.ts";
 import { PortraitLeaf } from "../portraits/Portrait.tsx";
 import { FIELD, FIELD_LABEL, HELP } from "../sheet/fields.ts";
@@ -26,9 +27,6 @@ import type { EventSaveFields } from "./autosave.ts";
 const LABEL = FIELD_LABEL;
 /** The count of the instruction's characters shows from here. */
 const COUNT_FROM = 450;
-/** Line breaks of any kind: the instruction is one line. */
-const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;
-
 /**
  * An open event's editor: the instruction as one line that wraps, the
  * chance and the quiet replies after it, where it applies, and Delete.
@@ -71,14 +69,14 @@ export function EventEditor({
           id={instructionId}
           value={fields.name}
           rows={1}
-          maxLength={EVENT_LIMITS.text}
+          {...charLimit(EVENT_LIMITS.text, fields.name)}
           aria-describedby={helpId}
           onKeyDown={(event) => {
             // One line: Enter never breaks it, and is left alone while an IME composes.
             if (event.key === "Enter" && !isComposing(event)) event.preventDefault();
           }}
           // Pasted line breaks become spaces.
-          onChange={(event) => onChange({ name: event.target.value.replace(BREAKS, " ") })}
+          onChange={(event) => onChange({ name: oneLine(event.target.value) })}
           className={cn(FIELD, "text-ui")}
         />
         <p id={helpId} className={cn(HELP, "flex flex-wrap justify-between gap-x-3")}>

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { CARD_LIMITS } from "./card/limits.ts";
 import {
   type CharacterCard,
   characterCardSchema,
@@ -11,7 +10,6 @@ import { retireLegacyPresetBlocks } from "./imports/prompt-upgrade.ts";
 import { publicLorebookSchema } from "./lorebook/stored.ts";
 import { type PromptPreset, promptPresetSchema } from "./preset/prompt.ts";
 import { type SamplerPreset, samplerPresetSchema } from "./preset/sampler.ts";
-import { utf8Bytes } from "./tokens.ts";
 
 /*
  * The size rule lives on each data schema (`fitsNativeFile`); a sampler
@@ -43,15 +41,6 @@ export const samplerPresetFileSchema = nativeEnvelopeSchema(
   "ephemera.sampler-preset",
   samplerPresetSchema,
 );
-export const nativeFileSchema = z.union([
-  characterFileSchema,
-  legacyCharacterFileSchema,
-  lorebookFileSchema,
-  promptPresetFileSchema,
-  legacyPromptPresetFileSchema,
-  samplerPresetFileSchema,
-]);
-export type NativeFile = z.infer<typeof nativeFileSchema>;
 
 /** Validate at export too: an oversized legacy row must be reduced first. */
 export const toCharacterFile = (data: CharacterCard) =>
@@ -65,13 +54,3 @@ export const toSamplerPresetFile = (data: SamplerPreset) =>
 export const serializeCharacter = (data: CharacterCard): string =>
   JSON.stringify(toCharacterFile(data));
 export const serializeLorebook = (data: Lorebook): string => JSON.stringify(toLorebookFile(data));
-export const serializePromptPreset = (data: PromptPreset): string =>
-  JSON.stringify(toPromptPresetFile(data));
-export const serializeSamplerPreset = (data: SamplerPreset): string =>
-  JSON.stringify(toSamplerPresetFile(data));
-
-/** Every native kind is parsed here before a caller chooses its supported kind. Never falls back. */
-export function parseNativeFileText(text: string): NativeFile {
-  if (utf8Bytes(text) > CARD_LIMITS.cardJsonBytes) throw new Error("Native file exceeds limit");
-  return nativeFileSchema.parse(JSON.parse(text.replace(/^\uFEFF/, "")));
-}

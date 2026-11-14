@@ -8,6 +8,7 @@ import {
   receiveUsage,
   startUsage,
   sumUsage,
+  unknownEnd,
 } from "./usage.ts";
 
 const request = {
@@ -119,4 +120,36 @@ describe("the tab's bounded usage ledger", () => {
     late.finish("aborted");
     expect(store.getState().usage).toEqual(emptyUsage());
   });
+});
+
+describe("a call that ended without a receipt", () => {
+  const call = { received: false, aborted: false, failed: "memory_failed" };
+
+  it("says nothing once a receipt arrived", () => {
+    expect(unknownEnd({ ok: true }, { ...call, received: true })).toBeUndefined();
+    expect(
+      unknownEnd({ ok: false, reason: "memory_failed" }, { ...call, received: true }),
+    ).toBeUndefined();
+  });
+
+  it("completed when it answered, aborted when the tab ended it", () => {
+    expect(unknownEnd({ ok: true }, call)).toBe("completed");
+    expect(unknownEnd({ ok: false, reason: "unreachable" }, { ...call, aborted: true })).toBe(
+      "aborted",
+    );
+  });
+
+  it.each(["unreachable", "timeout", "memory_failed", "upstream_busy", "upstream_signed_out"])(
+    "failed for %s: the model may have been asked",
+    (reason) => {
+      expect(unknownEnd({ ok: false, reason }, call)).toBe("failed");
+    },
+  );
+
+  it.each(["invalid", "too_large", "memory_off", "cast_failed", "signed_out"])(
+    "counts no call for %s: it was refused before the model, or is another route's code",
+    (reason) => {
+      expect(unknownEnd({ ok: false, reason }, call)).toBeUndefined();
+    },
+  );
 });

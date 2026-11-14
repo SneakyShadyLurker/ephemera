@@ -156,11 +156,11 @@ export const importReportSchema = z.object({
 });
 export type ImportReport = z.infer<typeof importReportSchema>;
 
-export type ImportResult =
+type ImportResult =
   | { ok: true; prompt: PromptPreset; sampler: SamplerPreset; report: ImportReport }
   | { ok: false; reason: "not_a_preset" | "too_large" };
 
-export interface ImportOptions {
+interface ImportOptions {
   /** A new UUID for each custom block. */
   newId: () => string;
   /** The catalog's model ids; the preset's model is kept only when listed. */

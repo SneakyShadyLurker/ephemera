@@ -489,6 +489,11 @@ describe("variable shorthands", () => {
     ).toBe("hello | world/Global/Global");
     expect(run("{{.text = hello}}{{.text -= bad}}{{.text}}/{{.absent == }}")).toBe("hello/true");
   });
+
+  it("evaluates a refused operand once", () => {
+    expect(run("{{.x++ {{incvar::n}}}}|{{getvar::n}}")).toBe("{{.x++ 1}}|1");
+    expect(run("{{ # .x-- {{incvar::n}} }}|{{getvar::n}}")).toBe("{{ # .x-- 1 }}|1");
+  });
 });
 
 describe("participant, card and runtime macros", () => {

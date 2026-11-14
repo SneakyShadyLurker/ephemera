@@ -1,8 +1,71 @@
-import type { UpstreamFailure } from "@ephemera/core";
+import { textLength, type UpstreamFailure } from "@ephemera/core";
+import type { ChangeEvent } from "react";
 
 /** Text that starts a sentence: its first letter capitalized. */
 export const sentence = (text: string): string =>
   text.charAt(0).toLocaleUpperCase() + text.slice(1);
+
+/**
+ * The props that hold a controlled field to `limit` characters. Core's limits
+ * count code points (`textLength`), the `maxLength` attribute UTF-16 units,
+ * so the attribute allows one more for each character `value` already writes
+ * as two: a text within its limit is never refused more typing. Replacing
+ * such characters could then let more characters in than the limit, so a
+ * change past it is fitted (`fitChange`) before the field's own `onChange`
+ * reads it. The attribute is the one of the text before an edit, so a paste
+ * of two-unit characters can stop short of the limit; typing goes on to it.
+ */
+export const charLimit = (limit: number, value: string) => ({
+  maxLength: limit + value.length - textLength(value),
+  onChangeCapture: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const field = event.target;
+    const fitted = fitChange(limit, value, field.value, field.selectionEnd ?? field.value.length);
+    if (fitted.text === field.value) return;
+    field.value = fitted.text;
+    field.setSelectionRange(fitted.caret, fitted.caret);
+  },
+});
+
+const isHighSurrogate = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;
+const isLowSurrogate = (unit: number) => unit >= 0xdc00 && unit <= 0xdfff;
+
+/**
+ * An edit from `previous` to `next`, held to `limit` characters as a field's
+ * `maxLength` holds typing. What an edit puts in ends at the caret, `end`, so
+ * the characters over the limit are taken from just before it: only text the
+ * edit itself put in is cut, never text around it. A text already past its
+ * limit may shrink or keep its length, and never grows.
+ */
+export function fitChange(
+  limit: number,
+  previous: string,
+  next: string,
+  end: number,
+): { text: string; caret: number } {
+  const most = Math.max(limit, textLength(previous));
+  const over = textLength(next) - most;
+  if (over <= 0) return { text: next, caret: end };
+  let start = end;
+  // One character back: two units when they are a pair, as `textLength` counts them.
+  const back = () => {
+    const pair =
+      start > 1 &&
+      isLowSurrogate(next.charCodeAt(start - 1)) &&
+      isHighSurrogate(next.charCodeAt(start - 2));
+    start -= pair ? 2 : 1;
+  };
+  for (let cut = 0; cut < over && start > 0; cut += 1) back();
+  const fitted = () => next.slice(0, start) + next.slice(end);
+  // Units a cut parted from their pair across the caret count on their own: measure what is left.
+  while (start > 0 && textLength(fitted()) > most) back();
+  return { text: fitted(), caret: start };
+}
+
+/** `charLimit` from the props of a field that holds its text as `value`; nothing for one without a limit. */
+export const charLimitOf = (props: { maxLength?: number | undefined; value?: unknown }) =>
+  props.maxLength === undefined || typeof props.value !== "string"
+    ? {}
+    : charLimit(props.maxLength, props.value);
 
 const NUMBER = new Intl.NumberFormat("en");
 /** A count as the interface prints it: "1,234". */

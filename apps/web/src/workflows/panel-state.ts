@@ -6,6 +6,7 @@ import {
   finalizeWorkflow,
   type Inspection,
   type NodeTitles,
+  sameWorkflowName,
   type WorkflowChoices,
   type WorkflowGraph,
   type WorkflowRefusalCode,
@@ -65,12 +66,12 @@ export interface Draft {
 }
 
 /** Why a file cannot be imported at all. */
-export type FileRefusal =
+type FileRefusal =
   | TabRefusal
   | { kind: "invalid_workflow"; code: WorkflowRefusalCode; nodes: string[] };
 
 /** An inspection that did not answer, the file kept for Try again. */
-export type InspectStall = "busy" | "comfyui_required" | "unreachable";
+type InspectStall = "busy" | "comfyui_required" | "unreachable";
 
 /** A save that did not go through; the draft stays. */
 export type SaveFailure =
@@ -386,7 +387,7 @@ export function nameCheck(
   const others = names.yours.filter((other) => other.id !== own).map((other) => other.name);
   const problem =
     renameProblem(name, others) ??
-    (draft.takenName !== null && draft.takenName.toLowerCase() === name.toLowerCase()
+    (draft.takenName !== null && sameWorkflowName(draft.takenName, name)
       ? nameTakenLine(name)
       : null);
   const lower = name.toLowerCase();

@@ -46,7 +46,7 @@ import {
   refusedBeforeCall,
 } from "./routes.ts";
 import { streamedResponse, streamSignal } from "./streams.ts";
-import { type Upstream, waitOf } from "./upstream.ts";
+import { refusalBody, type Upstream } from "./upstream.ts";
 import { type CallRecorder, callRecorder, reportedUsage } from "./usage.ts";
 import type { UserEnv } from "./user.ts";
 
@@ -106,12 +106,6 @@ const REFUSAL_STATUSES = {
   upstream_signed_out: 409,
   cast_failed: 409,
 } as const satisfies RefusalStatuses<CastRefusal>;
-
-/** A refusal's body: the deadline as `request_timeout`, a busy provider with its wait, a signed-out one by its code. */
-const refusalBody = (refused: Refused) => ({
-  error: refused.error === "aborted" ? ("request_timeout" as const) : refused.error,
-  ...waitOf(refused),
-});
 
 export function createCastApi(deps: CastDeps) {
   const { log, catalog, upstream } = deps;

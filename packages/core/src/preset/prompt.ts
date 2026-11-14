@@ -76,7 +76,7 @@ export const sourceTemplateSchema = blockText.refine(
   validSourceTemplate,
   `A nonempty template must contain ${SOURCE_PLACEHOLDER}`,
 );
-export const promptActionsSchema = z.strictObject({
+const promptActionsSchema = z.strictObject({
   continue: blockText,
   writeForMe: blockText,
 });

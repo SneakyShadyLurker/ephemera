@@ -19,7 +19,7 @@ import { ModelSelect } from "@/components/model-select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
-import { COMFYUI_BUSY, MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
+import { COMFYUI_BUSY, charLimit, MODEL_BUSY, MODEL_SIGNED_OUT } from "@/lib/text";
 import { useModelOptions } from "../api.ts";
 import { LEAF_EDGE, PORTRAIT_TRANSITION } from "../portraits/Portrait.tsx";
 import { PortraitViewer } from "../portraits/PortraitViewer.tsx";
@@ -273,7 +273,7 @@ function ArtDirection({
           rows={1}
           disabled={disabled}
           placeholder="Steer the next art"
-          maxLength={CREATOR_LIMITS.artDirectionLength}
+          {...charLimit(CREATOR_LIMITS.artDirectionLength, direction)}
           autoComplete="off"
           translate="no"
           aria-label="Direction for the next art"

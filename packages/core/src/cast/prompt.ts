@@ -1,10 +1,10 @@
 import type { CharacterCard } from "../card/schema.ts";
 import type { ChatTurn, SpeakerNames } from "../chat.ts";
-import { tagged } from "../creator/art-source.ts";
 import { taggedCardKind } from "../creator/saved-art-source.ts";
 import { CREATOR_TAGS } from "../creator/sheet.ts";
 import { canonFields } from "../memory/canon.ts";
 import { transcriptLines } from "../memory/prompt.ts";
+import { tagged } from "../prompt/tagged.ts";
 import { effectiveCastAnchor } from "./effective.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
 import { type CastRegister, setAnchorFields } from "./register.ts";

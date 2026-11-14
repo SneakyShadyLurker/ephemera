@@ -20,10 +20,7 @@ import { type ChatState, shownReply } from "./store.ts";
 
 export type CastTextField = CastAnchorField | CastStateField;
 
-export const CAST_TEXT_FIELDS: readonly CastTextField[] = [
-  ...CAST_ANCHOR_FIELDS,
-  ...CAST_STATE_FIELDS,
-];
+const CAST_TEXT_FIELDS: readonly CastTextField[] = [...CAST_ANCHOR_FIELDS, ...CAST_STATE_FIELDS];
 
 /**
  * Field names: for assistive technology in the cast record's reading mode,
@@ -54,7 +51,8 @@ export const CAST_FIELD_LABELS: Record<CastTextField, string> = {
   intoxication: "Intoxication",
 };
 
-const isAnchorField = (field: CastTextField): field is CastAnchorField =>
+/** Whether a text field is the anchor's, read through its effective value, or the state's. */
+export const isAnchorField = (field: CastTextField): field is CastAnchorField =>
   (CAST_ANCHOR_FIELDS as readonly string[]).includes(field);
 
 export const castFieldText = (entry: CastEntry, field: CastTextField): string =>

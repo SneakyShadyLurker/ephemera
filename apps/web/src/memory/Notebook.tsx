@@ -7,6 +7,7 @@ import {
   type MemoryState,
   memoryNotebookSchema,
   memoryStateSchema,
+  oneLine,
 } from "@ephemera/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useId, useReducer, useRef, useState } from "react";
@@ -19,9 +20,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { charLimit } from "@/lib/text";
 import { COMPACT_LABEL } from "@/sheet/fields.ts";
 import { CAST_FIELD_LABELS } from "../chat/cast-ui.ts";
 import { chatStore } from "../chat/session.ts";
+import { unknownEnd } from "../chat/usage.ts";
 import { currentSettings, useSettings } from "../settings/settings.ts";
 import { type SaveStatus, useAutosave } from "../sheet/autosave.ts";
 import {
@@ -182,9 +185,6 @@ const PROSE_FIELD = cn(OPEN_PROSE, "font-story text-ink text-turn");
 
 const MARGIN_LABEL = sheetLabel("line");
 const HELP = SHEET_HELP;
-
-/** Line breaks of any kind: a relationship, a fact, a thread or a cast line is one line. */
-const BREAKS = /\r\n|[\n\r\u0085\u2028\u2029]/g;
 
 /**
  * What Regenerate needs of the screen: the character, whether its memory
@@ -417,21 +417,11 @@ function OpeningField({
       },
     );
     accounting.finish(
-      received
-        ? undefined
-        : outcome.ok
-          ? "completed"
-          : controller.signal.aborted
-            ? "aborted"
-            : [
-                  "unreachable",
-                  "timeout",
-                  "memory_failed",
-                  "upstream_busy",
-                  "upstream_signed_out",
-                ].includes(outcome.reason)
-              ? "failed"
-              : undefined,
+      unknownEnd(outcome, {
+        received,
+        aborted: controller.signal.aborted,
+        failed: "memory_failed",
+      }),
     );
     if (controller.signal.aborted || running.current !== controller) return;
     running.current = null;
@@ -649,7 +639,7 @@ function Lines({
                   onChange={(event) => {
                     setEdited(at);
                     const next = [...list];
-                    next[at] = event.target.value.replace(BREAKS, " ");
+                    next[at] = oneLine(event.target.value);
                     onChange(next);
                   }}
                   className={cn(PROSE_FIELD, "-ml-2")}
@@ -797,7 +787,7 @@ function CastLines({
                         readOnly={readOnly}
                         maxLength={MEMORY_LIMITS.castLine}
                         onChange={(event) => {
-                          const next = event.target.value.replace(BREAKS, " ");
+                          const next = oneLine(event.target.value);
                           set(at, next);
                           // Repaired into a person, or cleared to start one, the line opens as
                           // their form (the rows' own rule), keeping focus in it.
@@ -929,7 +919,7 @@ function CastPersonForm({
         ref={ref}
         value={person[key] ?? ""}
         autoComplete="off"
-        maxLength={maxLength}
+        {...charLimit(maxLength, person[key] ?? "")}
         readOnly={readOnly}
         aria-readonly={readOnly || undefined}
         onChange={(event) => change({ ...person, [key]: event.target.value })}

@@ -1,7 +1,8 @@
 import { clipText } from "../card/limits.ts";
 import type { SheetFields } from "../card/schema.ts";
 import { sameTag } from "../card/tags.ts";
-import { artSource, leadingSentences, scenarioTitle, tagged } from "./art-source.ts";
+import { tagged } from "../prompt/tagged.ts";
+import { artSource, leadingSentences, scenarioTitle } from "./art-source.ts";
 import { CREATOR_LIMITS as C } from "./limits.ts";
 import { locationLine } from "./location.ts";
 import { characterProblems, descriptionOutline, savedScenarioLayout } from "./parse.ts";

@@ -74,7 +74,7 @@ export async function objectCallTarget(
 }
 
 /** The events an object call logs under, each caller's own: every call purpose but the streamed ones. */
-export type ObjectCallEvent = Exclude<CallPurpose, "narration" | "scene.prompt">;
+type ObjectCallEvent = Exclude<CallPurpose, "narration" | "scene.prompt">;
 
 /** Why a call gave no object: the request ended, the provider stayed busy or signed out, or the caller's failure. */
 type ObjectCallRefused<F extends string> = {

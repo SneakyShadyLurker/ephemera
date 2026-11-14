@@ -4,6 +4,10 @@ import { LOCATION_OPENING, OPENING_RESTRAINT } from "../creator/prompts.ts";
 import { givenName, wholeName } from "../prompt/names.ts";
 import { closeSentence } from "../prompt/sentence.ts";
 import { MEMORY_LIMITS } from "./limits.ts";
+import { fillUserPlaceholder, USER_MACRO } from "./placeholder.ts";
+
+export { fillUserPlaceholder };
+
 import {
   type MemoryNotebook,
   NOTEBOOK_LIST_KEYS,
@@ -26,13 +30,6 @@ import {
  * in play (`fillUserPlaceholder`).
  */
 const USER_PLACEHOLDER = "{{user}}";
-
-/** The placeholder as an owner may type it too: any case, spaces inside the braces, or `<user>`. */
-const USER_MACRO = /\{\{\s*user\s*\}\}|<user>/gi;
-
-/** `text` with each placeholder as `name`; nothing else is filled. */
-export const fillUserPlaceholder = (text: string, name: string): string =>
-  text.replace(USER_MACRO, () => name);
 
 /**
  * `text` with every whole-word mention of the persona's `name`, as written,

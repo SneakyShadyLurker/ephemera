@@ -538,7 +538,6 @@
   --radius-md: var(--radius);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.5);
-  --radius-2xl: calc(var(--radius) * 2);
 
   /* Type scale after Bringhurst, with explicit leading. */
   /* The smallest label: a phone tab's name, a count on a badge. */

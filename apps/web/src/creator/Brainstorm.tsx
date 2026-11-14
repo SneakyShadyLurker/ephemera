@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
 import { isComposing } from "@/lib/keys.ts";
+import { charLimit } from "@/lib/text";
 import { DISPLAY_HEADING, FIELD_LABEL, GROUP_HEADING, REQUEST_FIELD } from "../sheet/fields.ts";
 import { ideasAlert, ideasStatus, RETRY_NOTE } from "./brainstorm-notes.ts";
 import { FrameEdge } from "./CardLayout.tsx";
@@ -40,7 +41,7 @@ const KIND_LABEL = "Kind of ideas";
 const KIND_HINT = "Changing the kind brings ten new ideas.";
 
 /** One row of the list: a place still to come, the previous list's idea dimmed, or an idea of this list. */
-export interface IdeaRow {
+interface IdeaRow {
   key: string;
   /** The idea's number, which feedback refers to. */
   n: number;
@@ -735,7 +736,7 @@ export function Brainstorm({ scroller }: { scroller: RefObject<HTMLDivElement | 
             onChange={(event) => setIdeasFeedback(event.target.value)}
             onKeyDown={submitOnEnter(adjust)}
             placeholder="Keep 3 and 7 and make the rest darker. Leave it empty for ten new ones."
-            maxLength={CREATOR_LIMITS.descriptionLength}
+            {...charLimit(CREATOR_LIMITS.descriptionLength, feedback)}
             autoComplete="off"
             translate="no"
             className={cn(REQUEST_FIELD, "max-h-[min(20rem,32dvh)] min-h-[calc(3*1.75rem+1.5rem)]")}
@@ -796,7 +797,7 @@ function Ask({
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={submitOnEnter(submit)}
         placeholder="Something slow and tense in a snowed-in mountain hotel, with a stranger who knows too much. A mood or a few words is enough."
-        maxLength={CREATOR_LIMITS.descriptionLength}
+        {...charLimit(CREATOR_LIMITS.descriptionLength, draft)}
         autoComplete="off"
         translate="no"
         className={cn(REQUEST_FIELD, "max-h-[min(28rem,42dvh)] min-h-[calc(6*1.75rem+1.5rem)]")}

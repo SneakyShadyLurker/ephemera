@@ -39,7 +39,7 @@ export const memoryNotebookSchema = z.strictObject({
   cast: z.array(castLine).max(MEMORY_LIMITS.cast).default([]),
 });
 export type MemoryNotebook = z.infer<typeof memoryNotebookSchema>;
-export type NotebookList = Exclude<keyof MemoryNotebook, "situation">;
+type NotebookList = Exclude<keyof MemoryNotebook, "situation">;
 
 /** The notebook's lists in the order prompts show them: label, lines and characters per line. */
 export const NOTEBOOK_LISTS = {

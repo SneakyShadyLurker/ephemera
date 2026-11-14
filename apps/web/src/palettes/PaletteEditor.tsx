@@ -22,6 +22,7 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/compo
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/cn";
+import { charLimit } from "@/lib/text";
 import { scrollBehavior } from "../app/reduced-motion.ts";
 import { useTheme } from "../app/theme.tsx";
 import { Nameplate } from "../chat/Turn.tsx";
@@ -273,7 +274,7 @@ export function PaletteEditor({
                 ref={nameRef}
                 id={nameId}
                 value={draft.name}
-                maxLength={PALETTE_NAME_LENGTH}
+                {...charLimit(PALETTE_NAME_LENGTH, draft.name)}
                 aria-invalid={nameMissing || undefined}
                 onChange={(event) => {
                   setNameMissing(false);

@@ -59,7 +59,7 @@ export type WorkflowFailure =
 type Reason = WorkflowFailure["reason"];
 
 /** A request's answer: the parsed response, or only the failures its route can give. */
-export type WorkflowResult<Value, Reasons extends Reason> =
+type WorkflowResult<Value, Reasons extends Reason> =
   | { ok: true; value: Value }
   | FailureAmong<Reasons>;
 
