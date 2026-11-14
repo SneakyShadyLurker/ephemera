@@ -2343,6 +2343,19 @@ entry for an in-memory bundle piped to `bun - --model <id>`;
 bundling with `write: false` keeps the executable in memory too. Neither entry
 changes saved settings or prompt defaults.
 
+`bun scripts/roleplay/keeper.ts --model <id>` runs the product's cast keeper
+prompt over twelve synthetic fixtures and reads each answer as the server
+does: object repair with the keeper's clamp and schema, then
+`applyCastChanges` over the fixture's register and turns. It defaults to
+offline prompt estimates, with no model calls; `--live` requires the same two
+environment variables. Calls are capped at 24 by default and 72 at most, with
+bounded repetitions and per-request and whole-run time limits; `--fixtures`
+selects a subset. The report holds numbers and fixed identifiers only: check
+pass counts over completed, valid answers, every other outcome counted apart,
+values sent past a field bound, evidenced items sent and kept after
+grounding, and token usage. It writes no artifacts. The checks are heuristics
+over the resulting register, not proof of keeper accuracy.
+
 ### Affected tests
 
 One gate before a merge: `bun run check` runs the typechecks (the four
