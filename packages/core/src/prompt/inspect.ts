@@ -256,7 +256,10 @@ export const inspectedPromptSchema = z.strictObject({
   /** The model's prompt post-processing, applied to `messages`. */
   processing: z.enum(PROMPT_PROCESSING),
   settings: callSettingsSchema,
-  /** The preset's effort when the model does not offer it, so none was sent. */
+  /**
+   * The chosen effort when the model does not offer it; `settings.reasoning`
+   * is then the one sent in its place (`effortFor`), absent for the model default.
+   */
   reasoningNotOffered: z.enum(REASONING_EFFORTS).nullable(),
   /** The window the prompt is fitted to (`effectiveWindow`). */
   window: effectiveWindowSchema,

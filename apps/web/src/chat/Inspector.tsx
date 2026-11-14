@@ -817,7 +817,11 @@ function SentWith({ prompt }: { prompt: InspectedPrompt }) {
       )}
       {reasoningNotOffered !== null && (
         <p className="text-pretty text-note text-reed">
-          {REASONING_LABELS[reasoningNotOffered]} reasoning was not sent: {model} doesn't offer it.{" "}
+          {model} doesn't offer {REASONING_LABELS[reasoningNotOffered].toLowerCase()} reasoning, so{" "}
+          {settings.reasoning === undefined
+            ? "none"
+            : REASONING_LABELS[settings.reasoning].toLowerCase()}{" "}
+          was sent.{" "}
           <Button
             variant="link"
             size="inline"

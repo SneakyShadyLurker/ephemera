@@ -339,9 +339,7 @@ test.describe("Describe optional controls", () => {
     await choose(page, "Look", "Black and white");
     await describeOptions(page).locator("summary").click();
     await choose(page, "Model", "mock-lowonly");
-    await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
-      /Reasoning Model default/,
-    );
+    await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(/Reasoning Low/);
     await choose(page, "Model", "mock-fast");
     await expect(describeOptions(page).locator("summary")).toHaveAccessibleName(
       /Reasoning Extra high/,
@@ -1150,7 +1148,7 @@ test("Subject composition is chosen before its first batch and changed with the 
 
   const promptModel = page.getByRole("combobox", { name: "Prompt model", exact: true });
   await expect(promptModel).toHaveText("mock-fast");
-  // mock-lowonly offers only low reasoning, so its image prompt goes at the model default.
+  // mock-lowonly offers only low reasoning, the nearest level under the card's, so its image prompt goes at low.
   await choose(page, "Prompt model", "mock-lowonly");
   await expect(composition.getByRole("button", { name: "Diptych", exact: true })).toHaveAttribute(
     "aria-pressed",
@@ -1160,9 +1158,11 @@ test("Subject composition is chosen before its first batch and changed with the 
   const next = artRequest();
   const newArt = page.getByRole("button", { name: "New art" });
   await newArt.click();
-  const sent = (await next).postDataJSON();
-  expect(sent).toMatchObject({ model: "mock-lowonly", composition: "regular" });
-  expect(sent).not.toHaveProperty("reasoning");
+  expect((await next).postDataJSON()).toMatchObject({
+    model: "mock-lowonly",
+    reasoning: "low",
+    composition: "regular",
+  });
   await art.expectPortraits(base, 2);
   await expect(newArt).toBeEnabled({ timeout: ART_TIMEOUT });
   await expect(page.getByText("New art failed")).toHaveCount(0);
@@ -1170,11 +1170,13 @@ test("Subject composition is chosen before its first batch and changed with the 
 
   // Its own effort, from the levels the model offers.
   const reasoning = page.getByRole("combobox", { name: "Reasoning", exact: true });
-  await expect(reasoning).toHaveText("Model default");
-  await choose(page, "Reasoning", "Low");
+  await expect(reasoning).toHaveText("Low");
+  await choose(page, "Reasoning", "Model default");
   const third = artRequest();
   await newArt.click();
-  expect((await third).postDataJSON()).toMatchObject({ model: "mock-lowonly", reasoning: "low" });
+  const own = (await third).postDataJSON();
+  expect(own).toMatchObject({ model: "mock-lowonly" });
+  expect(own).not.toHaveProperty("reasoning");
   await art.expectPortraits(base, 3);
   await expect(newArt).toBeEnabled({ timeout: ART_TIMEOUT });
   await scope.expectClean();
@@ -1404,12 +1406,19 @@ test("the reasoning effort narrows to the model's levels and goes with the card 
 
   await choose(page, "Model", "mock-fast");
   await choose(page, "Reasoning", "Extra high");
-  // A model without the level writes at its default; the pick returns with a model that has it.
+  // A model without the level writes at the nearest lower one it offers; the pick returns with a model that has it.
+  await choose(page, "Model", "mock-lowonly");
+  await expect(reasoning).toHaveText("Low");
+  await choose(page, "Model", "mock-fast");
+  await expect(reasoning).toHaveText("Extra high");
+  // With nothing lower offered it writes at its default.
+  await choose(page, "Reasoning", "Minimal");
   await choose(page, "Model", "mock-lowonly");
   await expect(reasoning).toHaveText("Model default");
   await choose(page, "Model", "mock-fast");
-  await expect(reasoning).toHaveText("Extra high");
-  // Model default chosen while it stands in for the pick replaces the pick.
+  await expect(reasoning).toHaveText("Minimal");
+  await choose(page, "Reasoning", "Extra high");
+  // Model default chosen while a lower level stands in for the pick replaces the pick.
   await choose(page, "Model", "mock-lowonly");
   await choose(page, "Reasoning", "Model default");
   await choose(page, "Model", "mock-fast");
@@ -1421,7 +1430,7 @@ test("the reasoning effort narrows to the model's levels and goes with the card 
   await expect(reasoning).toHaveText("Low");
   await choose(page, "Reasoning", "Maximum");
   await choose(page, "Model", "mock-lowonly");
-  await expect(reasoning).toHaveText("Model default");
+  await expect(reasoning).toHaveText("Low");
   await choose(page, "Model", "mock-fast");
   await expect(reasoning).toHaveText("Maximum");
   await choose(page, "Reasoning", "Extra high");

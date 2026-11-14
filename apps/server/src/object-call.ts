@@ -37,7 +37,10 @@ export interface ObjectCallTarget {
   /** The most an answer may ask for: the model's output limit, when lower (`creatorOutputTokens`). */
   maxOutput: number;
   ratio: number;
-  /** The chosen effort as the model offers it (`effortSettings`): one it lacks sends its default. */
+  /**
+   * The chosen effort as the model offers it (`effortSettings`): one it lacks
+   * goes as the nearest lower one it offers, else its default.
+   */
   settings: CallSettings;
   /** The scope's cache key in this instance, the same for each of its calls. */
   cacheKey: string;
@@ -65,7 +68,7 @@ export async function objectCallTarget(
       window: resolved.window.tokens,
       maxOutput: creatorOutputTokens(resolved.info),
       ratio: user.calibration.get(model) ?? 1,
-      // An effort the model does not offer goes as its default.
+      // An effort the model does not offer goes as the nearest lower one it offers, else its default.
       settings: effortSettings(resolved.info, request.reasoning),
       cacheKey: instanceCacheKey(user, scope),
       calibration: user.calibration,

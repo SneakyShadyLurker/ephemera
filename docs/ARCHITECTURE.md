@@ -381,8 +381,12 @@ instead of a broken image.
    effort, `max` included, goes as the SDK's `reasoning` setting. A
    request's `reasoningEffort` replaces the preset's effort in
    `callSettings` (`generation.ts`), with or without a preset;
-   `provider-default` sends none, and an effort the model does not offer is
-   not sent and is reported as `reasoningNotOffered`, as a preset's is. Without
+   `provider-default` sends none, and an effort the model does not offer
+   goes as core's `effortFor` narrows it for every call: the nearest lower
+   effort the model offers, or none (the model default) when it offers
+   nothing lower. Off is sent only when chosen, never in place of an effort.
+   The chosen effort is then reported as `reasoningNotOffered`, as a
+   preset's is, beside the one sent in `settings`. Without
    a configured key no `Authorization` header is sent, for a local server
    that needs none.
    CLIProxyAPI v8.0.32's Codex translator drops `temperature`, `top_p` and
@@ -647,7 +651,8 @@ replay carries it.
    in their shown text (reasoning left out, macros already filled), this
    chat's folded episode ids in order (`episodes`), the ids of the
    memories it holds (`held`) and an attempt id. The effort goes as the model offers it
-   (`effortFor`, as every creator call narrows it), the model default otherwise,
+   (`effortFor`, as every creator call narrows it: one it lacks as the
+   nearest lower one it offers, the model default with nothing lower),
    to both calls. Every reader of a chat's episode ids (this route, its
    replay and prompt assembly) reconciles them with the book by one core
    rule (`reconcileRecap`): ids that still exist, a member a chapter
@@ -1338,7 +1343,8 @@ content's path: the tab's memory and one request in the server.
   A reasoning effort the request names goes upstream as a sampler preset's
   does (`upstreamSettings`), narrowed on the server to what the catalog
   says the model offers (`effortFor`, as for rework, art and memory): one
-  it lacks goes as the model's default. The picker offers only those
+  it lacks goes as the nearest lower one it offers, and as the model's
+  default when it offers nothing lower. The picker offers only those
   levels, and none means the model's default. Each request's calls, its
   retry included, share one random cache key. A provider still busy (429
   or 503) after the AI SDK's retries ends the run with `upstream_busy`,
@@ -1387,8 +1393,8 @@ content's path: the tab's memory and one request in the server.
   the card it holds, the image prompt's model and reasoning effort (the
   card's unless others are chosen under New art, the model being the
   Settings image prompt model when one is set; core's `imagePromptModelOf`
-  orders the three; the server sends an
-  effort the model does not offer as none) and the workflow the tab shows (absent, the saved
+  orders the three; the server narrows an
+  effort the model does not offer with `effortFor`) and the workflow the tab shows (absent, the saved
   one; one without a graph is refused with 400 rather than painted as
   another), with the owner's direction when one is typed (trimmed, within
   core's `artDirectionLength`). Subject alone sends `composition`, either

@@ -10,6 +10,7 @@ import {
   DEFAULT_CONTEXT_LIMIT,
   effectiveWindow,
   effortFor,
+  type ModelInfo,
   modelsFromCatalog,
   offeredEfforts,
 } from "./models.ts";
@@ -463,17 +464,44 @@ describe("offered reasoning efforts", () => {
     expect(offeredEfforts(undefined)).toEqual(all);
   });
 
-  it("sends a chosen effort the model offers, and the model default for one it lacks", () => {
-    const lowOnly = {
+  describe("the effort sent for a chosen one", () => {
+    const offering = (...reasoning: NonNullable<ModelInfo["reasoning"]>): ModelInfo => ({
       id: "a",
       contextWindow: 1,
       outputLimit: null,
-      reasoning: ["low" as const],
+      reasoning,
       images: null,
-    };
-    expect(effortFor(lowOnly, "low")).toBe("low");
-    expect(effortFor(lowOnly, "xhigh")).toBe("provider-default");
-    expect(effortFor(undefined, "xhigh")).toBe("xhigh");
+    });
+
+    it("is the chosen effort when the model offers it", () => {
+      expect(effortFor(offering("low"), "low")).toBe("low");
+      expect(effortFor(offering("none", "high"), "none")).toBe("none");
+      expect(effortFor(offering("low"), "provider-default")).toBe("provider-default");
+    });
+
+    it("is the nearest lower effort the model offers for one it lacks", () => {
+      expect(effortFor(offering("low"), "xhigh")).toBe("low");
+      expect(effortFor(offering("low", "high"), "medium")).toBe("low");
+      expect(effortFor(offering("low", "high"), "max")).toBe("high");
+      expect(effortFor(offering("minimal", "low", "medium", "max"), "xhigh")).toBe("medium");
+    });
+
+    it("is the model default when the model offers nothing lower", () => {
+      expect(effortFor(offering("medium", "high"), "low")).toBe("provider-default");
+      expect(effortFor(offering("low"), "none")).toBe("provider-default");
+      expect(effortFor(offering(), "high")).toBe("provider-default");
+    });
+
+    it("never turns reasoning off in place of an effort", () => {
+      expect(effortFor(offering("none", "high"), "low")).toBe("provider-default");
+      expect(effortFor(offering("none", "low", "high", "max"), "minimal")).toBe("provider-default");
+      expect(effortFor(offering("none", "low", "high", "max"), "medium")).toBe("low");
+    });
+
+    it("is the chosen effort when support is not reported, or the model is unknown", () => {
+      expect(effortFor({ ...offering(), reasoning: null }, "xhigh")).toBe("xhigh");
+      expect(effortFor(undefined, "xhigh")).toBe("xhigh");
+    });
   });
 });
 

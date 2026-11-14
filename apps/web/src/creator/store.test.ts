@@ -424,7 +424,7 @@ describe("creator store", () => {
   });
 
   it("New art writes the image prompt with the model and effort chosen for it, narrowed to what it offers", async () => {
-    // model-b offers no xhigh, so its image prompt goes at the model default.
+    // model-b offers no xhigh; the stub stands in for `effortFor` and answers the model default.
     const efforts: Record<string, string[]> = { "model-a": ["xhigh"], "model-b": ["low"] };
     const context = setup({ state: "ready" }, () => true, {
       artEffort: async (model, reasoning) =>

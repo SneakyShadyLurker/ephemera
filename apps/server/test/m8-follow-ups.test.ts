@@ -71,7 +71,7 @@ describe("reasoning effort max", () => {
     expect(upstream.records[0]?.body).toMatchObject({ reasoning_effort: "xhigh" });
   });
 
-  it("is not sent to a model whose catalog entry does not offer it", async () => {
+  it("goes as the nearest lower effort to a model whose catalog entry does not offer it", async () => {
     const { app, stores, upstream } = setup({
       catalog: [
         {
@@ -85,7 +85,8 @@ describe("reasoning effort max", () => {
     const prompt = await promptOf(
       await app.request("/api/chat", postJson(request({ model: "no-max", samplerPresetId }))),
     );
-    expect(upstream.records[0]?.body).not.toHaveProperty("reasoning_effort");
+    expect(upstream.records[0]?.body).toMatchObject({ reasoning_effort: "high" });
+    expect(prompt.settings).toEqual({ reasoning: "high" });
     expect(prompt.reasoningNotOffered).toBe("max");
   });
 

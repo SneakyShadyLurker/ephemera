@@ -115,7 +115,7 @@ test("Clear empties the inspector, and nothing sent comes back", async ({ page }
   await expect(inspector(page)).toContainText("No messages yet");
 });
 
-test("a reasoning effort the model does not offer is not sent, and the sheet says so", async ({
+test("a reasoning effort the model does not offer goes as the nearest lower one, and the sheet says so", async ({
   page,
 }) => {
   const name = uniqueName("Deep thought");
@@ -133,7 +133,7 @@ test("a reasoning effort the model does not offer is not sent, and the sheet say
     },
   });
   await page.goto(`/presets/sampler/${id}`);
-  await expect(page.getByText("mock-lowonly doesn't offer high")).toBeVisible();
+  await expect(page.getByText("mock-lowonly doesn't offer high, so low is sent.")).toBeVisible();
   await page.getByRole("combobox", { name: "Reasoning" }).click();
   const options = page.getByRole("listbox", { name: "Reasoning effort" }).getByRole("option");
   await expect(options).toHaveText(["Model default", "Low", "High"]);
@@ -143,17 +143,17 @@ test("a reasoning effort the model does not offer is not sent, and the sheet say
   await openSession(page);
   await choose(page, "Sampler preset", name);
   await expect(
-    page.getByText(/asks for high reasoning; mock-lowonly doesn't offer it/),
+    page.getByText(/asks for high reasoning; mock-lowonly doesn't offer it, so low is sent\./),
   ).toBeVisible();
   await closeSession(page);
   const text = canary("in");
   await send(page, text);
   await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
   const [record] = await upstreamRecords(text);
-  expect(record?.sampling).not.toHaveProperty("reasoning_effort");
+  expect(record?.sampling).toMatchObject({ reasoning_effort: "low" });
   await openInspector(page);
   await expect(inspector(page)).toContainText(
-    "High reasoning was not sent: mock-lowonly doesn't offer it.",
+    "mock-lowonly doesn't offer high reasoning, so low was sent.",
   );
 });
 

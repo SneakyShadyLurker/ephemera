@@ -120,7 +120,10 @@ export interface CreatorState extends ArtSliceState, BrainstormSliceState {
   description: string;
   /** The model chosen on this screen; null follows the saved model. */
   model: string | null;
-  /** The reasoning effort chosen on this screen; one the model lacks falls back to its default. */
+  /**
+   * The reasoning effort chosen on this screen; one the model lacks falls back
+   * to the nearest lower one it offers, else its default (`effortFor`).
+   */
   reasoning: ReasoningEffort;
   card: CardRun | null;
   /** Keep, once asked: the snapshot and how far it got. */

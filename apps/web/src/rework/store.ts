@@ -120,7 +120,10 @@ export interface ReworkState {
   request: string;
   /** The model chosen in the composer; null follows the saved model. */
   model: string | null;
-  /** The composer's effort choice; unsupported levels follow the model's default. */
+  /**
+   * The composer's effort choice; an unsupported level goes as the nearest
+   * lower one the model offers, else its default (`effortFor`).
+   */
   reasoning: ReasoningEffort;
   /** Whether to show the portrait; null follows the model's default. */
   portrait: boolean | null;

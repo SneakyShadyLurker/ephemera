@@ -7,7 +7,8 @@
  * Every effort a preset can choose: the AI SDK's `reasoning` levels, which the
  * server checks against the SDK's own type (upstream.ts); "provider-default"
  * sends nothing. CLIProxyAPI's catalog also lists `ultra`, which its chat
- * endpoint refuses, so it is not one.
+ * endpoint refuses, so it is not one. The levels rise in this order, which
+ * `effortFor` reads to find the nearest lower one a model offers.
  */
 export const REASONING_EFFORTS = [
   "provider-default",

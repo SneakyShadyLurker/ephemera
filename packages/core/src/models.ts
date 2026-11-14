@@ -195,9 +195,19 @@ export function offeredEfforts(model: ModelInfo | undefined): ReasoningEffort[] 
   return ["provider-default", ...(model?.reasoning ?? SENT_EFFORTS)];
 }
 
-/** The effort sent for `chosen` with `model`: the chosen one when offered, else the model default. */
+/**
+ * The effort sent for `chosen` with `model`: the chosen one when offered,
+ * else the nearest lower effort the model offers, else the model default.
+ * Off is sent only when chosen: a lower effort still reasons, so a model
+ * that offers nothing lower gets its default rather than reasoning turned off.
+ */
 export function effortFor(model: ModelInfo | undefined, chosen: ReasoningEffort): ReasoningEffort {
-  return offeredEfforts(model).includes(chosen) ? chosen : "provider-default";
+  const offered = offeredEfforts(model);
+  if (offered.includes(chosen)) return chosen;
+  const lower = REASONING_EFFORTS.slice(0, REASONING_EFFORTS.indexOf(chosen)).findLast(
+    (effort) => effort !== "provider-default" && effort !== "none" && offered.includes(effort),
+  );
+  return lower ?? "provider-default";
 }
 
 /** Bounds of a context window the owner sets for a model the provider reports none for. */

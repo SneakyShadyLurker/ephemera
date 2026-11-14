@@ -80,8 +80,9 @@ export function upstreamSettings(settings: CallSettings, cacheKey: string | unde
 
 /**
  * A chosen effort as call settings, narrowed to what the catalog says the
- * model offers (`effortFor`): none chosen, or one the model lacks, sends the
- * model default.
+ * model offers (`effortFor`): one the model lacks goes as the nearest lower
+ * one it offers, and none chosen, or nothing lower offered, sends the model
+ * default.
  */
 export function effortSettings(
   info: ModelInfo | undefined,
