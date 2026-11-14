@@ -233,7 +233,7 @@ test("a character chosen while the persona list loads gives way to a later choic
   open();
   await kept;
   // Long enough for the waiting choice to have gone through, had it still been taken.
-  await letPass(page, 500);
+  await letPass(500);
   await expect(heading).toHaveText(third);
 
   // An edit of the greeting begun while a choice waits stands: the choice does not discard it.
@@ -254,7 +254,7 @@ test("a character chosen while the persona list loads gives way to a later choic
   open();
   await listed;
   // Long enough for the waiting choice to have gone through, had it still been taken.
-  await letPass(page, 500);
+  await letPass(500);
   await expect(heading).toHaveText(third);
   await expect(field).toHaveValue("A scene of my own.");
   await page.keyboard.press("Escape");
@@ -275,7 +275,7 @@ test("a character chosen while the persona list loads gives way to a later choic
   open();
   await answered;
   // Long enough for the waiting choice to have gone through, had it still been taken.
-  await letPass(page, 500);
+  await letPass(500);
   await expect(heading).toHaveText("Chat");
   await expect(messages(page)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Choose a character" })).toBeVisible();

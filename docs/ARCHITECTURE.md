@@ -2350,19 +2350,23 @@ through `onTestFinished`, and a spawned process carries a timeout.
 
 The browser suite's run is shaped in `playwright.config.ts`. A failed test
 runs once more at the end, alone (`retryStrategy: "isolated"`), once the
-suite's own load is gone; passing then, it is reported as flaky, never as
-passed, and a test flaky on a quiet machine is a defect. The retention
+suite's own load is gone; passing then, it is reported as flaky and still
+fails the run, since the second try only tells a failure that depends on
+load from one that does not. Its spec is then run again by itself, and a
+test flaky on a quiet machine is a defect. The retention
 scans are the teardown of the browser projects, so a failed test leaves
 the scans of everything that ran. A start
 check launches Chromium once and names the install command when a
 Playwright update left its build missing. Every test fails on a Content
 Security Policy violation and on an error its page did not catch
-(`e2e/support/test.ts`); a server a spec starts for itself comes from the
+(`e2e/support/test.ts`; a retention row's own profile through
+`expectNoPageFaults`); a server a spec starts for itself comes from the
 `ownServer` fixture, which stops it when the test ends, by a timeout
-included. A test waits for the state it asserts: lint refuses a fixed
-sleep and a wait for network idle in a spec, outside the two helpers of
-`e2e/support/waits.ts` (the page's code has arrived; a window to watch for
-what must not happen). A coding agent gets
+included. A test waits for the state it asserts: lint refuses
+Playwright's sleep and its wait for network idle in a spec, and the two
+waits no state can stand for go through `e2e/support/waits.ts` (the
+page's code has arrived; a window to watch for what must not happen),
+never through a timer written in the spec. A coding agent gets
 Playwright's failures-only report, a person the list.
 
 `e2e/motion.spec.ts` samples real geometry, focus and inertness through

@@ -1,9 +1,11 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import type { Page } from "@playwright/test";
 
 /*
  * The two waits a spec cannot express as a state to wait for. Lint refuses
- * both calls everywhere else, so a new sleep or a wait for network idle has
- * to be one of these on purpose.
+ * Playwright's own sleep and its wait for network idle in a spec, so either
+ * has to be one of these on purpose; a timer written by hand is the same
+ * sleep and belongs here too.
  */
 
 /**
@@ -21,7 +23,6 @@ export async function codeArrived(page: Page): Promise<void> {
  * event of an aborted stream, a beacon, a choice that should have been
  * dropped. An event that must never come cannot be awaited.
  */
-export async function letPass(page: Page, ms: number): Promise<void> {
-  // biome-ignore lint/suspicious/noPlaywrightWaitForTimeout: a window to watch for what must not happen.
-  await page.waitForTimeout(ms);
+export async function letPass(ms: number): Promise<void> {
+  await sleep(ms);
 }

@@ -475,7 +475,7 @@ function Row({
             {pools.length > 0 && (
               // Its event pools, quiet beside the title; the line truncates them first.
               <span className="text-meta text-reed">
-                <span aria-hidden="true"> · </span>
+                <span className="name-only">,</span> <span aria-hidden="true">·</span>{" "}
                 {poolsText(pools)}
               </span>
             )}

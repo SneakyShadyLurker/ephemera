@@ -868,9 +868,9 @@ test.describe("Native lorebook controls", () => {
 
     await page.reload();
     await expect(row(page, "Event pool")).toHaveAccessibleName("Event pool: Weather; weight 300");
-    await expect(entries(page).getByRole("button", { name: "Edit Gull omen" })).toContainText(
-      "pool Weather",
-    );
+    await expect(
+      entries(page).getByRole("button", { name: "Edit Gull omen" }),
+    ).toHaveAccessibleName(/^Edit Gull omen, pool Weather, /);
   });
 
   test("by keyboard: rows open with Enter and Space, keep focus, and every control is reachable", async ({

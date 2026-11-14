@@ -1651,7 +1651,7 @@ for (const aged of [false, true]) {
     if (aged) {
       release();
       await expect(castEntry(page, SHEET_WOMAN)).toHaveAttribute("data-present", "true");
-      await letPass(page, 350);
+      await letPass(350);
       hair = await openHair();
     } else {
       await page
@@ -2918,7 +2918,7 @@ for (const viewport of [
         }),
     );
     await nav.getByRole("link", { name: "Characters", exact: true }).click();
-    await letPass(page, 1000);
+    await letPass(1000);
     await expect(previous).toHaveText(/^Presets/);
     const first = await arrival;
     expect(first).toMatchObject({ heading: true, card: true });

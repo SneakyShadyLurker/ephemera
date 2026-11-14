@@ -130,7 +130,7 @@ matrixRow(
     await scope.expectClean();
     expect((await scope.state()).interrupted).toBe(1);
     // A late event of the aborted stream must not bring the item back.
-    await letPass(page, 500);
+    await letPass(500);
     await expect(sceneItems(page)).toHaveCount(0);
   },
   SCENE,

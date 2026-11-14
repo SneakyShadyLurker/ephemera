@@ -48,6 +48,13 @@ export async function watchPolicyViolations(context: BrowserContext): Promise<st
   return violations;
 }
 
+/** Collects every error a page of the context threw and nothing caught. */
+export function watchPageErrors(context: BrowserContext): string[] {
+  const errors: string[] = [];
+  context.on("weberror", (webError) => errors.push(webError.error().message));
+  return errors;
+}
+
 /**
  * Every test signs in as a user of its own, so its instance, settings
  * included, starts from the seeded baseline and no other test meets it
@@ -96,8 +103,7 @@ export const test = base.extend<{
   ],
   pageErrors: [
     async ({ context }, use) => {
-      const errors: string[] = [];
-      context.on("weberror", (webError) => errors.push(webError.error().message));
+      const errors = watchPageErrors(context);
       await use(errors);
       expect(errors, "uncaught errors in the page").toEqual([]);
     },

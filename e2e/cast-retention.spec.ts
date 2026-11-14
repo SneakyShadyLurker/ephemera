@@ -14,7 +14,7 @@ import {
 import { createCharacterViaApi, patchSettings } from "./support/entities.ts";
 import { CANARY_MARKER, canary } from "./support/env.ts";
 import { exchange, storedMemory } from "./support/memory.ts";
-import { matrixRow, type Row, serverHopsHolding } from "./support/retention.ts";
+import { matrixRow, type Row, SCAN_POLL, serverHopsHolding } from "./support/retention.ts";
 import { expect, unsafe } from "./support/test.ts";
 import type { MockModel, UpstreamRecordView } from "./support/upstream.ts";
 import { letPass } from "./support/waits.ts";
@@ -142,7 +142,7 @@ matrixRow("castclear", async (row) => {
     .toEqual([true]);
   expect((await upstreamRecords(line, "cast"))[0]?.answer).toBeNull();
   // No late answer brings the cast back.
-  await letPass(page, 500);
+  await letPass(500);
   await expect(anyPanel(page)).toHaveCount(0);
 });
 
@@ -182,7 +182,7 @@ matrixRow("memcast", async (row) => {
   row.chatContent.push(anchor.hair);
   expect(JSON.stringify(memory)).not.toContain(CANARY_MARKER);
   // Derived notebook anchors are permitted character data; source and corrections are not.
-  await expect.poll(() => serverHopsHolding(anchor.hair)).toEqual(["S-data"]);
+  await expect.poll(() => serverHopsHolding(anchor.hair), SCAN_POLL).toEqual(["S-data"]);
   expect(await serverHopsHolding([source, sceneState])).toEqual([]);
   await clearChat(page);
 });
@@ -252,7 +252,7 @@ matrixRow(
     // Positive control: the sheet is character data, found in the server's data only.
     const entryId = sheet?.entries[0]?.id ?? "";
     expect(entryId).not.toBe("");
-    await expect.poll(() => serverHopsHolding(entryId)).toEqual(["S-data"]);
+    await expect.poll(() => serverHopsHolding(entryId), SCAN_POLL).toEqual(["S-data"]);
 
     // The caller's next request gets the stored sheet, with no new call.
     const again = await request.post(`/api/cast/sheets/${id}`, {

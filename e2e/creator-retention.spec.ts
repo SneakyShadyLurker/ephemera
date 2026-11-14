@@ -29,6 +29,7 @@ import { stopServer } from "./support/own-server.ts";
 import {
   expectBackForwardRestoresNothing,
   expectClipboardUnchanged,
+  expectNoPageFaults,
   expectProfileClean,
   expectStorageEmpty,
   expectUrlsClean,
@@ -402,7 +403,7 @@ test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({
     await test.step("B-bf", () => expectBackForwardRestoresNothing(page, expectCreatorEmpty));
     await test.step("B-clip", () => expectClipboardUnchanged(page, sentinel));
     await context.close();
-    expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+    expectNoPageFaults(profile);
     await test.step("B-disk", () => expectProfileClean(profile.dir));
     await stopServer(child, "SIGTERM");
     await new Promise<void>((resolve) => log.end(resolve));

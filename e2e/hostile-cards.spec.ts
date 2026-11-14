@@ -114,7 +114,7 @@ test("a hostile card stays inert text everywhere and fetches nothing", async ({ 
   expect(dom.scripts).toBe(0);
   expect(dom.styles).toBe(0);
   expect(dom.images.every((src) => src.startsWith("/api/characters/"))).toBe(true);
-  await letPass(page, 300);
+  await letPass(300);
   expect(await beacons()).toEqual(before);
 });
 
@@ -255,7 +255,7 @@ test("a hostile lorebook stays inert in the sheet, the lorebook screen and the i
   expect(dom.title).toBe("Ephemera");
   expect(dom.scripts).toBe(0);
   expect(dom.images.every((src) => src.startsWith("/api/characters/"))).toBe(true);
-  await letPass(page, 300);
+  await letPass(300);
   expect(await beacons()).toEqual(before);
 });
 

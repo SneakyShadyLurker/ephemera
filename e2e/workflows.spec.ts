@@ -8,6 +8,7 @@ import { choose, expectNoOverflow, patchSettings, readSettings } from "./support
 import { sceneButton, sceneChat, scenePicture } from "./support/scene.ts";
 import { settingsTab } from "./support/settings.ts";
 import { expect, test } from "./support/test.ts";
+import { letPass } from "./support/waits.ts";
 import {
   actionsFor,
   apiFile,
@@ -1932,7 +1933,7 @@ test("a Reload that answers after another file was taken leaves that file open",
   release();
   await answered;
   // Long enough for a late Reload to close the panel, had it not been dropped.
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 200)));
+  await letPass(200);
   await expect(next).toBeVisible();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });

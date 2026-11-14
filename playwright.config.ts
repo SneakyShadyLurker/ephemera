@@ -27,8 +27,9 @@ const agent = [process.env.AI_AGENT, process.env.CLAUDECODE, process.env.CODEX_T
 /**
  * A project's spec files: every file `match` takes, or in a focused run
  * those of them the run names. The choice is made here rather than by a
- * command line filter, which would leave the retention scans out: they
- * depend on the browser projects, and a dependency runs whole.
+ * command line filter, which the retention scans would not know of: they
+ * are a teardown, which runs whole, and would take every row the filter
+ * left out as one that did not run.
  */
 function specs(match: RegExp): RegExp | RegExp[] {
   if (FOCUSED_SPECS === undefined) return match;
@@ -46,10 +47,13 @@ export default defineConfig({
   workers: "75%",
   /*
    * A failed test runs once more at the end, alone, when this suite's own
-   * load is gone. Passing then, it is reported as flaky, never as passed.
+   * load is gone. Passing then, it is reported as flaky and still fails the
+   * run: the second try only tells a failure that depends on load from one
+   * that does not, and a retention row that failed once is never a pass.
    */
   retries: 1,
   retryStrategy: "isolated",
+  failOnFlakyTests: true,
   reporter: agent ? "failures" : "list",
   // Fails once, by name, when this Playwright's Chromium is not installed.
   globalSetup: "./e2e/support/preflight.ts",

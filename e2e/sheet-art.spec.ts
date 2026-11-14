@@ -10,7 +10,7 @@ import {
 } from "./support/creator.ts";
 import { keptBase, mark, portraitPng } from "./support/creator-fixtures.ts";
 import { choose, patchSettings } from "./support/entities.ts";
-import { openProfile, serverHopsHolding } from "./support/retention.ts";
+import { expectNoPageFaults, openProfile, serverHopsHolding } from "./support/retention.ts";
 import { FRAGMENT_OFFSETS, filesContaining, imageFragments } from "./support/scan.ts";
 import {
   artName,
@@ -92,7 +92,7 @@ test("New art paints four, the one picked becomes the portrait, and the other th
     ).toHaveLength(1);
     await scope.expectClean();
     await context.close();
-    expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+    expectNoPageFaults(profile);
 
     // Positive control: the kept portrait is character data, in the database only.
     expect(await serverHopsHolding(await imageFragments(kept, FRAGMENT_OFFSETS.png))).toEqual([
