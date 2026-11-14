@@ -2266,8 +2266,9 @@ and its instance, settings included, starts from the seeded baseline that
 no other test touches. The specs, settings included, therefore run side by
 side, test by test. The M10 acceptance chat runs one test at a time
 against an app server of its own, since the mock upstream keeps one queue
-of scripted replies; the 5,000-entry lorebook spec runs on that server
-once the rest is done, since its card would starve whatever ran beside it.
+of scripted replies; the 5,000-entry lorebook spec and the large-portrait
+spec run on that server under Playwright's exclusive lock, each test once
+nothing else runs, since they would starve whatever ran beside them.
 
 ## Development
 
@@ -2338,6 +2339,31 @@ commits, staged and unstaged edits and new files. Its check is the merge
 gate, so a change that passed it needs no second check unless a file
 changed since, prose included. `--dry-run` prints the plan only.
 
+A unit test waits on no production timer. The server's tests run the
+ComfyUI client on short injected waits (`QUICK_COMFYUI` in
+`apps/server/test/helpers.ts`), a query's retry backoff is set to zero
+where a test waits out its retries, and a test that keeps a real wait
+names the bound it proves. A wall-clock limit guards a work bound on
+hostile input only. Whole buffers are compared with `Buffer.equals`, since
+deep equality walks them byte by byte; a database a test opens closes
+through `onTestFinished`, and a spawned process carries a timeout.
+
+The browser suite's run is shaped in `playwright.config.ts`. A failed test
+runs once more at the end, alone (`retryStrategy: "isolated"`), once the
+suite's own load is gone; passing then, it is reported as flaky, never as
+passed, and a test flaky on a quiet machine is a defect. The retention
+scans are the teardown of the browser projects, so a failed test leaves
+the scans of everything that ran. Workers take three quarters of the
+cores, less the cores other work already holds, down to four. A start
+check launches Chromium once and names the install command when a
+Playwright update left its build missing. Every test fails on a Content
+Security Policy violation and on an error its page did not catch
+(`e2e/support/test.ts`); a server a spec starts for itself comes from the
+`ownServer` fixture, which stops it when the test ends, by a timeout
+included. Lint refuses a fixed sleep and a wait for network idle in a
+spec: a test waits for the state it asserts. A coding agent gets
+Playwright's failures-only report, a person the list.
+
 `e2e/motion.spec.ts` samples real geometry, focus and inertness through
 interrupted entrances and exits and reduced motion, and holds detail responses
 to check editor arrival. Large-list assertions in `e2e/vast-lorebook.spec.ts`
@@ -2382,15 +2408,16 @@ boundary, e2e support, what the mock servers import), a removed
 spec and any change to dependencies, compiler or Playwright configuration
 take the whole suite, as does a graph that cannot be built: an unplaced path is
 never a skipped test. A unit test fails when a spec file has no row, an area has no spec,
-or a listed path is gone.
+a listed path is gone, or a file a mock server imports is listed as needing no browser run.
 
 A focused e2e run names its spec files in `EPHEMERA_E2E_SPECS`, which
 is validated against `SPEC_AREAS` and `ALWAYS_SPECS` in `e2e/areas.ts`
 before any browser or server starts. Any unknown filename fails the run,
 including one alongside valid names; an unset or empty value takes the
 whole suite. `playwright.config.ts` applies the selection to each browser
-project's `testMatch`. A command line filter would not do: the retention scans depend on the
-browser projects, and Playwright runs a dependency whole. The scans then
+project's `testMatch`. A command line filter would not do: the retention scans are a teardown,
+which Playwright runs whole, and nothing would tell them which specs were chosen, so every row
+the filter left out would fail as one that did not run. The scans then
 run as always, over what the chosen specs wrote: `server-writes.check.ts`
 checks every matrix row that ran and requires each selected producer spec's
 row markers. A missing marker fails; only an absent row whose producer was
