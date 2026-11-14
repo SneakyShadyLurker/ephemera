@@ -2352,8 +2352,9 @@ The browser suite's run is shaped in `playwright.config.ts`. A failed test
 runs once more at the end, alone (`retryStrategy: "isolated"`), once the
 suite's own load is gone; passing then, it is reported as flaky and still
 fails the run, since the second try only tells a failure that depends on
-load from one that does not. Its spec is then run again by itself, and a
-test flaky on a quiet machine is a defect. The retention
+load from one that does not. Its spec is then run again by itself, as a
+focused run (`EPHEMERA_E2E_SPECS`, below), and a test flaky on a quiet
+machine is a defect. The retention
 scans are the teardown of the browser projects, so a failed test leaves
 the scans of everything that ran. A start
 check launches Chromium once and names the install command when a

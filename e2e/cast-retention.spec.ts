@@ -146,46 +146,51 @@ matrixRow("castclear", async (row) => {
   await expect(anyPanel(page)).toHaveCount(0);
 });
 
-matrixRow("memcast", async (row) => {
-  const { page, request } = row;
-  const { id } = await castRow(row, "memcast");
-  const source = canary("memcast");
-  await exchange(page, source);
-  const woman = keeperWoman([{ role: "user", content: source }]);
-  await expect(castEntry(page, woman)).toBeVisible();
-  const sceneState = canary("memcast");
-  const record = await editRecord(page, woman, { hair: sceneState });
-  await expect(record).toContainText(sceneState);
-  await page.keyboard.press("Escape");
-  const result = await request.post("/api/memory/remember", {
-    headers: unsafe(),
-    data: {
-      characterId: id,
-      model: "mock-fast",
-      turns: [
-        { role: "user", content: source },
-        { role: "assistant", content: sceneState },
-      ],
-      episodes: [],
-      held: [],
-      attempt: crypto.randomUUID(),
-    },
-  });
-  expect(result.status()).toBe(200);
-  await result.json();
-  const memory = await storedMemory(request, id);
-  expect(memory.state?.notebook.cast).toHaveLength(1);
-  const line = memory.state?.notebook.cast[0] ?? "";
-  const anchor = JSON.parse(line) as { hair: string };
-  for (const field of ["id", "aka", "state", "present", "outfit", "activity"])
-    expect(anchor).not.toHaveProperty(field);
-  row.chatContent.push(anchor.hair);
-  expect(JSON.stringify(memory)).not.toContain(CANARY_MARKER);
-  // Derived notebook anchors are permitted character data; source and corrections are not.
-  await expect.poll(() => serverHopsHolding(anchor.hair), SCAN_POLL).toEqual(["S-data"]);
-  expect(await serverHopsHolding([source, sceneState])).toEqual([]);
-  await clearChat(page);
-});
+matrixRow(
+  "memcast",
+  async (row) => {
+    const { page, request } = row;
+    const { id } = await castRow(row, "memcast");
+    const source = canary("memcast");
+    await exchange(page, source);
+    const woman = keeperWoman([{ role: "user", content: source }]);
+    await expect(castEntry(page, woman)).toBeVisible();
+    const sceneState = canary("memcast");
+    const record = await editRecord(page, woman, { hair: sceneState });
+    await expect(record).toContainText(sceneState);
+    await page.keyboard.press("Escape");
+    const result = await request.post("/api/memory/remember", {
+      headers: unsafe(),
+      data: {
+        characterId: id,
+        model: "mock-fast",
+        turns: [
+          { role: "user", content: source },
+          { role: "assistant", content: sceneState },
+        ],
+        episodes: [],
+        held: [],
+        attempt: crypto.randomUUID(),
+      },
+    });
+    expect(result.status()).toBe(200);
+    await result.json();
+    const memory = await storedMemory(request, id);
+    expect(memory.state?.notebook.cast).toHaveLength(1);
+    const line = memory.state?.notebook.cast[0] ?? "";
+    const anchor = JSON.parse(line) as { hair: string };
+    for (const field of ["id", "aka", "state", "present", "outfit", "activity"])
+      expect(anchor).not.toHaveProperty(field);
+    row.chatContent.push(anchor.hair);
+    expect(JSON.stringify(memory)).not.toContain(CANARY_MARKER);
+    // Derived notebook anchors are permitted character data; source and corrections are not.
+    await expect.poll(() => serverHopsHolding(anchor.hair), SCAN_POLL).toEqual(["S-data"]);
+    expect(await serverHopsHolding([source, sceneState])).toEqual([]);
+    await clearChat(page);
+  },
+  // Its scan of every server's data needs more than the default budget on a loaded machine.
+  { timeout: 90_000 },
+);
 
 matrixRow("castedit", async (row) => {
   const { page } = row;

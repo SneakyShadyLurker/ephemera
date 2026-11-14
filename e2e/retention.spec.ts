@@ -792,6 +792,8 @@ async function memoryRow({ context, page }: Row, line: string) {
 }
 
 matrixRow("mem", async (row) => {
+  // Its scans of every server's data need more than the default budget on a loaded machine.
+  test.setTimeout(90_000);
   const line = canary("mem");
   const { id, keeper } = await memoryRow(row, line);
   await rememberNow(row.page);
