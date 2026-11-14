@@ -60,7 +60,7 @@ function suggestedUser(): string {
   return usernameSchema.safeParse(name).success ? name : "me";
 }
 
-function describe(check: ModelsCheck): string {
+function checkOutcome(check: ModelsCheck): string {
   if (check.ok) return `Connected: ${models(check.models.length)} available`;
   if (check.reason === "unreachable") return "Nothing answered at that address";
   if (check.reason === "unauthorized") return "The provider refused the API key";
@@ -306,10 +306,10 @@ export async function provider(
       progress.start("Checking the model provider");
       const check = await checkModels(baseUrl, apiKey || undefined);
       if (!check.ok) {
-        progress.error(describe(check));
+        progress.error(checkOutcome(check));
         fail("Fix the address or key and run setup again, or pass --no-check to skip this.");
       }
-      progress.stop(describe(check));
+      progress.stop(checkOutcome(check));
       listed = check.models;
     }
     const chosen = flagModel(flags.model, listed, current.EPHEMERA_DEFAULT_MODEL ?? "");
@@ -377,7 +377,7 @@ export async function provider(
     progress.start("Checking the model provider");
     const check = await checkModels(baseUrl, apiKey || undefined);
     if (check.ok) {
-      progress.stop(describe(check));
+      progress.stop(checkOutcome(check));
       return {
         EPHEMERA_UPSTREAM_BASE_URL: baseUrl,
         EPHEMERA_UPSTREAM_API_KEY: apiKey,
@@ -387,7 +387,7 @@ export async function provider(
         ),
       };
     }
-    progress.error(describe(check));
+    progress.error(checkOutcome(check));
     const next = answered(
       await select({
         message: "What now?",

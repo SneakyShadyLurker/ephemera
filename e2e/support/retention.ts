@@ -23,7 +23,7 @@ import {
   needleList,
   type ScanResult,
 } from "./scan.ts";
-import { appOrigin, expect, test, watchPolicyViolations } from "./test.ts";
+import { appOrigin, expect, test, watchPageErrors, watchPolicyViolations } from "./test.ts";
 
 export { MATRIX_ROWS, type RowLabel, SERVER_HOPS, type ServerHop } from "../retention-matrix.ts";
 
@@ -78,6 +78,14 @@ export async function scanHop(
 }
 
 /**
+ * How long a poll of `serverHopsHolding` may take. One scan reads every
+ * server's data with every user's database decrypted, over a thousand of
+ * them late in a run, so on a loaded machine a single scan can outlast the
+ * five seconds an assertion gets by default.
+ */
+export const SCAN_POLL = { timeout: 30_000 };
+
+/**
  * The server hops holding `needle`, or any of several: content without the
  * canary marker, such as fragments of a re-encoded image or a kept card's
  * mark. Each hop must be readable. The needle stays in the caller's memory.
@@ -103,6 +111,7 @@ export interface Profile {
   context: BrowserContext;
   page: Page;
   policyViolations: string[];
+  pageErrors: string[];
 }
 
 /**
@@ -124,6 +133,7 @@ export async function openProfile(
   });
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
   const policyViolations = await watchPolicyViolations(context);
+  const pageErrors = watchPageErrors(context);
   await context.addInitScript(() => {
     const record = window as unknown as { __pageshows?: boolean[] };
     record.__pageshows = [];
@@ -132,7 +142,17 @@ export async function openProfile(
   const page = context.pages()[0] ?? (await context.newPage());
   // The leave guard asks before a non-empty chat is left; the owner confirms.
   page.on("dialog", (dialog) => dialog.accept());
-  return { dir, context, page, policyViolations };
+  return { dir, context, page, policyViolations, pageErrors };
+}
+
+/**
+ * What the test fixtures check for every other test (e2e/support/test.ts),
+ * for a profile of a row's own: no Content Security Policy violation and no
+ * error its pages did not catch.
+ */
+export function expectNoPageFaults(profile: Profile) {
+  expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+  expect(profile.pageErrors, "uncaught errors in the page").toEqual([]);
 }
 
 /** B-clip, before the row: a sentinel in the clipboard, no canary. */
@@ -305,7 +325,7 @@ export function matrixRow(
         await test.step("B-clip", () => expectClipboardUnchanged(page, sentinel));
       }
       await context.close();
-      expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+      expectNoPageFaults(profile);
       await test.step("B-disk", () =>
         expectProfileClean(profile.dir, [...row.chatContent, ...row.fragments]));
       await recordClass(label);

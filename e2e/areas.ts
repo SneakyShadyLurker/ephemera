@@ -226,13 +226,14 @@ export const COMPOSITION: readonly RegExp[] = [
  * tooling and the deployment. A spec that imports one of them still runs,
  * through Playwright's own `--only-changed` (scripts/affected/run.ts). That
  * graph covers the test process only, so what the mock servers of
- * `e2e/support` import is left out of this list and takes the whole suite.
+ * `e2e/support` import or read is left out of this list and takes the whole
+ * suite; a unit test fails when they import a file listed here.
  */
 export const NO_E2E: readonly RegExp[] = [
   /\.md$/,
   /^docs\//,
   /\.test\.tsx?$/,
-  /^apps\/server\/test\/(?!fake-(upstream|comfyui)\.ts$)/,
+  /^apps\/server\/test\/(?!(fake-(upstream|comfyui)|image-fixtures|test-workflows)\.ts$|fixtures\/workflows\/)/,
   /^packages\/core\/test-fixtures\//,
   /^scripts\//,
   // Area tables select specs and validate their names, without changing browser behavior.

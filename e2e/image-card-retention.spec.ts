@@ -14,6 +14,7 @@ import {
 import { FRAGMENT_OFFSETS, holds, imageFragments } from "./support/scan.ts";
 import { appOrigin, expect, test } from "./support/test.ts";
 import type { MockModel } from "./support/upstream.ts";
+import { letPass } from "./support/waits.ts";
 
 // These requests share the server's global image-card admission limit.
 test.describe.configure({ mode: "default" });
@@ -125,6 +126,8 @@ function imageCardRow(
   run: (row: { request: APIRequestContext; user: string }) => Promise<void>,
 ) {
   test(`retention matrix: ${MATRIX_ROWS[label].row}`, async ({ request, user }) => {
+    // Several scans of every server's data; late in a loaded run the row took 26 s of the default 30.
+    test.setTimeout(90_000);
     await test.step(`${label}: the content exists`, () => run({ request, user }));
     await recordClass(label);
   });
@@ -225,7 +228,7 @@ imageCardRow("icstop", async ({ request, user }) => {
    * lets it read the frame into the draft before the caller leaves. Nothing
    * follows it, so the stream is still open when the abort lands.
    */
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await letPass(300);
   caller.abort();
   await reading;
   await expectUpstreamAborted(mark(content.base, "desc"));

@@ -1,11 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import {
-  APP_SERVERS,
-  type AppServerName,
-  COMFYUI_PORT,
-  FOCUSED_SPECS,
-  UPSTREAM_PORT,
-} from "./e2e/support/env.ts";
+import { APP_SERVERS, COMFYUI_PORT, FOCUSED_SPECS, UPSTREAM_PORT } from "./e2e/support/env.ts";
 
 // The supported browsers are Chromium-based (ARCHITECTURE.md § Browser baseline).
 const browsers = [{ name: "chromium", use: devices["Desktop Chrome"] }];
@@ -13,38 +7,29 @@ const browsers = [{ name: "chromium", use: devices["Desktop Chrome"] }];
 /*
  * Every test signs in as a user of its own (e2e/support/test.ts), so its
  * settings and entities are its alone and the tests within a spec run side
- * by side too. The M10 acceptance chat runs one test at a time against an
- * app server of its own, beside the parallel specs, since `mock-scripted`
- * keeps one queue of replies for the whole mock upstream.
+ * by side too. Three specs run one test at a time against an app server of
+ * their own, beside the parallel specs: the M10 acceptance chat, since
+ * `mock-scripted` keeps one queue of replies for the whole mock upstream, and
+ * the two that would starve whatever ran beside them (a 6 MB card with 5,000
+ * rows; large noisy portraits on the shared mock's event loop), whose tests
+ * hold Playwright's exclusive lock and so run once nothing else does.
  */
-const SERIAL_GROUPS: {
-  name: string;
-  server: AppServerName;
-  testMatch: RegExp;
-  dependencies?: string[];
-}[] = [
-  { name: "serial", server: "serial", testMatch: /prompt-behavior\.spec\.ts$/ },
-  // A 6 MB card and 5,000 rows starve whatever runs beside them: this runs once the rest is done.
-  {
-    name: "vast-lorebook",
-    server: "serial",
-    testMatch: /vast-lorebook\.spec\.ts$/,
-    dependencies: [...browsers.map((browser) => browser.name), "serial"],
-  },
-  // Large noisy portraits block the shared mock's event loop, so generate them one at a time last.
-  {
-    name: "large-art",
-    server: "serial",
-    testMatch: /art-transport\.spec\.ts$/,
-    dependencies: [...browsers.map((browser) => browser.name), "serial", "vast-lorebook"],
-  },
-];
+const SERIAL = /(prompt-behavior|vast-lorebook|art-transport)\.spec\.ts$/;
+
+/** The retention scans: they run once every other project is done, whether or not a test failed. */
+const SCANS = "server-writes";
+
+/** A coding agent reads the failures and the summary; a person watches the list. */
+const agent = [process.env.AI_AGENT, process.env.CLAUDECODE, process.env.CODEX_THREAD_ID].some(
+  (value) => value !== undefined && value !== "",
+);
 
 /**
  * A project's spec files: every file `match` takes, or in a focused run
  * those of them the run names. The choice is made here rather than by a
- * command line filter, which would leave the retention scans out: they
- * depend on the browser projects, and a dependency runs whole.
+ * command line filter, which the retention scans would not know of: they
+ * are a teardown, which runs whole, and would take every row the filter
+ * left out as one that did not run.
  */
 function specs(match: RegExp): RegExp | RegExp[] {
   if (FOCUSED_SPECS === undefined) return match;
@@ -60,36 +45,45 @@ export default defineConfig({
   forbidOnly: true,
   // Measured on 16 cores: 75% keeps per-test times flat; all cores add no speed, only load flakes.
   workers: "75%",
-  reporter: [["list"]],
+  /*
+   * A failed test runs once more at the end, alone, when this suite's own
+   * load is gone. Passing then, it is reported as flaky and still fails the
+   * run: the second try only tells a failure that depends on load from one
+   * that does not, and a retention row that failed once is never a pass.
+   */
+  retries: 1,
+  retryStrategy: "isolated",
+  failOnFlakyTests: true,
+  reporter: agent ? "failures" : "list",
+  // Fails once, by name, when this Playwright's Chromium is not installed.
+  globalSetup: "./e2e/support/preflight.ts",
   use: {
     baseURL: APP_SERVERS.main.origin,
     trace: "retain-on-failure",
   },
   projects: [
-    // Listed first, so their workers start at once rather than after the parallel specs' queue.
-    // One worker each, one test at a time.
-    ...SERIAL_GROUPS.map(({ server, ...group }) => ({
-      ...group,
-      testMatch: specs(group.testMatch),
-      use: { ...devices["Desktop Chrome"], baseURL: APP_SERVERS[server].origin },
+    // Listed first, so its worker starts at once rather than after the parallel specs' queue.
+    {
+      name: "serial",
+      testMatch: specs(SERIAL),
+      use: { ...devices["Desktop Chrome"], baseURL: APP_SERVERS.serial.origin },
       fullyParallel: false,
       workers: 1,
-    })),
+      teardown: SCANS,
+    },
     ...browsers.map((browser) => ({
       ...browser,
       fullyParallel: true,
       testMatch: specs(/\.spec\.ts$/),
-      testIgnore: SERIAL_GROUPS.map((group) => group.testMatch),
+      testIgnore: SERIAL,
+      teardown: SCANS,
     })),
-    // Scans what every app server wrote, once every browser project is done.
-    {
-      name: "server-writes",
-      testMatch: /server-writes\.check\.ts$/,
-      dependencies: [
-        ...browsers.map((browser) => browser.name),
-        ...SERIAL_GROUPS.map((group) => group.name),
-      ],
-    },
+    /*
+     * Scans what every app server wrote. A teardown rather than a dependent:
+     * a failed test elsewhere still leaves the scans of everything that ran.
+     * A scan reads files, so a second try would find the same.
+     */
+    { name: SCANS, testMatch: /server-writes\.check\.ts$/, retries: 0 },
   ],
   webServer: [
     {

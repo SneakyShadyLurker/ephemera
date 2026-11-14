@@ -29,12 +29,12 @@
     "cards:check": "bun scripts/cards/check.ts"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@biomejs/biome": "2.5.14",
+    "@axe-core/playwright": "^4.14.0",
+    "@biomejs/biome": "2.6.7",
     "@clack/prompts": "^1.8.1",
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.65.1",
     "@types/bun": "1.4.3",
     "typescript": "7.0.2",
-    "vitest": "5.0.3"
+    "vitest": "5.1.0"
   }
 }

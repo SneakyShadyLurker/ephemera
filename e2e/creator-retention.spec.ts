@@ -25,10 +25,11 @@ import {
 } from "./support/creator-fixtures.ts";
 import { patchSettings } from "./support/entities.ts";
 import { CANARY_MARKER, CREATOR_RESTART, canary } from "./support/env.ts";
-import { startServer, stopServer } from "./support/own-server.ts";
+import { stopServer } from "./support/own-server.ts";
 import {
   expectBackForwardRestoresNothing,
   expectClipboardUnchanged,
+  expectNoPageFaults,
   expectProfileClean,
   expectStorageEmpty,
   expectUrlsClean,
@@ -320,7 +321,12 @@ matrixRow(
   { ...CREATOR, skip: { bf: true } },
 );
 
-test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({ browserName, playwright, user }) => {
+test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({
+  browserName,
+  ownServer,
+  playwright,
+  user,
+}) => {
   // A slow card, two stalled batches, three restarts and a profile scan; generous for a loaded machine.
   test.setTimeout(240_000);
   const server = CREATOR_RESTART;
@@ -328,7 +334,8 @@ test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({ browserName, playwri
   await mkdir(server.tmp, { recursive: true });
   await mkdir(server.home, { recursive: true });
   const log = createWriteStream(server.log, { flags: "a" });
-  let child = await startServer(server, log);
+  const startServer = () => ownServer(server, log);
+  let child = await startServer();
   const scope = await comfyScope({ mode: "plain", stall: true });
   const profile = await openProfile(playwright[browserName], server.origin, user);
   const { context, page } = profile;
@@ -350,7 +357,7 @@ test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({ browserName, playwri
       await expect(
         page.getByText("The model stopped before the card was complete. Rewrite to try again."),
       ).toBeVisible({ timeout: 15_000 });
-      child = await startServer(server, log);
+      child = await startServer();
     });
 
     /** A new card from the gallery, stopped by `signal` while its portraits are painted. */
@@ -380,7 +387,7 @@ test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({ browserName, playwri
       // An orderly stop ends the run and waits for its cleanup: ComfyUI holds nothing of it.
       await scope.expectClean();
       expect((await scope.state()).interrupted).toBe(1);
-      child = await startServer(server, log);
+      child = await startServer();
     });
 
     await test.step("crrst: SIGKILL while the portraits are painted, then a restart", async () => {
@@ -388,7 +395,7 @@ test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({ browserName, playwri
       // PRINCIPLES.md 1, ComfyUI: a plain instance keeps the prompt of a run whose client
       // was killed until it restarts. The stated residual risk, shown rather than hidden.
       expect(await scope.state()).toMatchObject({ clean: false, running: true });
-      child = await startServer(server, log);
+      child = await startServer();
     });
 
     await test.step("B-store", () => expectStorageEmpty(page));
@@ -396,7 +403,7 @@ test(`retention matrix: ${MATRIX_ROWS.crrst.row}`, async ({ browserName, playwri
     await test.step("B-bf", () => expectBackForwardRestoresNothing(page, expectCreatorEmpty));
     await test.step("B-clip", () => expectClipboardUnchanged(page, sentinel));
     await context.close();
-    expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+    expectNoPageFaults(profile);
     await test.step("B-disk", () => expectProfileClean(profile.dir));
     await stopServer(child, "SIGTERM");
     await new Promise<void>((resolve) => log.end(resolve));

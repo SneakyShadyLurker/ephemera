@@ -34,6 +34,7 @@ import {
   reworkEventSchema,
 } from "@ephemera/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { CleanupTiming } from "../src/comfyui/client.ts";
 import type { WorkflowGraph } from "../src/comfyui/workflow.ts";
 import { ART_TIMEOUT_MS, MAX_REWORK_BODY_BYTES, shownNames } from "../src/creator.ts";
 import { usernameSchema } from "../src/identity.ts";
@@ -48,7 +49,14 @@ import {
   type FakeUpstreamOptions,
   fakeUpstream,
 } from "./fake-upstream.ts";
-import { integrationHeaders, ownerHeaders, postJson, TEST_USER, testApp } from "./helpers.ts";
+import {
+  integrationHeaders,
+  ownerHeaders,
+  postJson,
+  QUICK_COMFYUI,
+  TEST_USER,
+  testApp,
+} from "./helpers.ts";
 import { html, imageMetadata, plainJpeg, plainPng, pngWithNoise } from "./image-fixtures.ts";
 import { storeUserWorkflow, TEST_WORKFLOWS, userGraph } from "./test-workflows.ts";
 import { muteConsole, until } from "./vitest-helpers.ts";
@@ -124,6 +132,8 @@ interface Setup {
   /** The saved ComfyUI address; empty means none. */
   address?: string;
   requestTimeoutMs?: number;
+  /** ComfyUI's cleanup waits over QUICK_COMFYUI's. */
+  timing?: Partial<CleanupTiming>;
 }
 
 function setup(options: Setup = {}) {
@@ -135,7 +145,12 @@ function setup(options: Setup = {}) {
     return url.origin === COMFY ? comfy.fetch(input, init) : upstream.fetch(input, init);
   };
   const { app, lines, instances } = testApp(
-    { fetch, comfyuiSocket: comfy.socket, workflows: TEST_WORKFLOWS },
+    {
+      fetch,
+      comfyuiSocket: comfy.socket,
+      workflows: TEST_WORKFLOWS,
+      comfyuiTiming: { ...QUICK_COMFYUI, timing: { ...QUICK_COMFYUI.timing, ...options.timing } },
+    },
     options.requestTimeoutMs === undefined ? {} : { requestTimeoutMs: options.requestTimeoutMs },
   );
   const { stores } = instances.instance(TEST_USER);
@@ -1329,6 +1344,8 @@ describe("POST /api/creator/art", () => {
     const { app, comfy, lines } = setup({
       upstream: { chunks: [IMAGE_PROMPT] },
       comfy: { hang: true },
+      // The poll outlasts the fake's stop, so cleanup cancels once.
+      timing: { pollMs: 250 },
     });
     const client = new AbortController();
     const response = await app.request(

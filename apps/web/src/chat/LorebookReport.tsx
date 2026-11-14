@@ -419,13 +419,14 @@ export function LorebookReport({
               <Button
                 variant="quiet"
                 aria-expanded={rest}
-                // The label and its counts stack visually; the name reads them as one line.
-                aria-label={`Other entries: ${otherCounts}`}
                 onClick={() => setRest(!rest)}
                 className="-mx-2 h-auto min-h-9 justify-between whitespace-normal px-2 py-1 text-left font-normal text-note touch:h-auto touch:min-h-11"
               >
+                {/* The label and its counts stack visually; the name reads them as one line. */}
                 <span className={ROW_CONTENT}>
-                  <span className="text-ink">Other entries</span>
+                  <span className="text-ink">
+                    Other entries<span className="name-only">:</span>
+                  </span>{" "}
                   <span className="text-pretty text-meta">{otherCounts}</span>
                 </span>
                 <DisclosureChevron />

@@ -23,7 +23,12 @@ import { createCatalog, type UpstreamFetch } from "./catalog.ts";
 import { createCharactersApi } from "./characters.ts";
 import type { NodeAllowlist } from "./comfyui/allowlist.ts";
 import { type CatalogFor, createWorkflowCatalog } from "./comfyui/catalog.ts";
-import { type ComfySocketFactory, createComfyui } from "./comfyui/client.ts";
+import {
+  type CleanupTiming,
+  type ComfySocketFactory,
+  createComfyui,
+  type RecoveryTiming,
+} from "./comfyui/client.ts";
 import type { ServerWorkflows } from "./comfyui/workflow.ts";
 import type { AppConfig } from "./config.ts";
 import { ART_TIMEOUT_MS, createCreatorApi } from "./creator.ts";
@@ -75,6 +80,8 @@ export interface ApiDeps {
   digest: EntryDigest;
   /** ComfyUI's WebSocket; Bun's native one unless a test passes a fake. */
   comfyuiSocket?: ComfySocketFactory;
+  /** ComfyUI's cleanup and recovery waits; the client's own unless a test shortens them. */
+  comfyuiTiming?: { timing?: Partial<CleanupTiming>; recoveryTiming?: Partial<RecoveryTiming> };
   /** The workflows the server runs, built once at startup (index.ts). */
   workflows: ServerWorkflows;
   /** The server's node policy (index.ts): a user's stored graph outside it is listed, never run. */
@@ -99,6 +106,7 @@ export function createApi(config: AppConfig, deps: ApiDeps) {
     executionTimeoutMs: ART_TIMEOUT_MS,
     log,
     ...(deps.shutdown ? { stopping: deps.shutdown.signal } : {}),
+    ...deps.comfyuiTiming,
   });
   deps.shutdown?.drain(comfyui.settled);
 

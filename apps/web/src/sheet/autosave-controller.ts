@@ -54,9 +54,24 @@ const LONGEST_WAIT_MS = 2_000;
  */
 export function createAutosave<Fields extends { name: string }, Saved extends { revision: number }>(
   initialOptions: AutosaveOptions<Fields, Saved>,
-  report: (status: SaveStatus) => void,
+  onStatus: (status: SaveStatus) => void,
 ) {
   type Key = keyof Fields & string;
+  let reported: SaveStatus | undefined;
+  const report = (status: SaveStatus) => {
+    // touch and the following layout-effect update describe the same save.
+    // Publishing it again on every keystroke schedules nested React updates.
+    if (
+      reported?.kind === status.kind &&
+      (status.kind !== "invalid" ||
+        (reported.kind === "invalid" &&
+          reported.field === status.field &&
+          reported.limit === status.limit))
+    )
+      return;
+    reported = status;
+    onStatus(status);
+  };
   let options = initialOptions;
   let id = options.id;
   /** The revision the server last accepted from this sheet (or the editor loaded). */

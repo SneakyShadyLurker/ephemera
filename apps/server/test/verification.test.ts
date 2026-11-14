@@ -22,13 +22,19 @@ const user = (name: string) => usernameSchema.parse(name);
 
 const card = (name: string): CharacterCard => ({ ...blankCard(name), tags: ["fantasy"] });
 
-/** Every file under a directory with its bytes and modification time. */
-async function files(dir: string): Promise<Record<string, { bytes: Buffer; mtimeMs: number }>> {
-  const found: Record<string, { bytes: Buffer; mtimeMs: number }> = {};
+/**
+ * Every file under a directory with its bytes, as base64 (deep equality on a
+ * string is one comparison, on a Buffer one per byte), and modification time.
+ */
+async function files(dir: string): Promise<Record<string, { bytes: string; mtimeMs: number }>> {
+  const found: Record<string, { bytes: string; mtimeMs: number }> = {};
   for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const path = join(entry.parentPath, entry.name);
-    found[path] = { bytes: await readFile(path), mtimeMs: statSync(path).mtimeMs };
+    found[path] = {
+      bytes: (await readFile(path)).toString("base64"),
+      mtimeMs: statSync(path).mtimeMs,
+    };
   }
   return found;
 }

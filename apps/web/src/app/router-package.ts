@@ -20,7 +20,9 @@ function lazyWithoutReload(importer: Importer, exportName = "default") {
   let failed = false;
   let loading: Promise<void> | undefined;
   const load = (): Promise<void> => {
-    if (component !== undefined) return Promise.resolve();
+    // Preloading runs again on a later visit too. Keep a failed import failed
+    // until reload, even in browsers that retry failed module fetches.
+    if (component !== undefined || failed) return Promise.resolve();
     loading ??= importer()
       .then(
         (module) => {
@@ -35,6 +37,7 @@ function lazyWithoutReload(importer: Importer, exportName = "default") {
       });
     return loading;
   };
+  // biome-ignore lint/correctness/noComponentHookFactories: called once per route at module load, so each Lazy keeps one identity.
   function Lazy(props: object) {
     if (failed) throw new ChunkLoadError();
     if (component === undefined) use(load());

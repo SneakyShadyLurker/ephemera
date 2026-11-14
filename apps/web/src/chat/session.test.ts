@@ -310,14 +310,20 @@ describe("saved entities an action reads", () => {
   });
 
   it("refuses to fill a greeting with a failed chosen preset, then reads it after recovery", async () => {
-    const selection = selectionOf({ samplerPresetId: SAMPLER });
-    vi.stubGlobal("fetch", async () => new Response(null, { status: 503 }));
-    expect(await greetingSubject(selection)).toEqual({ ok: false });
-    vi.stubGlobal("fetch", async () => Response.json({ preset: sampler(600) }));
-    expect(await greetingSubject(selection)).toMatchObject({
-      ok: true,
-      subject: { runtime: { reserve: 600 } },
-    });
+    // Retried without the backoff's pauses here, so the failure is final at once.
+    queryClient.setQueryDefaults(samplerKey, { retryDelay: 0 });
+    try {
+      const selection = selectionOf({ samplerPresetId: SAMPLER });
+      vi.stubGlobal("fetch", async () => new Response(null, { status: 503 }));
+      expect(await greetingSubject(selection)).toEqual({ ok: false });
+      vi.stubGlobal("fetch", async () => Response.json({ preset: sampler(600) }));
+      expect(await greetingSubject(selection)).toMatchObject({
+        ok: true,
+        subject: { runtime: { reserve: 600 } },
+      });
+    } finally {
+      queryClient.setQueryDefaults(samplerKey, {});
+    }
   });
 
   it("are fetched again once invalidated, and a refresh under way is awaited", async () => {
@@ -508,18 +514,23 @@ describe("the chosen character's memory", () => {
   });
 
   it("carries no memory when the character's memory failed to load", async () => {
-    const previews = server(async () => Response.json({ error: "unavailable" }, { status: 500 }));
-    settle({ model: "model-a", characterId: CHARACTER });
-    // The load is retried twice before it fails.
-    await vi.waitFor(
-      () => expect(queryClient.getQueryState(MEMORY_KEY(CHARACTER))?.status).toBe("error"),
-      { timeout: 5_000 },
-    );
-    // The settings change scheduled a preview of its own meanwhile; this one is the last.
-    const before = previews.length;
-    await chatStore.getState().requestPreview();
-    expect(previews).toHaveLength(before + 1);
-    expect(previews.at(-1)).not.toHaveProperty("memoryState");
+    // The load is retried before it fails, here without the backoff's pauses.
+    queryClient.setQueryDefaults(MEMORY_KEY(CHARACTER), { retryDelay: 0 });
+    try {
+      const previews = server(async () => Response.json({ error: "unavailable" }, { status: 500 }));
+      settle({ model: "model-a", characterId: CHARACTER });
+      await vi.waitFor(
+        () => expect(queryClient.getQueryState(MEMORY_KEY(CHARACTER))?.status).toBe("error"),
+        { timeout: 5_000 },
+      );
+      // The settings change scheduled a preview of its own meanwhile; this one is the last.
+      const before = previews.length;
+      await chatStore.getState().requestPreview();
+      expect(previews).toHaveLength(before + 1);
+      expect(previews.at(-1)).not.toHaveProperty("memoryState");
+    } finally {
+      queryClient.setQueryDefaults(MEMORY_KEY(CHARACTER), {});
+    }
   });
 
   it("reads a character deleted in another tab as off: the folded chat unfolds and carries no memory", async () => {

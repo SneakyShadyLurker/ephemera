@@ -40,17 +40,20 @@ import {
 } from "./support/memory.ts";
 import { MEMORY_OPENING, MEMORY_OPENING_SCENE, MEMORY_TITLE } from "./support/memory-fixtures.ts";
 import {
+  expectNoPageFaults,
   expectUrlsClean,
   MATRIX_ROWS,
   matrixRow,
   openProfile,
   type Row,
   recordClass,
+  SCAN_POLL,
   serverHopsHolding,
 } from "./support/retention.ts";
 import { dataDirContaining, filesContaining } from "./support/scan.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { appOrigin, expect, test, unsafe } from "./support/test.ts";
+import { letPass } from "./support/waits.ts";
 
 /*
  * Retention matrix, browser hops (docs/ARCHITECTURE.md § Retention
@@ -649,7 +652,7 @@ matrixRow("clear", async ({ page }) => {
   await expect(turns(page)).toHaveCount(0);
   await expectUpstreamAborted(line);
   // A late chunk of the aborted stream must not bring the reply back.
-  await page.waitForTimeout(500);
+  await letPass(500);
   await expect(turns(page)).toHaveCount(0);
 
   // The variables a message sets are the chat's: Clear takes local and global ones alike.
@@ -789,6 +792,8 @@ async function memoryRow({ context, page }: Row, line: string) {
 }
 
 matrixRow("mem", async (row) => {
+  // Its scans of every server's data need more than the default budget on a loaded machine.
+  test.setTimeout(90_000);
   const line = canary("mem");
   const { id, keeper } = await memoryRow(row, line);
   await rememberNow(row.page);
@@ -801,11 +806,11 @@ matrixRow("mem", async (row) => {
   // Positive control: the memory the call wrote is found, in the server's data only.
   const [episode] = (await storedMemory(row.context.request, id)).episodes;
   expect(episode?.summary).not.toContain(CANARY_MARKER);
-  await expect.poll(() => serverHopsHolding(episode?.summary ?? "")).toEqual(["S-data"]);
+  await expect.poll(() => serverHopsHolding(episode?.summary ?? ""), SCAN_POLL).toEqual(["S-data"]);
   // The next chat's opening is memory data: stored as written, its persona a macro, in the server's data only.
   expect((await storedMemory(row.context.request, id)).state?.opening).toBe(MEMORY_OPENING);
   await expect
-    .poll(() => serverHopsHolding("{{user}} waits by the shuttered window"))
+    .poll(() => serverHopsHolding("{{user}} waits by the shuttered window"), SCAN_POLL)
     .toEqual(["S-data"]);
   // Cleared without remembering, the next chat opens on it, filled for the persona in play:
   // chat content, which reaches the server in a request and persists nowhere.
@@ -900,7 +905,7 @@ matrixRow("memfold", async ({ context, page }) => {
     MEMORY_TITLE,
   );
   // The held memory's id lives where its episode does, in the server's data only.
-  await expect.poll(() => serverHopsHolding(episode?.id ?? "")).toEqual(["S-data"]);
+  await expect.poll(() => serverHopsHolding(episode?.id ?? ""), SCAN_POLL).toEqual(["S-data"]);
 });
 
 test(`retention matrix: ${MATRIX_ROWS.bad.row}`, async ({ request }) => {
@@ -994,7 +999,7 @@ test("the cache affinity id stays in the tab and the request", async ({
     await expectUrlsClean(page, ids);
 
     await context.close();
-    expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+    expectNoPageFaults(profile);
     for (const id of ids) {
       for (const scan of [
         await filesContaining(profile.dir, id),

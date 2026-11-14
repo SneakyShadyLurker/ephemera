@@ -8,6 +8,7 @@ import { choose, expectNoOverflow, patchSettings, readSettings } from "./support
 import { sceneButton, sceneChat, scenePicture } from "./support/scene.ts";
 import { settingsTab } from "./support/settings.ts";
 import { expect, test } from "./support/test.ts";
+import { letPass } from "./support/waits.ts";
 import {
   actionsFor,
   apiFile,
@@ -1350,7 +1351,9 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
             expect.soft(geometry.gap).toBe("8px");
             if (width / scale < 720) {
               expect.soft(geometry.wrapperDisplay).toBe("grid");
-              expect.soft(geometry.align).toBe("flex-start");
+              // Chromium serializes the authored flex-start as flow-start.
+              // The following boxes prove the stacked label/status and top-aligned chevron.
+              expect.soft(geometry.align).toBe("flow-start");
               expect.soft(geometry.status.top).toBeGreaterThanOrEqual(geometry.label.bottom);
               expect.soft(geometry.chevron.top - geometry.label.top).toBeCloseTo(2, 0);
               if (width === 390 && scale === 1) expect.soft(geometry.label.height).toBe(20);
@@ -1930,7 +1933,7 @@ test("a Reload that answers after another file was taken leaves that file open",
   release();
   await answered;
   // Long enough for a late Reload to close the panel, had it not been dropped.
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 200)));
+  await letPass(200);
   await expect(next).toBeVisible();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });

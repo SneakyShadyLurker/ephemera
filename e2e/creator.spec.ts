@@ -35,7 +35,12 @@ import {
   readSettings,
 } from "./support/entities.ts";
 import { APP_SERVERS, canary } from "./support/env.ts";
-import { expectStorageEmpty, expectUrlsClean, openProfile } from "./support/retention.ts";
+import {
+  expectNoPageFaults,
+  expectStorageEmpty,
+  expectUrlsClean,
+  openProfile,
+} from "./support/retention.ts";
 import { dataDirContaining, filesContaining, holds } from "./support/scan.ts";
 import { appOrigin, expect, test } from "./support/test.ts";
 
@@ -773,7 +778,7 @@ test("Subject: written, four portraits, another picked, and Keep saves exactly o
     expect(portrait.status()).toBe(200);
     await scope.expectClean();
     await context.close();
-    expect(profile.policyViolations, "Content Security Policy violations").toEqual([]);
+    expectNoPageFaults(profile);
 
     /** Where each mark was found: the server's data, temp and home directories, its log, the profile. */
     const log = await readFile(server.log);

@@ -1,8 +1,11 @@
+import type { ChildProcess } from "node:child_process";
+import type { WriteStream } from "node:fs";
 import { type BrowserContext, test as base, expect } from "@playwright/test";
 import { type ComfyScope, comfyScope } from "./creator.ts";
 import { patchSettings, readSettings } from "./entities.ts";
-import { boundHeaders, freshUser } from "./env.ts";
+import { type AppServer, boundHeaders, freshUser } from "./env.ts";
 import type { ScopeOptions } from "./mock-comfyui.ts";
+import { startServer, stopServer } from "./own-server.ts";
 import { answeredBySignIn } from "./signin.ts";
 
 export { expect };
@@ -45,6 +48,13 @@ export async function watchPolicyViolations(context: BrowserContext): Promise<st
   return violations;
 }
 
+/** Collects every error a page of the context threw and nothing caught. */
+export function watchPageErrors(context: BrowserContext): string[] {
+  const errors: string[] = [];
+  context.on("weberror", (webError) => errors.push(webError.error().message));
+  return errors;
+}
+
 /**
  * Every test signs in as a user of its own, so its instance, settings
  * included, starts from the seeded baseline and no other test meets it
@@ -52,15 +62,22 @@ export async function watchPolicyViolations(context: BrowserContext): Promise<st
  * opens carry that user's headers unless it names others. Their settings are
  * read before the test begins, so they hold the seeded presets: settings
  * first read after a test made a preset would choose that one. Every spec fails
- * when the page broke the Content Security Policy (PRINCIPLES.md 2). `comfy`
+ * when the page broke the Content Security Policy (PRINCIPLES.md 2) or threw
+ * an error nothing caught; a test that provokes one empties `pageErrors`
+ * once it has asserted it. `comfy`
  * makes a scope of the mock ComfyUI, saves its address for the test's user
- * and removes every scope it made when the test ends.
+ * and removes every scope it made when the test ends. `ownServer` starts an
+ * app server of the test's own (e2e/support/own-server.ts); one still running
+ * when the test ends, by a timeout included, is killed, so its port is free
+ * for the next try.
  */
 export const test = base.extend<{
   user: string;
   seeded: undefined;
   policyViolations: string[];
+  pageErrors: string[];
   comfy: (options?: ScopeOptions) => Promise<ComfyScope>;
+  ownServer: (server: AppServer, log: WriteStream) => Promise<ChildProcess>;
 }>({
   // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from its destructuring.
   user: async ({}, use) => {
@@ -84,6 +101,14 @@ export const test = base.extend<{
     },
     { auto: true },
   ],
+  pageErrors: [
+    async ({ context }, use) => {
+      const errors = watchPageErrors(context);
+      await use(errors);
+      expect(errors, "uncaught errors in the page").toEqual([]);
+    },
+    { auto: true },
+  ],
   comfy: async ({ request }, use) => {
     const scopes: ComfyScope[] = [];
     await use(async (options = {}) => {
@@ -93,5 +118,15 @@ export const test = base.extend<{
       return scope;
     });
     await Promise.all(scopes.map((scope) => scope.remove()));
+  },
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from its destructuring.
+  ownServer: async ({}, use) => {
+    const started: ChildProcess[] = [];
+    await use(async (server, log) => {
+      const child = await startServer(server, log);
+      started.push(child);
+      return child;
+    });
+    await Promise.all(started.map((child) => stopServer(child, "SIGKILL")));
   },
 });

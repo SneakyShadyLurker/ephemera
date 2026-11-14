@@ -40,6 +40,7 @@ import { createReworkCharacter, dock, openRework, submitRework } from "./support
 import { ownerRequest } from "./support/rework-fixtures.ts";
 import { expire, notice, signInThroughPortal } from "./support/signin.ts";
 import { expect, test, unsafe } from "./support/test.ts";
+import { codeArrived, letPass } from "./support/waits.ts";
 
 /** Public turn identities and visibility, including the greeting while fixtures arrive. */
 const deletionMessages = (page: Page) =>
@@ -1548,7 +1549,7 @@ test("reduced-motion check and radio indicators keep their size while tints swit
   const instruction = "The lighthouse bell rings";
   await createEventViaApi(request, instruction);
   await page.goto("/lorebooks");
-  await page.getByRole("button", { name: "Events", exact: true }).click();
+  await page.getByRole("button", { name: /^Events: / }).click();
   const events = page.getByRole("list", { name: "Events" });
   await events.getByRole("button", { name: instruction, exact: true }).click();
   await events.locator("summary").filter({ hasText: "Advanced" }).click();
@@ -1650,7 +1651,7 @@ for (const aged of [false, true]) {
     if (aged) {
       release();
       await expect(castEntry(page, SHEET_WOMAN)).toHaveAttribute("data-present", "true");
-      await page.waitForTimeout(350);
+      await letPass(350);
       hair = await openHair();
     } else {
       await page
@@ -2324,7 +2325,7 @@ for (const source of ["library", "character"] as const) {
     const path = source === "library" ? `/lorebooks/${id}` : `/characters/${id}/lorebook`;
     const endpoint = source === "library" ? `/api/lorebooks/${id}` : `/api/characters/${id}`;
     await page.goto(path);
-    const entry = page.getByRole("button", { name: "Edit Lantern", exact: true });
+    const entry = page.getByRole("button", { name: /^Edit Lantern,/ });
     await expect(entry).toBeVisible();
     let detailRequests = 0;
     page.on("request", (sent) => {
@@ -2563,7 +2564,7 @@ test("Undo holds its deadline for focus and hover, then expires inert at full he
   const text = "A bell rings across the water";
   await createEventViaApi(request, text);
   await page.goto("/lorebooks");
-  const section = page.getByRole("button", { name: "Events", exact: true });
+  const section = page.getByRole("button", { name: /^Events: / });
   await section.click();
   const events = page.getByRole("list", { name: "Events" });
   await events.getByRole("button", { name: text }).click();
@@ -2606,7 +2607,7 @@ test("Undo fades inert at full height under reduced motion without a CSS complet
   const text = "A light at the harbour";
   await createEventViaApi(request, text);
   await page.goto("/lorebooks");
-  await page.getByRole("button", { name: "Events", exact: true }).click();
+  await page.getByRole("button", { name: /^Events: / }).click();
   const events = page.getByRole("list", { name: "Events" });
   await events.getByRole("button", { name: text }).click();
   await events.getByRole("button", { name: "Delete event", exact: true }).click();
@@ -2678,7 +2679,7 @@ test("Undo stays available through a restoring request and a failed restoration"
   const text = "The harbour gates open";
   await createEventViaApi(request, text);
   await page.goto("/lorebooks");
-  const section = page.getByRole("button", { name: "Events", exact: true });
+  const section = page.getByRole("button", { name: /^Events: / });
   await section.click();
   const events = page.getByRole("list", { name: "Events" });
   await events.getByRole("button", { name: text }).click();
@@ -2917,7 +2918,7 @@ for (const viewport of [
         }),
     );
     await nav.getByRole("link", { name: "Characters", exact: true }).click();
-    await page.waitForTimeout(1000);
+    await letPass(1000);
     await expect(previous).toHaveText(/^Presets/);
     const first = await arrival;
     expect(first).toMatchObject({ heading: true, card: true });
@@ -2963,7 +2964,7 @@ test("a removed greeting retains its row while leaving, and the last leaves no l
 test("the palette editor leaves inert and folded, with its last contents", async ({ page }) => {
   await page.goto("/settings?section=appearance");
   // The editor's sample scene needs the preloaded Markdown renderer (app/preload.ts).
-  await page.waitForLoadState("networkidle");
+  await codeArrived(page);
   await page.getByRole("button", { name: /^Your palettes/ }).click();
   await page.getByRole("button", { name: "New palette" }).click();
   await page.getByRole("menuitem", { name: "Nord" }).click();

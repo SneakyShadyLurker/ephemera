@@ -774,6 +774,8 @@ describe("command line", () => {
       env: { PATH: `${bin}:${process.env.PATH ?? ""}`, ...env },
       stdout: "pipe",
       stderr: "pipe",
+      // A hung check is killed and fails its test instead of blocking the run.
+      timeout: 10_000,
     });
     return {
       exitCode: result.exitCode,

@@ -11,7 +11,7 @@ import {
 } from "@ephemera/core";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { migrate } from "drizzle-orm/bun-sqlite/migrator";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import {
   createMemoryPortraitFiles,
   createStores,
@@ -37,6 +37,7 @@ const fields = (name: string, nodes = 1): WorkflowFields => ({
 
 function fresh(): { stores: Stores; client: Database } {
   const database = openUserDatabase(undefined);
+  onTestFinished(database.close);
   return {
     stores: createStores(database.db, createMemoryPortraitFiles(), { defaultWorkflow: DEFAULT }),
     client: database.client,
@@ -231,6 +232,7 @@ describe("workflows migration", () => {
       )
       .run();
     const upgraded = openUserDatabase(old.serialize());
+    onTestFinished(upgraded.close);
     old.close();
     expect(upgraded.client.query("PRAGMA foreign_key_check").all()).toEqual([]);
     const stores = createStores(upgraded.db, createMemoryPortraitFiles(), {

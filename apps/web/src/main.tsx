@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { preloadChunks } from "./app/preload.ts";
 import { queryClient } from "./app/query.ts";
 import { ScreenError } from "./app/Screen.tsx";
+import { settleSkippedViewTransitions } from "./app/view-transition.ts";
 import { installPageLifecycle } from "./chat/session.ts";
 import { routeTree } from "./routeTree.gen.ts";
 import "./styles.css";
@@ -14,6 +15,8 @@ import "./styles.css";
 // Scroll restoration stays off: it would persist positions in browser storage.
 // Navigations run as same-document view transitions typed "route" (styles.css), except
 // while the page is hidden: Chrome skips a transition there and its promises reject.
+// A transition a newer one skips is settled where every transition starts.
+settleSkippedViewTransitions();
 const router = createRouter({
   routeTree,
   context: { queryClient },
