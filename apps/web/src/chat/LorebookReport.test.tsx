@@ -21,6 +21,10 @@ const listed = (status: LorebookStatus, amount: number): Report["entries"] =>
     tokens: 1,
   }));
 
+/** The Other entries button's words, which name it: its label, then its counts. */
+const othersButton = (counts: string) =>
+  `<span class="text-ink">Other entries<span class="name-only">:</span></span> <span class="text-pretty text-meta">${counts}</span>`;
+
 describe("the inspector's lorebook report", () => {
   it("says how many entries past the listed 200 are counted but not named", () => {
     const report: Report = {
@@ -198,7 +202,7 @@ describe("the report's words for each reason and status", () => {
     // The closed list of other entries says it after the title.
     expect(chanceMissedText(5)).toBe("chance did not pass (5%)");
     expect(markup([sent(0, "Squall", { status: "chanceMissed" })])).toContain(
-      `aria-label="Other entries: 1 left out by chance"`,
+      othersButton("1 left out by chance"),
     );
   });
 
@@ -244,7 +248,7 @@ describe("the report's words for each reason and status", () => {
         lost(1, "Fog", { name: "Weather", holder: 0 }),
         lost(2, "Night", { name: "Sky" }),
       ]),
-    ).toContain(`aria-label="Other entries: 2 left out by an event pool"`);
+    ).toContain(othersButton("2 left out by an event pool"));
     expect(poolLostText("Weather", "Rain")).toBe("pool Weather went to Rain");
     expect(poolLostText("Sky", null)).toBe("pool Sky was already taken");
   });
@@ -284,7 +288,9 @@ describe("the report's words for each reason and status", () => {
       other(6, "Heron", "chainOnly"),
     ]);
     expect(out).toContain(
-      `aria-label="Other entries: 2 resting after going in, 1 waiting for a longer chat, 1 waiting for another entry, 1 ruled out by its other words, 1 not matched, 1 not sent without the Author's Note"`,
+      othersButton(
+        "2 resting after going in, 1 waiting for a longer chat, 1 waiting for another entry, 1 ruled out by its other words, 1 not matched, 1 not sent without the Author's Note",
+      ),
     );
   });
 });

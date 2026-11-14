@@ -822,6 +822,18 @@
   }
 }
 
+/*
+ * Words a control's name needs that the eye takes from context ("Edit", the
+ * colon between a label and its value): inline and zero-size, so they take
+ * no room and the name reads them with no added space, where an out-of-flow
+ * `sr-only` span gets a space on either side. Place it inside the text it
+ * belongs to, never as a flex or grid item of its own.
+ */
+@utility name-only {
+  font-size: 0;
+  line-height: 0;
+}
+
 @utility voice-line {
   font-family: var(--font-sans);
   color: var(--ink);

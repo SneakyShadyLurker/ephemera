@@ -94,14 +94,17 @@ export function CloseRow({ onClose, children }: { onClose: () => void; children:
   );
 }
 
-/** A closed row: the whole row opens it, its chevron on every width. */
+/**
+ * A closed row: the whole row opens it, its chevron on every width. Its
+ * children name it: every visible word, in order, with words apart (a space
+ * between adjacent elements) and anything the eye takes from context in
+ * visually hidden text, so speech input finds it by what it shows.
+ */
 export function OpenRow({
-  label,
   onOpen,
   className,
   children,
 }: {
-  label: string;
   onOpen: () => void;
   className?: string;
   children: ReactNode;
@@ -110,7 +113,6 @@ export function OpenRow({
     <button
       type="button"
       aria-expanded={false}
-      aria-label={label}
       onClick={onOpen}
       className={cn(
         "flex min-h-11 w-full min-w-0 items-center gap-3 rounded-sm text-left row touch:min-h-12",

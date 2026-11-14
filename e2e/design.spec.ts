@@ -3810,7 +3810,7 @@ for (const { name, width, height, scheme } of [
     // The editor with every row open.
     await list.getByRole("button", { name: "Edit The Grey Lantern" }).click();
     for (const row of ["Placement and order", "Timing", "Chaining", "Matching"]) {
-      const button = page.getByRole("button", { name: row, exact: true });
+      const button = page.getByRole("button", { name: new RegExp(`^${row}: `) });
       await button.click();
       await expect(button).toHaveAttribute("aria-expanded", "true");
     }
@@ -3824,9 +3824,10 @@ for (const { name, width, height, scheme } of [
     await shot("editor");
 
     // An in-chat entry reveals depth and role.
-    if (name !== "desktop light") await page.getByRole("button", { name: "Entries" }).click();
+    if (name !== "desktop light")
+      await page.getByRole("button", { name: "Entries", exact: true }).click();
     await list.getByRole("button", { name: "Edit Gull omen" }).click();
-    await page.getByRole("button", { name: "Placement and order", exact: true }).click();
+    await page.getByRole("button", { name: /^Placement and order: / }).click();
     await expect(page.getByRole("combobox", { name: "Role" })).toBeVisible();
     await expectNoOverflow(page);
     expect(await seriousAxeViolations(page)).toEqual([]);
@@ -3935,7 +3936,7 @@ test("reduced motion keeps the lorebook's rows to fades", async ({ page }) => {
   const id = await createCharacterViaApi(page.request, `Still ${crypto.randomUUID().slice(0, 6)}`);
   await setLorebookViaApi(page.request, id, WORLD_INFO_BOOK);
   await page.goto(`/characters/${id}/lorebook?entry=0`);
-  const button = page.getByRole("button", { name: "Placement and order", exact: true });
+  const button = page.getByRole("button", { name: /^Placement and order: / });
   await button.click();
   const motion = await button.evaluate((node) => {
     const panel = document.getElementById(node.getAttribute("aria-controls") ?? "");

@@ -39,7 +39,7 @@ const { lead: LEAD, close: CLOSE } = EVENT_DIRECTION;
 
 /** The Events row on the Lorebooks screen arrives closed: open it. */
 async function openEvents(page: Page) {
-  const row = page.getByRole("button", { name: "Events", exact: true });
+  const row = page.getByRole("button", { name: /^Events: / });
   await expect(row).toHaveAttribute("aria-expanded", "false");
   await row.click();
 }
@@ -842,7 +842,7 @@ test("an event made on the Lorebooks screen survives a reload and shows in the i
   await expect(sheet.getByRole("list", { name: "Events" })).toContainText(text);
   await sheet.getByRole("link", { name: "Events in Lorebooks", exact: true }).click();
   await expect(page).toHaveURL(/\/lorebooks$/);
-  await expect(page.getByRole("button", { name: "Events", exact: true })).toHaveAttribute(
+  await expect(page.getByRole("button", { name: /^Events: / })).toHaveAttribute(
     "aria-expanded",
     "true",
   );
@@ -1041,10 +1041,10 @@ test("a blank new event never holds leaving; a cleared instruction stays not sav
   await events.getByRole("button", { name: text }).click();
   await events.getByRole("textbox", { name: "Instruction" }).fill("");
   await expect(events.getByText("Write the instruction to save this event.")).toBeVisible();
-  const section = page.getByRole("button", { name: "Events", exact: true });
+  const section = page.getByRole("button", { name: /^Events: / });
   await section.click();
   await expect(section).toHaveAttribute("aria-expanded", "false");
-  await expect(section).toHaveAccessibleDescription("1 event, all on. 1 not saved");
+  await expect(section).toHaveAccessibleName("Events: 1 event, all on. 1 not saved");
   await expect(page.getByRole("alert").filter({ hasText: "Open Events" })).toHaveText(
     "1 event is not saved. Open Events to retry.",
   );
@@ -1201,7 +1201,7 @@ test("an event deleted in another tab while its last edit was on its way goes on
     held = await holdAnswer(page, id, "PATCH");
     await page.goto("/lorebooks");
     await openEvents(page);
-    const section = page.getByRole("button", { name: "Events", exact: true });
+    const section = page.getByRole("button", { name: /^Events: / });
     const events = page.getByRole("list", { name: "Events" });
     const rows = events.locator("li[data-event]");
     await events.getByRole("button", { name: text }).click();
@@ -1215,12 +1215,12 @@ test("an event deleted in another tab while its last edit was on its way goes on
     expect(response.ok()).toBe(true);
     await lookAgain(page);
     await expect(rows.locator("[data-orphaned]")).toHaveCount(1);
-    await expect(section).toHaveAccessibleDescription("None yet. 1 not saved");
+    await expect(section).toHaveAccessibleName("Events: None yet. 1 not saved");
 
     // The answer says saved: nothing is left unsaved here, so the row and its notice go.
     held.release();
     await expect(rows).toHaveCount(0);
-    await expect(section).toHaveAccessibleDescription("None yet");
+    await expect(section).toHaveAccessibleName("Events: None yet");
     expect(sent("PATCH")).toBe(1);
     await mainLink(page, "Characters").click();
     await expect(page).toHaveURL(/\/characters/);
@@ -1242,7 +1242,7 @@ test("an event deleted here whose list reloads before the deletion's answer stil
     held = await holdAnswer(page, id, "DELETE");
     await page.goto("/lorebooks");
     await openEvents(page);
-    const section = page.getByRole("button", { name: "Events", exact: true });
+    const section = page.getByRole("button", { name: /^Events: / });
     const events = page.getByRole("list", { name: "Events" });
     const rows = events.locator("li[data-event]");
     await events.getByRole("button", { name: text }).click();
@@ -1252,7 +1252,7 @@ test("an event deleted here whose list reloads before the deletion's answer stil
 
     // The list reloads without it while the answer is on its way: the row waits for its deletion.
     await lookAgain(page);
-    await expect(section).toHaveAccessibleDescription("None yet");
+    await expect(section).toHaveAccessibleName("Events: None yet");
     await expect(rows).toHaveCount(1);
     await expect(page.locator("[data-orphaned]")).toHaveCount(0);
     await expect(page.locator("[data-removed]")).toHaveCount(0);
@@ -1288,7 +1288,7 @@ test("a deletion here whose answer is lost after its event went keeps the edits,
     held = await holdAnswer(page, id, "DELETE", { lost: true });
     await page.goto("/lorebooks");
     await openEvents(page);
-    const section = page.getByRole("button", { name: "Events", exact: true });
+    const section = page.getByRole("button", { name: /^Events: / });
     const events = page.getByRole("list", { name: "Events" });
     const rows = events.locator("li[data-event]");
     await events.getByRole("button", { name: text }).click();
@@ -1302,7 +1302,7 @@ test("a deletion here whose answer is lost after its event went keeps the edits,
     await events.getByRole("button", { name: "Delete event" }).click();
     await held.committed;
     await lookAgain(page);
-    await expect(section).toHaveAccessibleDescription("None yet. 1 not saved");
+    await expect(section).toHaveAccessibleName("Events: None yet. 1 not saved");
     await expect(rows).toHaveCount(1);
     await expect(rows.locator("[data-orphaned]")).toHaveCount(0);
 

@@ -115,10 +115,12 @@ function UnavailablePortrait({
     >
       <span
         aria-hidden="true"
-        className={cn("font-semibold font-story text-ink", compact ? "text-note" : "text-title")}
-      >
-        {initial(name ?? "Portrait")}
-      </span>
+        data-initial={initial(name ?? "Portrait")}
+        className={cn(
+          "font-semibold font-story text-ink before:content-[attr(data-initial)]",
+          compact ? "text-note" : "text-title",
+        )}
+      />
       {caption && (
         <span aria-hidden="true" className="text-meta text-reed">
           Portrait unavailable
@@ -180,10 +182,9 @@ export function Portrait({
       {version === null && name ? (
         <span
           aria-hidden="true"
-          className="absolute inset-0 grid place-items-center font-semibold font-story text-ink text-title"
-        >
-          {initial(name)}
-        </span>
+          data-initial={initial(name)}
+          className="absolute inset-0 grid place-items-center font-semibold font-story text-ink text-title before:content-[attr(data-initial)]"
+        />
       ) : (
         <MarkIcon
           size={32}
@@ -264,7 +265,12 @@ export function Leaf({
   );
 }
 
-/** The first letter of a name as one grapheme, so an emoji or accented letter stays whole. */
+/**
+ * The first letter of a name as one grapheme, so an emoji or accented letter
+ * stays whole. Drawn as generated content (`data-initial`), never as text: a
+ * leaf inside a link or button is decoration beside the name, and its letter
+ * would otherwise join the control's visible words that speech input matches.
+ */
 const initial = (name: string): string => {
   const [first] = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(name.trim());
   return first?.segment.toLocaleUpperCase() ?? "";
@@ -298,7 +304,10 @@ export function PortraitLeaf({
       )}
     >
       {/* Container units measure the nearest container above the element using them: the leaf. */}
-      <span className="text-[70cqi]">{initial(name)}</span>
+      <span
+        data-initial={initial(name)}
+        className="text-[70cqi] before:content-[attr(data-initial)]"
+      />
     </span>
   ) : (
     <Leaf owner={owner} id={id} name={name} version={version} className={className} />

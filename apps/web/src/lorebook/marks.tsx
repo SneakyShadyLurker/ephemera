@@ -1,4 +1,5 @@
 import { ENTRY_ACTIVATIONS, type EntryActivation, type LorebookCounts } from "@ephemera/core";
+import { Fragment } from "react";
 import {
   AlwaysMarkIcon,
   ChanceMarkIcon,
@@ -59,11 +60,15 @@ export function ActivationCounts({
     <span className={cn("flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5", className)}>
       <span>{entriesText(counts)}</span>
       {ENTRY_ACTIVATIONS.filter((kind) => counts[kind] > 0).map((kind) => (
-        <span key={kind} className="inline-flex items-center gap-1 whitespace-nowrap">
-          <ActivationMark activation={kind} className="text-ink" />
-          <span className="tabular-nums">{formatCount(counts[kind])}</span>{" "}
-          {ACTIVATION_COUNT_TEXT[kind]}
-        </span>
+        // The space keeps the counts apart as words where the flex gap parts them to the eye.
+        <Fragment key={kind}>
+          {" "}
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <ActivationMark activation={kind} className="text-ink" />
+            <span className="tabular-nums">{formatCount(counts[kind])}</span>{" "}
+            {ACTIVATION_COUNT_TEXT[kind]}
+          </span>
+        </Fragment>
       ))}
     </span>
   );

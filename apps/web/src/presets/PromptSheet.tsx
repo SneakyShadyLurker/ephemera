@@ -835,11 +835,7 @@ function BlockRow(props: RowProps) {
         <Unfold show={!open}>
           <div className="flex items-center gap-3 pl-1">
             {toggle}
-            <OpenRow
-              label={`${name}: ${enabled ? meta : `off. ${meta}`}`}
-              onOpen={() => onOpen(true)}
-              className="pr-1"
-            >
+            <OpenRow onOpen={() => onOpen(true)} className="pr-1">
               <span className="grid min-w-0 flex-1 items-center gap-x-3 tablet:grid-cols-[13rem_minmax(0,1fr)]">
                 <span
                   className={cn(
@@ -848,7 +844,8 @@ function BlockRow(props: RowProps) {
                   )}
                 >
                   {name}
-                </span>
+                  <span className="name-only">:</span>
+                </span>{" "}
                 <span
                   className={cn(
                     "truncate text-note transition-colors duration-(--duration-tint-quick) ease-fade",
