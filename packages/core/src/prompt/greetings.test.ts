@@ -39,7 +39,7 @@ describe("cardGreetingChoices", () => {
   });
 
   it(
-    "stops a card that rereads its fields over a full variable state within a second",
+    "stops a card that rereads its fields over a full variable state within its CPU budget",
     () => {
       const sets = Array.from(
         { length: MACRO_STATE_LIMITS.variables - 1 },
@@ -64,7 +64,8 @@ describe("cardGreetingChoices", () => {
           random: () => 0,
         }),
       );
-      expect(ms).toBeLessThan(1_000);
+      // About half a second on a quiet machine.
+      expect(ms).toBeLessThan(2_000);
     },
     CPU_BOUND_TEST_TIMEOUT_MS,
   );

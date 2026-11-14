@@ -1,7 +1,10 @@
 /*
  * CPU time for work bounds in core tests. Core stays free of Node types, but
  * its tests run in a Node-compatible process; CPU time, unlike wall time,
- * ignores how long a busy machine takes to schedule the test.
+ * ignores how long a busy machine takes to schedule the test. It still grows
+ * there: a loaded machine runs the work on slower cores, and the same work
+ * was measured at twice its quiet cost. A budget therefore leaves about four
+ * times the quiet cost, which still fails the blow-up it guards against.
  */
 
 interface CpuUsage {
