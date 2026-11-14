@@ -903,6 +903,8 @@ for (const size of [
     await openSheet(page, id);
     const toolbar = page.getByRole("toolbar", { name: "Sheet actions", exact: true });
     const chat = page.locator("header").getByRole("button", { name: "Chat", exact: true });
+    // The header's labels are narrower in the fallback face: measure once the fonts are in.
+    await page.evaluate(() => document.fonts.ready);
     const chatBefore = await chat.boundingBox();
     if (size.drawer) {
       await expect(toolbar).toBeVisible();
