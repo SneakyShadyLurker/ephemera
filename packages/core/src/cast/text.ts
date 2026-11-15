@@ -14,7 +14,8 @@ import {
  * The register as the narrator and the scene picture read it: the fixed
  * anchors as a source block, the volatile state as a depth-1 line, the
  * present people's looks as scene notes. Chat content: built for one
- * request, never stored.
+ * request, never stored. One rendering rule for all three: a field under
+ * its key, "; " between fields.
  */
 
 /** An age as the line prints it: a bare number as "N years old", any other wording as written. */
@@ -163,15 +164,17 @@ const PEOPLE_STATE: readonly CastStateField[] = [
   "injuries",
 ];
 
-/** What a scene picture shows of a present entry: its looks, outfit as worn and how it stands, comma-joined. */
+/**
+ * What a scene picture shows of a present entry, as a narrator line prints
+ * it: the name, then its looks, outfit as worn and how it stands, each under
+ * its key.
+ */
 const peopleLine = (anchor: CastAnchor, state: CastState): string =>
-  [
+  line([
     anchor.name,
-    ...PEOPLE_ANCHOR.map((field) => anchorText(anchor, field)),
-    ...PEOPLE_STATE.map((field) => state[field]),
-  ]
-    .filter((part) => part !== "")
-    .join(", ");
+    ...anchorParts(anchor, PEOPLE_ANCHOR),
+    ...PEOPLE_STATE.map((field) => labelled(field, state[field])),
+  ]);
 
 /** The `<people>` notes of a scene picture: a line per present entry; "" when no one is present. */
 export const castPeopleNotes = (register: CastRegister): string =>

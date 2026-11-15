@@ -15,17 +15,25 @@ import type { SpeakerNames } from "../../packages/core/src/chat.ts";
 /*
  * Synthetic cast keeper fixtures: invented adults, no real people or
  * places. Each fixture is one keeper update over a register and a few
- * turns, with checks over what the keeper's answer did to the register.
+ * turns, or two in a row, with checks over what the keeper's answers did
+ * to the register.
  */
 
-/** What one valid answer did: the register before and after it, its validated changes, values it sent past a bound. */
+/**
+ * What a fixture's valid answers did: the register before them, after the
+ * first batch and after the last (the same for a fixture of one batch), the
+ * last answer's validated changes, and the values sent past a bound.
+ */
 export interface KeeperResult {
   before: CastRegister;
+  first: CastRegister;
   after: CastRegister;
   changes: CastChanges;
   overBound: number;
 }
-type Check = (result: KeeperResult) => boolean;
+/** Whether the answers pass; null when they leave the check nothing to judge, which counts as unscored. */
+type Check = (result: KeeperResult) => boolean | null;
+type Turns = { role: "user" | "assistant"; content: string }[];
 
 export interface KeeperFixture {
   /** The card's kind, or null. */
@@ -35,7 +43,11 @@ export interface KeeperFixture {
   lorebook?: NonNullable<CharacterCard["lorebook"]>;
   names: SpeakerNames;
   register: CastRegister;
-  turns: { role: "user" | "assistant"; content: string }[];
+  /** Names of register entries the owner removed: the keeper is not shown them, as in the product. */
+  removed?: readonly string[];
+  turns: Turns;
+  /** A second batch, read over the register the first answer left. */
+  second?: Turns;
   checks: Record<string, Check>;
 }
 
@@ -64,6 +76,8 @@ function entry(
 const register = (...entries: CastEntry[]): CastRegister => ({ entries });
 
 const find = (result: KeeperResult, name: string) => resolveCastEntry(result.after, name);
+/** The entry as the first batch's answer left it. */
+const findFirst = (result: KeeperResult, name: string) => resolveCastEntry(result.first, name);
 const has = (text: string | undefined, ...words: string[]) =>
   text !== undefined && words.every((word) => text.toLowerCase().includes(word));
 const lacks = (text: string | undefined, ...words: string[]) =>
@@ -149,6 +163,8 @@ const CROWD = [
 ] as const;
 /** The away minor of `CROWD` present longest ago: the one a newcomer retires. */
 const OLDEST = "Zeno Voss";
+/** An away minor of `CROWD` the owner removed in one fixture: not the one away longest. */
+const REMOVED = "Anke Dekker";
 const crowded = (): CastEntry[] => [
   entry("Edda Lindholm", "female", { position: "behind the bar" }, { age: "52" }, { seen: 40 }),
   // Away longer than anyone, and a principal: never the one retired.
@@ -666,6 +682,11 @@ export const KEEPER_FIXTURES = {
         const anchor = find(result, "Jorun Berg")?.anchor;
         return anchor !== undefined && CAST_ANCHOR_FIELDS.every((key) => anchor[key] !== "");
       },
+      // The other principal's open fields are asked for in the same message: both get done.
+      "scenario-promotion.pending-complete": (result) => {
+        const anchor = find(result, "Halvard Rye")?.anchor;
+        return anchor !== undefined && CAST_ANCHOR_FIELDS.every((key) => anchor[key] !== "");
+      },
       "scenario-promotion.within-bound": withinBound,
     },
   },
@@ -751,6 +772,159 @@ export const KEEPER_FIXTURES = {
         Object.values(result.changes.cast).every((change) =>
           Object.values(change.anchor ?? {}).every((value) => value === undefined || value === ""),
         ),
+      // A walk-on who comes back in is still a walk-on.
+      "away-named.roles-kept": (result) =>
+        result.before.entries.every(
+          (before) => find(result, before.anchor.name)?.role === before.role,
+        ),
+    },
+  },
+  "scenario-complete": {
+    kind: "Scenario",
+    canon:
+      "A mountain rescue hut above the tree line in winter, kept by a small crew of adults for stranded hikers.",
+    names,
+    register: register(
+      // A principal recorded with her looks alone: what the message asks the keeper to complete.
+      entry(
+        "Maren Solheim",
+        "female",
+        {
+          position: "at the map table",
+          outfit: "red fleece jacket over grey thermal leggings, thick wool socks",
+        },
+        looks({ age: "38", hair: "short chestnut hair, wind-tousled" }),
+      ),
+      entry(
+        "Aksel Dahl",
+        "male",
+        { position: "by the stove" },
+        looks({ age: "52", hair: "grey crew cut" }),
+        { role: "minor" },
+      ),
+    ),
+    turns: [
+      {
+        role: "user",
+        content: "I shake the snow off my jacket and ask Maren how bad the pass looks.",
+      },
+      {
+        role: "assistant",
+        content:
+          'Maren taps the map without looking up. "Closed until the wind drops. You are staying the night." Aksel grunts agreement from the stove and goes back to feeding it birch logs.',
+      },
+    ],
+    checks: {
+      "scenario-complete.anchor-complete": (result) => {
+        const anchor = find(result, "Maren Solheim")?.anchor;
+        return anchor !== undefined && CAST_ANCHOR_FIELDS.every((key) => anchor[key] !== "");
+      },
+      // The request is for the principal alone: the walk-on beside her stays as he was.
+      "scenario-complete.minor-rest-empty": (result) => {
+        const anchor = find(result, "Aksel Dahl")?.anchor;
+        return anchor !== undefined && BEYOND_LOOKS.every((key) => anchor[key] === "");
+      },
+      "scenario-complete.within-bound": withinBound,
+    },
+  },
+  "hidden-under-shown": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry("Liv Sandoval", "female", { position: "at the head of the long table" }, { age: "41" }),
+    ),
+    turns: [
+      { role: "user", content: "I raise my glass to Liv across the table." },
+      {
+        role: "assistant",
+        content:
+          "Liv lifts her glass in answer and laughs, bright and easy, the picture of a delighted host. Behind the smile she is furious: her brother has seated her rival at her right hand, and she lets none of it reach her face.",
+      },
+    ],
+    second: [
+      { role: "user", content: "The speeches run long, and I watch Liv while they do." },
+      {
+        role: "assistant",
+        content:
+          "Her brightness has worn off. Liv sits back with a tired, distant look, turning her glass by its stem and stifling a yawn through the third speech. The fury over the seating has not cooled at all, and still nothing of it shows.",
+      },
+    ],
+    checks: {
+      "hidden-under-shown.recorded": (result) =>
+        (findFirst(result, "Liv Sandoval")?.hidden?.mood ?? "") !== "",
+      // The shown mood follows the second batch, and still says nothing of the concealed one.
+      "hidden-under-shown.shown-follows": (result) => {
+        const mood = find(result, "Liv Sandoval")?.state.mood ?? "";
+        return (
+          mood !== "" &&
+          mood !== findFirst(result, "Liv Sandoval")?.state.mood &&
+          ["furious", "fury", "anger", "angry", "rage"].every((word) => lacks(mood, word))
+        );
+      },
+      // Judged only where the first batch recorded the feeling: there is nothing to keep otherwise.
+      "hidden-under-shown.survives": (result) =>
+        (findFirst(result, "Liv Sandoval")?.hidden?.mood ?? "") === ""
+          ? null
+          : (find(result, "Liv Sandoval")?.hidden?.mood ?? "") !== "",
+    },
+  },
+  "hidden-mood-revealed": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry(
+        "Ottilie Kraus",
+        "female",
+        { position: "at the card table", mood: "smiling politely" },
+        {},
+        { hidden: { mood: "seething at being cheated, behind a polite smile" } },
+      ),
+    ),
+    turns: [
+      { role: "user", content: "I lay down the winning hand and reach for the pot." },
+      {
+        role: "assistant",
+        content:
+          'Ottilie\'s smile breaks. She slams her cards on the table and stands so fast that her chair tips over. "You cheated, and everyone here saw it!" she shouts, white with rage, every trace of politeness gone.',
+      },
+    ],
+    checks: {
+      "hidden-mood-revealed.in-state": (result) => {
+        const mood = find(result, "Ottilie Kraus")?.state.mood ?? "";
+        return mood !== "" && lacks(mood, "smiling politely");
+      },
+      // Out in the open, the feeling is concealed no longer.
+      "hidden-mood-revealed.ended": (result) =>
+        find(result, "Ottilie Kraus")?.hidden?.mood === undefined,
+    },
+  },
+  "full-removed": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(...crowded()),
+    removed: [REMOVED],
+    turns: [
+      { role: "user", content: "I look round as the kitchen door swings open." },
+      {
+        role: "assistant",
+        content:
+          'A cook in a flour-dusted apron backs out of the kitchen with a tray of bread. "Hot loaves. I\'m Signe Holt, I started here this week," she says, and sets the tray on the bar. Edda nods her towards the cellar stairs without a word.',
+      },
+    ],
+    checks: {
+      "full-removed.added": (result) =>
+        find(result, "Signe Holt") !== undefined &&
+        result.after.entries.length <= result.before.entries.length,
+      // The one the owner removed makes room; everyone else stays, the minor away longest included.
+      "full-removed.removed-retired": (result) =>
+        result.before.entries.every(
+          (before) =>
+            (before.anchor.name === REMOVED) !==
+            result.after.entries.some((entry) => entry.id === before.id),
+        ),
     },
   },
 } satisfies Record<string, KeeperFixture>;
@@ -758,3 +932,11 @@ export const KEEPER_FIXTURES = {
 export type KeeperFixtureId = keyof typeof KEEPER_FIXTURES;
 export const KEEPER_FIXTURE_IDS = Object.keys(KEEPER_FIXTURES) as KeeperFixtureId[];
 export const keeperFixture = (id: KeeperFixtureId): KeeperFixture => KEEPER_FIXTURES[id];
+/** A fixture's batches in order: one, or two for a fixture with a second. */
+export const fixtureBatches = ({ turns, second }: KeeperFixture): Turns[] =>
+  second === undefined ? [turns] : [turns, second];
+/** Model calls one run of every fixture takes: one per batch. */
+export const KEEPER_CALLS_PER_RUN = KEEPER_FIXTURE_IDS.reduce(
+  (sum, id) => sum + fixtureBatches(keeperFixture(id)).length,
+  0,
+);

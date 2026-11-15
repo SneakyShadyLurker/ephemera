@@ -267,13 +267,13 @@ describe("a full register", () => {
     expect(gone(crowd([5, 5, 5]), apply(crowd([5, 5, 5]), newcomer).result)).toEqual(["Guest 0"]);
   });
 
-  it("never retires a principal, someone present, a sheet entry, or one the owner corrected or removed", () => {
+  it("never retires a principal, someone present, a sheet entry or one the owner corrected", () => {
     const spared = {
       0: { role: "principal" as const },
       1: { state: emptyCastState(true) },
     };
-    // Guests 0 to 5 are the oldest; each is spared for another reason, so Guest 6 goes.
-    const base = crowd([1, 1, 1, 1, 1, 1, 2], spared);
+    // Guests 0 to 4 are the oldest; each is spared for another reason, so Guest 5 goes.
+    const base = crowd([1, 1, 1, 1, 1, 2], spared);
     const sheet: CastSheetEntry[] = [
       {
         id: uuid(5),
@@ -286,9 +286,84 @@ describe("a full register", () => {
     const { result } = apply(base, newcomer, {
       sheet,
       corrected: { [uuid(7)]: { anchor: {} } },
-      removed: new Set([uuid(8)]),
     });
-    expect(gone(base, result)).toEqual(["Guest 6"]);
+    expect(gone(base, result)).toEqual(["Guest 5"]);
+  });
+
+  it("retires an entry the owner removed before any away minor, whatever else it is", () => {
+    // Guest 0 was away longest; Guest 5 is removed, and a present principal the batch names.
+    const base = crowd([1, 2, 3], { 5: { role: "principal", state: emptyCastState(true) } });
+    const { result } = apply(base, newcomer, {
+      removed: new Set([uuid(8)]),
+      corrected: { [uuid(8)]: { anchor: {} } },
+      shown: ["Guest 5 was still spoken of."],
+    });
+    expect(result.entries).toHaveLength(CAST_LIMITS.entries);
+    expect(gone(base, result)).toEqual(["Guest 5"]);
+    expect(names(result).at(-1)).toBe("Tilda Marek");
+  });
+
+  it("retires the removed first and then the away minors, one for each newcomer", () => {
+    const base = crowd([4, 1, 3]);
+    const { result } = apply(
+      base,
+      { cast: { "Tilda Marek": {}, "Bruno Castell": {}, "Edda Lindholm": {} } },
+      { removed: new Set([uuid(9), uuid(12)]) },
+    );
+    expect(result.entries).toHaveLength(CAST_LIMITS.entries);
+    // Both removed ones in register order, then the minor away longest.
+    expect(gone(base, result)).toEqual(["Guest 1", "Guest 6", "Guest 9"]);
+    expect(names(result).slice(-3)).toEqual(["Tilda Marek", "Bruno Castell", "Edda Lindholm"]);
+  });
+
+  it("finds a retired removed entry by the name the owner gave it, and by every earlier one", () => {
+    const base = crowd([1, 2, 3]);
+    const removed = new Set([uuid(8)]);
+    const first = apply(base, newcomer, { removed }).result;
+    // As recorded: her own name, and as many earlier ones as an entry holds.
+    const aka = ["Mara One", "Mara Two", "Mara Three", "Mara Four"];
+    expect(aka).toHaveLength(CAST_LIMITS.aka);
+    const previous = register(entry(8, "Guest 5", { aka }));
+    const corrected = { [uuid(8)]: { anchor: { name: "Odette Marsh" } } };
+    for (const name of ["Odette Marsh", "Guest 5", ...aka]) {
+      const { result, calls } = apply(
+        first,
+        { cast: { [name]: { gender: "female", state: { position: "in the doorway" } } } },
+        { removed, previous, corrected },
+      );
+      expect({ name, calls, names: names(result) }).toEqual({
+        name,
+        calls: 0,
+        names: names(first),
+      });
+    }
+    // Someone else by a name no one had is new, as ever.
+    expect(
+      apply(first, { cast: { "Odette Vane": {} } }, { removed, previous, corrected }).calls,
+    ).toBe(1);
+  });
+
+  it("leaves a removed entry in a register that has room", () => {
+    const base = register(entry(1, "Mara Battin"), entry(2, "Ilse Brandt"));
+    const { result } = apply(base, newcomer, { removed: new Set([uuid(2)]) });
+    expect(names(result)).toEqual(["Mara Battin", "Ilse Brandt", "Tilda Marek"]);
+  });
+
+  it("keeps a retired removed entry removed: its name resolves through what the chat knew", () => {
+    const base = crowd([1, 2, 3]);
+    const removed = new Set([uuid(8)]);
+    const first = apply(base, newcomer, { removed }).result;
+    expect(gone(base, first)).toEqual(["Guest 5"]);
+    const known = base.entries.find((item) => item.id === uuid(8));
+    if (known === undefined) throw new Error("Expected the removed entry");
+    // The keeper, never shown her, writes her as someone new: no id is minted and no one leaves.
+    const { result, calls } = apply(
+      first,
+      { cast: { "Guest 5": { gender: "female", state: { position: "in the doorway" } } } },
+      { removed, previous: register(known) },
+    );
+    expect(calls).toBe(0);
+    expect(names(result)).toEqual(names(first));
   });
 
   it("spares whoever the batch changes or names", () => {

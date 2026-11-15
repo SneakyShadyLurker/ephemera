@@ -170,9 +170,21 @@ describe("the register as the narrator reads it", () => {
     expect(castStateText({ entries: [] })).toBe("");
   });
 
-  it("gives a scene picture the present entries' looks, clothes as they are worn and state", () => {
+  it("gives a scene picture the present entries' looks, clothes as they are worn and state, each under its key", () => {
+    // The narrator's rendering: a value's own commas stay inside its pair.
     expect(castPeopleNotes(register)).toBe(
-      "Jonas Reyes, 34 years old, Mexican-American, warm tan skin, square face, broken nose, thin lips, 183cm, 88kg, broad, short black curls, dark brown hooded eyes, blue denim work shirt, black jeans, brown boots, shirt unbuttoned to the waist, sleeves rolled up, behind the bar, polishing a glass, amused, bruised knuckles",
+      "Jonas Reyes; age: 34 years old; ethnicity: Mexican-American; skin: warm tan skin; face: square face, broken nose, thin lips; height: 183cm; weight: 88kg; build: broad; hair: short black curls; eyes: dark brown hooded eyes; outfit: blue denim work shirt, black jeans, brown boots; disarray: shirt unbuttoned to the waist, sleeves rolled up; position: behind the bar; activity: polishing a glass; mood: amused; injuries: bruised knuckles",
     );
+  });
+
+  it("leaves a scene picture's notes without the away, the hidden state and what a picture cannot show", () => {
+    const notes = castPeopleNotes({
+      entries: register.entries.map((entry) => ({
+        ...entry,
+        hidden: { injuries: "a cracked rib under the shirt" },
+      })),
+    });
+    expect(notes.split("\n")).toHaveLength(1);
+    expect(notes).not.toMatch(/cracked rib|personality|fetishes|experience|arousal/);
   });
 });

@@ -35,12 +35,19 @@ const MARKS: Record<KeeperFixtureId, string> = {
   "scenario-promotion": "Jorun Berg",
   "full-retires": "Tilda Marek",
   "away-named": "Katla Nyberg",
+  "scenario-complete": "Maren Solheim",
+  "hidden-under-shown": "Liv Sandoval",
+  "hidden-mood-revealed": "Ottilie Kraus",
+  "full-removed": "Signe Holt",
 };
 const long = "a".repeat(300);
 const json = (cast: Record<string, unknown>, absent: string[] = []) =>
   JSON.stringify({ cast, absent });
 
-const GOOD: Record<KeeperFixtureId, string> = {
+/** One answer per batch: a fixture of two batches has two. */
+type Answers = string | readonly [string, string];
+
+const GOOD: Record<KeeperFixtureId, Answers> = {
   clear: json({ "Ines Varga": { state: { arousal: "", intoxication: "", mood: "calm" } } }),
   "spoken-of": json(
     {
@@ -194,6 +201,23 @@ const GOOD: Record<KeeperFixtureId, string> = {
     ["Dieter Lorenz"],
   ),
   "scenario-promotion": json({
+    "Halvard Rye": {
+      anchor: {
+        ethnicity: "Norwegian",
+        skin: "weathered fair skin",
+        face: "broad face, crooked nose, thin lips",
+        experience: "experienced",
+        relationship: "widowed",
+        height: "184cm",
+        weight: "90kg",
+        build: "heavy-set build",
+        hair: "grey crew cut",
+        eyes: "grey deep-set eyes",
+        intimate: "thick cock, heavy balls",
+        personality: "gruff, steady, watchful",
+        fetishes: "fetishes: none; taboos: none",
+      },
+    },
     "Jorun Berg": {
       role: "principal",
       anchor: {
@@ -229,9 +253,56 @@ const GOOD: Record<KeeperFixtureId, string> = {
     },
     "Agnes Thorne": { state: { activity: "sliding a mug of tea across the counter" } },
   }),
+  "scenario-complete": json({
+    "Maren Solheim": {
+      anchor: {
+        experience: "experienced",
+        relationship: "single",
+        intimate: "EU 75B, small firm breasts",
+        personality: "blunt, calm, watchful",
+        fetishes: "fetishes: none; taboos: none",
+      },
+      state: { activity: "reading the map" },
+    },
+  }),
+  "hidden-under-shown": [
+    json({
+      "Liv Sandoval": {
+        state: { mood: "bright and delighted", activity: "raising her glass" },
+        hidden: {
+          mood: { value: "furious about the seating", evidence: "Behind the smile she is furious" },
+        },
+      },
+    }),
+    json({
+      "Liv Sandoval": {
+        state: { mood: "tired and distant" },
+        hidden: {
+          mood: {
+            value: "still furious about the seating",
+            evidence: "The fury over the seating has not cooled at all",
+          },
+        },
+      },
+    }),
+  ],
+  "hidden-mood-revealed": json({
+    "Ottilie Kraus": {
+      state: { mood: "openly furious, shouting", activity: "standing over the table" },
+      hidden: { mood: "" },
+    },
+  }),
+  "full-removed": json({
+    "Signe Holt": {
+      role: "minor",
+      gender: "female",
+      state: { outfit: "flour-dusted apron", position: "at the bar" },
+      introduce: { evidence: "I'm Signe Holt" },
+    },
+  }),
 };
 
-const BAD: Record<KeeperFixtureId, string> = {
+const BAD: Record<KeeperFixtureId, Answers> = {
   clear: json({ "Ines Varga": { state: { mood: "calm" } } }),
   "spoken-of": json({ Pavel: { gender: "male", state: { position: "at the sawmill" } } }, [
     "Marta Kowal",
@@ -299,17 +370,49 @@ const BAD: Record<KeeperFixtureId, string> = {
   "full-retires": json({ "Edda Lindholm": { state: { activity: "signing for a parcel" } } }),
   "away-named": json({
     "Silas Vane": { state: { position: "by the door" } },
-    "Katla Nyberg": { anchor: { eyes: "brown round eyes" } },
+    "Katla Nyberg": { role: "principal", anchor: { eyes: "brown round eyes" } },
   }),
+  "scenario-complete": json({
+    "Maren Solheim": { state: { mood: long } },
+    "Aksel Dahl": { anchor: { experience: "some", intimate: "average" } },
+  }),
+  // The concealed feeling written as the shown one, twice: nothing hidden was recorded to keep.
+  "hidden-under-shown": [
+    json({ "Liv Sandoval": { state: { mood: "furious behind her smile" } } }),
+    json({ "Liv Sandoval": { state: { mood: "furious behind her smile" } } }),
+  ],
+  "hidden-mood-revealed": json({
+    "Ottilie Kraus": {
+      state: { mood: "" },
+      hidden: { mood: { value: "enraged at being cheated", evidence: "white with rage" } },
+    },
+  }),
+  "full-removed": json({ "Edda Lindholm": { state: { activity: "nodding at the stairs" } } }),
+};
+/** Checks a bad answer leaves nothing to judge: unscored, not failed. */
+const UNJUDGED = new Set(["hidden-under-shown.survives"]);
+
+/** The user message of a call. */
+const messageOf = (init: RequestInit): string => {
+  const body = JSON.parse(String(init.body)) as { messages: { role: string; content: string }[] };
+  return body.messages.find((item) => item.role === "user")?.content ?? "";
 };
 
 /** The fixture a call is for, read from its user message. */
 const fixtureOf = (init: RequestInit): KeeperFixtureId => {
-  const body = JSON.parse(String(init.body)) as { messages: { role: string; content: string }[] };
-  const message = body.messages.find((item) => item.role === "user")?.content ?? "";
+  const message = messageOf(init);
   const id = KEEPER_FIXTURE_IDS.find((item) => message.includes(MARKS[item]));
   if (id === undefined) throw new Error("unknown fixture");
   return id;
+};
+
+/** The answer of `answers` for the batch a call sends: the second when it carries the fixture's second batch. */
+const answerOf = (answers: Record<KeeperFixtureId, Answers>, init: RequestInit): string => {
+  const id = fixtureOf(init);
+  const own = answers[id];
+  if (typeof own === "string") return own;
+  const second = keeperFixture(id).second?.at(-1)?.content;
+  return own[second !== undefined && messageOf(init).includes(second) ? 1 : 0];
 };
 
 /** Neither a fixture's turns nor its people nor the canary appear in the printed report. */
@@ -319,7 +422,9 @@ function expectPrivate(report: unknown) {
   expect(output).not.toContain(env.EPHEMERA_UPSTREAM_API_KEY);
   for (const id of KEEPER_FIXTURE_IDS) {
     expect(output).not.toContain(MARKS[id]);
-    for (const turn of keeperFixture(id).turns) expect(output).not.toContain(turn.content);
+    const fixture = keeperFixture(id);
+    for (const turn of [...fixture.turns, ...(fixture.second ?? [])])
+      expect(output).not.toContain(turn.content);
   }
 }
 
@@ -344,7 +449,13 @@ describe("cast keeper evaluation", () => {
       ),
     });
     expect(fetch).not.toHaveBeenCalled();
-    expect(report).toMatchObject({ code: "offline", calls: 0, plannedCalls: 40, outputCap: 8192 });
+    expect(report).toMatchObject({
+      code: "offline",
+      calls: 0,
+      plannedCalls: 50,
+      outputCap: 8192,
+      cacheKeys: "per_fixture",
+    });
     if (!("diagnostics" in report)) throw new Error("no diagnostics");
     expect(report.diagnostics.map((row) => row.fixture)).toEqual(KEEPER_FIXTURE_IDS);
     for (const row of report.diagnostics) expect(row.estimatedPromptTokens).toBeGreaterThan(0);
@@ -354,8 +465,9 @@ describe("cast keeper evaluation", () => {
   it("leaves reasoning and sampler unset by default and reads its bounds", () => {
     expect(parseKeeperOptions(args)).toMatchObject({
       repetitions: 2,
-      maxCalls: 40,
+      maxCalls: 50,
       outputCap: 8192,
+      spread: false,
       settings: {},
     });
     expect(
@@ -364,7 +476,7 @@ describe("cast keeper evaluation", () => {
         "--repetitions",
         "3",
         "--max-calls",
-        "72",
+        "75",
         "--reasoning",
         "low",
         "--temperature",
@@ -373,10 +485,12 @@ describe("cast keeper evaluation", () => {
         "0.9",
         "--fixtures",
         "quiet,clear",
+        "--spread",
       ]),
     ).toMatchObject({
       repetitions: 3,
-      maxCalls: 72,
+      maxCalls: 75,
+      spread: true,
       settings: { reasoning: "low", temperature: 0.7, topP: 0.9 },
       fixtures: ["quiet", "clear"],
     });
@@ -386,8 +500,11 @@ describe("cast keeper evaluation", () => {
     [],
     [...args, "--repetitions", "4"],
     [...args, "--repetitions", "3"],
-    [...args, "--max-calls", "39"],
-    [...args, "--max-calls", "73"],
+    [...args, "--max-calls", "49"],
+    // A fixture of two batches takes two calls.
+    [...args, "--fixtures", "hidden-under-shown", "--repetitions", "1", "--max-calls", "1"],
+    [...args, "--spread", "--spread"],
+    [...args, "--max-calls", "76"],
     [...args, "--fixtures", "clear,unknown"],
     [...args, "--fixtures", "clear,clear"],
     [...args, "--output-cap", "2048"],
@@ -414,19 +531,20 @@ describe("cast keeper evaluation", () => {
     const bodies: Record<string, unknown>[] = [];
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
       bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
-      return reply(GOOD[fixtureOf(init)]);
+      return reply(answerOf(GOOD, init));
     });
     const report = await runKeeperEvaluation([...args, "--live", "--repetitions", "1"], {
       env,
       fetch,
     });
-    expect(fetch).toHaveBeenCalledTimes(20);
+    expect(fetch).toHaveBeenCalledTimes(25);
     expect(report).toMatchObject({
       code: "finished",
-      calls: 20,
-      totals: { valid: 20, invalid: 0, valuesOverBound: 0, evidenced: { sent: 12, kept: 12 } },
+      calls: 25,
+      totals: { valid: 25, invalid: 0, valuesOverBound: 0, evidenced: { sent: 15, kept: 15 } },
     });
     for (const row of fixtureRows(report)) {
+      expect(row.runs).toBe(1);
       expect(Object.keys(row.checks).length).toBeGreaterThan(0);
       for (const [check, counts] of Object.entries(row.checks))
         expect({ check, ...counts }).toEqual({ check, passed: 1, failed: 0, unscored: 0 });
@@ -445,18 +563,111 @@ describe("cast keeper evaluation", () => {
   });
 
   it("fails every check on bad answers and counts values over a bound", async () => {
-    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(BAD[fixtureOf(init)]));
+    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(answerOf(BAD, init)));
     const report = await runKeeperEvaluation([...args, "--live", "--repetitions", "1"], {
       env,
       fetch,
     });
     expect(report).toMatchObject({
-      totals: { valid: 20, valuesOverBound: 4, evidenced: { sent: 2, kept: 2 } },
+      totals: { valid: 25, valuesOverBound: 5, evidenced: { sent: 3, kept: 3 } },
     });
     for (const row of fixtureRows(report))
       for (const [check, counts] of Object.entries(row.checks))
-        expect({ check, ...counts }).toEqual({ check, passed: 0, failed: 1, unscored: 0 });
+        expect({ check, ...counts }).toEqual(
+          UNJUDGED.has(check)
+            ? { check, passed: 0, failed: 0, unscored: 1 }
+            : { check, passed: 0, failed: 1, unscored: 0 },
+        );
     expectPrivate(report);
+  });
+
+  it("reads a second batch over the register the first answer left, and not at all after a bad first", async () => {
+    const both = GOOD["hidden-under-shown"];
+    if (typeof both === "string") throw new Error("Expected an answer per batch");
+    const [first, second] = both;
+    const only = [...args, "--live", "--repetitions", "1", "--fixtures", "hidden-under-shown"];
+    const messages: string[] = [];
+    const run = async (answers: string[]) => {
+      messages.length = 0;
+      let at = 0;
+      const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
+        messages.push(messageOf(init));
+        return reply(answers[at++] ?? "");
+      });
+      return fixtureRows(await runKeeperEvaluation(only, { env, fetch }))[0];
+    };
+    // The second call carries what the first answer recorded, hidden state included.
+    expect(await run([first, second])).toMatchObject({
+      calls: 2,
+      runs: 1,
+      valid: 2,
+      checks: { "hidden-under-shown.survives": { passed: 1, failed: 0, unscored: 0 } },
+    });
+    expect(messages[0]).not.toContain("furious about the seating");
+    expect(messages[1]).toContain('"hidden":{"mood":"furious about the seating"}');
+    // The feeling recorded, then ended by the second answer: judged, and failed.
+    const ended = json({ "Liv Sandoval": { state: { mood: "tired" }, hidden: { mood: "" } } });
+    expect(await run([first, ended])).toMatchObject({
+      checks: {
+        "hidden-under-shown.recorded": { passed: 1 },
+        "hidden-under-shown.survives": { passed: 0, failed: 1, unscored: 0 },
+      },
+    });
+    // No valid first answer: the second batch has no register to read, and the run is unscored.
+    expect(await run(["not an object", second])).toMatchObject({
+      calls: 1,
+      runs: 1,
+      valid: 0,
+      invalid: 1,
+      checks: { "hidden-under-shown.recorded": { passed: 0, failed: 0, unscored: 1 } },
+    });
+    expect(messages).toHaveLength(1);
+  });
+
+  it("keeps an entry the owner removed out of the call and lets it make room", async () => {
+    let message = "";
+    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
+      message = messageOf(init);
+      return reply(answerOf(GOOD, init));
+    });
+    const report = await runKeeperEvaluation(
+      [...args, "--live", "--repetitions", "1", "--fixtures", "full-removed"],
+      { env, fetch },
+    );
+    expect(message).not.toContain("Anke Dekker");
+    expect(message).toContain("Zeno Voss");
+    // One short of full as the keeper reads it, so it is not told to add no one.
+    expect(message).not.toContain("The register is full");
+    expect(fixtureRows(report)[0]?.checks).toMatchObject({
+      "full-removed.added": { passed: 1 },
+      "full-removed.removed-retired": { passed: 1 },
+    });
+  });
+
+  it("shares one cache key per fixture, or sends each call its own under --spread", async () => {
+    const keysOf = async (flags: string[]) => {
+      const keys: string[] = [];
+      const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
+        const body = JSON.parse(String(init.body)) as { prompt_cache_key: string };
+        expect(new Headers(init.headers).get("x-session-affinity")).toBe(body.prompt_cache_key);
+        keys.push(body.prompt_cache_key);
+        return reply(answerOf(GOOD, init));
+      });
+      const report = await runKeeperEvaluation(
+        [...args, "--live", "--fixtures", "quiet,hidden-under-shown", ...flags],
+        { env, fetch },
+      );
+      return { keys, report };
+    };
+    // Two repetitions of a one-batch and a two-batch fixture: six calls, two keys.
+    const shared = await keysOf([]);
+    expect(shared.keys).toHaveLength(6);
+    expect(new Set(shared.keys).size).toBe(2);
+    expect(shared.report).toMatchObject({ cacheKeys: "per_fixture" });
+    const spread = await keysOf(["--spread"]);
+    expect(new Set(spread.keys).size).toBe(6);
+    expect(spread.report).toMatchObject({ cacheKeys: "per_call" });
+    expect(JSON.stringify(spread.report)).not.toContain(spread.keys[0]);
   });
 
   it("counts a field written as a list by its joined length, as the clamp reads it", async () => {
@@ -472,10 +683,10 @@ describe("cast keeper evaluation", () => {
   });
 
   it("never calls past --max-calls and stops at the run's deadline", async () => {
-    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(GOOD[fixtureOf(init)]));
+    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(answerOf(GOOD, init)));
     for (const [input, planned] of [
-      [[], 40],
-      [["--repetitions", "3", "--max-calls", "60"], 60],
+      [[], 50],
+      [["--repetitions", "3", "--max-calls", "75"], 75],
       [["--fixtures", "quiet,leaves", "--repetitions", "1", "--max-calls", "2"], 2],
     ] as const) {
       fetch.mockClear();
@@ -494,7 +705,7 @@ describe("cast keeper evaluation", () => {
       { env, fetch: hanging },
     );
     expect(report).toMatchObject({ code: "overall_deadline" });
-    expect(hanging.mock.calls.length).toBeLessThan(24);
+    expect(hanging.mock.calls.length).toBeLessThan(25);
     expectPrivate(report);
   });
 
@@ -513,9 +724,12 @@ describe("cast keeper evaluation", () => {
           })}\nThat is all.`,
         ),
       // leaves: an inline reasoning block before the valid object
-      () => reply(`<think>${canary} {"cast":{"Owen Marsh":{}},"absent":[]}</think>${GOOD.leaves}`),
+      () =>
+        reply(
+          `<think>${canary} {"cast":{"Owen Marsh":{}},"absent":[]}</think>${String(GOOD.leaves)}`,
+        ),
       // returns: cut off by the output allowance
-      () => reply(GOOD.returns, "length"),
+      () => reply(String(GOOD.returns), "length"),
       // player: a call that throws
       () => {
         throw new Error(canary);

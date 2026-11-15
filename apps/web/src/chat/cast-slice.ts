@@ -1023,8 +1023,15 @@ export function createCastSlice(
         });
         // Whoever the batch retired for a newcomer stays known: a later batch of this run that
         // names them gives them their id and anchor back, as a later run does once this one commits.
+        // They are kept as recorded, as a snapshot keeps its entries: the chain carries the owner's
+        // anchor corrections, and only a removed entry leaves it corrected. Its corrected name
+        // still finds it: `applyCastChanges` reads the corrections it is given as names too.
         const held = new Set(progress.chain.entries.map((entry) => entry.id));
-        const gone = before.entries.filter((entry) => !held.has(entry.id));
+        const gone = withoutAnchorCorrections(
+          { entries: before.entries.filter((entry) => !held.has(entry.id)) },
+          [progress.recorded, progress.previous],
+          corrections,
+        ).entries;
         if (gone.length > 0) {
           const ids = new Set(gone.map((entry) => entry.id));
           progress.retired.push(...gone);
@@ -1282,13 +1289,20 @@ export function createCastSlice(
         };
       }),
 
-    removeCast: (entryId) =>
+    removeCast: (entryId) => {
+      // The owner's word on that person, as a correction is: she stays known to the chat, so the
+      // removal holds once a newcomer has taken her place in a full register.
+      const entry = sheetedAt(get(), get().messages.length).entries.find(
+        (entry) => entry.id === entryId,
+      );
+      if (entry !== undefined) affirm([entry]);
       correct((cast) => ({
         corrections: withCorrection(cast.corrections, entryId, {
           ...(cast.corrections[entryId] ?? NO_CORRECTION),
           removed: true,
         }),
-      })),
+      }));
+    },
 
     restoreCast: (entryId) =>
       correct((cast) => {

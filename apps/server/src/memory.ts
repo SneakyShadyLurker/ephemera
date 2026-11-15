@@ -15,6 +15,7 @@ import {
   episodePatchRequestSchema,
   fitChapterMembers,
   MAX_CHAT_BODY_BYTES,
+  MacroLimitError,
   MEMORY_LIMITS,
   type MemoryRefusal,
   type MemoryState,
@@ -299,6 +300,23 @@ const canonFor = (
   input: Omit<Parameters<typeof memoryCanon>[0], "window" | "count">,
 ) => memoryCanon({ ...input, window: call.window, count: (text) => countText(text) * call.ratio });
 
+/**
+ * A call's canon before any model call, or not ok when none can be built:
+ * names filled into it pass the macro bound, or its lorebooks exhaust their
+ * work allowance. The call is then refused as `prompt_too_long`, as the
+ * keeper route refuses a description it cannot fill.
+ */
+const builtCanon = (
+  build: () => string | null,
+): { ok: true; canon: string | null } | { ok: false } => {
+  try {
+    return { ok: true, canon: build() };
+  } catch (error) {
+    if (!(error instanceof MacroLimitError)) throw error;
+    return { ok: false };
+  }
+};
+
 /** Settles true once `ready` does, or false once `signal` aborts first. */
 const awaitTurn = async (ready: Promise<unknown>, signal: AbortSignal) =>
   (await untilAborted(
@@ -391,6 +409,11 @@ export function createMemoryApi(deps: MemoryDeps) {
         linked,
         turns,
       });
+    const canon = builtCanon(() => canonOf(request.turns));
+    if (!canon.ok) {
+      log.warn({ event: "memory.remember", model, errorClass: "prompt_too_long" });
+      return { ok: false, error: "prompt_too_long" };
+    }
     const transcript = transcriptLines(request.turns, names);
     // A window too small for a full notebook tells the call the notebook's room.
     const notebookChars = notebookRoom(call.window);
@@ -399,7 +422,7 @@ export function createMemoryApi(deps: MemoryDeps) {
       room: notebookChars,
     });
     const message = rememberMessage({
-      canon: canonOf(request.turns),
+      canon: canon.canon,
       notebook: state.notebook,
       // The story just before the span: the held memories are its newest part.
       previous: previousEpisodes([...recap, ...held], book),
@@ -582,16 +605,22 @@ export function createMemoryApi(deps: MemoryDeps) {
     const persona = chosenPersona(stores.personas, request.personaId);
     const names: SpeakerNames = { char: character.name, user: persona?.name ?? NO_PERSONA_NAME };
     // Canon: input for this request only, never stored, kept or logged; no turns, so constant entries only.
-    const canon = canonFor(call, {
-      card: character,
-      names,
-      ...(persona === null ? {} : { persona: persona.description }),
-      linked: stores.lorebooks.booksOf(characterId),
-      turns: [],
-    });
+    const canon = builtCanon(() =>
+      canonFor(call, {
+        card: character,
+        names,
+        ...(persona === null ? {} : { persona: persona.description }),
+        linked: stores.lorebooks.booksOf(characterId),
+        turns: [],
+      }),
+    );
+    if (!canon.ok) {
+      log.warn({ event: "memory.opening", model, errorClass: "prompt_too_long" });
+      return { ok: false, error: "prompt_too_long" };
+    }
     const instructions = openingInstructions(names);
     const message = openingMessage({
-      canon,
+      canon: canon.canon,
       notebook: state.notebook,
       // The newest of the story that fit, in story order, as a new chat is told them.
       episodes: storyBefore(book, call.window),

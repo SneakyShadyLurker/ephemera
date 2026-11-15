@@ -220,6 +220,74 @@ describe("the keeper prompt", () => {
     expect(keeperInstructions()).toContain("Intimate anatomy requires actual exposure");
   });
 
+  it("asks for the empty anchor fields of a Scenario principal it writes whole, by name", () => {
+    const entry = (name: string, more: Record<string, unknown> = {}) => ({
+      id: crypto.randomUUID(),
+      role: "principal" as const,
+      anchor: { ...emptyCastAnchor(name, "female"), age: "30", hair: "black bob" },
+      aka: [],
+      state: emptyCastState(true),
+      ...more,
+    });
+    const whole = Object.fromEntries(
+      Object.keys(emptyCastAnchor("x", "other"))
+        .filter((key) => key !== "name" && key !== "gender")
+        .map((key) => [key, "set"]),
+    );
+    const people = {
+      entries: [
+        entry("Mara Battin"),
+        entry("Ilse Brandt", { role: "minor" as const }),
+        entry("Noor Haddad", { state: emptyCastState(false) }),
+        entry("Wren Okoro", { state: emptyCastState(false) }),
+        entry("Ana Pires", { anchor: { ...emptyCastAnchor("Ana Pires", "female"), ...whole } }),
+      ],
+    };
+    const text = (kind: string | null) =>
+      keeperMessage({
+        canon: null,
+        names,
+        register: people,
+        turns: [{ role: "assistant", content: "Mara and Ilse wait. Someone mentions Wren." }],
+        mode: "update",
+        full: true,
+        kind,
+      });
+    const scenario = text("Scenario").split("\n\n");
+    // One line after the task and before the full note: the present principal, then the named
+    // away one, and last that the turns' changes come first.
+    const fields =
+      '"ethnicity", "skin", "face", "experience", "relationship", "height", "weight", "build", "eyes", "intimate", "personality" and "fetishes"';
+    expect(scenario.slice(-3)).toEqual([
+      "These are the newest turns. Answer with what changed.",
+      `Also fill Mara Battin's empty anchor fields, coherent with what is set: ${fields}. Also fill Wren Okoro's empty anchor fields, coherent with what is set: ${fields}. Do this last, after everything the turns change.`,
+      "The register is full: add no one; update and mark absent only.",
+    ]);
+    // Never a minor, someone the keeper reads by name alone, or a complete record.
+    expect(text("Scenario")).not.toMatch(/Also fill (Ilse Brandt|Noor Haddad|Ana Pires)/);
+    // Only a Scenario's people are invented.
+    for (const kind of [null, "Subject", "Multiple Subjects"]) {
+      expect(text(kind)).not.toContain("Also fill");
+      expect(text(kind)).not.toContain("Do this last");
+    }
+    expect(keeperInstructions()).toContain(
+      "Do the same for a Scenario principal the message's task names with its empty fields. These are the only permitted gap fillings.",
+    );
+  });
+
+  it("ties promotion to the role the register shows, and says which hidden fields a state write ends", () => {
+    const instructions = keeperInstructions();
+    expect(instructions).toContain(
+      'one it shows as "minor" whom the turns now establish as a continuing figure is promoted in this answer, by "role":"principal" in their change',
+    );
+    expect(instructions).toContain(
+      'A hidden "position", "activity" or "mood" stands beside the shown one',
+    );
+    expect(instructions).toContain(
+      'Every other hidden field stays until you write the same field in "state"',
+    );
+  });
+
   it("records a clothed figure as what the clothes suggest, and garments that shape it", () => {
     const instructions = keeperInstructions();
     expect(instructions).toContain(

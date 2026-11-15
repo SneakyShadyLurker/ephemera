@@ -14,6 +14,7 @@ import {
   aggregate,
   type ComparisonFetch,
   callBudget,
+  callKey,
   chosenFixtures,
   estimate,
   type Observation,
@@ -47,6 +48,7 @@ const planned = (options: ComparisonOptions): number =>
 export function parseOptions(args: string[]): ComparisonOptions {
   const options: ComparisonOptions = {
     live: false,
+    spread: false,
     model: "",
     repetitions: 2,
     maxCalls: 32,
@@ -125,6 +127,7 @@ async function infer(
  * Machine report v1: diagnostics/cacheDiagnostics contain local estimates only.
  * fixtures[].variants contains check pass/fail/unscored counts; variants contains
  * narration totals. cacheExperiment has separate layout totals and two steps.
+ * cacheKeys says whether each scored call had a key of its own (`--spread`).
  * Usage totals are null unless every attempted call reported that raw numeric
  * field; reportedCalls records coverage. Outcome counts include unscored calls.
  * regressions counts paired current-pass/candidate-fail checks, never a ranking.
@@ -168,6 +171,7 @@ export async function runComparison(args: string[], dependencies: Dependencies =
     deadlineMs: options.deadlineMs,
     outputCap: options.outputCap,
     sampler: options.settings,
+    cacheKeys: options.spread ? "per_call" : "per_fixture",
     scoring: "bounded_heuristics_not_immersion_proof",
     prefix: "local_estimate_not_provider_cache",
     layout: "experiment_changes_authored_placement_semantics",
@@ -200,14 +204,18 @@ export async function runComparison(args: string[], dependencies: Dependencies =
       for (const [index, id] of options.fixtures.entries()) {
         // Alternate the first variant across fixtures and repetitions.
         for (const variant of (repetition + index) % 2 === 0 ? VARIANTS : [...VARIANTS].reverse()) {
-          const result = await call(messages(fixture(id, variant)), `${rootKey}-${id}-${variant}`);
+          const result = await call(
+            messages(fixture(id, variant)),
+            callKey(options, `${rootKey}-${id}-${variant}`),
+          );
           if (result === undefined) continue;
           if (result.text !== undefined) result.observation.checks = score(id, result.text);
           rows.push({ id, variant, repetition, observation: result.observation });
         }
       }
     }
-    // Interleave layouts; only the pair within a layout shares an affinity key.
+    // Interleave layouts; only the pair within a layout shares an affinity key, under `--spread`
+    // too: the pair measures the provider's cache, which a fresh key per call would defeat.
     for (const [step, place] of (["Harbor", "Market"] as const).entries()) {
       for (const layout of LAYOUTS) {
         const result = await call(messages(loreFixture(layout, place)), `${rootKey}-${layout}`);
