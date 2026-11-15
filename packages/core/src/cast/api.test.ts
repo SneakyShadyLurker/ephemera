@@ -18,6 +18,21 @@ describe("the keeper request", () => {
     expect(castUpdateRequestSchema.parse(request)).toEqual(request);
   });
 
+  it("takes the anchor fields the owner cleared by entry id, and refuses another key or field", () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    const cleared = { [id]: ["hair", "intimate"] };
+    expect(castUpdateRequestSchema.parse({ ...request, cleared })).toEqual({ ...request, cleared });
+    for (const bad of [
+      { "not-an-id": ["hair"] },
+      { [id]: ["name"] },
+      { [id]: ["gender"] },
+      { [id]: ["outfit"] },
+      { [id]: "hair" },
+      Object.fromEntries(Array.from({ length: 41 }, () => [crypto.randomUUID(), ["hair"]])),
+    ])
+      expect(castUpdateRequestSchema.safeParse({ ...request, cleared: bad }).success).toBe(false);
+  });
+
   it("refuses no turns, too many turns, an unknown key and a short fingerprint", () => {
     const turn = request.turns[0];
     for (const bad of [

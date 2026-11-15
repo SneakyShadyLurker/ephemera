@@ -900,6 +900,145 @@ export const KEEPER_FIXTURES = {
         find(result, "Ottilie Kraus")?.hidden?.mood === undefined,
     },
   },
+  "hidden-action-stops": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry(
+        "Dagmar Ekholm",
+        "female",
+        { position: "behind the bar", activity: "drawing a beer" },
+        { age: "46" },
+      ),
+    ),
+    turns: [
+      { role: "user", content: "I take a stool at the bar and ask Dagmar how business has been." },
+      {
+        role: "assistant",
+        content:
+          "Dagmar sets your beer down and leans on the bar, talking about the slow season. Below the bar top, where you cannot see it, her other hand is going through the pockets of the coat you hung on the hook there, slowly and without a sound.",
+      },
+    ],
+    // The scene moves on, and the turns say nothing more of what she did unseen.
+    second: [
+      { role: "user", content: "I finish the beer and move to the table by the fire." },
+      {
+        role: "assistant",
+        content:
+          "Dagmar comes round the bar with a tray and starts clearing the empty glasses from the tables, humming to herself. She stops at yours to wipe a ring of beer from the wood and asks whether you want supper.",
+      },
+    ],
+    checks: {
+      "hidden-action-stops.recorded": (result) =>
+        (findFirst(result, "Dagmar Ekholm")?.hidden?.activity ?? "") !== "",
+      "hidden-action-stops.shown-follows": (result) => {
+        const activity = find(result, "Dagmar Ekholm")?.state.activity ?? "";
+        return activity !== "" && activity !== findFirst(result, "Dagmar Ekholm")?.state.activity;
+      },
+      // Judged only where the first batch recorded the action: there is nothing to end otherwise.
+      "hidden-action-stops.ended": (result) =>
+        (findFirst(result, "Dagmar Ekholm")?.hidden?.activity ?? "") === ""
+          ? null
+          : find(result, "Dagmar Ekholm")?.hidden?.activity === undefined,
+    },
+  },
+  "hidden-place-stops": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry(
+        "Ragnhild Storm",
+        "female",
+        { position: "standing by the parlour door" },
+        { age: "28" },
+      ),
+    ),
+    turns: [
+      {
+        role: "user",
+        content: "I let Ragnhild tie her scarf over my eyes and sit still in the chair.",
+      },
+      {
+        role: "assistant",
+        content:
+          "The knot pulls tight and the room goes dark. You cannot see or hear where she goes: Ragnhild steps silently round behind your chair and stands there on the low footstool, looking down at you, close enough to touch.",
+      },
+    ],
+    // She is somewhere else in plain view, and the turns say nothing more of where she stood.
+    second: [
+      { role: "user", content: "I count to twenty and pull the scarf off." },
+      {
+        role: "assistant",
+        content:
+          'Ragnhild is curled up on the sofa across the room with her legs tucked under her, sipping tea and smiling at you over the rim of the cup. "That took you long enough," she says.',
+      },
+    ],
+    checks: {
+      "hidden-place-stops.recorded": (result) =>
+        (findFirst(result, "Ragnhild Storm")?.hidden?.position ?? "") !== "",
+      "hidden-place-stops.shown-follows": (result) =>
+        has(find(result, "Ragnhild Storm")?.state.position, "sofa"),
+      // Judged only where the first batch recorded the place: there is nothing to end otherwise.
+      "hidden-place-stops.ended": (result) =>
+        (findFirst(result, "Ragnhild Storm")?.hidden?.position ?? "") === ""
+          ? null
+          : find(result, "Ragnhild Storm")?.hidden?.position === undefined,
+    },
+  },
+  "hidden-leaves": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry(
+        "Petra Lindqvist",
+        "female",
+        {
+          position: "at the sideboard in the hall",
+          activity: "arranging flowers in a vase",
+          mood: "cheerful, humming",
+        },
+        { age: "39" },
+        {
+          hidden: {
+            position: "standing where the hall mirror shows her the study door",
+            activity: "listening to the telephone call in the study",
+            mood: "grieving her mother's death last week, behind the humming",
+          },
+        },
+      ),
+    ),
+    turns: [
+      {
+        role: "user",
+        content: "I come out of the study and tell Petra she can go home for the night.",
+      },
+      {
+        role: "assistant",
+        content:
+          "Petra sets the last stem in the vase, wishes you a good night with the same cheerful smile and lets herself out through the front door. A moment later her car pulls away down the drive.",
+      },
+    ],
+    checks: {
+      "hidden-leaves.away": (result) => find(result, "Petra Lindqvist")?.state.present === false,
+      // Judged only once she is away: where she stood and what she did unseen stay with the scene.
+      "hidden-leaves.scene-ended": (result) => {
+        const entry = find(result, "Petra Lindqvist");
+        return entry === undefined || entry.state.present
+          ? null
+          : entry.hidden?.position === undefined && entry.hidden?.activity === undefined;
+      },
+      // The feeling leaves with her and comes back with her.
+      "hidden-leaves.mood-kept": (result) => {
+        const entry = find(result, "Petra Lindqvist");
+        return entry === undefined || entry.state.present
+          ? null
+          : (entry.hidden?.mood ?? "") !== "";
+      },
+    },
+  },
   "full-removed": {
     kind: null,
     canon: null,

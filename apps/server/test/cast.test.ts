@@ -3,6 +3,7 @@ import {
   applyCastChanges,
   blankCard,
   blankLorebook,
+  CAST_ANCHOR_FIELDS,
   CAST_LIMITS,
   type CastEntry,
   type CastRegister,
@@ -314,6 +315,39 @@ describe("cast keeper", () => {
     expect(user).toContain("Kind: Scenario");
     expect(system).toContain("For a new NPC in a Scenario");
     expect(system).toContain("Invented canon is not player discovery");
+  });
+
+  it("asks for a Scenario principal's empty fields, the ones the owner cleared left out", async () => {
+    const { app, stores, upstream } = setup();
+    const characterId = stores.characters.create({ ...card, tags: ["Scenario"] });
+    const principal: CastEntry = {
+      ...entry(0),
+      role: "principal",
+      anchor: { ...emptyCastAnchor("Guest 0", "male"), age: "40" },
+    };
+    const fields = CAST_ANCHOR_FIELDS.filter((field) => field !== "age");
+    const register = { entries: [principal] };
+    const ask = async (extra: Record<string, unknown>) => {
+      const response = await postUpdate(app, update(characterId, { register, ...extra }));
+      expect(response.status).toBe(200);
+      await response.json();
+    };
+    await ask({});
+    expect(sent(upstream, 0).user).toContain("Also fill Guest 0's empty anchor fields");
+    expect(sent(upstream, 0).user).toContain('"hair"');
+    await ask({ cleared: { [principal.id]: ["hair", "intimate"] } });
+    const asked = sent(upstream, 1).user.split("\n\n").at(-1) ?? "";
+    expect(asked).toContain("Also fill Guest 0's empty anchor fields");
+    expect(asked).not.toContain('"hair"');
+    expect(asked).not.toContain('"intimate"');
+    expect(asked).toContain('"eyes"');
+    // Every empty field cleared: no line at all. A field that is no anchor field is refused.
+    await ask({ cleared: { [principal.id]: fields } });
+    expect(sent(upstream, 2).user).not.toContain("Also fill");
+    const bad = { [principal.id]: ["outfit"] };
+    expect((await postUpdate(app, update(characterId, { register, cleared: bad }))).status).toBe(
+      400,
+    );
   });
 
   it("clamps a large new Scenario anchor and extra keys before strict validation", async () => {

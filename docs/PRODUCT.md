@@ -728,13 +728,18 @@ Version 1.0 holds everything below.
   the turns established of someone that the player cannot perceive, such as
   a concealed injury or object, arousal or intoxication that does not show,
   an unseen action, or a feeling they do not show. Only the narrator and the
-  keeper read it. The cast panel, scene pictures, memory calls and cast
-  sheets never carry it. A concealed fact (clothing, arousal, an injury,
+  keeper read it. The roster, the record's fields, scene pictures, memory
+  calls and cast sheets never carry it; the owner can look at it in the
+  record's own folded section and end a field there, never edit one. A concealed fact (clothing, arousal, an injury,
   intoxication) ends when the keeper records that field in the visible
-  state or reports that it no longer holds. A concealed position, activity
-  or mood stands beside the shown one, a surface over what it hides: a new
-  shown value leaves it, and it ends only when the keeper reports that it
-  came out or no longer holds. Thoughts
+  state or reports that it no longer holds. So does a concealed action,
+  which is over in a moment: a new shown activity ends it unless the keeper
+  records it again with it. A concealed position or mood stands beside the
+  shown one, a surface over what it hides: a new shown value leaves it, and
+  it ends only when the keeper reports that it came out or no longer holds.
+  When someone leaves the scene, where they stood and what they did unseen
+  end with it; a concealed injury, feeling or other fact stays with them
+  and returns when they do. Thoughts
   and motives stay with goals and knowledge.
   The keeper and sheet reader are instructed to leave unknown details empty,
   never invent missing anatomy, history or psychology. Development, continuity
@@ -778,7 +783,8 @@ Version 1.0 holds everything below.
   Scenario principal whose record still has empty fields, left partial at
   introduction or read so from the card, is completed too: while they are
   in the scene or named in the newest turns, the keeper's call names them
-  and the empty fields and asks for them in that answer. Only facts
+  and the empty fields and asks for them in that answer. A field the owner
+  set to empty stays empty and is not asked for. Only facts
   grounded in what the player sees, is told or observes in conduct become public
   discoveries. Someone the keeper gives a state counts as present, so a
   person the story only speaks of stays away. A person who left the scene stays in the register as away. Each reply variant keeps its own
@@ -874,7 +880,15 @@ Version 1.0 holds everything below.
   a state field until the keeper next answers. On phones the whole roster
   opens with present people's records ready to edit, and away people's
   records folded under their names. Revert
-  takes a corrected field back to what was recorded. Remove from cast
+  takes a corrected field back to what was recorded. The record of someone
+  who holds hidden state ends with Hidden from you: folded whenever the
+  record opens, and saying while folded that opening shows what the story
+  keeps from the player, since reading it spoils the story. Opened, it
+  lists each hidden field under its label, read only, with End under it.
+  End is the owner's correction for this chat: the narrator and the keeper
+  read the field no longer, and the record says Ended where it stood, with
+  Undo, until the cast next updates. What a later turn establishes again
+  is recorded again. Remove from cast
   leaves her out of the chat's cast, for the narrator and the keeper too,
   and the roster says she was removed, with Undo, until the cast next
   updates or the panel is used. While the keeper works, "Updating…" stands

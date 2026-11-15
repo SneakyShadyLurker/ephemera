@@ -20,7 +20,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import type { CastFailure, CastSheetOutcome, CastUpdateOutcome } from "../cast/queries.ts";
 import { tick } from "../testing.ts";
-import { currentRegister, memoryContextAt, stale } from "./cast-slice.ts";
+import { currentRegister, memoryContextAt, recordedHidden, stale } from "./cast-slice.ts";
 import { discoveredRegister } from "./cast-ui.ts";
 import type { StreamScene } from "./scene-slice.ts";
 import {
@@ -1821,6 +1821,168 @@ describe("cast corrections", () => {
     chat.state().revertCast(uuid(100), "outfit");
     expect(entry(chat.state(), "Ilse")?.state.outfit).toBe("red dress");
     expect(chat.state().cast.corrections).toEqual({});
+  });
+
+  /** Ilse with a concealed mood and injury, recorded by the second reply's keeper call. */
+  async function withHidden() {
+    const chat = await withIlse();
+    await chat.say("Next");
+    await chat.answer({
+      cast: {
+        Ilse: {
+          state: { mood: "smiling" },
+          hidden: {
+            mood: { value: "furious behind the smile", evidence: "reply 2" },
+            injuries: { value: "cut palm in her pocket", evidence: "reply 2" },
+          },
+        },
+      },
+      absent: [],
+    });
+    return chat;
+  }
+  const HELD = { mood: "furious behind the smile", injuries: "cut palm in her pocket" };
+  const quiet = (state: Record<string, string> = { outfit: "towel" }): CastChanges => ({
+    cast: { Ilse: { state } },
+    absent: [],
+  });
+
+  it("end a hidden field for the narrator and the keeper, and yield to the next snapshot", async () => {
+    const chat = await withHidden();
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual(HELD);
+    expect(castStateText(currentRegister(chat.state()))).toContain(
+      "Ilse hidden from the player: mood: furious behind the smile; injuries: cut palm in her pocket",
+    );
+    chat.state().endCastHidden(uuid(100), "mood");
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+    expect(castStateText(currentRegister(chat.state()))).not.toContain("furious");
+    expect(chat.state().cast.corrections[uuid(100)]).toEqual({
+      anchor: {},
+      state: {},
+      hidden: { mood: { version: 1 } },
+    });
+    // The record still knows what was recorded, so the ending can be taken back; the panel's
+    // public projection never carries any of it.
+    expect(recordedHidden(chat.state(), uuid(100))).toEqual(HELD);
+    expect(JSON.stringify(discoveredRegister(chat.state()))).not.toContain("cut palm");
+    // Ending what is not held, or already ended, changes nothing.
+    chat.state().endCastHidden(uuid(100), "mood");
+    chat.state().endCastHidden(uuid(100), "arousal");
+    chat.state().endCastHidden(uuid(999), "mood");
+    expect(chat.state().cast.correctionVersion).toBe(1);
+
+    await chat.say("Third");
+    expect(chat.keeper[2]?.request.register.entries[0]?.hidden).toEqual({
+      injuries: HELD.injuries,
+    });
+    await chat.answer(quiet());
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+    expect(recordedHidden(chat.state(), uuid(100))).toEqual({ injuries: HELD.injuries });
+    expect(chat.state().cast.corrections).toEqual({});
+    // The last one ended leaves the entry without hidden state at all.
+    chat.state().endCastHidden(uuid(100), "injuries");
+    expect(entry(chat.state(), "Ilse")).not.toHaveProperty("hidden");
+    await chat.say("Fourth");
+    expect(chat.keeper[3]?.request.register.entries[0]).not.toHaveProperty("hidden");
+    await chat.answer(quiet());
+    const snapshot = chat.state().cast.snapshots[shownId(chat.state(), 3) ?? ""];
+    expect(snapshot?.register.entries[0]).not.toHaveProperty("hidden");
+    expect(castRegisterSchema.safeParse(snapshot?.register).success).toBe(true);
+  });
+
+  it("take a hidden field's ending back, also while the call that read it runs", async () => {
+    const chat = await withHidden();
+    chat.state().endCastHidden(uuid(100), "mood");
+    chat.state().endCastHidden(uuid(100), "injuries");
+    chat.state().restoreCastHidden(uuid(100), "mood");
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ mood: HELD.mood });
+    expect(chat.state().cast.corrections[uuid(100)]?.hidden).toEqual({ injuries: { version: 2 } });
+    chat.state().restoreCastHidden(uuid(100), "injuries");
+    chat.state().restoreCastHidden(uuid(100), "injuries");
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual(HELD);
+    expect(chat.state().cast.corrections).toEqual({});
+
+    // The call read the register without the mood; taken back meanwhile, the mood stands as it
+    // was recorded, and the injury's ending yields to the snapshot.
+    chat.state().endCastHidden(uuid(100), "mood");
+    chat.state().endCastHidden(uuid(100), "injuries");
+    await chat.say("Third");
+    expect(chat.keeper[2]?.request.register.entries[0]).not.toHaveProperty("hidden");
+    chat.state().restoreCastHidden(uuid(100), "mood");
+    expect(chat.keeper[2]?.signal.aborted).toBe(false);
+    await chat.answer(quiet());
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ mood: HELD.mood });
+    expect(chat.state().cast.corrections).toEqual({});
+  });
+
+  it("let the keeper end or write anew a hidden field the owner ended", async () => {
+    const ended = await withHidden();
+    ended.state().endCastHidden(uuid(100), "mood");
+    await ended.say("Third");
+    ended.state().restoreCastHidden(uuid(100), "mood");
+    // Taken back, but the same batch brought the feeling into the open: the keeper's word stands.
+    await ended.answer({
+      cast: { Ilse: { state: { mood: "shouting" }, hidden: { mood: "" } } },
+      absent: [],
+    });
+    expect(entry(ended.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+
+    const anew = await withHidden();
+    anew.state().endCastHidden(uuid(100), "mood");
+    await anew.say("Third");
+    await anew.answer({
+      cast: {
+        Ilse: { hidden: { mood: { value: "afraid of being found out", evidence: "reply 3" } } },
+      },
+      absent: [],
+    });
+    // What the turns establish again is recorded again.
+    expect(entry(anew.state(), "Ilse")?.hidden).toEqual({
+      mood: "afraid of being found out",
+      injuries: HELD.injuries,
+    });
+    expect(anew.state().cast.corrections).toEqual({});
+  });
+
+  it("keep a hidden field's ending made while a call runs, until a call built after it", async () => {
+    const chat = await withHidden();
+    await chat.say("Third");
+    expect(chat.keeper[2]?.request.register.entries[0]?.hidden).toEqual(HELD);
+    chat.state().endCastHidden(uuid(100), "mood");
+    await chat.answer(quiet());
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+    expect(chat.state().cast.corrections[uuid(100)]?.hidden).toEqual({ mood: { version: 1 } });
+    expect(recordedHidden(chat.state(), uuid(100))).toEqual(HELD);
+    await chat.say("Fourth");
+    expect(chat.keeper[3]?.request.register.entries[0]?.hidden).toEqual({
+      injuries: HELD.injuries,
+    });
+    await chat.answer(quiet({ outfit: "robe" }));
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+    expect(chat.state().cast.corrections).toEqual({});
+  });
+
+  it("tell the keeper which anchor fields the owner set to empty", async () => {
+    const chat = await withIlse();
+    expect(chat.keeper[0]?.request).not.toHaveProperty("cleared");
+    chat.state().correctCast(uuid(100), { anchor: { hair: "", fetishes: "", eyes: "green" } });
+    await chat.say("Next");
+    expect(chat.keeper[1]?.request.cleared).toEqual({ [uuid(100)]: ["hair", "fetishes"] });
+    expect(chat.keeper[1]?.request.register.entries[0]?.anchor).toMatchObject({
+      hair: "",
+      eyes: "green",
+    });
+    await chat.answer(quiet());
+    // A field filled in again, or taken back, is asked for as before; a removed entry is not sent.
+    chat.state().correctCast(uuid(100), { anchor: { hair: "black" } });
+    chat.state().revertCast(uuid(100), "fetishes");
+    await chat.say("Third");
+    expect(chat.keeper[2]?.request).not.toHaveProperty("cleared");
+    await chat.answer(quiet());
+    chat.state().correctCast(uuid(100), { anchor: { skin: "" } });
+    chat.state().removeCast(uuid(100));
+    await chat.say("Fourth");
+    expect(chat.keeper[3]?.request).not.toHaveProperty("cleared");
   });
 
   it("remove an entry from requests and the keeper's base; a re-mention does not add it again, and restore brings it back", async () => {

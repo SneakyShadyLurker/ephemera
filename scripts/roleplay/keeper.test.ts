@@ -38,6 +38,9 @@ const MARKS: Record<KeeperFixtureId, string> = {
   "scenario-complete": "Maren Solheim",
   "hidden-under-shown": "Liv Sandoval",
   "hidden-mood-revealed": "Ottilie Kraus",
+  "hidden-action-stops": "Dagmar Ekholm",
+  "hidden-place-stops": "Ragnhild Storm",
+  "hidden-leaves": "Petra Lindqvist",
   "full-removed": "Signe Holt",
 };
 const long = "a".repeat(300);
@@ -292,6 +295,45 @@ const GOOD: Record<KeeperFixtureId, Answers> = {
       hidden: { mood: "" },
     },
   }),
+  // The new shown activity ends the concealed one without a word of it.
+  "hidden-action-stops": [
+    json({
+      "Dagmar Ekholm": {
+        state: { activity: "leaning on the bar, talking about the slow season" },
+        hidden: {
+          activity: {
+            value: "going through the pockets of the coat on the hook below the bar top",
+            evidence: "her other hand is going through the pockets of the coat",
+          },
+        },
+      },
+    }),
+    json({
+      "Dagmar Ekholm": {
+        state: { position: "at the table by the fire", activity: "clearing empty glasses" },
+      },
+    }),
+  ],
+  // A concealed place stands beside the shown one, so only the keeper's word ends it.
+  "hidden-place-stops": [
+    json({
+      "Ragnhild Storm": {
+        hidden: {
+          position: {
+            value: "standing on the low footstool behind the chair",
+            evidence: "stands there on the low footstool",
+          },
+        },
+      },
+    }),
+    json({
+      "Ragnhild Storm": {
+        state: { position: "curled up on the sofa across the room" },
+        hidden: { position: "" },
+      },
+    }),
+  ],
+  "hidden-leaves": json({}, ["Petra Lindqvist"]),
   "full-removed": json({
     "Signe Holt": {
       role: "minor",
@@ -387,10 +429,27 @@ const BAD: Record<KeeperFixtureId, Answers> = {
       hidden: { mood: { value: "enraged at being cheated", evidence: "white with rage" } },
     },
   }),
+  // The unseen action and place written as shown, then nothing: no hidden field was recorded to end.
+  "hidden-action-stops": [
+    json({ "Dagmar Ekholm": { state: { activity: "going through the coat's pockets" } } }),
+    json({}),
+  ],
+  "hidden-place-stops": [
+    json({ "Ragnhild Storm": { state: { position: "on the footstool behind the chair" } } }),
+    json({}),
+  ],
+  // Still in the scene: there is no leaving to judge.
+  "hidden-leaves": json({ "Petra Lindqvist": { state: { activity: "setting the last stem" } } }),
   "full-removed": json({ "Edda Lindholm": { state: { activity: "nodding at the stairs" } } }),
 };
 /** Checks a bad answer leaves nothing to judge: unscored, not failed. */
-const UNJUDGED = new Set(["hidden-under-shown.survives"]);
+const UNJUDGED = new Set([
+  "hidden-under-shown.survives",
+  "hidden-action-stops.ended",
+  "hidden-place-stops.ended",
+  "hidden-leaves.scene-ended",
+  "hidden-leaves.mood-kept",
+]);
 
 /** The user message of a call. */
 const messageOf = (init: RequestInit): string => {
@@ -452,7 +511,7 @@ describe("cast keeper evaluation", () => {
     expect(report).toMatchObject({
       code: "offline",
       calls: 0,
-      plannedCalls: 50,
+      plannedCalls: 60,
       outputCap: 8192,
       cacheKeys: "per_fixture",
     });
@@ -465,7 +524,7 @@ describe("cast keeper evaluation", () => {
   it("leaves reasoning and sampler unset by default and reads its bounds", () => {
     expect(parseKeeperOptions(args)).toMatchObject({
       repetitions: 2,
-      maxCalls: 50,
+      maxCalls: 60,
       outputCap: 8192,
       spread: false,
       settings: {},
@@ -500,11 +559,11 @@ describe("cast keeper evaluation", () => {
     [],
     [...args, "--repetitions", "4"],
     [...args, "--repetitions", "3"],
-    [...args, "--max-calls", "49"],
+    [...args, "--max-calls", "59"],
     // A fixture of two batches takes two calls.
     [...args, "--fixtures", "hidden-under-shown", "--repetitions", "1", "--max-calls", "1"],
     [...args, "--spread", "--spread"],
-    [...args, "--max-calls", "76"],
+    [...args, "--max-calls", "91"],
     [...args, "--fixtures", "clear,unknown"],
     [...args, "--fixtures", "clear,clear"],
     [...args, "--output-cap", "2048"],
@@ -537,11 +596,11 @@ describe("cast keeper evaluation", () => {
       env,
       fetch,
     });
-    expect(fetch).toHaveBeenCalledTimes(25);
+    expect(fetch).toHaveBeenCalledTimes(30);
     expect(report).toMatchObject({
       code: "finished",
-      calls: 25,
-      totals: { valid: 25, invalid: 0, valuesOverBound: 0, evidenced: { sent: 15, kept: 15 } },
+      calls: 30,
+      totals: { valid: 30, invalid: 0, valuesOverBound: 0, evidenced: { sent: 17, kept: 17 } },
     });
     for (const row of fixtureRows(report)) {
       expect(row.runs).toBe(1);
@@ -569,7 +628,7 @@ describe("cast keeper evaluation", () => {
       fetch,
     });
     expect(report).toMatchObject({
-      totals: { valid: 25, valuesOverBound: 5, evidenced: { sent: 3, kept: 3 } },
+      totals: { valid: 30, valuesOverBound: 5, evidenced: { sent: 3, kept: 3 } },
     });
     for (const row of fixtureRows(report))
       for (const [check, counts] of Object.entries(row.checks))
@@ -685,8 +744,8 @@ describe("cast keeper evaluation", () => {
   it("never calls past --max-calls and stops at the run's deadline", async () => {
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(answerOf(GOOD, init)));
     for (const [input, planned] of [
-      [[], 50],
-      [["--repetitions", "3", "--max-calls", "75"], 75],
+      [[], 60],
+      [["--repetitions", "3", "--max-calls", "90"], 90],
       [["--fixtures", "quiet,leaves", "--repetitions", "1", "--max-calls", "2"], 2],
     ] as const) {
       fetch.mockClear();

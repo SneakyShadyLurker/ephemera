@@ -779,6 +779,90 @@ describe("a record", () => {
     );
     expect(out).not.toContain("Updated behind this edit");
   });
+
+  describe("Hidden from you", () => {
+    const hidden = {
+      injuries: "a cut palm, kept in her pocket",
+      mood: "furious behind the smile",
+      position: "where the mirror shows her the door",
+    };
+    const holding = { ...mara, hidden };
+    const section = (out: string) =>
+      /<details data-cast-hidden=""[\s\S]*?<\/details>/.exec(out)?.[0];
+    const rows = (out: string) =>
+      [...(section(out) ?? "").matchAll(/data-cast-hidden-field="([^"]+)"/g)].map((m) => m[1]);
+
+    it("is not there for an entry that holds nothing hidden", () => {
+      chat([mara]);
+      const out = renderToStaticMarkup(<RecordText entry={mara} />);
+      expect(out).not.toContain("Hidden from you");
+      expect(out).not.toContain("data-cast-hidden");
+    });
+
+    it("is the record's last disclosure, closed, saying what opening shows", () => {
+      chat([holding]);
+      // The panel passes the public projection: the section reads the register by itself.
+      const out = renderToStaticMarkup(<RecordText entry={mara} />);
+      const folded = section(out) ?? "";
+      expect(folded).not.toMatch(/<details[^>]* open/);
+      expect(out.indexOf("More details")).toBeLessThan(out.indexOf("Hidden from you"));
+      expect(out.indexOf("Hidden from you")).toBeLessThan(
+        out.indexOf("Corrections to looks and character"),
+      );
+      expect(folded).toMatch(
+        /<summary aria-labelledby="([^"]+)" aria-describedby="([^"]+)"[^>]*><span id="\1">Hidden from you<\/span><svg[\s\S]*?<\/svg><span id="\2"[^>]*>Opening shows what the story keeps from you\.<\/span><\/summary>/,
+      );
+      expect(folded).toContain(
+        "Only the narrator reads these. End one that no longer holds; Undo stays until the cast next updates.",
+      );
+      // Nothing of it stands anywhere else in the record.
+      const rest = out.replace(folded, "");
+      for (const value of Object.values(hidden)) expect(rest).not.toContain(value);
+    });
+
+    it("lists each hidden field under its label in the record's order, read only, with End", () => {
+      chat([holding]);
+      const folded = section(renderToStaticMarkup(<RecordText entry={mara} />)) ?? "";
+      expect(rows(folded)).toEqual(["mood", "position", "injuries"]);
+      expect(folded).toMatch(
+        /<dt[^>]*>Mood<\/dt><dd[^>]*>(?:<div[^>]*>)+furious behind the smile<div[^>]*><button[^>]*data-cast-hidden-end="mood"[^>]*aria-label="End hidden mood"[^>]*>End<\/button>/,
+      );
+      expect(folded).toContain('aria-label="End hidden position"');
+      expect(folded).toContain('aria-label="End hidden injuries"');
+      expect(folded).not.toContain("data-cast-edit");
+      expect(folded).not.toContain("<textarea");
+      expect(folded).not.toContain("data-cast-changed");
+      expect(folded).not.toContain("data-cast-hidden-undo");
+    });
+
+    it("says an ended field where it stood, with Undo, and shows its value no longer", () => {
+      chat([holding], {
+        corrections: { [mara.id]: { anchor: {}, state: {}, hidden: { mood: { version: 1 } } } },
+      });
+      const folded = section(renderToStaticMarkup(<RecordText entry={mara} />)) ?? "";
+      expect(rows(folded)).toEqual(["mood", "position", "injuries"]);
+      expect(folded).toMatch(/data-cast-hidden-field="mood" data-ended=""/);
+      expect(folded).toMatch(
+        /<dt[^>]*>Mood<\/dt><dd[^>]*><div data-closed=""><\/div>(?:<div[^>]*>)+<span role="presentation"[^>]*><span aria-live="polite"[^>]*><span class="sr-only">Hidden mood ended\.<\/span><span aria-hidden="true">Ended\.<\/span><\/span><button[^>]*data-cast-hidden-undo="mood"[^>]*aria-label="Undo ending hidden mood"[^>]*>Undo<\/button>/,
+      );
+      expect(folded).not.toContain("furious behind the smile");
+      expect(folded).not.toContain('data-cast-hidden-end="mood"');
+      expect(folded).toContain('data-cast-hidden-end="position"');
+    });
+
+    it("stays for its Undo while every field is ended, and goes once the record holds none", () => {
+      const ended = { mood: { version: 1 }, position: { version: 2 }, injuries: { version: 3 } };
+      chat([holding], {
+        corrections: { [mara.id]: { anchor: {}, state: {}, hidden: ended } },
+      });
+      const folded = section(renderToStaticMarkup(<RecordText entry={mara} />)) ?? "";
+      expect(folded.match(/>Undo<\/button>/g)).toHaveLength(3);
+      expect(folded).not.toContain(">End</button>");
+      // An ending the snapshot no longer holds a value for has nothing to bring back.
+      chat([mara], { corrections: { [mara.id]: { anchor: {}, state: {}, hidden: ended } } });
+      expect(renderToStaticMarkup(<RecordText entry={mara} />)).not.toContain("Hidden from you");
+    });
+  });
 });
 
 describe("Presence and the cast", () => {

@@ -4,7 +4,8 @@
  * an empty sheet and changes nothing, so a chat on it has no cast. The keeper upserts, from the newest turn, a woman whose name carries
  * that turn's canary with `-in-` turned to `-cast-` (as replies turn it to
  * `-out-`), and marks a man present: the narrator and keeper are sent him,
- * the panel, which lists women only, does not show him. The sheet answer is
+ * the panel, which lists women only, does not show him. A turn that carries
+ * `HIDDEN_TURN` has it record a concealed mood and injury for her as well. The sheet answer is
  * fixed: a female and a male principal, nothing of the card it was sent.
  * Both answers are parsed with the core schemas, so drift fails here.
  */
@@ -60,6 +61,12 @@ export const KEEPER_WOMAN_OUTFIT = "a grey wool coat over a green dress";
 /** Only a marked turn asks for a grounded change to the sheet's existing baseline. */
 export const DEVELOPMENT_TURN = "[e2e-cast-development] Elin cut her hair into a silver bob.";
 export const DEVELOPED_HAIR = "silver bob";
+
+/** Only a marked turn has the keeper record hidden state for the woman it upserts. */
+export const HIDDEN_TURN =
+  "[e2e-cast-hidden] She keeps a cut palm in her pocket and her anger behind a smile.";
+export const HIDDEN_MOOD = "angry behind her smile";
+export const HIDDEN_INJURIES = "a cut palm, kept in her pocket";
 
 const SHEET: CastSheetAnswer = castSheetAnswerSchema.parse({
   cast: [
@@ -167,6 +174,7 @@ const discoveries = (
 export function castAnswer(messages: { role: string; content: string }[]): string {
   const user = messages.findLast((message) => message.role === "user")?.content ?? "";
   const development = (TURN_BLOCK.exec(user)?.[1] ?? "").includes(DEVELOPMENT_TURN);
+  const concealing = (TURN_BLOCK.exec(user)?.[1] ?? "").includes(HIDDEN_TURN);
   const evidence = discoveryEvidence(user);
   const keeperAnchor = {
     age: "24",
@@ -218,6 +226,17 @@ export function castAnswer(messages: { role: string; content: string }[]): strin
           activity: "reading a folded letter",
           mood: "amused",
         },
+        ...(concealing
+          ? {
+              hidden: {
+                mood: { value: HIDDEN_MOOD, evidence: "her anger behind a smile" },
+                injuries: {
+                  value: HIDDEN_INJURIES,
+                  evidence: "She keeps a cut palm in her pocket",
+                },
+              },
+            }
+          : {}),
       },
       [KEEPER_MAN]: {
         role: "minor",

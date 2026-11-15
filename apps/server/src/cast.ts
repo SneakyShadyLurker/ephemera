@@ -193,6 +193,7 @@ export function createCastApi(deps: CastDeps) {
       mode: request.mode,
       full: !castAdmitsNew(request.register),
       kind: castCardKind(card?.tags ?? []),
+      ...(request.cleared === undefined ? {} : { cleared: request.cleared }),
     });
     const room = roomFor(call, [instructions, message]);
     if (room === null) {
