@@ -7,7 +7,12 @@ import { transcriptLines } from "../memory/prompt.ts";
 import { tagged } from "../prompt/tagged.ts";
 import { effectiveCastAnchor, namedInTurns } from "./effective.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
-import { type CastRegister, setAnchorFields } from "./register.ts";
+import {
+  CAST_ANCHOR_FIELDS,
+  CAST_HIDDEN_BESIDE_SHOWN,
+  type CastRegister,
+  setAnchorFields,
+} from "./register.ts";
 
 /*
  * The keeper's and the cast sheet's prompts: Ephemera's own text. The
@@ -38,6 +43,10 @@ Metric units throughout. Each detail appears once: build never mentions the ches
 
 /** How keeper and sheet put a source's stated facts into the anchor's fields. */
 const EXTRACTED = `Record only what the source states and add nothing. Keep its descriptive words, put into the field's form: stated measures converted to metric, a stated cup size converted to EU. Where it gives no cup size, describe the breasts as it does and give none. Where it gives no exact age, write the age as it does, such as "in her forties". Where it gives no height or weight, leave them empty.`;
+
+/** Keys as a sentence lists them: each quoted, the last joined by `type`'s word. */
+const keyList = (keys: readonly string[], type: "conjunction" | "disjunction"): string =>
+  new Intl.ListFormat("en-GB", { type }).format(keys.map((key) => `"${key}"`));
 
 /** The keeper instructions' first sentence, for the mock upstream to know the call by. */
 export const KEEPER_OPENING =
@@ -75,17 +84,18 @@ Rules:
 - The canonical anchor is the NPC's complete truth, not what the player knows. An anchor field once set is fixed: never send it again, never paraphrase or correct it. Fill an empty one only.
 - Outside a Scenario's invention, an anchor comes only from explicit canon and turn evidence. ${EXTRACTED} Leave every field they do not settle empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
 - <lore>, when the message has it, is canon about the world and its people. An NPC a lore entry describes takes anchor fields from it once the turns bring them in; add no entry for a lore person the turns do not show.
-- For a new NPC in a Scenario (the message then opens with "Kind: Scenario"), invent the anchor by role at introduction, preserving every established fact. A new principal gets one complete, coherent canonical anchor: invent what remains hidden, including anatomy, personality and preferences. A new minor gets the looks alone: "age", "ethnicity", "skin", "face", "height", "weight", "build", "hair" and "eyes", invented where the turns leave them open. A minor's "experience", "relationship", "intimate", "personality" and "fetishes" hold only what the turns show and stay empty otherwise. When you promote a Scenario's minor to "principal", complete the anchor in the same answer: fill every field still empty, coherent with what is set. This is the only permitted gap filling. Invented canon is not player discovery.
+- For a new NPC in a Scenario (the message then opens with "Kind: Scenario"), invent the anchor by role at introduction, preserving every established fact. A new principal gets one complete, coherent canonical anchor: invent what remains hidden, including anatomy, personality and preferences. A new minor gets the looks alone: "age", "ethnicity", "skin", "face", "height", "weight", "build", "hair" and "eyes", invented where the turns leave them open. A minor's "experience", "relationship", "intimate", "personality" and "fetishes" hold only what the turns show and stay empty otherwise. When you promote a Scenario's minor to "principal", complete the anchor in the same answer: fill every field still empty, coherent with what is set. Do the same for a Scenario principal the message's task names with its empty fields. These are the only permitted gap fillings. Invented canon is not player discovery.
 - Name everyone who left the scene in "absent".
 - When a known NPC is named more fully, such as "Ilse" becoming "Ilse Brandt", key the change by the full name and give the earlier one in "was".
 - Never write an entry for the player, by any of their names.
 - Role: "principal" is a continuing figure, such as a subject of the card, a recurring relationship or someone with goals of their own; "minor" is everyone else. A new NPC starts minor unless the introduction clearly establishes a continuing principal figure. Promote an NPC to "principal" when later turns establish recurring importance, a developing relationship, independent goals or sustained narrative focus. Name, gender, age, physical detail and sexual relevance alone never decide role.
+- The register shows every entry's "role". Check it for each NPC these turns involve: one it shows as "minor" whom the turns now establish as a continuing figure is promoted in this answer, by "role":"principal" in their change. A role you leave out stays as the register shows it.
 - The message's register writes out in full only who is in the scene or named in the turns. Everyone else is listed by "name", "role" and "gender" alone, with "aka" and "introduced" where set: their anchor and state stand as recorded. Leave such an entry unchanged unless the turns involve them after all.
 
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
 - "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge. "voice" and "goals" are one value each, rewritten whole. "knowledge" is a list of the new items alone, at most ${L.knowledgeAdded}, one fact each, written as "knowledge":[{"value":"knows where the spare key is kept","evidence":"the key is under the third step"}]. The register lists the items already known as plain text: they stay, so never repeat them. A fact that was disproven or has ended is added as its correction, never removed.
-- "hidden": an object keyed only by the state's text keys, for what these turns establish of the NPC that the player cannot perceive: a concealed injury or object, arousal or intoxication that does not show, an unseen action, a feeling the turns state while the NPC shows another. The storyteller alone reads it; the Cast panel never shows it. A hidden field stays until you write the same field in "state", once the turns reveal it to the player, or send the hidden field as "", once it no longer holds. Clothes, underwear included, always go in "outfit" and "disarray". Thoughts and motives are no state: they stay with "goals" and "knowledge".
+- "hidden": an object keyed only by the state's text keys, for what these turns establish of the NPC that the player cannot perceive: a concealed injury or object, arousal or intoxication that does not show, an unseen action, a feeling the turns state while the NPC shows another. The storyteller alone reads it; the Cast panel never shows it. A hidden ${keyList(CAST_HIDDEN_BESIDE_SHOWN, "disjunction")} stands beside the shown one, a surface over what it conceals: writing that field in "state" leaves it, and it stays until you send it as "", once the turns reveal it or it no longer holds. Every other hidden field stays until you write the same field in "state", once the turns reveal it to the player, or send it as "", once it no longer holds. Clothes, underwear included, always go in "outfit" and "disarray". Thoughts and motives are no state: they stay with "goals" and "knowledge".
 Each populated field in these objects, and each knowledge item, is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters, a knowledge item's value at most ${L.knowledge}. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning.
 
 The Cast panel shows player knowledge, never hidden canon:
@@ -134,15 +144,14 @@ export function castLore(input: Parameters<typeof canonLore>[0]): string | null 
 
 /**
  * The register as the keeper reads it: compact JSON by entry, ids and empty
- * fields left out. An entry in the scene or named in `shown` (the batch's
- * turns, by `namedInTurns`) is written whole, hidden state included; the rest by name, role, gender,
- * earlier names and introduction alone, since the register goes out again
- * with every call and a batch seldom concerns those it does not name.
+ * fields left out. An entry that `whole` admits (`writtenWhole`) is written
+ * whole, hidden state included; the rest by name, role, gender, earlier
+ * names and introduction alone, since the register goes out again with
+ * every call and a batch seldom concerns those it does not name.
  */
-function registerJson(register: CastRegister, shown: readonly string[], player: string): string {
+function registerJson(register: CastRegister, whole: (at: number) => boolean): string {
   const filled = (fields: Record<string, string | boolean | readonly string[]>) =>
     Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== ""));
-  const named = namedInTurns(register.entries, shown, player);
   return JSON.stringify(
     register.entries.map((entry, at) => {
       const { role, aka, state, continuity, hidden } = entry;
@@ -154,7 +163,7 @@ function registerJson(register: CastRegister, shown: readonly string[], player: 
         ...(aka.length === 0 ? {} : { aka }),
       };
       const introduced = entry.introduced === true ? { introduced: true } : {};
-      if (!state.present && !named.has(at)) return { ...identity, ...introduced };
+      if (!whole(at)) return { ...identity, ...introduced };
       const discovered = Object.fromEntries(
         Object.entries(entry.discovered ?? {}).flatMap(([field, item]) =>
           item === undefined ? [] : [[field, { value: item.value, basis: item.basis }]],
@@ -174,10 +183,59 @@ function registerJson(register: CastRegister, shown: readonly string[], player: 
 }
 
 /**
+ * Whether the keeper reads the entry at an index whole: it is in the scene
+ * or named in `shown` (the batch's turns, by `namedInTurns`).
+ */
+function writtenWhole(
+  register: CastRegister,
+  shown: readonly string[],
+  player: string,
+): (at: number) => boolean {
+  const named = namedInTurns(register.entries, shown, player);
+  return (at) => register.entries[at]?.state.present === true || named.has(at);
+}
+
+/**
+ * The task line that asks for Scenario principals' missing anchor fields: a
+ * sentence per principal the keeper reads whole whose anchor has an empty
+ * field, naming the entry and those fields; null when there is none. A
+ * principal left partial when it was introduced would otherwise stay so for
+ * the whole chat, and a line built from the register does not depend on the
+ * model noticing the gap. None for another kind of card: only a Scenario's
+ * people are invented.
+ *
+ * Its wording is measured (`scripts/roleplay/keeper.ts`), so it changes only
+ * with a measurement. A request of its own takes a batch over: placed before
+ * the task as an order, the answer held nothing else; after it, as a
+ * statement that the entry is an incomplete principal, a promotion the same
+ * turns called for was missed in half the answers. An "Also" after the task
+ * that ends by putting the turns' changes first keeps both.
+ */
+function completionTask(
+  register: CastRegister,
+  whole: (at: number) => boolean,
+  kind: string | null,
+): string | null {
+  if (kind !== CREATOR_TAGS.scenario) return null;
+  const asks = register.entries.flatMap(({ role, anchor }, at) => {
+    const empty = CAST_ANCHOR_FIELDS.filter((field) => anchor[field] === "");
+    return role !== "principal" || !whole(at) || empty.length === 0
+      ? []
+      : [
+          `Also fill ${anchor.name}'s empty anchor fields, coherent with what is set: ${keyList(empty, "conjunction")}.`,
+        ];
+  });
+  return asks.length === 0
+    ? null
+    : [...asks, "Do this last, after everything the turns change."].join(" ");
+}
+
+/**
  * The keeper call's message (user): canon when the chat has no current
  * sheet, the batch's lore, the player, the register, the turns, then the
- * task. Canon sits first: it is stable per character, while the lore
- * follows the batch's turns and the register changes every call.
+ * task, with a line for the Scenario principals to complete
+ * (`completionTask`). Canon sits first: it is stable per character, while
+ * the lore follows the batch's turns and the register changes every call.
  */
 export function keeperMessage({
   canon,
@@ -207,6 +265,12 @@ export function keeperMessage({
       ? "This is the opening. Set who is present and their state, introduce everyone it shows the player and add anyone new."
       : "These are the newest turns. Answer with what changed.";
   const read = turns.map((turn) => ({ ...turn, content: turn.scanText ?? turn.content }));
+  const whole = writtenWhole(
+    register,
+    read.map((turn) => turn.content),
+    names.user,
+  );
+  const completion = completionTask(register, whole, kind);
   return [
     ...(kind === null ? [] : [`Kind: ${kind}`]),
     ...(canon === null ? [] : [tagged("canon", canon)]),
@@ -214,16 +278,11 @@ export function keeperMessage({
     tagged("player", `The player is ${names.user}: never an entry.`),
     tagged(
       "register",
-      register.entries.length === 0
-        ? "The register is empty."
-        : registerJson(
-            register,
-            read.map((turn) => turn.content),
-            names.user,
-          ),
+      register.entries.length === 0 ? "The register is empty." : registerJson(register, whole),
     ),
     tagged("turn", transcriptLines(read, names)),
     task,
+    ...(completion === null ? [] : [completion]),
     ...(full ? ["The register is full: add no one; update and mark absent only."] : []),
   ].join("\n\n");
 }

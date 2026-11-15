@@ -19,6 +19,12 @@ export type WireMessage = { role: "system" | "user" | "assistant"; content: stri
 /** A run's options every script reads; each script adds its own. */
 export interface RunOptions {
   live: boolean;
+  /**
+   * A fresh cache key with every call instead of one per fixture. One key
+   * keeps a run on one backend of a provider that routes by it, so two runs
+   * then differ by backend as well as by prompt; spread, each samples them all.
+   */
+  spread: boolean;
   model: string;
   repetitions: number;
   maxCalls: number;
@@ -54,6 +60,10 @@ export function parseFlags<T extends RunOptions>(
     seen.add(flag);
     if (flag === "--live") {
       options.live = true;
+      continue;
+    }
+    if (flag === "--spread") {
+      options.spread = true;
       continue;
     }
     const value = args[++at];
@@ -161,22 +171,29 @@ export function usageTotals(rows: Pick<Observation, "usage">[]) {
   );
 }
 
+/** Each check's pass, fail and unscored counts over `rows`: a row without the check is unscored. */
+export const checkCounts = (
+  rows: readonly Pick<Observation, "checks">[],
+  checkIds: readonly string[],
+) =>
+  Object.fromEntries(
+    checkIds.map((id) => [
+      id,
+      {
+        passed: rows.filter((row) => row.checks?.[id] === true).length,
+        failed: rows.filter((row) => row.checks?.[id] === false).length,
+        unscored: rows.filter((row) => row.checks?.[id] === undefined).length,
+      },
+    ]),
+  );
+
 export function aggregate(rows: Observation[], checkIds: readonly string[] = []) {
   return {
     calls: rows.length,
     outcomes: Object.fromEntries(
       OUTCOMES.map((outcome) => [outcome, rows.filter((row) => row.outcome === outcome).length]),
     ),
-    checks: Object.fromEntries(
-      checkIds.map((id) => [
-        id,
-        {
-          passed: rows.filter((row) => row.checks?.[id] === true).length,
-          failed: rows.filter((row) => row.checks?.[id] === false).length,
-          unscored: rows.filter((row) => row.checks?.[id] === undefined).length,
-        },
-      ]),
-    ),
+    checks: checkCounts(rows, checkIds),
     usage: usageTotals(rows),
     durationMsDiagnostic: rows.reduce((sum, row) => sum + row.durationMs, 0),
     failures: rows
@@ -214,6 +231,14 @@ export function upstreamEndpoint(
     return { code: error instanceof Refusal ? error.code : "invalid_upstream_url" };
   }
 }
+
+/**
+ * The cache key of one call: the fixture's own for the whole run, so a
+ * provider's prompt cache serves its repetitions, or a fresh one under
+ * `--spread`.
+ */
+export const callKey = (options: Pick<RunOptions, "spread">, fixtureKey: string): string =>
+  options.spread ? crypto.randomUUID() : fixtureKey;
 
 /** A run's call allowance: at most `maxCalls`, none once `deadlineMs` passed. */
 export function callBudget(maxCalls: number, deadlineMs: number) {

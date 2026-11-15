@@ -671,7 +671,12 @@ replay carries it.
    together, and
    `prompt_too_long` when the input's
    calibrated estimate leaves less than `MEMORY_LIMITS.replyReserve`
-   (8,192) tokens of the window. A queued request answers 200 with
+   (8,192) tokens of the window, or when no canon can be built for it:
+   names filled into the description pass the macro bound, or the
+   lorebooks' macros exhaust their work allowance (`MacroLimitError` from
+   `memoryCanon`), as the keeper route refuses a description it cannot
+   fill. A chapter's canon that cannot be built counts as a part that does
+   not fit: the episode stays written and no chapter is. A queued request answers 200 with
    `application/json` at once, before waiting for the preceding write and
    running these checks; its refusals arrive as `{ error }` in that body.
    An unqueued request keeps the checks' HTTP refusal statuses and, past
@@ -1135,7 +1140,17 @@ people's records directly and folds the records of away people under their names
    memory's (`objectCall` in `object-call.ts`) with the keeper's static
    instructions, so the provider's prefix cache covers them, and a message
    of canon, the batch's lore, the player, the register as compact JSON
-   (ids and empty fields left out, hidden state included) and the turns.
+   (ids and empty fields left out, hidden state included), the turns and
+   the task. For a Scenario card the task gains one line when a principal
+   the register writes whole has empty anchor fields (`completionTask`): a
+   sentence per such principal naming them and those fields, closed by a
+   sentence that puts the turns' changes first. A principal left partial at
+   introduction, or read partial from the card, would otherwise stay so for
+   the whole chat, and a line built from the register does not depend on
+   the model noticing the gap. `applyCastChanges` needs nothing for it: an
+   empty field is fillable. The line's wording and place are measured: as a
+   request of its own it took the batch over, and a promotion the same
+   turns called for was missed.
    Lore is the lorebook entries that are constant or keyed by the batch's
    turns (`castLore` over `canonLore` in `memory/canon.ts`, the memory
    canon's own activation and budget for the call's window, less what canon
@@ -1181,12 +1196,19 @@ people's records directly and folds the records of away people under their names
    canonical profile is created once at introduction, a minor's looks alone
    (age, ethnicity, skin, face, height, weight, build, hair, eyes), the rest
    of a minor's anchor holding what the turns show until a promotion to
-   principal completes it. Public discoveries remain evidence-led. The role's
+   principal completes it. The third permitted filling is the one the
+   task's completion line asks for. A rule of its own ties promotion to the
+   role the register shows: the keeper checks it for everyone the turns
+   involve and sends `"role":"principal"` for a minor who has become a
+   continuing figure, since without it a model saw the reason to promote
+   and left the role out. Public discoveries remain evidence-led. The role's
    definition (a principal is a continuing figure: a subject of the card, a
    recurring relationship, someone with goals of their own) and the promotion
    rule are part of the static instructions for every card kind; the message
    names the kind. A register that can take no one new (`castAdmitsNew`:
-   full, with no away minor to retire) is told to add no one. The
+   full, with no away minor to retire) is told to add no one. The register
+   the route reads is the request's, which leaves out the entries the owner
+   removed, so one of those never makes it full. The
    introduction rule asks for what those turns show or tell the player
    under `discovered` in the same change, since a model otherwise tends to
    send the introduction alone.
@@ -1194,21 +1216,37 @@ people's records directly and folds the records of away people under their names
    or `aka`, then by `was`, then by a single first-name match, then by an
    identity the chat knew before (`previous`), else adds an entry. A batch
    that leaves the register over `CAST_LIMITS.entries` retires, for each
-   entry over, the away minor known before the batch whose `seen` is lowest
+   entry over, first an entry the owner removed, in register order and
+   whatever else it is (no reader is shown it, so it should not cost a live
+   slot), then the away minor known before the batch whose `seen` is lowest
    (never present first, ties in register order): never a principal, an
-   entry that is present, removed or corrected by the owner, one a sheet
+   entry that is present or corrected by the owner, one a sheet
    entry names by id or name (the web passes the acknowledged sheet), or one
    the batch changed, marked away or named. With no one left to retire, the batch's newest
    additions are refused. A retired entry stays in the slice's identity
    index (one an earlier batch of the same run retired included), so a later
-   change that names it restores its id and anchor through `previous`. Everyone present after the batch then takes the next `seen`
+   change that names it restores its id and anchor through `previous`, and
+   nothing more: no developments, continuity, discoveries, hidden state,
+   introduction or recency. The index holds the latest record of everyone
+   the chat has known across all its branches, so anything beyond who the
+   person is and their fixed baseline could carry another branch's future
+   into this scene. A removed entry that was retired resolves through the
+   index too and stays removed: its name mints no new id, and it rejoins the
+   register only while there is room, the first to leave again. Everyone present after the batch then takes the next `seen`
    count. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
    continuity without overriding owner corrections (a knowledge item joins
    the list unless one with the same `castKey` text is there, and the oldest
    leave past the bound), sets a grounded hidden field and ends one on `""`
-   or on a write of the same state field in a later or the same change
-   (a hidden value of the same change stands beside it), merges grounded discoveries
+   or, for `outfit`, `disarray`, `arousal`, `injuries` and `intoxication`,
+   on a write of the same state field in a later or the same change
+   (a hidden value of the same change stands beside it). A hidden
+   `position`, `activity` or `mood` (`CAST_HIDDEN_BESIDE_SHOWN`) outlasts
+   writes of the shown field and ends on `""` alone: a surface and what it
+   conceals coexist, while the other five are facts a reveal replaces.
+   Measured on a two-batch fixture, a concealed feeling survived a change
+   of the shown mood in 16 of 27 answers under the one rule for all fields,
+   and in 27 of 27 with the split. It merges grounded discoveries
    monotonically within the branch, writes the state as given (`""` clears
    a field), takes `present` from the change when it says so, else marks
    an entry present when its state sets a field and otherwise keeps its
@@ -1278,8 +1316,10 @@ people's records directly and folds the records of away people under their names
    Snapshots identify unused seed-only entries, which are recomposed around
    established people, exact catch-up identities and card admissions before
    remembered lines fill the remaining slots. Card adoption and explicit owner
-   corrections establish identities as current-chat data, retaining their ids
-   and state through omitted keeper changes and memory invalidation;
+   corrections, a removal included, establish identities as current-chat data, retaining their ids
+   and state through omitted keeper changes and memory invalidation, so a
+   removed person stays in the identity index once a newcomer has taken
+   their place;
    seed composition never displaces established people, and only a newcomer
    to a full register retires one (item 5).
    Memory updates fence older loads. Changes to cast entries, the player or
@@ -1325,7 +1365,10 @@ people's records directly and folds the records of away people under their names
    state placed after a newer reply would otherwise read as more current
    than it. A scene picture's source carries the present entries' looks,
    outfit and clothing state, and how they stand as `<people>`
-   (`castPeopleNotes`). The scene metaprompt sizes a covered chest as its
+   (`castPeopleNotes`): a line per person, the name first, then each field
+   under its key with "; " between them, through the helpers the narrator's
+   lines use (`labelled`, `line`), so a value that holds a comma stays one
+   value and the register has one rendering rule. The scene metaprompt sizes a covered chest as its
    clothing shapes it, a binder or push-up included, and the anchor's true
    size only where the excerpt bares it. When the source is too
    long, static card notes are cut first, then present people's notes;
@@ -2430,7 +2473,11 @@ calls. `--live` explicitly enables calls and requires
 `EPHEMERA_UPSTREAM_BASE_URL` and `EPHEMERA_UPSTREAM_API_KEY` in the environment.
 The default matrix is 32 calls, which is also the cap; `--fixtures` selects a
 subset, which leaves room for a third repetition; repetitions, output,
-per-request time and the overall run have bounds. Scores are bounded heuristic checks, never
+per-request time and the overall run have bounds. Every call of one run
+shares one cache key per fixture and variant, sent as `x-session-affinity`,
+so a provider that routes by it serves the whole run from one backend.
+`--spread` sends a fresh key with every scored call instead; the two pairs of
+the cache experiment keep their shared key, which is what they measure. Scores are bounded heuristic checks, never
 proof of immersion, and local prefix estimates are not provider cache evidence.
 The runner prints numeric diagnostics and outcomes, writes no artifacts and
 does not print raw model output. `scripts/roleplay/stdin.ts` is the explicit
@@ -2439,18 +2486,31 @@ bundling with `write: false` keeps the executable in memory too. Neither entry
 changes saved settings or prompt defaults.
 
 `bun scripts/roleplay/keeper.ts --model <id>` runs the product's cast keeper
-prompt over twenty synthetic fixtures and reads each answer as the product
+prompt over twenty-four synthetic fixtures and reads each answer as the product
 does: object repair with the keeper's clamp and schema, then
 `applyCastChanges` over the fixture's register and turns. A fixture with a
-lorebook sends the lore its turns bring in, as the route does. It defaults to
+lorebook sends the lore its turns bring in, as the route does; one with
+entries the owner removed leaves them out of the call and applies the answer
+with them removed, as the web does; one with a second batch takes two calls,
+the second over the register the first answer left. It defaults to
 offline prompt estimates, with no model calls; `--live` requires the same two
-environment variables. Calls are capped at 40 by default and 72 at most, with
+environment variables. Calls are capped at 50 by default, two runs of every
+fixture, and 75 at most, with
 bounded repetitions and per-request and whole-run time limits; `--fixtures`
-selects a subset. The report holds numbers and fixed identifiers only: check
-pass counts over completed, valid answers, every other outcome counted apart,
+selects a subset and `--spread` sends a fresh cache key with every call. The
+report holds numbers and fixed identifiers only: check
+pass counts per run of a fixture whose every batch had a completed, valid
+answer, every other outcome counted apart and a check with nothing to judge
+counted as unscored,
 values sent past a field bound, evidenced items sent and kept after
 grounding, and token usage. It writes no artifacts. The checks are heuristics
 over the resulting register, not proof of keeper accuracy.
+
+To compare an old prompt or rule against a new one, run both with `--spread`.
+Without it each run sits on one backend, and identical prompts have given 78%
+and 55% on one check in two such runs, a difference of backends that reads as
+a difference of prompts. Two or three repetitions do not separate a dip from
+noise either: decide one with some fifty calls per side.
 
 ### Affected tests
 

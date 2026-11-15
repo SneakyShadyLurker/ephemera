@@ -729,8 +729,12 @@ Version 1.0 holds everything below.
   a concealed injury or object, arousal or intoxication that does not show,
   an unseen action, or a feeling they do not show. Only the narrator and the
   keeper read it. The cast panel, scene pictures, memory calls and cast
-  sheets never carry it. A hidden field ends when the keeper records that
-  field in the visible state or reports that it no longer holds. Thoughts
+  sheets never carry it. A concealed fact (clothing, arousal, an injury,
+  intoxication) ends when the keeper records that field in the visible
+  state or reports that it no longer holds. A concealed position, activity
+  or mood stands beside the shown one, a surface over what it hides: a new
+  shown value leaves it, and it ends only when the keeper reports that it
+  came out or no longer holds. Thoughts
   and motives stay with goals and knowledge.
   The keeper and sheet reader are instructed to leave unknown details empty,
   never invent missing anatomy, history or psychology. Development, continuity
@@ -770,7 +774,11 @@ Version 1.0 holds everything below.
   leaves open, by role: a principal receives one complete hidden canonical
   profile at introduction, a minor only their looks (age, ethnicity, skin, face,
   height, weight, build, hair, eyes). A minor's other fields hold what the turns
-  show, and the keeper completes the record when it promotes them. Only facts
+  show, and the keeper completes the record when it promotes them. A
+  Scenario principal whose record still has empty fields, left partial at
+  introduction or read so from the card, is completed too: while they are
+  in the scene or named in the newest turns, the keeper's call names them
+  and the empty fields and asks for them in that answer. Only facts
   grounded in what the player sees, is told or observes in conduct become public
   discoveries. Someone the keeper gives a state counts as present, so a
   person the story only speaks of stays away. A person who left the scene stays in the register as away. Each reply variant keeps its own
@@ -800,12 +808,17 @@ Version 1.0 holds everything below.
   reading the card's cast sheet. Card anchors win over remembered lines.
   Remembered people get fresh chat ids, minor roles and empty, absent state
   until the story places them. The register holds at most 40 people. When it
-  is full and someone new arrives, the away minor who was in the scene longest
+  is full and someone new arrives, a person the owner removed makes room
+  first, so a removal never costs a live place. Otherwise the away minor who
+  was in the scene longest
   ago is retired for them: never a principal, someone present, a person of
-  the card's sheet, one the owner corrected or removed, or one the newest
+  the card's sheet, one the owner corrected, or one the newest
   turns concern. With no such entry the newcomer is not recorded. A retired
   person stays known to the chat, so a return restores their identity and
-  fixed record. Seeds and sheets retire no one: they join only while there is
+  fixed record, and nothing learned or changed since: what the chat knows
+  of its people spans every branch, and more could bring another branch's
+  future into the scene. A removed person who was retired stays removed.
+  Seeds and sheets retire no one: they join only while there is
   room. Editing Cast lines, turning memory
   off or Forget everything replaces the notebook overlay; people already
   established in this chat remain. Overlay changes preserve narration and scene
@@ -1035,7 +1048,8 @@ Version 1.0 holds everything below.
   place when there is no portrait), paints one 2:3 picture of the moment.
   The prompt model (the image prompt model from Settings, else the chat's,
   taken at the press and kept for Paint it again) writes an image prompt from the card, the looks and
-  state of the people present as the cast register has them, and the
+  state of the people present as the cast register has them (each field
+  under its name, as the narrator reads them), and the
   chat's latest turns (up to 40 turns and about 6,000 tokens), and ComfyUI paints
   it with the workflow last chosen for portraits, in a capture fitted to the era
   the card and the chat give, a selfie only when the chat has the

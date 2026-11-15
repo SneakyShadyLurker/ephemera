@@ -1282,13 +1282,20 @@ export function createCastSlice(
         };
       }),
 
-    removeCast: (entryId) =>
+    removeCast: (entryId) => {
+      // The owner's word on that person, as a correction is: she stays known to the chat, so the
+      // removal holds once a newcomer has taken her place in a full register.
+      const entry = sheetedAt(get(), get().messages.length).entries.find(
+        (entry) => entry.id === entryId,
+      );
+      if (entry !== undefined) affirm([entry]);
       correct((cast) => ({
         corrections: withCorrection(cast.corrections, entryId, {
           ...(cast.corrections[entryId] ?? NO_CORRECTION),
           removed: true,
         }),
-      })),
+      }));
+    },
 
     restoreCast: (entryId) =>
       correct((cast) => {

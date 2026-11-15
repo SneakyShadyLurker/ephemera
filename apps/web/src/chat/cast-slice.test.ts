@@ -1562,6 +1562,46 @@ describe("cast snapshots", () => {
     expect(names(chat.state())).not.toContain("Guest 1");
   });
 
+  it("retire a removed person before any away minor, and keep her removed after", async () => {
+    const chat = castChat();
+    const guests = Array.from({ length: CAST_LIMITS.entries }, (_, n) => `Guest ${n}`);
+    await chat.say("Hi");
+    await chat.answer({
+      cast: Object.fromEntries(
+        guests.map((name) => [name, { gender: "male" as const, state: { present: false } }]),
+      ),
+      absent: [],
+    });
+    const removed = entry(chat.state(), "Guest 7")?.id ?? "";
+    chat.state().removeCast(removed);
+    const others = guests.filter((name) => name !== "Guest 7");
+    await chat.say("Who is at the door?");
+    // The keeper is not shown her, and is not told the register is full: her place is free.
+    expect(chat.keeper.at(-1)?.request.register.entries).toHaveLength(CAST_LIMITS.entries - 1);
+    await chat.answer({
+      cast: { "Tilda Marek": { gender: "female", state: { position: "in the doorway" } } },
+      absent: [],
+    });
+    // Guest 0 was away longest and stays: the removed one made room.
+    expect(names(chat.state())).toEqual([...others, "Tilda Marek"]);
+    // Named by the story again, she is not added back, and no one leaves for her.
+    await chat.say("And Guest 7?");
+    await chat.answer({
+      cast: { "Guest 7": { gender: "male", state: { position: "outside" } } },
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual([...others, "Tilda Marek"]);
+    // Restored, he is the entry he was once the story brings him in.
+    chat.state().restoreCast(removed);
+    await chat.say("Guest 7, come in.");
+    await chat.answer({
+      cast: { "Guest 7": { state: { position: "in the hall" } } },
+      absent: [],
+    });
+    expect(entry(chat.state(), "Guest 7")?.id).toBe(removed);
+    expect(names(chat.state())).toHaveLength(CAST_LIMITS.entries);
+  });
+
   it("spare the person of a sheet that lands while the keeper's call runs", async () => {
     const chat = castChat();
     await chat.say("Hi");

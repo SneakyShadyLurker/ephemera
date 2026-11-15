@@ -15,6 +15,7 @@ import {
   episodePatchRequestSchema,
   fitChapterMembers,
   MAX_CHAT_BODY_BYTES,
+  MacroLimitError,
   MEMORY_LIMITS,
   type MemoryRefusal,
   type MemoryState,
@@ -293,11 +294,23 @@ function writeRefusal(
   );
 }
 
-/** A memory call's canon, fitted to its target's window as the target's model counts. */
+/**
+ * A memory call's canon, fitted to its target's window as the target's
+ * model counts. Not ok when names filled into it pass the macro bound or
+ * its lorebooks exhaust their work allowance: no prompt can be built.
+ */
 const canonFor = (
   call: ObjectCallTarget,
   input: Omit<Parameters<typeof memoryCanon>[0], "window" | "count">,
-) => memoryCanon({ ...input, window: call.window, count: (text) => countText(text) * call.ratio });
+): { ok: true; canon: string | null } | { ok: false } => {
+  try {
+    const count = (text: string) => countText(text) * call.ratio;
+    return { ok: true, canon: memoryCanon({ ...input, window: call.window, count }) };
+  } catch (error) {
+    if (!(error instanceof MacroLimitError)) throw error;
+    return { ok: false };
+  }
+};
 
 /** Settles true once `ready` does, or false once `signal` aborts first. */
 const awaitTurn = async (ready: Promise<unknown>, signal: AbortSignal) =>
@@ -391,6 +404,11 @@ export function createMemoryApi(deps: MemoryDeps) {
         linked,
         turns,
       });
+    const canon = canonOf(request.turns);
+    if (!canon.ok) {
+      log.warn({ event: "memory.remember", model, errorClass: "prompt_too_long" });
+      return { ok: false, error: "prompt_too_long" };
+    }
     const transcript = transcriptLines(request.turns, names);
     // A window too small for a full notebook tells the call the notebook's room.
     const notebookChars = notebookRoom(call.window);
@@ -399,7 +417,7 @@ export function createMemoryApi(deps: MemoryDeps) {
       room: notebookChars,
     });
     const message = rememberMessage({
-      canon: canonOf(request.turns),
+      canon: canon.canon,
       notebook: state.notebook,
       // The story just before the span: the held memories are its newest part.
       previous: previousEpisodes([...recap, ...held], book),
@@ -472,17 +490,19 @@ export function createMemoryApi(deps: MemoryDeps) {
       const summaryRoom = chapterRoom(budget);
       const chapterSystem = chapterInstructions(names, summaryRoom);
       // Too much to merge in this window (a long book's oldest half): the oldest part that fits.
+      // A canon that cannot be built for some part is a part that does not fit.
       const fitted = fitChapterMembers(
         members,
-        (merged) =>
-          chapterMessage({
-            canon: canonOf(memberTurns(merged, names.user)),
-            notebook: notebook.notebook,
-            members: merged,
-          }),
-        (chapterInput) => roomFor(call, [chapterSystem, chapterInput]),
+        (merged) => {
+          const canon = canonOf(memberTurns(merged, names.user));
+          return canon.ok
+            ? chapterMessage({ canon: canon.canon, notebook: notebook.notebook, members: merged })
+            : null;
+        },
+        (chapterInput) =>
+          chapterInput === null ? null : roomFor(call, [chapterSystem, chapterInput]),
       );
-      if (fitted === null) {
+      if (fitted === null || fitted.input === null) {
         log.warn({ event: "memory.chapter", model, errorClass: "prompt_too_long" });
         return unrolled;
       }
@@ -589,9 +609,13 @@ export function createMemoryApi(deps: MemoryDeps) {
       linked: stores.lorebooks.booksOf(characterId),
       turns: [],
     });
+    if (!canon.ok) {
+      log.warn({ event: "memory.opening", model, errorClass: "prompt_too_long" });
+      return { ok: false, error: "prompt_too_long" };
+    }
     const instructions = openingInstructions(names);
     const message = openingMessage({
-      canon,
+      canon: canon.canon,
       notebook: state.notebook,
       // The newest of the story that fit, in story order, as a new chat is told them.
       episodes: storyBefore(book, call.window),

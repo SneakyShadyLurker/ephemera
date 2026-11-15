@@ -529,6 +529,53 @@ describe("hidden state", () => {
     );
   });
 
+  it("keeps a concealed mood, position or activity when the shown one is written", () => {
+    const shown =
+      "Mara laughs along, furious under it. Unseen, she works the latch loose behind her back.";
+    const surface = then(
+      { entries: [person()] },
+      {
+        state: { mood: "laughing along" },
+        hidden: {
+          mood: { value: "furious", evidence: "furious under it" },
+          activity: {
+            value: "working the latch loose behind her back",
+            evidence: "she works the latch loose behind her back",
+          },
+          position: { value: "back against the door", evidence: "behind her back" },
+        },
+      },
+      [shown],
+    );
+    // A surface and what it conceals coexist: a new shown value replaces neither.
+    const later = then(
+      { entries: [surface] },
+      { state: { mood: "tired", activity: "yawning", position: "slumped in her chair" } },
+    );
+    expect(later.state).toMatchObject({ mood: "tired", activity: "yawning" });
+    expect(later.hidden).toEqual(surface.hidden);
+    // Only the keeper's own word ends one, field by field.
+    expect(then({ entries: [later] }, { hidden: { mood: "" } }).hidden).toEqual({
+      activity: "working the latch loose behind her back",
+      position: "back against the door",
+    });
+  });
+
+  it("ends a concealed fact when the shown field is written: clothes, arousal, injuries, intoxication", () => {
+    const facts = {
+      outfit: "a wire taped under her blouse",
+      disarray: "torn stocking under the skirt",
+      arousal: "aroused without showing it",
+      injuries: "cracked rib",
+      intoxication: "drunk without showing it",
+    };
+    const concealing = { entries: [{ ...person(), hidden: facts }] };
+    for (const field of Object.keys(facts) as (keyof typeof facts)[]) {
+      const { [field]: _ended, ...rest } = facts;
+      expect(then(concealing, { state: { [field]: "plain to see" } }).hidden).toEqual(rest);
+    }
+  });
+
   it("stands beside a state value of the same change", () => {
     const both = then(concealed(), {
       state: { injuries: "bruised cheek" },

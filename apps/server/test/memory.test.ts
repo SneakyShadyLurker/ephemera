@@ -1142,6 +1142,16 @@ describe("memory API", () => {
     expect(calls()).toBe(2);
   });
 
+  it("refuses a description whose filled names pass the macro bound, before any call", async () => {
+    const { app, characterId, calls } = setup([answer(reply)], {
+      card: { ...blankCard("M".repeat(200)), description: "{{char}} ".repeat(8000) },
+    });
+    const response = await remember(app, request(characterId));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "prompt_too_long" });
+    expect(calls()).toBe(0);
+  });
+
   it("sends the memory model and its offered effort to the scene and the chapter call", async () => {
     const catalog = [
       {
@@ -2647,6 +2657,17 @@ describe("the opening call", () => {
     const tiny = await write(app, characterId, { model: "tiny" });
     expect(tiny.status).toBe(422);
     expect(await tiny.json()).toEqual({ error: "prompt_too_long" });
+    expect(calls()).toBe(0);
+  });
+
+  it("refuses a description whose filled names pass the macro bound, before any call", async () => {
+    const { app, stores, characterId, calls } = setup([answer({ opening: written })], {
+      card: { ...blankCard("M".repeat(200)), description: "{{char}} ".repeat(8000) },
+    });
+    seed(stores, characterId, 1);
+    const response = await write(app, characterId, { model: "fake-model" });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "prompt_too_long" });
     expect(calls()).toBe(0);
   });
 

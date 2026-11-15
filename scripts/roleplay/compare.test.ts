@@ -338,6 +338,27 @@ describe("synthetic prompt comparison", () => {
     expect(output).not.toMatch(/742913|Rook|Ilse|https:|prompt_cache_key|x-session-affinity/);
   });
 
+  it("sends every scored call its own cache key under --spread, the cache pairs still sharing one", async () => {
+    const keys: string[] = [];
+    const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      const body = JSON.parse(String(init?.body)) as { prompt_cache_key: string };
+      expect(headers.get("x-session-affinity")).toBe(body.prompt_cache_key);
+      keys.push(body.prompt_cache_key);
+      return reply(answers[0] ?? "");
+    });
+    const report = await runComparison([...args, "--live", "--spread"], { env, fetch });
+    expect(report).toMatchObject({ calls: 32, cacheKeys: "per_call" });
+    expect(new Set(keys.slice(0, 28)).size).toBe(28);
+    expect(keys[28]).toBe(keys[30]);
+    expect(keys[29]).toBe(keys[31]);
+    expect(keys.slice(0, 28)).not.toContain(keys[28]);
+    expect(await runComparison(args, { env, fetch })).toMatchObject({ cacheKeys: "per_fixture" });
+    expect(await runComparison([...args, "--spread", "--spread"], { env, fetch })).toMatchObject({
+      code: "invalid_arguments",
+    });
+  });
+
   it("runs against an upstream that needs no key, sending no Authorization header", async () => {
     const authorizations: (string | null)[] = [];
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => {

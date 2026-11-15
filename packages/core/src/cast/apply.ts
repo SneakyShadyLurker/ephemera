@@ -3,6 +3,7 @@ import { castKey, firstWordKey, isOneWord } from "./key.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
+  CAST_HIDDEN_BESIDE_SHOWN,
   CAST_STATE_FIELDS,
   type CastChange,
   type CastChanges,
@@ -28,7 +29,9 @@ interface ApplyOptions {
   /**
    * Ids of entries the owner removed. They stay in `register` and resolve
    * by name and `aka` like any entry, so the keeper cannot add them again;
-   * a change or an `absent` that resolves to one leaves it as it was.
+   * a change or an `absent` that resolves to one leaves it as it was. They
+   * are the first to leave a full register for a newcomer (`withinCapacity`);
+   * one that left resolves through `previous` instead and stays removed.
    */
   removed?: ReadonlySet<string>;
   /**
@@ -166,23 +169,30 @@ export const castAdmitsNew = (register: CastRegister): boolean =>
 
 /**
  * `entries` back within `CAST_LIMITS.entries` after a batch that added
- * `added` (ids, in order): for each entry over, the retirable one known
- * before the batch and last in the scene longest ago goes (never seen
- * first, ties in register order), `spared` ids excepted. With no one left
- * to retire, the batch's newest additions are refused instead.
+ * `added` (ids, in order). For each entry over, one the owner removed goes
+ * first, in register order and whatever else it is: no reader is shown it,
+ * so it should not cost a live slot. Then the retirable one known before
+ * the batch and last in the scene longest ago goes (never seen first, ties
+ * in register order), `spared` ids excepted. With no one left to retire,
+ * the batch's newest additions are refused instead.
  */
 function withinCapacity(
   entries: readonly CastEntry[],
   added: readonly string[],
   spared: ReadonlySet<string>,
+  removed: ReadonlySet<string>,
 ): readonly CastEntry[] {
   const over = entries.length - L.entries;
   if (over <= 0) return entries;
   const fresh = new Set(added);
+  const known = entries.filter((entry) => !fresh.has(entry.id));
   const out = new Set(
-    entries
-      .filter((entry) => !fresh.has(entry.id) && !spared.has(entry.id) && retirable(entry))
-      .toSorted((a, b) => (a.seen ?? -1) - (b.seen ?? -1))
+    [
+      ...known.filter((entry) => removed.has(entry.id)),
+      ...known
+        .filter((entry) => !removed.has(entry.id) && !spared.has(entry.id) && retirable(entry))
+        .toSorted((a, b) => (a.seen ?? -1) - (b.seen ?? -1)),
+    ]
       .slice(0, over)
       .map((entry) => entry.id),
   );
@@ -217,7 +227,9 @@ function withAka(entry: CastEntry, earlier: string): string[] {
 
 /**
  * `entry` with the change's anchor filled where empty, its role and state
- * written, its knowledge items added and its hidden fields set or ended.
+ * written, its knowledge items added and its hidden fields set or ended: by
+ * `""`, or by a write of the same state field unless that field's hidden
+ * value stands beside the shown one.
  */
 function changed(
   entry: CastEntry,
@@ -250,9 +262,11 @@ function changed(
   if (knowledge.length > 0) continuity.knowledge = knowledge;
   const hidden = { ...entry.hidden };
   for (const field of CAST_STATE_FIELDS) {
-    // What the keeper writes in the state is shown now, so it is hidden no longer; a hidden
-    // value of the same change stands beside it.
-    if (change.state?.[field] !== undefined) delete hidden[field];
+    // What the keeper writes in the state is shown now, so a fact it replaces is hidden no
+    // longer. A surface leaves what it conceals in place (`CAST_HIDDEN_BESIDE_SHOWN`), and a
+    // hidden value of the same change stands beside either.
+    if (change.state?.[field] !== undefined && !CAST_HIDDEN_BESIDE_SHOWN.includes(field))
+      delete hidden[field];
     const update = change.hidden?.[field];
     if (update === undefined) continue;
     if (update === "") delete hidden[field];
@@ -315,14 +329,18 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * the chat knew before (`previous`), else a new entry; the player's names dropped; a set anchor field never
  * rewritten; state written as given; an entry present when its change says so or
  * sets a state field, otherwise keeping its presence (a new one away);
- * a hidden field set by its grounded value and ended by `""` or by a write of
- * the same state field; `absent` names marked away. An entry is introduced by the keeper's
+ * a hidden field set by its grounded value and ended by `""` or, for a field
+ * outside `CAST_HIDDEN_BESIDE_SHOWN`, by a write of the same state field;
+ * `absent` names marked away. An entry is introduced by the keeper's
  * grounded `introduce` or by a shown turn writing its name (`namedInTurns`).
- * A newcomer to a full register retires the away minor last in the scene
- * longest ago (`withinCapacity`): never a principal, someone present, a
- * sheet entry, one the owner corrected or removed, or one this batch
- * changed, marked away or named; with no such entry the newcomer is refused. A retired
- * entry stays in `previous`, so a return restores its id and anchor.
+ * A newcomer to a full register retires an entry the owner removed, else the
+ * away minor last in the scene longest ago (`withinCapacity`): never a
+ * principal, someone present, a sheet entry, one the owner corrected, or one
+ * this batch changed, marked away or named; with no such entry the newcomer
+ * is refused. A retired entry stays in `previous`, so a return restores its
+ * id and anchor and nothing more: `previous` knows the chat's people across
+ * its branches, so anything further could come from another branch's future.
+ * A removed one that returns that way stays removed.
  * Everyone present after the batch is marked `seen`.
  */
 export function applyCastChanges(
@@ -343,7 +361,7 @@ export function applyCastChanges(
   // New entries may overfill the register until the batch is read whole: who is retired for them
   // depends on where everyone stands at its end.
   const added: string[] = [];
-  const spared = new Set([...removed, ...Object.keys(corrected), ...sheet.map((item) => item.id)]);
+  const spared = new Set([...Object.keys(corrected), ...sheet.map((item) => item.id)]);
   for (const [name, change] of Object.entries(changes.cast)) {
     if (isPlayer(name, player)) continue;
     // A fuller name for a one-word entry is that entry learning its name, as `was` says.
@@ -419,7 +437,7 @@ export function applyCastChanges(
       if (entry !== undefined) spared.add(entry.id);
     }
   }
-  return { entries: seenNow(withinCapacity(entries, added, spared), removed) };
+  return { entries: seenNow(withinCapacity(entries, added, spared, removed), removed) };
 }
 
 /**
