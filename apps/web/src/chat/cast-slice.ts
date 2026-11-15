@@ -1,5 +1,6 @@
 import {
   applyCastChanges,
+  CAST_ANCHOR_FIELDS,
   CAST_LIMITS,
   type CallAccounting,
   type CallPurpose,
@@ -11,6 +12,7 @@ import {
   type CastSheetEntry,
   type CastSheetRequest,
   type CastState,
+  type CastStateField,
   type CastUpdateRequest,
   type CharacterMemory,
   type ChatTurn,
@@ -63,12 +65,21 @@ type StateCorrections = {
   [K in keyof CastState]?: { value: CastState[K]; version: number };
 };
 
+/** The hidden fields the owner ended, each with the correction version it was ended at. */
+type HiddenCorrections = { [K in CastStateField]?: { version: number } };
+
 /** The owner's corrections to one entry. */
 interface CastCorrection {
   /** Hold for the chat: applied over every base. */
   anchor: Partial<CastAnchor>;
   /** Yield to the first snapshot of a call built after them. */
   state: StateCorrections;
+  /**
+   * Hidden fields the owner ended: out of the register the narrator and the
+   * keeper read. They yield as `state` does, so what a later batch
+   * establishes again is recorded again.
+   */
+  hidden?: HiddenCorrections;
   /** Removed from the cast for this chat: left out everywhere, never added again. */
   removed?: true;
 }
@@ -131,6 +142,10 @@ export interface CastSliceState {
   correctCast: (entryId: string, patch: CastCorrectionPatch) => void;
   /** Takes back the correction of one field, so the recorded value shows again. */
   revertCast: (entryId: string, field: CastField) => void;
+  /** Ends a hidden field of an entry: the narrator and the keeper read it no longer. */
+  endCastHidden: (entryId: string, field: CastStateField) => void;
+  /** Takes the ending of a hidden field back, while no snapshot has taken it over. */
+  restoreCastHidden: (entryId: string, field: CastStateField) => void;
   /** Leaves an entry out of the cast for this chat. */
   removeCast: (entryId: string) => void;
   /** Takes a removal back. */
@@ -283,6 +298,56 @@ const withAnchorCorrections = (
   }),
 });
 
+/** The hidden fields a correction ended. */
+const endedHidden = (correction: CastCorrection | undefined): CastStateField[] =>
+  Object.keys(correction?.hidden ?? {}) as CastStateField[];
+
+/**
+ * A register without the hidden fields `ended` names by entry id: the ones
+ * the owner ended, out of what the narrator, the keeper and the panel read.
+ * An entry whose last hidden field ended carries none.
+ */
+function withoutEndedHidden(
+  register: CastRegister,
+  ended: (entryId: string) => readonly CastStateField[],
+): CastRegister {
+  return {
+    entries: register.entries.map((entry) => {
+      const fields = ended(entry.id).filter((field) => entry.hidden?.[field] !== undefined);
+      if (fields.length === 0) return entry;
+      const { hidden: held, ...rest } = entry;
+      const hidden = { ...held };
+      for (const field of fields) delete hidden[field];
+      return Object.keys(hidden).length === 0 ? rest : { ...rest, hidden };
+    }),
+  };
+}
+
+/**
+ * An entry's hidden state as the newest snapshot recorded it, before the
+ * owner's endings: what the record lists under "Hidden from you", and what
+ * an ending taken back shows again. Never the panel's public projection.
+ */
+export const recordedHidden = (state: CastView, entryId: string): CastEntry["hidden"] =>
+  baseBefore(state, state.messages.length).entries.find((entry) => entry.id === entryId)?.hidden;
+
+/**
+ * The anchor fields the owner set to empty, for the entries of `register`:
+ * what a keeper call is not asked to fill (`castUpdateRequestSchema`).
+ */
+function clearedFields(
+  register: CastRegister,
+  corrections: ChatCast["corrections"],
+): NonNullable<CastUpdateRequest["cleared"]> {
+  return Object.fromEntries(
+    register.entries.flatMap((entry) => {
+      const anchor = corrections[entry.id]?.anchor ?? {};
+      const fields = CAST_ANCHOR_FIELDS.filter((field) => anchor[field] === "");
+      return fields.length === 0 ? [] : [[entry.id, fields]];
+    }),
+  );
+}
+
 /** The sheet over the base at `index`, with no correction. */
 function sheetedAt(
   state: CastView,
@@ -330,7 +395,10 @@ const recordedAt = (state: CastView, index: number): CastRegister =>
 
 /** Every correction over the sheet over the base at `index`, removed entries kept. */
 const chainAt = (state: CastView, index: number): CastRegister =>
-  withAnchorCorrections(recordedAt(state, index), state.cast.corrections);
+  withoutEndedHidden(
+    withAnchorCorrections(recordedAt(state, index), state.cast.corrections),
+    (id) => endedHidden(state.cast.corrections[id]),
+  );
 
 /**
  * The keeper's answer as a snapshot keeps it: an anchor field still as the
@@ -473,7 +541,8 @@ export function stale(state: CastView): boolean {
 const isEmpty = (correction: CastCorrection) =>
   correction.removed !== true &&
   Object.keys(correction.anchor).length === 0 &&
-  Object.keys(correction.state).length === 0;
+  Object.keys(correction.state).length === 0 &&
+  endedHidden(correction).length === 0;
 
 const withCorrection = (
   corrections: ChatCast["corrections"],
@@ -539,6 +608,11 @@ export function createCastSlice(
     multibatch: boolean;
     sent: Set<string>;
     affirmed: Set<string>;
+    /**
+     * The hidden fields a batch of this run wrote, as `id:field`: an ending the owner made
+     * before the run does not take what the keeper established again, in whatever words.
+     */
+    rewritten: Set<string>;
   };
   // One tab-only prefix, with source object identities rather than another transcript copy.
   let continuation: Continuation | undefined;
@@ -892,6 +966,7 @@ export function createCastSlice(
             multibatch: turns.length > CAST_LIMITS.turns,
             sent: new Set<string>(),
             affirmed: new Set<string>(),
+            rewritten: new Set<string>(),
           };
     progress.source = state.messages.slice(0, index + 1);
     progress.multibatch ||= turns.length > progress.limit;
@@ -957,7 +1032,10 @@ export function createCastSlice(
       // Only complete batches advance the private prefix. No target snapshot is visible until
       // every preceding turn is covered, including when a retry extends this unchanged source.
       let usage: CallUsage = {};
-      const { sent, affirmed } = progress;
+      const { sent, affirmed, rewritten } = progress;
+      /** The hidden fields the owner ended before this run that no batch of it wrote again. */
+      const endedBefore = (id: string) =>
+        endedHidden(corrections[id]).filter((field) => !rewritten.has(`${id}:${field}`));
       while (progress.offset < turns.length) {
         // A single call may merge a correction or sheet, but shrinking it creates a dependent
         // chain. Recheck before every dispatch so that transition never pays for a stale batch.
@@ -967,9 +1045,17 @@ export function createCastSlice(
           return;
         }
         const batch = turns.slice(progress.offset, progress.offset + progress.limit);
+        // The keeper reads no hidden field the owner ended. The chain keeps it meanwhile, so an
+        // answer that ends it, or an ending taken back while the call runs, is read as ever.
+        const read = withoutEndedHidden(
+          withoutRemoved(progress.chain, removedIds(get().cast.corrections)),
+          endedBefore,
+        );
+        const cleared = clearedFields(read, corrections);
         const body = {
           ...request,
-          register: withoutRemoved(progress.chain, removedIds(get().cast.corrections)),
+          register: read,
+          ...(Object.keys(cleared).length === 0 ? {} : { cleared }),
           turns: batch,
         };
         const outcome = await ask(body);
@@ -1002,7 +1088,7 @@ export function createCastSlice(
         usage = outcome.response.usage;
         for (const entry of body.register.entries) sent.add(entry.id);
         const before = progress.chain;
-        progress.chain = applyCastChanges(before, changes, {
+        const applying = {
           player,
           newId: deps.newId,
           removed: removedIds(get().cast.corrections),
@@ -1020,7 +1106,24 @@ export function createCastSlice(
               ],
             ),
           ),
-        });
+        };
+        progress.chain = applyCastChanges(before, changes, applying);
+        // Which ended hidden fields the answer wrote is the applicator's own word: the same
+        // changes over the register the keeper read, where such a field is there afterwards
+        // only if this batch set it. Never told by the value's words, which may be the very
+        // ones the owner ended, nor by resolving the answer's names again.
+        if (Object.keys(corrections).some((id) => endedBefore(id).length > 0)) {
+          const written = applyCastChanges(withoutEndedHidden(before, endedBefore), changes, {
+            ...applying,
+            // Ids of entries this reading adds are never looked at.
+            newId: () => crypto.randomUUID(),
+          });
+          for (const entry of written.entries) {
+            for (const field of endedBefore(entry.id)) {
+              if (entry.hidden?.[field] !== undefined) rewritten.add(`${entry.id}:${field}`);
+            }
+          }
+        }
         // Whoever the batch retired for a newcomer stays known: a later batch of this run that
         // names them gives them their id and anchor back, as a later run does once this one commits.
         // They are kept as recorded, as a snapshot keeps its entries: the chain carries the owner's
@@ -1054,15 +1157,26 @@ export function createCastSlice(
         progress.limit = CAST_LIMITS.turns;
       }
       failedStarts.delete(start.replyId);
-      const register = withoutRevertedState(
-        withoutAnchorCorrections(
-          progress.chain,
-          [progress.recorded, progress.previous],
+      // A hidden field the owner ended before the call, and has not taken back since, leaves the
+      // snapshot with the correction that yields to it, unless the keeper wrote it anew.
+      const standing = get().cast.corrections;
+      const register = withoutEndedHidden(
+        withoutRevertedState(
+          withoutAnchorCorrections(
+            progress.chain,
+            [progress.recorded, progress.previous],
+            corrections,
+          ),
+          [progress.sheeted, progress.previous],
           corrections,
+          standing,
         ),
-        [progress.sheeted, progress.previous],
-        corrections,
-        get().cast.corrections,
+        (id) =>
+          sent.has(id)
+            ? endedBefore(id).filter(
+                (field) => standing[id]?.hidden?.[field] === corrections[id]?.hidden?.[field],
+              )
+            : [],
       );
       for (const id of affirmed) established.add(id);
       learn(register.entries.filter((entry) => established.has(entry.id)));
@@ -1081,18 +1195,27 @@ export function createCastSlice(
       );
       patchCast((cast) => ({
         snapshots: { ...cast.snapshots, [call.replyId]: { register, seedOnly, usage, at } },
-        // State corrections the call read yield to its snapshot; later ones stay, and so do those
-        // of entries its request did not carry (one a re-read reply introduced, a removed one):
-        // the keeper never saw them, so they hold until a call that did commits.
+        // State corrections and hidden endings the call read yield to its snapshot; later ones
+        // stay, and so do those of entries its request did not carry (one a re-read reply
+        // introduced, a removed one): the keeper never saw them, so they hold until a call that
+        // did commits.
         corrections: Object.fromEntries(
           Object.entries(cast.corrections).flatMap(([id, correction]) => {
             if (!sent.has(id)) return [[id, correction]];
-            const state = Object.fromEntries(
-              Object.entries(correction.state).filter(
-                ([, value]) => value.version > call.correctionVersion,
-              ),
-            ) as StateCorrections;
-            const next = { ...correction, state };
+            const later = <T extends { version: number }>(fields: Record<string, T> = {}) =>
+              Object.fromEntries(
+                Object.entries(fields).filter(
+                  ([, value]) => value.version > call.correctionVersion,
+                ),
+              );
+            const state = later(correction.state) as StateCorrections;
+            const hidden = later(correction.hidden) as HiddenCorrections;
+            const { hidden: _hidden, ...rest } = correction;
+            const next = {
+              ...rest,
+              state,
+              ...(Object.keys(hidden).length === 0 ? {} : { hidden }),
+            };
             return isEmpty(next) ? [] : [[id, next]];
           }),
         ),
@@ -1286,6 +1409,36 @@ export function createCastSlice(
         const { [field as keyof CastState]: _state, ...state } = old.state;
         return {
           corrections: withCorrection(cast.corrections, entryId, { ...old, anchor, state }),
+        };
+      }),
+
+    endCastHidden: (entryId, field) => {
+      // Only what the register holds can end: nothing to do for a field already ended or gone.
+      const entry = currentRegister(get()).entries.find((entry) => entry.id === entryId);
+      if (entry?.hidden?.[field] === undefined) return;
+      correct((cast) => {
+        const version = cast.correctionVersion + 1;
+        const old = cast.corrections[entryId] ?? NO_CORRECTION;
+        return {
+          corrections: withCorrection(cast.corrections, entryId, {
+            ...old,
+            hidden: { ...old.hidden, [field]: { version } },
+          }),
+          correctionVersion: version,
+        };
+      });
+    },
+
+    restoreCastHidden: (entryId, field) =>
+      correct((cast) => {
+        const old = cast.corrections[entryId];
+        if (old?.hidden?.[field] === undefined) return {};
+        const { hidden: { [field]: _ended, ...hidden } = {}, ...rest } = old;
+        return {
+          corrections: withCorrection(cast.corrections, entryId, {
+            ...rest,
+            ...(Object.keys(hidden).length === 0 ? {} : { hidden }),
+          }),
         };
       }),
 

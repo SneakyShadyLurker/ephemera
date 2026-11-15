@@ -4,6 +4,7 @@ import { CAST_LIMITS as L } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
   CAST_HIDDEN_BESIDE_SHOWN,
+  CAST_HIDDEN_OF_SCENE,
   CAST_STATE_FIELDS,
   type CastChange,
   type CastChanges,
@@ -232,7 +233,7 @@ function withAka(entry: CastEntry, earlier: string): string[] {
  * `entry` with the change's anchor filled where empty, its role and state
  * written, its knowledge items added and its hidden fields set or ended: by
  * `""`, or by a write of the same state field unless that field's hidden
- * value stands beside the shown one.
+ * value stands beside the shown one or the change sends it again.
  */
 function changed(
   entry: CastEntry,
@@ -300,6 +301,19 @@ function changed(
 }
 
 /**
+ * `entry` without the hidden fields that belong to the scene it was in
+ * (`CAST_HIDDEN_OF_SCENE`): what an away entry keeps is what comes back with
+ * it. An entry whose last hidden field ended carries none.
+ */
+function withoutSceneHidden(entry: CastEntry): CastEntry {
+  if (!CAST_HIDDEN_OF_SCENE.some((field) => entry.hidden?.[field] !== undefined)) return entry;
+  const { hidden: held, ...rest } = entry;
+  const hidden = { ...held };
+  for (const field of CAST_HIDDEN_OF_SCENE) delete hidden[field];
+  return Object.keys(hidden).length === 0 ? rest : { ...rest, hidden };
+}
+
+/**
  * An entry's knowledge with a change's items added in order: one whose text
  * an item already has, as `castKey` reads both, is not added again, and past
  * `knowledgeItems` the oldest go. Nothing is removed otherwise: a fact that
@@ -334,7 +348,9 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * sets a state field, otherwise keeping its presence (a new one away);
  * a hidden field set by its grounded value and ended by `""` or, for a field
  * outside `CAST_HIDDEN_BESIDE_SHOWN`, by a write of the same state field;
- * `absent` names marked away. An entry is introduced by the keeper's
+ * `absent` names marked away; whoever is away after the batch keeps no hidden
+ * field of the scene they left (`CAST_HIDDEN_OF_SCENE`), their other hidden
+ * fields staying for their return. An entry is introduced by the keeper's
  * grounded `introduce` or by a shown turn writing its name (`namedInTurns`).
  * A newcomer to a full register retires an entry the owner removed, else the
  * away minor last in the scene longest ago (`withinCapacity`): never a
@@ -448,7 +464,11 @@ export function applyCastChanges(
       if (entry !== undefined) spared.add(entry.id);
     }
   }
-  return { entries: seenNow(withinCapacity(entries, added, spared, removed), removed) };
+  // Where someone stood and what they did unseen belong to the scene they left.
+  const settled = entries.map((entry) =>
+    entry.state.present || removed.has(entry.id) ? entry : withoutSceneHidden(entry),
+  );
+  return { entries: seenNow(withinCapacity(settled, added, spared, removed), removed) };
 }
 
 /**

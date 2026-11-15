@@ -529,42 +529,60 @@ describe("hidden state", () => {
     );
   });
 
-  it("keeps a concealed mood, position or activity when the shown one is written", () => {
+  it("keeps a concealed mood or position when the shown one is written, and ends a concealed action", () => {
     const shown =
       "Mara laughs along, furious under it. Unseen, she works the latch loose behind her back.";
+    const latch = {
+      value: "working the latch loose behind her back",
+      evidence: "she works the latch loose behind her back",
+    };
     const surface = then(
       { entries: [person()] },
       {
-        state: { mood: "laughing along" },
+        state: { mood: "laughing along", activity: "laughing with the others" },
         hidden: {
           mood: { value: "furious", evidence: "furious under it" },
-          activity: {
-            value: "working the latch loose behind her back",
-            evidence: "she works the latch loose behind her back",
-          },
+          activity: latch,
           position: { value: "back against the door", evidence: "behind her back" },
         },
       },
       [shown],
     );
+    // A hidden value of the same change stands beside the shown one, an action included.
+    expect(surface.hidden).toEqual({
+      mood: "furious",
+      activity: latch.value,
+      position: "back against the door",
+    });
     // A surface and what it conceals coexist: a new shown value replaces neither.
     const later = then(
       { entries: [surface] },
-      { state: { mood: "tired", activity: "yawning", position: "slumped in her chair" } },
+      { state: { mood: "tired", position: "slumped in her chair" } },
     );
-    expect(later.state).toMatchObject({ mood: "tired", activity: "yawning" });
+    expect(later.state).toMatchObject({ mood: "tired", position: "slumped in her chair" });
     expect(later.hidden).toEqual(surface.hidden);
     // Only the keeper's own word ends one, field by field.
     expect(then({ entries: [later] }, { hidden: { mood: "" } }).hidden).toEqual({
-      activity: "working the latch loose behind her back",
+      activity: latch.value,
       position: "back against the door",
     });
+    // An action is over in a moment: a new shown one ends it, unless the change sends it again.
+    expect(then({ entries: [later] }, { state: { activity: "yawning" } }).hidden).toEqual({
+      mood: "furious",
+      position: "back against the door",
+    });
+    expect(
+      then({ entries: [later] }, { state: { activity: "yawning" }, hidden: { activity: latch } }, [
+        shown,
+      ]).hidden,
+    ).toEqual(surface.hidden);
   });
 
-  it("ends a concealed fact when the shown field is written: clothes, arousal, injuries, intoxication", () => {
+  it("ends a concealed fact when the shown field is written: clothes, an action, arousal, injuries, intoxication", () => {
     const facts = {
       outfit: "a wire taped under her blouse",
       disarray: "torn stocking under the skirt",
+      activity: "palming the key",
       arousal: "aroused without showing it",
       injuries: "cracked rib",
       intoxication: "drunk without showing it",
@@ -574,6 +592,50 @@ describe("hidden state", () => {
       const { [field]: _ended, ...rest } = facts;
       expect(then(concealing, { state: { [field]: "plain to see" } }).hidden).toEqual(rest);
     }
+  });
+
+  it("ends a hidden position and activity when the entry leaves the scene, and keeps the rest for its return", () => {
+    const held = {
+      position: "back against the door",
+      activity: "working the latch loose behind her back",
+      mood: "furious",
+      injuries: "cracked rib",
+    };
+    const rest = { mood: "furious", injuries: "cracked rib" };
+    const holding = { entries: [{ ...person(), hidden: held }] };
+    const absent = castChangesSchema.parse({ cast: {}, absent: ["Mara Holt"] });
+    // Named in `absent`, or written as no longer present.
+    const gone = firstEntry(applyCastChanges(holding, absent, options));
+    expect(gone.state.present).toBe(false);
+    expect(gone.hidden).toEqual(rest);
+    expect(castEntrySchema.parse(gone)).toEqual(gone);
+    expect(then(holding, { state: { present: false } }).hidden).toEqual(rest);
+    // What the leaving change itself says of the scene ends with it.
+    expect(
+      then(holding, {
+        state: { present: false },
+        hidden: { position: { value: "out on the landing", evidence: "Mara tugs her sleeve" } },
+      }).hidden,
+    ).toEqual(rest);
+    // Someone who held nothing else carries no hidden state at all.
+    const { mood: _mood, injuries: _injuries, ...scene } = held;
+    expect(
+      then({ entries: [{ ...person(), hidden: scene }] }, { state: { present: false } }).hidden,
+    ).toBeUndefined();
+    // Away, the narrator reads none of it; back in the scene, the rest is there again.
+    expect(castStateText({ entries: [gone] })).not.toContain("hidden");
+    const back = then({ entries: [gone] }, { state: { position: "in the doorway" } });
+    expect(back.state.present).toBe(true);
+    expect(back.hidden).toEqual(rest);
+    expect(castStateText({ entries: [back] })).toContain(
+      "Mara Holt hidden from the player: mood: furious; injuries: cracked rib",
+    );
+    // Staying in the scene ends nothing, and an entry the owner removed stays as it was.
+    expect(then(holding, { state: { outfit: "grey coat" } }).hidden).toEqual(held);
+    expect(
+      firstEntry(applyCastChanges(holding, absent, { ...options, removed: new Set([person().id]) }))
+        .hidden,
+    ).toEqual(held);
   });
 
   it("stands beside a state value of the same change", () => {

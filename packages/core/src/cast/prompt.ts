@@ -9,8 +9,9 @@ import { effectiveCastAnchor, namedInTurns } from "./effective.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
-  CAST_HIDDEN_BESIDE_SHOWN,
+  type CastAnchorField,
   type CastRegister,
+  type CastStateField,
   setAnchorFields,
 } from "./register.ts";
 
@@ -59,7 +60,33 @@ export const KEEPER_OPENING =
  * hidden field added to it made one model send fewer discoveries at an
  * introduction and more unusable answers. The knowledge shape is shown
  * inline beside its key instead.
+ *
+ * Wording is as fragile as place. On a fixture whose turns call for a
+ * promotion, the role was sent in 95 of 100 answers with these instructions
+ * and in 74 to 91 with any edit tried before their last paragraph, a
+ * harmless one included (two words of a list swapped, one example height
+ * changed). Rewording the last sentence cost nothing; a rule added before it
+ * took the batch over (63 of 100). So a sentence here changes only for a
+ * gain that was measured, side by side with some hundred calls per arm on a
+ * fixture that needs something else from the same batch.
  */
+
+/**
+ * The hidden fields the instructions name as standing beside the shown one.
+ * `activity` is among them although `applyCastChanges` ends a hidden activity
+ * when a later change writes the shown one (`CAST_HIDDEN_BESIDE_SHOWN` leaves
+ * it out). The sentence stays as measured: without the word, promotions in
+ * the same batch fell from 95 to 87 of 100, and an added exception fared no
+ * better. The keeper loses little by it. A hidden value needs a quote from
+ * the batch's turns, so it could carry a concealed action into the next batch
+ * only where those turns show it again, and there it records it again anyway,
+ * which stands beside the shown activity of the same change.
+ */
+export const KEEPER_HIDDEN_BESIDE_SHOWN: readonly CastStateField[] = [
+  "position",
+  "activity",
+  "mood",
+];
 const KEEPER_INSTRUCTIONS = `${KEEPER_OPENING} The model that tells the story reads the register with every reply in place of describing people again, so the register keeps every detail of every person consistent for the rest of the story.
 
 The register holds one entry per NPC, male and female, and never the player, whose name the message gives. An entry has a role, "principal" or "minor"; a gender, "female", "male" or "other"; an anchor, written once and fixed after; and a state that follows the scene. An entry's key is the NPC's full name as the story writes it.
@@ -95,7 +122,7 @@ Rules:
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
 - "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge. "voice" and "goals" are one value each, rewritten whole. "knowledge" is a list of the new items alone, at most ${L.knowledgeAdded}, one fact each, written as "knowledge":[{"value":"knows where the spare key is kept","evidence":"the key is under the third step"}]. The register lists the items already known as plain text: they stay, so never repeat them. A fact that was disproven or has ended is added as its correction, never removed.
-- "hidden": an object keyed only by the state's text keys, for what these turns establish of the NPC that the player cannot perceive: a concealed injury or object, arousal or intoxication that does not show, an unseen action, a feeling the turns state while the NPC shows another. The storyteller alone reads it; the Cast panel never shows it. A hidden ${keyList(CAST_HIDDEN_BESIDE_SHOWN, "disjunction")} stands beside the shown one, a surface over what it conceals: writing that field in "state" leaves it, and it stays until you send it as "", once the turns reveal it or it no longer holds. Every other hidden field stays until you write the same field in "state", once the turns reveal it to the player, or send it as "", once it no longer holds. Clothes, underwear included, always go in "outfit" and "disarray". Thoughts and motives are no state: they stay with "goals" and "knowledge".
+- "hidden": an object keyed only by the state's text keys, for what these turns establish of the NPC that the player cannot perceive: a concealed injury or object, arousal or intoxication that does not show, an unseen action, a feeling the turns state while the NPC shows another. The storyteller alone reads it; the Cast panel never shows it. A hidden ${keyList(KEEPER_HIDDEN_BESIDE_SHOWN, "disjunction")} stands beside the shown one, a surface over what it conceals: writing that field in "state" leaves it, and it stays until you send it as "", once the turns reveal it or it no longer holds. Every other hidden field stays until you write the same field in "state", once the turns reveal it to the player, or send it as "", once it no longer holds. Clothes, underwear included, always go in "outfit" and "disarray". Thoughts and motives are no state: they stay with "goals" and "knowledge".
 Each populated field in these objects, and each knowledge item, is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters, a knowledge item's value at most ${L.knowledge}. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning.
 
 The Cast panel shows player knowledge, never hidden canon:
@@ -195,10 +222,15 @@ function writtenWhole(
   return (at) => register.entries[at]?.state.present === true || named.has(at);
 }
 
+/** The anchor fields the owner set to empty, by entry id (`castUpdateRequestSchema`). */
+type KeeperCleared = Readonly<Record<string, readonly CastAnchorField[]>>;
+
 /**
  * The task line that asks for Scenario principals' missing anchor fields: a
  * sentence per principal the keeper reads whole whose anchor has an empty
  * field, naming the entry and those fields; null when there is none. A
+ * field the owner set to empty (`cleared`, by entry id) is not asked for:
+ * it is locked, so the answer would be dropped. A
  * principal left partial when it was introduced would otherwise stay so for
  * the whole chat, and a line built from the register does not depend on the
  * model noticing the gap. None for another kind of card: only a Scenario's
@@ -215,10 +247,13 @@ function completionTask(
   register: CastRegister,
   whole: (at: number) => boolean,
   kind: string | null,
+  cleared: KeeperCleared,
 ): string | null {
   if (kind !== CREATOR_TAGS.scenario) return null;
-  const asks = register.entries.flatMap(({ role, anchor }, at) => {
-    const empty = CAST_ANCHOR_FIELDS.filter((field) => anchor[field] === "");
+  const asks = register.entries.flatMap(({ id, role, anchor }, at) => {
+    const empty = CAST_ANCHOR_FIELDS.filter(
+      (field) => anchor[field] === "" && cleared[id]?.includes(field) !== true,
+    );
     return role !== "principal" || !whole(at) || empty.length === 0
       ? []
       : [
@@ -234,7 +269,7 @@ function completionTask(
  * The keeper call's message (user): canon when the chat has no current
  * sheet, the batch's lore, the player, the register, the turns, then the
  * task, with a line for the Scenario principals to complete
- * (`completionTask`). Canon sits first: it is stable per character, while
+ * (`completionTask`), fields the owner cleared left out. Canon sits first: it is stable per character, while
  * the lore follows the batch's turns and the register changes every call.
  */
 export function keeperMessage({
@@ -246,6 +281,7 @@ export function keeperMessage({
   mode,
   full,
   kind = null,
+  cleared = {},
 }: {
   canon: string | null;
   /** The lorebook entries this batch brings in (`castLore`), when there are any. */
@@ -259,6 +295,8 @@ export function keeperMessage({
   full: boolean;
   /** The card's creator kind, when it has one. */
   kind?: string | null;
+  /** The anchor fields the owner set to empty, by entry id: the completion line leaves them out. */
+  cleared?: KeeperCleared;
 }): string {
   const task =
     mode === "seed"
@@ -270,7 +308,7 @@ export function keeperMessage({
     read.map((turn) => turn.content),
     names.user,
   );
-  const completion = completionTask(register, whole, kind);
+  const completion = completionTask(register, whole, kind, cleared);
   return [
     ...(kind === null ? [] : [`Kind: ${kind}`]),
     ...(canon === null ? [] : [tagged("canon", canon)]),

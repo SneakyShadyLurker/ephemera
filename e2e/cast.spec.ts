@@ -22,6 +22,9 @@ import {
 import {
   DEVELOPED_HAIR,
   DEVELOPMENT_TURN,
+  HIDDEN_INJURIES,
+  HIDDEN_MOOD,
+  HIDDEN_TURN,
   KEEPER_MAN,
   KEEPER_WOMAN_GIVEN,
   KEEPER_WOMAN_OUTFIT,
@@ -2252,6 +2255,106 @@ test("Remove from cast leaves her out of the panel and the requests, and Undo br
   const [call] = await upstreamRecords(line, "cast");
   expect(call?.messages.at(-1)?.content).not.toContain(SEEDED);
   await expect(castEntry(page, SEEDED)).toHaveCount(0);
+});
+
+test("Hidden from you stays folded, End takes a field from the narrator and the keeper, Undo brings it back, and focus follows what leaves", async ({
+  page,
+  request,
+}) => {
+  await castChat(request);
+  await seeded(page);
+  await exchange(page, `${HIDDEN_TURN} ${crypto.randomUUID()}`);
+  const record = await openRecord(page, SEEDED);
+  const section = record.locator("[data-cast-hidden]");
+  const summary = section.locator("summary");
+  const row = (field: string) => section.locator(`[data-cast-hidden-field="${field}"]`);
+  const end = (field: string) => section.getByRole("button", { name: `End hidden ${field}` });
+  const undo = (field: string) =>
+    section.getByRole("button", { name: `Undo ending hidden ${field}` });
+  const reopen = async () => {
+    await openRecord(page, SEEDED);
+    await expect(section).not.toHaveAttribute("open");
+    await summary.click();
+  };
+
+  // Folded, and saying what opening shows: nothing of it reads anywhere until then.
+  await expect(summary).toHaveAccessibleName("Hidden from you");
+  await expect(summary).toHaveAccessibleDescription("Opening shows what the story keeps from you.");
+  await expect(section).not.toHaveAttribute("open");
+  await expect(row("mood")).toBeHidden();
+  await expect(castPanel(page)).not.toContainText(HIDDEN_MOOD);
+  await summary.click();
+  await expect(row("mood")).toContainText(HIDDEN_MOOD);
+  await expect(row("injuries")).toContainText(HIDDEN_INJURIES);
+  await expect(section.locator("[data-cast-edit], textarea")).toHaveCount(0);
+  await expect(record.locator('[data-cast-field="mood"]')).not.toContainText(HIDDEN_MOOD);
+  await page.keyboard.press("Escape");
+  await expect(record).toHaveCount(0);
+
+  // The narrator reads both, on the line after her state.
+  const first = `She smiles ${crypto.randomUUID()}`;
+  await exchange(page, first);
+  expect(stateLine(await chatRecord(first))).toContain(
+    `${SEEDED} hidden from the player: mood: ${HIDDEN_MOOD}; injuries: ${HIDDEN_INJURIES}`,
+  );
+  await expect
+    .poll(async () => (await upstreamRecords(first, "cast")).map((call) => call.completed))
+    .toEqual([true]);
+
+  // End says so where the value stood and hands the focus to Undo; Undo hands it back.
+  await reopen();
+  await end("mood").click();
+  await expect(undo("mood")).toBeFocused();
+  await expect(row("mood")).toContainText("Ended.");
+  await expect(row("mood")).not.toContainText(HIDDEN_MOOD);
+  await undo("mood").click();
+  await expect(end("mood")).toBeFocused();
+  await expect(row("mood")).toContainText(HIDDEN_MOOD);
+  await end("mood").click();
+  await expect(undo("mood")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(record).toHaveCount(0);
+
+  // Neither the narrator nor the keeper reads the ended field; the other one stands.
+  const release = await hold(page, "**/api/cast/update");
+  const second = `She turns away ${crypto.randomUUID()}`;
+  try {
+    await exchange(page, second);
+    const line = stateLine(await chatRecord(second));
+    expect(line).toContain(`${SEEDED} hidden from the player: injuries: ${HIDDEN_INJURIES}`);
+    expect(line).not.toContain(HIDDEN_MOOD);
+    // The ending stands across a close, with its Undo, until the cast next updates. Once the
+    // update takes the line the focus stood on, the section's next action has it.
+    await reopen();
+    await expect(row("mood")).toContainText("Ended.");
+    await undo("mood").focus();
+  } finally {
+    release();
+  }
+  await expect(row("mood")).toHaveCount(0);
+  await expect(end("injuries")).toBeFocused();
+  const [call] = await upstreamRecords(second, "cast");
+  expect(call?.messages.at(-1)?.content).toContain(HIDDEN_INJURIES);
+  expect(call?.messages.at(-1)?.content).not.toContain(HIDDEN_MOOD);
+  await expect(section.getByRole("button", { name: /^Undo/ })).toHaveCount(0);
+
+  // The last one ended, and taken by the next update: the section goes, and the focus it held
+  // moves to the record's heading.
+  await end("injuries").click();
+  await expect(undo("injuries")).toBeFocused();
+  await page.keyboard.press("Escape");
+  const last = await hold(page, "**/api/cast/update");
+  const third = `The door closes ${crypto.randomUUID()}`;
+  try {
+    await exchange(page, third);
+    expect(stateLine(await chatRecord(third))).not.toContain("hidden from the player");
+    await reopen();
+    await undo("injuries").focus();
+  } finally {
+    last();
+  }
+  await expect(section).toHaveCount(0);
+  await expect(record.getByRole("heading", { name: SEEDED })).toBeFocused();
 });
 
 test("the character sheet reads the cast now, marks it stale after a description edit and regenerates it", async ({

@@ -1028,6 +1028,16 @@ under More details, with Looks and Intimate folded. A keeper update landing
 mid-edit leaves the draft intact and reports it. Each committed field shows
 local save feedback and its Revert action. The phone roster opens present
 people's records directly and folds the records of away people under their names.
+A record whose entry holds hidden state ends with a native disclosure,
+"Hidden from you" (`HiddenFromYou`), closed whenever the record mounts; its
+summary says while closed what opening shows. It lists each hidden field
+read only under its label, with End (`endCastHidden`), and an ended field
+as "Ended." with Undo (`restoreCastHidden`) until the ending yields. It
+reads the entry's hidden state as the newest snapshot recorded it
+(`recordedHidden`), apart from the panel's projection, and never washes a
+row as changed. Focus follows End to its Undo and back; when an update
+takes the line or the section the focus stood on, it moves to the
+section's next action, else its summary, else the surface's heading.
 
 1. **Entries.** An entry has an id assigned once by an injected id
    function, a role (`principal` or `minor`), a fixed anchor (the name,
@@ -1050,7 +1060,9 @@ people's records directly and folds the records of away people under their names
    canonical context. `hidden` reaches two readers alone, the narrator's Cast
    now message and the keeper's register: the panel projection
    (`discoveredCastEntry`), the scene notes (`castPeopleNotes`), the memory
-   context (`memoryCastContext`) and the sheet schema leave it out. Identity
+   context (`memoryCastContext`) and the sheet schema leave it out. The
+   owner alone may look at it, in the record's folded section, and end a
+   field there (step 2); no one edits one. Identity
    recovery strips discoveries, developments, continuity, `hidden` and `seen`
    so future-scene facts and knowledge cannot leak back. A register
    holds at most `CAST_LIMITS.entries`, 40, in introduction order. A field
@@ -1069,12 +1081,18 @@ people's records directly and folds the records of away people under their names
    said which, keeping the chat's name; `other` is also what a card that
    did not say reads as, so it never takes back a gender the keeper
    established; an unmatched one is added away), then the owner's state
-   corrections, then the anchor corrections; removed entries are left
+   corrections, then the anchor corrections, without the hidden fields the
+   owner ended (`withoutEndedHidden`); removed entries are left
    out (`registerAt`, `currentRegister`). A snapshot never holds an anchor
    correction: a keeper answer that kept a corrected field records the
-   value before it, so Revert shows that value. A state correction yields
-   to the first snapshot of a call built after it; an anchor correction
-   and a removal hold for the chat. Editing or deleting history takes every
+   value before it, so Revert shows that value. A state correction and a
+   hidden field's ending yield to the first snapshot of a call built after
+   them; an anchor correction and a removal hold for the chat. The call
+   reads the register without an ended hidden field and applies its answer
+   to the register that still holds it, so an answer that ends the field
+   itself, a leaving, or an ending taken back while the call runs is read
+   as ever; the snapshot then drops the field with the ending that yields,
+   unless the answer wrote it anew. Editing or deleting history takes every
    dependent branch's snapshots out (a deletion's Undo puts them back),
    and editing the newest reply, a Continue or a greeting refilled to new
    text raises the reply's `castVersion`, so a keeper answer for the old
@@ -1083,8 +1101,8 @@ people's records directly and folds the records of away people under their names
    recovers only identities held by the invalidated snapshots from the chat
    index into the keeper input before optional notebook admission and corrections,
    with empty absent state. The keeper sees the corrected fields it may
-   supersede. Only state corrections actually sent and unchanged since the
-   call began yield; later corrections and removals hold. Successful catch-up
+   supersede. Only state corrections and hidden endings actually sent and
+   unchanged since the call began yield; later corrections and removals hold. Successful catch-up
    consumes those recovery memberships; deletion removes them and Undo restores them.
 3. **The keeper.** After a reply or a continuation ends complete, the
    slice sends `POST /api/cast/update` with the character and persona,
@@ -1092,7 +1110,8 @@ people's records directly and folds the records of away people under their names
    setting, else memory's, else the reply's model), the mode (`seed` for
    a greeting, `update` otherwise), the fingerprint of the sheet the chat
    acknowledged, the register with every correction and without removed
-   entries, and every shown turn since the last
+   entries, the anchor fields the owner set to empty (`cleared`, by entry
+   id, when there are any), and every shown turn since the last
    valid snapshot in chronological batches of at most `CAST_LIMITS.turns`, 12.
    Each batch feeds its updated register into the next. Completed batches form
    a private checkpoint until the full gap succeeds; a retry resumes at the first
@@ -1147,7 +1166,11 @@ people's records directly and folds the records of away people under their names
    introduction, or read partial from the card, would otherwise stay so for
    the whole chat, and a line built from the register does not depend on
    the model noticing the gap. `applyCastChanges` needs nothing for it: an
-   empty field is fillable. The line's wording and place are measured: as a
+   empty field is fillable. A field the owner set to empty is not: it is
+   locked like every corrected field, and in the register it reads like one
+   never filled, so the request names such fields by entry id (`cleared`,
+   optional) and the line leaves them out; a principal with no other empty
+   field gets no sentence. The line's wording and place are measured: as a
    request of its own it took the batch over, and a promotion the same
    turns called for was missed.
    Lore is the lorebook entries that are constant or keyed by the batch's
@@ -1242,15 +1265,36 @@ people's records directly and folds the records of away people under their names
    continuity without overriding owner corrections (a knowledge item joins
    the list unless one with the same `castKey` text is there, and the oldest
    leave past the bound), sets a grounded hidden field and ends one on `""`
-   or, for `outfit`, `disarray`, `arousal`, `injuries` and `intoxication`,
-   on a write of the same state field in a later or the same change
-   (a hidden value of the same change stands beside it). A hidden
-   `position`, `activity` or `mood` (`CAST_HIDDEN_BESIDE_SHOWN`) outlasts
+   or, for `outfit`, `disarray`, `activity`, `arousal`, `injuries` and
+   `intoxication`, on a write of the same state field in a later or the
+   same change (a hidden value of the same change stands beside it). A
+   hidden `position` or `mood` (`CAST_HIDDEN_BESIDE_SHOWN`) outlasts
    writes of the shown field and ends on `""` alone: a surface and what it
-   conceals coexist, while the other five are facts a reveal replaces.
-   Measured on a two-batch fixture, a concealed feeling survived a change
-   of the shown mood in 16 of 27 answers under the one rule for all fields,
-   and in 27 of 27 with the split. It merges grounded discoveries
+   conceals coexist, while the other six are facts a reveal replaces or,
+   for `activity`, an action that is over in a moment where a feeling
+   lasts. Measured on two-batch fixtures: a concealed feeling survived a
+   change of the shown mood in 16 of 27 answers under the one rule for all
+   fields, and in every answer with the split; a concealed action the
+   turns said nothing more of was ended after the next batch in 39 of 48
+   answers while a hidden `activity` outlasted the shown one, and in 41 of
+   48 once a write of the shown activity ends it (in the rest the keeper
+   recorded the action again with a quote of the new turns, which stands
+   as any hidden value of the same change does); a concealed position
+   was ended by the keeper's own `""` in every answer that had recorded
+   it, so `position` stays beside the shown one. The instructions still
+   name `activity` beside `position` and `mood`
+   (`KEEPER_HIDDEN_BESIDE_SHOWN`, `prompt.ts`): without the word the keeper
+   ended the stopped action in every answer, and sent a promotion the same
+   batch called for in 87 of 100 answers against 95, as with every other
+   edit tried in that paragraph, a harmless one included; a sentence added
+   to the last paragraph left 63 of 100. A hidden value needs a quote of
+   the batch's turns, so the keeper could carry a concealed action on only
+   where the turns show it again, and there it records it again. Whoever is away after the
+   batch, by `absent` or by `present`, keeps no hidden `position` or
+   `activity` (`CAST_HIDDEN_OF_SCENE`): where someone stood and what they
+   did unseen belong to the scene they left, while a concealed injury or
+   feeling stays with the entry, unread while it is away, and returns with
+   it. It merges grounded discoveries
    monotonically within the branch, writes the state as given (`""` clears
    a field), takes `present` from the change when it says so, else marks
    an entry present when its state sets a field and otherwise keeps its
@@ -2492,7 +2536,7 @@ bundling with `write: false` keeps the executable in memory too. Neither entry
 changes saved settings or prompt defaults.
 
 `bun scripts/roleplay/keeper.ts --model <id>` runs the product's cast keeper
-prompt over twenty-four synthetic fixtures and reads each answer as the product
+prompt over twenty-seven synthetic fixtures and reads each answer as the product
 does: object repair with the keeper's clamp and schema, then
 `applyCastChanges` over the fixture's register and turns. A fixture with a
 lorebook sends the lore its turns bring in, as the route does; one with
@@ -2500,8 +2544,8 @@ entries the owner removed leaves them out of the call and applies the answer
 with them removed, as the web does; one with a second batch takes two calls,
 the second over the register the first answer left. It defaults to
 offline prompt estimates, with no model calls; `--live` requires the same two
-environment variables. Calls are capped at 50 by default, two runs of every
-fixture, and 75 at most, with
+environment variables. Calls are capped at 60 by default, two runs of every
+fixture, and 90 at most, with
 bounded repetitions and per-request and whole-run time limits; `--fixtures`
 selects a subset and `--spread` sends a fresh cache key with every call. The
 report holds numbers and fixed identifiers only: check

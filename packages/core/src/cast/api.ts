@@ -6,7 +6,12 @@ import { callAccountingSchema, callUsageSchema } from "../usage.ts";
 export { type CallUsage, callUsageSchema } from "../usage.ts";
 
 import { CAST_LIMITS as L } from "./limits.ts";
-import { castChangesSchema, castRegisterSchema, castSheetEntrySchema } from "./register.ts";
+import {
+  CAST_ANCHOR_FIELDS,
+  castChangesSchema,
+  castRegisterSchema,
+  castSheetEntrySchema,
+} from "./register.ts";
 
 /*
  * The keeper's and the cast sheet's request and response bodies. The keeper
@@ -30,6 +35,15 @@ export const castUpdateRequestSchema = z.strictObject({
   /** The fingerprint of the sheet this chat seeded from, null without one; decides canon. */
   sheetFingerprint: fingerprint.nullable(),
   register: castRegisterSchema,
+  /**
+   * The anchor fields the owner set to empty, by entry id. In `register` such
+   * a field reads like one never filled, and an answer cannot fill a field
+   * the owner corrected, so the keeper is not asked for it.
+   */
+  cleared: z
+    .record(z.uuid(), z.array(z.enum(CAST_ANCHOR_FIELDS)).max(CAST_ANCHOR_FIELDS.length))
+    .refine((cleared) => Object.keys(cleared).length <= L.entries)
+    .exactOptional(),
   turns: z.array(chatTurnSchema).min(1).max(L.turns),
 });
 export type CastUpdateRequest = z.infer<typeof castUpdateRequestSchema>;

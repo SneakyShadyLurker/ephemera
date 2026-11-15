@@ -135,17 +135,27 @@ export const CAST_STATE_FIELDS = Object.keys(castStateSchema.shape).filter(
 
 /**
  * The state fields whose hidden value stands beside a shown one, in state
- * order: a surface and what it conceals, such as a smile over anger or an
- * errand over its purpose. Writing the shown field leaves such a hidden
- * field in place. The other fields are facts a reveal replaces, so writing
- * the shown field ends their hidden one.
+ * order: a surface and what it conceals, such as a smile over anger or a
+ * seat taken over the place it was chosen to watch. Writing the shown field
+ * leaves such a hidden field in place. The other fields are facts a reveal
+ * replaces, or an action that is over in a moment, so writing the shown
+ * field ends their hidden one unless the same change sends it again.
  */
-export const CAST_HIDDEN_BESIDE_SHOWN: readonly CastStateField[] = ["position", "activity", "mood"];
+export const CAST_HIDDEN_BESIDE_SHOWN: readonly CastStateField[] = ["position", "mood"];
+
+/**
+ * The hidden fields that belong to the scene an entry is in, in state order:
+ * where it stood and what it did unseen. They end when the entry leaves the
+ * scene; its other hidden fields stay with it and return with it.
+ */
+export const CAST_HIDDEN_OF_SCENE: readonly CastStateField[] = ["position", "activity"];
 
 /**
  * What the turns established of an NPC beyond the player's perception, by
  * the state's text keys: read by the narrator and the keeper alone, never
- * by the panel, a scene picture, a memory call or a stored sheet.
+ * by the panel's roster and record fields, a scene picture, a memory call
+ * or a stored sheet. The owner may look at it in the record's folded
+ * section of its own and end a field there, never edit one.
  */
 const castHiddenSchema = z.strictObject(
   Object.fromEntries(CAST_STATE_FIELDS.map((key) => [key, text(key).min(1).exactOptional()])) as {

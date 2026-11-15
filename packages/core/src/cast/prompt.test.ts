@@ -4,6 +4,7 @@ import { CAST_LIMITS } from "./limits.ts";
 import {
   castCanon,
   castLore,
+  KEEPER_HIDDEN_BESIDE_SHOWN,
   KEEPER_OPENING,
   keeperInstructions,
   keeperMessage,
@@ -13,6 +14,8 @@ import {
   sheetShortfall,
 } from "./prompt.ts";
 import {
+  CAST_ANCHOR_FIELDS,
+  CAST_HIDDEN_BESIDE_SHOWN,
   castChangesSchema,
   clampCastChanges,
   emptyCastAnchor,
@@ -243,7 +246,7 @@ describe("the keeper prompt", () => {
         entry("Ana Pires", { anchor: { ...emptyCastAnchor("Ana Pires", "female"), ...whole } }),
       ],
     };
-    const text = (kind: string | null) =>
+    const text = (kind: string | null, cleared?: Parameters<typeof keeperMessage>[0]["cleared"]) =>
       keeperMessage({
         canon: null,
         names,
@@ -252,6 +255,7 @@ describe("the keeper prompt", () => {
         mode: "update",
         full: true,
         kind,
+        ...(cleared === undefined ? {} : { cleared }),
       });
     const scenario = text("Scenario").split("\n\n");
     // One line after the task and before the full note: the present principal, then the named
@@ -263,6 +267,27 @@ describe("the keeper prompt", () => {
       `Also fill Mara Battin's empty anchor fields, coherent with what is set: ${fields}. Also fill Wren Okoro's empty anchor fields, coherent with what is set: ${fields}. Do this last, after everything the turns change.`,
       "The register is full: add no one; update and mark absent only.",
     ]);
+    // A field the owner set to empty is not asked for; one whose every empty field is cleared
+    // gets no sentence, and with no one left to ask for the line is gone.
+    const [mara, , , wren] = people.entries.map((item) => item.id);
+    if (mara === undefined || wren === undefined) throw new Error("Expected both principals");
+    const some = text("Scenario", {
+      [mara]: ["skin", "fetishes"],
+      [crypto.randomUUID()]: ["eyes"],
+    });
+    expect(some.split("\n\n").at(-2)).toBe(
+      `Also fill Mara Battin's empty anchor fields, coherent with what is set: "ethnicity", "face", "experience", "relationship", "height", "weight", "build", "eyes", "intimate" and "personality". Also fill Wren Okoro's empty anchor fields, coherent with what is set: ${fields}. Do this last, after everything the turns change.`,
+    );
+    const empty = CAST_ANCHOR_FIELDS.filter((field) => field !== "age" && field !== "hair");
+    expect(
+      text("Scenario", { [mara]: empty })
+        .split("\n\n")
+        .at(-2),
+    ).toBe(
+      `Also fill Wren Okoro's empty anchor fields, coherent with what is set: ${fields}. Do this last, after everything the turns change.`,
+    );
+    expect(text("Scenario", { [mara]: empty, [wren]: empty })).not.toContain("Also fill");
+    expect(text("Scenario", { [mara]: empty, [wren]: empty })).not.toContain("Do this last");
     // Never a minor, someone the keeper reads by name alone, or a complete record.
     expect(text("Scenario")).not.toMatch(/Also fill (Ilse Brandt|Noor Haddad|Ana Pires)/);
     // Only a Scenario's people are invented.
@@ -280,9 +305,13 @@ describe("the keeper prompt", () => {
     expect(instructions).toContain(
       'one it shows as "minor" whom the turns now establish as a continuing figure is promoted in this answer, by "role":"principal" in their change',
     );
+    // The sentence is as measured: it names the action too, which a later shown activity ends
+    // (`applyCastChanges`), and every field that does outlast the shown one.
     expect(instructions).toContain(
       'A hidden "position", "activity" or "mood" stands beside the shown one',
     );
+    for (const field of CAST_HIDDEN_BESIDE_SHOWN)
+      expect(KEEPER_HIDDEN_BESIDE_SHOWN).toContain(field);
     expect(instructions).toContain(
       'Every other hidden field stays until you write the same field in "state"',
     );

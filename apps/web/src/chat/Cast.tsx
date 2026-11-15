@@ -2,6 +2,7 @@ import {
   type CastAnchor,
   type CastEntry,
   type CastState,
+  type CastStateField,
   castFieldLimit,
   castModelOf,
 } from "@ephemera/core";
@@ -13,6 +14,7 @@ import {
   type ReactNode,
   type RefObject,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -24,7 +26,7 @@ import { InlineStatus } from "@/app/NoticeCard.tsx";
 import { useReducedMotion } from "@/app/reduced-motion.ts";
 import { BackIcon, CloseIcon, EditIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { DisclosureChevron, SUMMARY_LINE } from "@/components/ui/disclosure";
+import { DisclosureChevron, SUMMARY_LINE, Unfold } from "@/components/ui/disclosure";
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { EditorBody, EditorFooter, EditorHeader } from "@/components/ui/editor-shell";
 import { Popover, PopoverContent, PopoverTitle } from "@/components/ui/popover";
@@ -35,7 +37,13 @@ import { ageOf } from "../cast/age.ts";
 import { useSettings } from "../settings/settings.ts";
 import { COMPACT_LABEL, GROUP_HEADING, PROSE_FACE, PROSE_FIELD } from "../sheet/fields.ts";
 import { InlineSave } from "../sheet/InlineSave.tsx";
-import { baseBefore, currentRegister, keeperTargetUncovered, stale } from "./cast-slice.ts";
+import {
+  baseBefore,
+  currentRegister,
+  keeperTargetUncovered,
+  recordedHidden,
+  stale,
+} from "./cast-slice.ts";
 import {
   busyOf,
   CAST_FIELD_LABELS,
@@ -68,7 +76,9 @@ import { type ChatState, shownReply } from "./store.ts";
  * surface of its own (a popover from tablet up, a drawer on phones), read
  * in labelled sections and corrected in an edit mode. Introduced women only, as
  * the owner chose, with discovered fields rather than hidden canon; the register
- * keeps everyone and their complete profiles for the narrator. Everything shown is chat
+ * keeps everyone and their complete profiles for the narrator. What the story
+ * keeps from the player waits in a folded section of its own, to read and to
+ * end, never to edit. Everything shown is chat
  * content read from the store; nothing here keeps a copy past its surface.
  */
 
@@ -86,11 +96,20 @@ const TONES: Partial<Record<TextField, "rose" | "sage" | "iris">> = {
  * The record's sections, in reading and edit mode alike: the state first, as
  * it changes with each reply (its activity the lead), then the anchor.
  */
+/** The state's fields as the record reads them: what she is doing first. */
+const NOW: readonly CastStateField[] = [
+  "activity",
+  "mood",
+  "outfit",
+  "disarray",
+  "position",
+  "arousal",
+  "injuries",
+  "intoxication",
+];
+
 const SECTIONS: readonly (readonly [string, readonly TextField[]])[] = [
-  [
-    "Now",
-    ["activity", "mood", "outfit", "disarray", "position", "arousal", "injuries", "intoxication"],
-  ],
+  ["Now", NOW],
   ["Looks", ["age", "ethnicity", "height", "weight", "build", "face", "skin", "hair", "eyes"]],
   ["Character", ["personality", "relationship"]],
   ["Intimate", ["experience", "intimate", "fetishes"]],
@@ -1600,11 +1619,173 @@ export function RecordText({ entry }: { entry: CastEntry }) {
           </dl>
         </details>
       )}
+      <HiddenFromYou entry={entry} record={record} />
       <p className="font-sans text-note text-reed">
         Corrections to looks and character hold for this chat; the current state yields to the next
         update.
       </p>
     </fieldset>
+  );
+}
+
+/**
+ * "Hidden from you": what the story keeps from the player about this entry,
+ * for the owner to look at and to end. Reading it spoils the story, so it is
+ * the record's last disclosure, closed whenever the record opens, and its
+ * closed summary says what opening shows. Each value is read only, with End
+ * under it: the owner's correction for this chat, which takes the field out
+ * of what the narrator and the keeper read. An ended field says so where it
+ * stood, with Undo, until the cast next updates. Nothing here is washed as
+ * changed: a wash would draw the eye to it.
+ *
+ * Focus follows the action (End to its Undo, Undo back to its End). When an
+ * update takes the line or the section that held the focus, it moves to the
+ * section's next action, else its summary, else the surface's heading.
+ */
+function HiddenFromYou({
+  entry,
+  record,
+}: {
+  entry: CastEntry;
+  record: RefObject<HTMLFieldSetElement | null>;
+}) {
+  const recorded = useChat((state) => recordedHidden(state, entry.id));
+  const ended = useChat((state) => state.cast.corrections[entry.id]?.hidden);
+  const section = useRef<HTMLDetailsElement>(null);
+  const next = useRef<{ field: CastStateField; to: "end" | "undo" } | null>(null);
+  const held = useRef(false);
+  const shown = useRef<readonly string[]>([]);
+  const id = useId();
+  const entryId = entry.id;
+  useEffect(
+    () =>
+      // As the store changes and before the record renders it: whether the focus stands in what
+      // may now leave. References alone are compared: a listener sees every state the store
+      // passes through, where nothing derived may be read.
+      chatStore.subscribe((state, before) => {
+        if (
+          state.cast.snapshots !== before.cast.snapshots ||
+          state.cast.corrections[entryId]?.hidden !== before.cast.corrections[entryId]?.hidden
+        )
+          held.current = section.current?.contains(document.activeElement) === true;
+      }),
+    [entryId],
+  );
+  const fields = NOW.filter((field) => recorded?.[field] !== undefined);
+  // What stands in the section now: each value, or the line that says it ended.
+  const standing = fields.map(
+    (field) => `${field}:${ended?.[field] === undefined ? "end" : "undo"}`,
+  );
+  useLayoutEffect(() => {
+    const wanted = next.current;
+    const left = held.current && shown.current.some((item) => !standing.includes(item));
+    next.current = null;
+    held.current = false;
+    shown.current = standing;
+    const within = section.current;
+    if (wanted !== null) {
+      within
+        ?.querySelector<HTMLElement>(`[data-cast-hidden-${wanted.to}="${wanted.field}"]`)
+        ?.focus({ preventScroll: true });
+      return;
+    }
+    const active = document.activeElement;
+    // Only when something the focus could stand on left, and the focus did not survive it.
+    if (!left || (within?.contains(active) === true && active?.closest("[inert]") === null)) return;
+    const action = [
+      ...(within?.querySelectorAll<HTMLElement>("[data-cast-hidden-action]") ?? []),
+    ].find((item) => item.closest("[inert]") === null);
+    const heading = record.current
+      ?.closest('[role="dialog"]')
+      ?.querySelector<HTMLElement>('h2[tabindex="-1"]');
+    (action ?? within?.querySelector("summary") ?? heading)?.focus({ preventScroll: true });
+  });
+  if (fields.length === 0) return null;
+  return (
+    <details ref={section} data-cast-hidden="" className="disclosure group font-sans">
+      <summary
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-opens`}
+        className={cn(SUMMARY_LINE, "flex-wrap gap-y-0")}
+      >
+        <span id={`${id}-title`}>Hidden from you</span>
+        <DisclosureChevron />
+        <span id={`${id}-opens`} className="basis-full text-meta group-open:hidden">
+          Opening shows what the story keeps from you.
+        </span>
+      </summary>
+      <div className="grid gap-2 pt-2">
+        <p className="text-note text-reed">
+          Only the narrator reads these. End one that no longer holds; Undo stays until the cast
+          next updates.
+        </p>
+        <dl className="grid grid-cols-1 gap-y-2 font-story @[20rem]:grid-cols-[5.5rem_minmax(0,1fr)] @[20rem]:gap-x-2">
+          {fields.map((field) => {
+            const label = CAST_FIELD_LABELS[field];
+            const lower = label.toLowerCase();
+            const over = ended?.[field] !== undefined;
+            return (
+              <div
+                key={field}
+                data-cast-hidden-field={field}
+                data-ended={over ? "" : undefined}
+                className="col-span-full grid grid-cols-subgrid items-baseline"
+              >
+                <dt className="font-sans text-meta text-reed">{label}</dt>
+                <dd className="min-w-0 break-words text-narration text-ui">
+                  <Unfold show={!over}>
+                    {recorded?.[field]}
+                    <div className="mt-1 grid justify-items-start touch:min-h-11 touch:content-center">
+                      <Button
+                        variant="link"
+                        size="inline"
+                        data-cast-hidden-action=""
+                        data-cast-hidden-end={field}
+                        aria-label={`End hidden ${lower}`}
+                        onClick={() => {
+                          next.current = { field, to: "undo" };
+                          chatStore.getState().endCastHidden(entry.id, field);
+                        }}
+                        // A word this short needs a wider plate to reach 44px on touch.
+                        className="font-sans text-meta touch:after:-inset-x-3"
+                      >
+                        End
+                      </Button>
+                    </div>
+                  </Unfold>
+                  <Unfold show={over}>
+                    <InlineStatus
+                      as="span"
+                      role="presentation"
+                      className="flex flex-wrap items-baseline gap-x-2 py-0.5 font-sans text-meta touch:min-h-11 touch:items-center"
+                    >
+                      <span aria-live="polite" className="text-reed">
+                        <span className="sr-only">Hidden {lower} ended.</span>
+                        <span aria-hidden="true">Ended.</span>
+                      </span>
+                      <Button
+                        variant="link"
+                        size="inline"
+                        data-cast-hidden-action=""
+                        data-cast-hidden-undo={field}
+                        aria-label={`Undo ending hidden ${lower}`}
+                        onClick={() => {
+                          next.current = { field, to: "end" };
+                          chatStore.getState().restoreCastHidden(entry.id, field);
+                        }}
+                        className="text-meta"
+                      >
+                        Undo
+                      </Button>
+                    </InlineStatus>
+                  </Unfold>
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+    </details>
   );
 }
 
