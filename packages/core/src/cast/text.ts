@@ -20,40 +20,79 @@ import {
 /** An age as the line prints it: a bare number as "N years old", any other wording as written. */
 const ageText = (age: string): string => (/^\d+$/.test(age) ? `${age} years old` : age);
 
-/** The texts given, empty ones left out, comma-joined. */
-const joined = (parts: readonly string[]): string => parts.filter((part) => part !== "").join(", ");
-
 /** An anchor field as a line prints it. */
 const anchorText = (anchor: CastAnchor, field: CastAnchorField): string =>
   field === "age" ? ageText(anchor.age) : anchor[field];
 
-/** An entry's anchor in the present block's order, outfit and state left out. */
-const anchorLine = (anchor: CastAnchor): string =>
-  joined([anchor.name, ...CAST_ANCHOR_FIELDS.map((field) => anchorText(anchor, field))]);
+/**
+ * A field under its key, as the narrator's lines print it; "" for an empty
+ * one. A value that opens with its own key, as "fetishes: none; taboos:
+ * none" does, stands as written.
+ */
+const labelled = (label: string, value: string): string =>
+  value === "" || value.toLowerCase().startsWith(`${label}:`) ? value : `${label}: ${value}`;
+
+/** A narrator line: its parts, empty ones left out. Values hold commas of their own, so "; " parts them. */
+const line = (parts: readonly string[]): string => parts.filter((part) => part !== "").join("; ");
+
+/** The anchor fields given, each under its key. */
+const anchorParts = (anchor: CastAnchor, fields: readonly CastAnchorField[]): string[] =>
+  fields.map((field) => labelled(field, anchorText(anchor, field)));
+
+/**
+ * What `<cast>` holds of a minor entry beyond name and gender: enough to
+ * know them by. The block sits before the chat history and goes out with
+ * every reply, so it keeps the full anchor for principals alone.
+ */
+const MINOR_IDENTITY: readonly CastAnchorField[] = ["age", "build", "hair"];
+/** A minor's other anchor fields: the narrator reads them in `Cast now` while the entry is present. */
+const MINOR_DETAILS = CAST_ANCHOR_FIELDS.filter((field) => !MINOR_IDENTITY.includes(field));
+
+/** An entry's baseline line: the name, the gender once known, then the fields its role carries. */
+const anchorLine = ({ anchor, role }: CastEntry): string =>
+  line([
+    anchor.name,
+    anchor.gender === "other" ? "" : `gender: ${anchor.gender}`,
+    ...anchorParts(anchor, role === "minor" ? MINOR_IDENTITY : CAST_ANCHOR_FIELDS),
+  ]);
 
 /**
  * The `<cast>` source block: one line per entry in register order, present
- * and away alike (an away NPC may return). "" for an empty register.
+ * and away alike (an away NPC may return); a principal's whole baseline
+ * anchor, a minor's identity. "" for an empty register. It changes only
+ * when an entry does, so a provider's prefix cache keeps it.
  */
 export function castAnchorsText(register: CastRegister): string {
   if (register.entries.length === 0) return "";
   return [
     "<cast>",
-    "Every NPC's card or initial baseline, the player excepted. Preserve these details unless current durable overrides in Cast now take precedence for changed fields; the current state is in the chat.",
-    ...register.entries.map((entry) => anchorLine(entry.anchor)),
+    "Every NPC's card or initial baseline, the player excepted and minor figures in brief: preserve these details unless current durable overrides in Cast now take precedence for changed fields.",
+    ...register.entries.map(anchorLine),
     "</cast>",
   ].join("\n");
 }
 
-/** A present entry's state in state order, empty fields left out. */
-const stateLine = ({ anchor, state }: CastEntry): string =>
-  `${anchor.name}: ${joined(["present", ...CAST_STATE_FIELDS.map((field) => state[field])])}`;
+/** A present entry's lines: its state in state order, then for a minor the anchor fields `<cast>` leaves out, as they stand now. */
+function presentLines(entry: CastEntry): string[] {
+  const { name } = entry.anchor;
+  const state = line([
+    name,
+    "present",
+    ...CAST_STATE_FIELDS.map((field) => labelled(field, entry.state[field])),
+  ]);
+  if (entry.role !== "minor") return [state];
+  const details = line(anchorParts(effectiveCastAnchor(entry), MINOR_DETAILS));
+  return details === "" ? [state] : [state, `${name} details: ${details}`];
+}
 
 /**
- * The `Cast now` line the narrator reads at depth 1: a line per present
- * entry, then the away ones by name. "" for an empty register.
+ * The `Cast now` message the narrator reads at depth 1: every entry's
+ * durable overrides and continuity cues, a state line per present entry
+ * (with a present minor's remaining details), then the away ones by name.
+ * "" for an empty register. `behind` says the register was read before the
+ * newest reply: the opening line then puts the latest turns first.
  */
-export function castStateText(register: CastRegister): string {
+export function castStateText(register: CastRegister, behind = false): string {
   if (register.entries.length === 0) return "";
   const present = register.entries.filter((entry) => entry.state.present);
   const away = register.entries.filter((entry) => !entry.state.present);
@@ -70,16 +109,17 @@ export function castStateText(register: CastRegister): string {
       return [
         ...(overrides.length === 0
           ? []
-          : [
-              `${effective.name} current durable overrides (authoritative over <cast> baseline for these fields): ${overrides.join("; ")}`,
-            ]),
+          : [`${effective.name} current durable overrides: ${overrides.join("; ")}`]),
         ...(cues.length === 0 ? [] : [`${effective.name} continuity: ${cues.join("; ")}`]),
       ];
     }),
-    ...present.map(stateLine),
+    ...present.flatMap(presentLines),
     ...(away.length === 0 ? [] : [`Away: ${away.map((entry) => entry.anchor.name).join(", ")}`]),
   ];
-  return `[Cast now:\n${lines.join("\n")}]`;
+  const opening = behind
+    ? "Cast now, recorded before the latest reply; where the latest turns differ, they win:"
+    : "Cast now:";
+  return `[${opening}\n${lines.join("\n")}]`;
 }
 
 /** The anchor fields a scene picture shows: the looks. */
@@ -105,13 +145,15 @@ const PEOPLE_STATE: readonly CastStateField[] = [
   "injuries",
 ];
 
-/** What a scene picture shows of a present entry: its looks, outfit as worn and how it stands. */
+/** What a scene picture shows of a present entry: its looks, outfit as worn and how it stands, comma-joined. */
 const peopleLine = (anchor: CastAnchor, state: CastState): string =>
-  joined([
+  [
     anchor.name,
     ...PEOPLE_ANCHOR.map((field) => anchorText(anchor, field)),
     ...PEOPLE_STATE.map((field) => state[field]),
-  ]);
+  ]
+    .filter((part) => part !== "")
+    .join(", ");
 
 /** The `<people>` notes of a scene picture: a line per present entry; "" when no one is present. */
 export const castPeopleNotes = (register: CastRegister): string =>

@@ -106,6 +106,17 @@ export function parseFlags<T extends RunOptions>(
   return options;
 }
 
+/** A `--fixtures` value as the fixtures it names: known ids, comma-separated, each once. */
+export function chosenFixtures<T extends string>(value: string, known: readonly T[]): T[] {
+  const chosen = value.split(",");
+  if (new Set(chosen).size !== chosen.length) throw new Refusal("invalid_arguments");
+  return chosen.map((id) => {
+    const found = known.find((item) => item === id);
+    if (found === undefined) throw new Refusal("unknown_fixture");
+    return found;
+  });
+}
+
 /** Local estimate of a prompt's tokens. */
 export const estimate = (items: WireMessage[]) =>
   PRIMING + items.reduce((sum, item) => sum + countMessage(item), 0);

@@ -422,6 +422,27 @@ describe("cast keeper calls", () => {
     await chat.say("Next");
     expect(chat.generated[1]?.cast?.entries.map((e) => e.anchor.name)).toEqual(["Ilse"]);
   });
+
+  it("say when the register was read before the newest reply, and stop once the keeper caught up", async () => {
+    const chat = castChat();
+    await chat.say("Hi");
+    await chat.answer(upsert("Ilse"));
+    // The first reply has its snapshot: the register is current.
+    await chat.say("Next");
+    expect(chat.generated[1]).not.toHaveProperty("castBehind");
+    // The second reply has none yet: the same register goes out, marked as behind.
+    await chat.state().requestPreview();
+    expect(chat.previews.at(-1)).toMatchObject({ castBehind: true });
+    await chat.say("Third");
+    expect(chat.generated[2]?.cast?.entries.map((e) => e.anchor.name)).toEqual(["Ilse"]);
+    expect(chat.generated[2]).toMatchObject({ castBehind: true });
+    // The keeper reads up to the newest reply, one call per reply left open: current again.
+    await chat.answer(upsert("Ilse", { mood: "wry" }));
+    await chat.answer({ cast: {}, absent: [] });
+    expect(chat.state().cast.snapshots[shownId(chat.state(), 2) ?? ""]).toBeDefined();
+    await chat.state().requestPreview();
+    expect(chat.previews.at(-1)).not.toHaveProperty("castBehind");
+  });
 });
 
 describe("chronological cast catch-up", () => {
@@ -1507,6 +1528,94 @@ describe("cast snapshots", () => {
     await chat.answer({ cast: {}, absent: [] });
     expect(chat.state().cast).toMatchObject({ status: "idle", failure: null });
     expect(names(chat.state())).toEqual(["Ilse Brandt"]);
+  });
+
+  it("retire an away minor for a newcomer to a full register, never the sheet's own", async () => {
+    const chat = castChat();
+    chat.state().setGreetings(["Hello there"]);
+    // The sheet's person is a minor here, away and first in the register: the first to go, were she not the card's.
+    await chat.sheet([{ ...SHEET_ENTRY, role: "minor" }]);
+    const guests = Array.from({ length: CAST_LIMITS.entries - 1 }, (_, n) => `Guest ${n}`);
+    await chat.answer({
+      cast: Object.fromEntries(
+        guests.map((name) => [name, { gender: "male" as const, state: { present: false } }]),
+      ),
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual(["Ava Lind", ...guests]);
+    await chat.say("Who is at the door?");
+    expect(chat.keeper.at(-1)?.request.register.entries).toHaveLength(CAST_LIMITS.entries);
+    await chat.answer({
+      cast: { "Tilda Marek": { gender: "female", state: { position: "in the doorway" } } },
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual(["Ava Lind", ...guests.slice(1), "Tilda Marek"]);
+    // Retired, not forgotten: named again, he is the entry he was.
+    const guest = chat.keeper.at(-1)?.request.register.entries[1]?.id;
+    await chat.say("And Guest 0?");
+    await chat.answer({ cast: { "Guest 0": { state: { position: "outside" } } }, absent: [] });
+    expect(entry(chat.state(), "Guest 0")?.id).toBe(guest);
+    expect(names(chat.state())).toHaveLength(CAST_LIMITS.entries);
+    expect(names(chat.state())).not.toContain("Guest 1");
+  });
+
+  it("spare the person of a sheet that lands while the keeper's call runs", async () => {
+    const chat = castChat();
+    await chat.say("Hi");
+    // No sheet yet: the keeper lists the card's person itself, as an away minor, first of a full register.
+    const guests = Array.from({ length: CAST_LIMITS.entries - 1 }, (_, n) => `Guest ${n}`);
+    await chat.answer({
+      cast: Object.fromEntries(
+        ["Ava Lind", ...guests].map((name) => [
+          name,
+          { gender: "female" as const, state: { present: false } },
+        ]),
+      ),
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual(["Ava Lind", ...guests]);
+    await chat.say("Who is at the door?");
+    const calls = chat.keeper.length;
+    await chat.sheet([{ ...SHEET_ENTRY, role: "minor" }]);
+    expect(chat.keeper).toHaveLength(calls);
+    expect(chat.keeper.at(-1)?.signal.aborted).toBe(false);
+    await chat.answer({
+      cast: { "Tilda Marek": { gender: "female", state: { position: "in the doorway" } } },
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual(["Ava Lind", ...guests.slice(1), "Tilda Marek"]);
+  });
+
+  it("keep someone a catch-up added and retired within one run known to the chat", async () => {
+    const chat = castChat();
+    const guests = Array.from({ length: CAST_LIMITS.entries }, (_, n) => `Guest ${n}`);
+    await chat.say("Hi");
+    await chat.answer({
+      cast: Object.fromEntries(
+        guests.map((name) => [name, { gender: "male" as const, state: { present: true } }]),
+      ),
+      absent: [],
+    });
+    await chat.say("Everyone leaves");
+    await chat.answer({ cast: {}, absent: guests });
+    // The next gap is read in two batches. The first speaks of Tilda, who retires Guest 0; the
+    // second brings Bruno in, who retires Tilda: never in a scene, she is the first to go.
+    await chat.say("A");
+    await chat.refuse("prompt_too_long");
+    await chat.answer({ cast: { "Tilda Marek": { gender: "female" } }, absent: [] });
+    const tilda = chat.keeper
+      .at(-1)
+      ?.request.register.entries.find((item) => item.anchor.name === "Tilda Marek")?.id;
+    expect(tilda).toBeDefined();
+    await chat.answer({
+      cast: { "Bruno Castell": { gender: "male", state: { position: "at the bar" } } },
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual([...guests.slice(1), "Bruno Castell"]);
+    // Named again in a later run, she is who she was.
+    await chat.say("B");
+    await chat.answer({ cast: { "Tilda Marek": { state: { position: "outside" } } }, absent: [] });
+    expect(entry(chat.state(), "Tilda Marek")?.id).toBe(tilda);
   });
 
   it("keep the greeting's snapshot through a refill to the same text (the chat shown again)", async () => {

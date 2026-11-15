@@ -194,7 +194,7 @@ async function chatRecord(text: string): Promise<UpstreamRecordView | undefined>
 const castBlock = (record: UpstreamRecordView | undefined) =>
   record?.messages.find((message) => message.content.startsWith("<cast>"))?.content;
 const stateLine = (record: UpstreamRecordView | undefined) =>
-  record?.messages.find((message) => message.content.startsWith("[Cast now:"))?.content;
+  record?.messages.find((message) => message.content.startsWith("[Cast now"))?.content;
 
 /**
  * The test's user chatting on mock-fast with a new character whose card
@@ -1470,7 +1470,7 @@ test("the narrator is sent the whole cast, and the inspector shows its block, it
   for (const person of [SEEDED, womanOf(line), KEEPER_MAN, SHEET_WOMAN, SHEET_MAN]) {
     expect(block).toContain(person);
   }
-  expect(stateLine(sent)).toContain(`${KEEPER_MAN}: present`);
+  expect(stateLine(sent)).toContain(`${KEEPER_MAN}; present`);
   expect(stateLine(sent)).toContain(`Away: ${SHEET_WOMAN}`);
   await expect(castPanel(page)).not.toContainText(KEEPER_MAN);
   // The keeper read the newest turns once they were written.
@@ -1571,7 +1571,7 @@ test("a grounded development reaches the record and dynamic prompt while its bas
   expect(castBlock(sent)).toContain("shoulder-length dark brown hair in loose waves");
   expect(castBlock(sent)).not.toContain(DEVELOPED_HAIR);
   expect(stateLine(sent)).toContain(`hair: ${DEVELOPED_HAIR}`);
-  expect(stateLine(sent)).toContain("authoritative over <cast> baseline");
+  expect(stateLine(sent)).toContain("current durable overrides: ");
   expect(stateLine(sent)).not.toContain("ungrounded personality fixture");
 });
 

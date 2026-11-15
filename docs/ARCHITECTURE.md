@@ -1023,15 +1023,18 @@ people's records directly and folds the records of away people under their names
    function, a role (`principal` or `minor`), a fixed anchor (the name,
    gender and the record's fields), earlier names (`aka`, at most four),
    optional durable `developments`, short `continuity` cues (`voice`, `goals`,
-   `knowledge`) and a volatile state (`present` and the scene's fields). The
+   `knowledge`), a volatile state (`present` and the scene's fields) and an
+   optional `seen` count: the keeper batch after which the entry was last
+   present, one past the register's highest, which orders retirement and
+   which no prompt and no sheet carries. The
    baseline anchor stays fixed. `effectiveCastAnchor` overlays developments,
    then owner corrections, including explicit clearing. Chat entries also carry
    `introduced` and per-field `discovered` values (`seen`, `told` or
    `demonstrated`, with evidence): the complete canonical profile stays intact,
    while the in-chat panel reads a projection containing only introduced people
    and discovered or owner-corrected fields. The narrator, scene and memory keep
-   canonical context. Identity recovery strips discoveries, developments and
-   continuity so future-scene facts and knowledge cannot leak back. A register
+   canonical context. Identity recovery strips discoveries, developments,
+   continuity and `seen` so future-scene facts and knowledge cannot leak back. A register
    holds at most `CAST_LIMITS.entries`, 40, in introduction order. A field
    holds at most `CAST_LIMITS.field`, 240 characters, and `intimate`,
    `outfit` and `disarray` at most `CAST_LIMITS.longField`, 480
@@ -1118,7 +1121,11 @@ people's records directly and folds the records of away people under their names
    memory's (`objectCall` in `object-call.ts`) with the keeper's static
    instructions, so the provider's prefix cache covers them, and a message
    of canon, the player, the register as compact JSON (ids and empty
-   fields left out) and the turns. Canon (the card's description and the
+   fields left out) and the turns. The register goes out again with every
+   call, so only an entry that is present or named in the batch's turns
+   (`namedInTurns`) is written whole; every other entry goes by name, role,
+   gender, `aka` and `introduced` alone, and the instructions say that such
+   a record stands as kept. Canon (the card's description and the
    persona's description) goes in unless
    the request names the stored sheet's fingerprint, that sheet still
    matches the card and it names someone; an empty sheet, as a Scenario
@@ -1138,14 +1145,33 @@ people's records directly and folds the records of away people under their names
    only sits inside longer words ("red" in "tired") grounds nothing. This grounds the
    update, not its semantic correctness. Discovery values may be less exact than
    canon and refine as the player learns more; canon alone never reveals them.
-   Keeper and sheet instructions forbid inventing gaps except for a newly
-   introduced Scenario NPC, whose complete hidden canonical profile is created
-   once while its public discoveries remain evidence-led. The keeper receives
-   the card kind and can promote a minor Scenario NPC as their narrative role
-   emerges.
+   Keeper and sheet instructions forbid inventing gaps except for a
+   Scenario's new NPC, invented by role: a principal's complete hidden
+   canonical profile is created once at introduction, a minor's looks alone
+   (age, ethnicity, skin, face, height, weight, build, hair, eyes), the rest
+   of a minor's anchor holding what the turns show until a promotion to
+   principal completes it. Public discoveries remain evidence-led. The role's
+   definition (a principal is a continuing figure: a subject of the card, a
+   recurring relationship, someone with goals of their own) and the promotion
+   rule are part of the static instructions for every card kind; the message
+   names the kind. A register that can take no one new (`castAdmitsNew`:
+   full, with no away minor to retire) is told to add no one. The
+   introduction rule asks for what those turns show or tell the player
+   under `discovered` in the same change, since a model otherwise tends to
+   send the introduction alone.
 5. **Applying changes.** `applyCastChanges` resolves each change by name
-   or `aka`, then by `was`, then by a single first-name match, else adds
-   an entry while there is room. It drops the player's names, never
+   or `aka`, then by `was`, then by a single first-name match, then by an
+   identity the chat knew before (`previous`), else adds an entry. A batch
+   that leaves the register over `CAST_LIMITS.entries` retires, for each
+   entry over, the away minor known before the batch whose `seen` is lowest
+   (never present first, ties in register order): never a principal, an
+   entry that is present, removed or corrected by the owner, one a sheet
+   entry names by id or name (the web passes the acknowledged sheet), or one
+   the batch changed, marked away or named. With no one left to retire, the batch's newest
+   additions are refused. A retired entry stays in the slice's identity
+   index (one an earlier batch of the same run retired included), so a later
+   change that names it restores its id and anchor through `previous`. Everyone present after the batch then takes the next `seen`
+   count. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
    continuity without overriding owner corrections, merges grounded discoveries
    monotonically within the branch, writes the state as given (`""` clears
@@ -1208,7 +1234,8 @@ people's records directly and folds the records of away people under their names
    Memory off or unavailable lends no seeds. Stop releases a generation's wait
    immediately without cancelling the shared notebook query.
    Sheet entries take admission priority, then remembered lines in notebook
-   order, using the same resolver and 40-entry no-eviction rule. Remembered
+   order, using the same resolver; sheet and seed overlays join only while
+   the register has room and retire no one. Remembered
    entries have fresh chat ids, minor roles and empty absent state, and never
    name the player. Persona placeholders fill only after JSON parsing and
    follow the selected persona without another memory load. Sheet anchors
@@ -1218,7 +1245,8 @@ people's records directly and folds the records of away people under their names
    remembered lines fill the remaining slots. Card adoption and explicit owner
    corrections establish identities as current-chat data, retaining their ids
    and state through omitted keeper changes and memory invalidation;
-   established people are never evicted.
+   seed composition never displaces established people, and only a newcomer
+   to a full register retires one (item 5).
    Memory updates fence older loads. Changes to cast entries, the player or
    memory availability replace the acknowledged overlay and fence keeper inputs
    but never stop narration or scene painting already in progress. The keeper
@@ -1236,16 +1264,31 @@ people's records directly and folds the records of away people under their names
    in as one system message, `<cast>` and a line per entry in register
    order, present and away alike, at the preset's optional `castAnchors`
    block (labelled "Cast"), which the default preset holds after the
-   description. A preset without the block gets it after the description
+   description. A line is the name, then each filled field under its key,
+   joined by "; " because values hold commas (`name; gender: female; age: 29
+   years old; hair: red bob`). A principal's line carries the whole baseline
+   anchor, a minor's the gender, age, build and hair: the block sits before
+   the chat history and goes out with every reply, so it stays small and
+   changes only when an entry does, which keeps a provider's prefix cache.
+   Its one-sentence header states the precedence of current durable
+   overrides once. A preset without the block gets it after the description
    when that is on, else before the lorebook's after block, else before the chat history
    (`castAnchorsPlace`); the preset editor adds it back at the same place. The state goes in as a user
    message, `[Cast now: ...]` with current durable overrides, continuity cues,
-   a line per present entry and the away
+   a line per present entry (`name; present; outfit: ...`), after a present
+   minor's line the anchor fields `<cast>` leaves out as they stand now
+   (`name details: ...`), and the away
    ones by name, at depth 1, one order past the in-chat notes', so it
    follows the Author's Note at that depth; it is user, not system,
    because CLIProxyAPI hoists a mid-chat system message into Claude's
    system prompt. A preset without a history sends it after the memory
-   blocks. A scene picture's source carries the present entries' looks,
+   blocks. `castBehind` on the request says the register was read before
+   the newest reply: the web sets it when a reply with text after the
+   snapshot the register comes from has no snapshot of its own
+   (`castBehindAt`), and the message then opens `[Cast now, recorded before
+   the latest reply; where the latest turns differ, they win:`, since a
+   state placed after a newer reply would otherwise read as more current
+   than it. A scene picture's source carries the present entries' looks,
    outfit and clothing state, and how they stand as `<people>`
    (`castPeopleNotes`). The scene metaprompt sizes a covered chest as its
    clothing shapes it, a binder or push-up included, and the anchor's true
@@ -2339,11 +2382,14 @@ the image the server names no build and no tab is asked to reload.
 
 `bun scripts/roleplay/compare.ts --model <id>` compares the current and
 concise behavioral reminders and two authored lorebook placements on synthetic
-fixtures. It defaults to offline prompt and prefix estimates, with no model
+fixtures, one of which asks the narrator to recall details from a six-entry
+cast register (an away principal's, a present minor's). It defaults to offline
+prompt and prefix estimates, with no model
 calls. `--live` explicitly enables calls and requires
 `EPHEMERA_UPSTREAM_BASE_URL` and `EPHEMERA_UPSTREAM_API_KEY` in the environment.
-The default matrix is capped at 20 calls; repetitions, output, per-request time
-and the overall run have bounds. Scores are bounded heuristic checks, never
+The default matrix is 24 calls, which is also the cap; `--fixtures` selects a
+subset, which leaves room for a third repetition; repetitions, output,
+per-request time and the overall run have bounds. Scores are bounded heuristic checks, never
 proof of immersion, and local prefix estimates are not provider cache evidence.
 The runner prints numeric diagnostics and outcomes, writes no artifacts and
 does not print raw model output. `scripts/roleplay/stdin.ts` is the explicit
@@ -2352,11 +2398,11 @@ bundling with `write: false` keeps the executable in memory too. Neither entry
 changes saved settings or prompt defaults.
 
 `bun scripts/roleplay/keeper.ts --model <id>` runs the product's cast keeper
-prompt over twelve synthetic fixtures and reads each answer as the server
+prompt over sixteen synthetic fixtures and reads each answer as the product
 does: object repair with the keeper's clamp and schema, then
 `applyCastChanges` over the fixture's register and turns. It defaults to
 offline prompt estimates, with no model calls; `--live` requires the same two
-environment variables. Calls are capped at 24 by default and 72 at most, with
+environment variables. Calls are capped at 32 by default and 72 at most, with
 bounded repetitions and per-request and whole-run time limits; `--fixtures`
 selects a subset. The report holds numbers and fixed identifiers only: check
 pass counts over completed, valid answers, every other outcome counted apart,

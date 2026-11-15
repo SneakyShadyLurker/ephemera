@@ -432,6 +432,16 @@ describe("cast keeper", () => {
     expect(user).not.toContain("<canon>");
     expect(user).toContain("The register is full");
     expect(user).toContain("This is the opening");
+    // A full register that holds an away minor has someone to retire for a newcomer.
+    const away = {
+      entries: full.entries.map((item, i) =>
+        i === 3 ? { ...item, state: { ...item.state, present: false } } : item,
+      ),
+    };
+    castUpdateResponseSchema.parse(
+      await (await postUpdate(app, update(undefined, { register: away }))).json(),
+    );
+    expect(sent(upstream, 1).user).not.toContain("The register is full");
   });
 
   it("refuses malformed requests, a missing character, an unknown window and a prompt too long", async () => {

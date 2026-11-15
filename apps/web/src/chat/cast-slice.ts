@@ -207,6 +207,19 @@ function baseIndex(state: CastView, index: number): number {
   return -1;
 }
 
+/**
+ * Whether the register before `index` was read before the newest reply
+ * there: a reply with text follows the snapshot it comes from (or no
+ * snapshot exists) and has none of its own, because the keeper has not
+ * read it yet, failed on it, or never reads its kind.
+ */
+export function castBehindAt(state: CastView, index: number): boolean {
+  const end = Math.min(index, state.messages.length);
+  return state.messages
+    .slice(baseIndex(state, index) + 1, end)
+    .some((message) => isAssistant(message) && shownReply(message).text !== "");
+}
+
 const EMPTY_REGISTER: CastRegister = { entries: [] };
 
 /** The register the newest snapshot before `index` holds; empty without one. */
@@ -516,6 +529,8 @@ export function createCastSlice(
     correctionVersion: number;
     chain: CastRegister;
     previous: CastRegister;
+    /** Entries a completed batch retired for a newcomer: known to the batches after it and, once the run commits, to the chat. */
+    retired: CastEntry[];
     sheeted: CastRegister;
     recorded: CastRegister;
     recovering: { id: string; ids: readonly string[] }[];
@@ -868,6 +883,7 @@ export function createCastSlice(
             correctionVersion: state.cast.correctionVersion,
             chain: withAnchorCorrections(recorded, corrections),
             previous,
+            retired: [],
             sheeted,
             recorded,
             recovering,
@@ -985,11 +1001,14 @@ export function createCastSlice(
         const { changes } = outcome.response;
         usage = outcome.response.usage;
         for (const entry of body.register.entries) sent.add(entry.id);
-        progress.chain = applyCastChanges(progress.chain, changes, {
+        const before = progress.chain;
+        progress.chain = applyCastChanges(before, changes, {
           player,
           newId: deps.newId,
           removed: removedIds(get().cast.corrections),
           previous: progress.previous,
+          // Read now, as the corrections are: a sheet may land while a single call runs.
+          sheet: get().cast.sheet?.entries ?? [],
           shown: batch.map((turn) => turn.scanText ?? turn.content),
           corrected: Object.fromEntries(
             [...new Set([...Object.keys(corrections), ...Object.keys(get().cast.corrections)])].map(
@@ -1002,6 +1021,20 @@ export function createCastSlice(
             ),
           ),
         });
+        // Whoever the batch retired for a newcomer stays known: a later batch of this run that
+        // names them gives them their id and anchor back, as a later run does once this one commits.
+        const held = new Set(progress.chain.entries.map((entry) => entry.id));
+        const gone = before.entries.filter((entry) => !held.has(entry.id));
+        if (gone.length > 0) {
+          const ids = new Set(gone.map((entry) => entry.id));
+          progress.retired.push(...gone);
+          progress.previous = {
+            entries: [
+              ...progress.previous.entries.filter((entry) => !ids.has(entry.id)),
+              ...gone.map((entry) => ({ ...castIdentity(entry), state: emptyCastState(false) })),
+            ],
+          };
+        }
         for (const name of [...Object.keys(changes.cast), ...changes.absent]) {
           const entry = resolveCastEntry(progress.chain, name);
           if (entry !== undefined) affirmed.add(entry.id);
@@ -1026,6 +1059,8 @@ export function createCastSlice(
       );
       for (const id of affirmed) established.add(id);
       learn(register.entries.filter((entry) => established.has(entry.id)));
+      const kept = new Set(register.entries.map((entry) => entry.id));
+      learn(progress.retired.filter((entry) => established.has(entry.id) && !kept.has(entry.id)));
       for (const { id, ids } of progress.recovering) {
         if (recovery.get(id) === ids) recovery.delete(id);
       }

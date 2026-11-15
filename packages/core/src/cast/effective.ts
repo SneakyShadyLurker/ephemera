@@ -46,12 +46,13 @@ export const discoveredCastEntry = (
   return { ...rest, anchor: discoveredCastAnchor(entry, correction) };
 };
 
-/** Identity recovery must never borrow knowledge or developments from a future scene. */
+/** Identity recovery must never borrow knowledge, developments or recency from a future scene. */
 export const castIdentity = ({
   developments: _developments,
   continuity: _continuity,
   introduced: _introduced,
   discovered: _discovered,
+  seen: _seen,
   ...entry
 }: CastEntry): CastEntry => entry;
 

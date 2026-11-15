@@ -141,6 +141,8 @@ const selection = {
   memoryState: chatMemoryStateSchema.optional(),
   /** The chat's cast register as it stands, removed entries left out; chat content, never kept. */
   cast: castRegisterSchema.optional(),
+  /** Whether `cast` was read before the newest reply, which has no register of its own yet. */
+  castBehind: z.boolean().optional(),
 };
 
 /**

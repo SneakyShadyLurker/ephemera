@@ -16,6 +16,7 @@ export {
 } from "./api.ts";
 export {
   applyCastChanges,
+  castAdmitsNew,
   resolveCastEntry,
   withKnownIdentities,
   withSheet,

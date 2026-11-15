@@ -27,6 +27,10 @@ const MARKS: Record<KeeperFixtureId, string> = {
   knowledge: "Hanna Brix",
   player: "Rosa Quill",
   quiet: "Ada Brenner",
+  "scenario-walk-on": "Dieter Lorenz",
+  "scenario-promotion": "Jorun Berg",
+  "full-retires": "Tilda Marek",
+  "away-named": "Katla Nyberg",
 };
 const long = "a".repeat(300);
 const json = (cast: Record<string, unknown>, absent: string[] = []) =>
@@ -122,6 +126,63 @@ const GOOD: Record<KeeperFixtureId, string> = {
   }),
   player: json({ "Rosa Quill": { state: { activity: "reading at the table" } } }),
   quiet: json({ "Ada Brenner": { state: { activity: "stirring her tea" } } }),
+  "scenario-walk-on": json(
+    {
+      "Dieter Lorenz": {
+        role: "minor",
+        gender: "male",
+        anchor: {
+          age: "in his fifties",
+          ethnicity: "German",
+          skin: "pale, lined skin",
+          face: "long face, straight nose, thin lips",
+          height: "179cm",
+          weight: "77kg",
+          build: "lean, slightly stooped build",
+          hair: "short dark hair, grey at the temples",
+          eyes: "brown deep-set eyes",
+        },
+        introduce: { evidence: "Dieter Lorenz, if you need anything else" },
+      },
+    },
+    ["Dieter Lorenz"],
+  ),
+  "scenario-promotion": json({
+    "Jorun Berg": {
+      role: "principal",
+      anchor: {
+        experience: "experienced",
+        relationship: "single",
+        intimate: "EU 75C, full round breasts",
+        personality: "dogged, guarded, methodical",
+        fetishes: "fetishes: none; taboos: none",
+      },
+      continuity: {
+        goals: {
+          value: "wants to find out who is siphoning diesel",
+          evidence: "I intend to find out who before the supply ship comes",
+        },
+      },
+    },
+  }),
+  "full-retires": json({
+    "Tilda Marek": {
+      role: "minor",
+      gender: "female",
+      state: { outfit: "yellow rain cape", position: "at the bar" },
+      introduce: { evidence: "I'm Tilda Marek" },
+    },
+  }),
+  "away-named": json({
+    "Katla Nyberg": {
+      state: {
+        present: true,
+        position: "on the bench by the stove",
+        activity: "pulling off her muddy boots",
+      },
+    },
+    "Agnes Thorne": { state: { activity: "sliding a mug of tea across the counter" } },
+  }),
 };
 
 const BAD: Record<KeeperFixtureId, string> = {
@@ -160,6 +221,20 @@ const BAD: Record<KeeperFixtureId, string> = {
   quiet: json({
     "Ada Brenner": { anchor: { eyes: "brown almond-shaped eyes" } },
     "Ruth Okafor": { state: { position: "in the doorway" } },
+  }),
+  "scenario-walk-on": json({
+    "Dieter Lorenz": {
+      role: "principal",
+      gender: "male",
+      anchor: { age: "55", intimate: "average" },
+      state: { mood: long },
+    },
+  }),
+  "scenario-promotion": json({ "Jorun Berg": { state: { mood: long } } }),
+  "full-retires": json({ "Edda Lindholm": { state: { activity: "signing for a parcel" } } }),
+  "away-named": json({
+    "Silas Vane": { state: { position: "by the door" } },
+    "Katla Nyberg": { anchor: { eyes: "brown round eyes" } },
   }),
 };
 
@@ -204,7 +279,7 @@ describe("cast keeper evaluation", () => {
       ),
     });
     expect(fetch).not.toHaveBeenCalled();
-    expect(report).toMatchObject({ code: "offline", calls: 0, plannedCalls: 24, outputCap: 8192 });
+    expect(report).toMatchObject({ code: "offline", calls: 0, plannedCalls: 32, outputCap: 8192 });
     if (!("diagnostics" in report)) throw new Error("no diagnostics");
     expect(report.diagnostics.map((row) => row.fixture)).toEqual(KEEPER_FIXTURE_IDS);
     for (const row of report.diagnostics) expect(row.estimatedPromptTokens).toBeGreaterThan(0);
@@ -214,7 +289,7 @@ describe("cast keeper evaluation", () => {
   it("leaves reasoning and sampler unset by default and reads its bounds", () => {
     expect(parseKeeperOptions(args)).toMatchObject({
       repetitions: 2,
-      maxCalls: 24,
+      maxCalls: 32,
       outputCap: 8192,
       settings: {},
     });
@@ -246,7 +321,7 @@ describe("cast keeper evaluation", () => {
     [],
     [...args, "--repetitions", "4"],
     [...args, "--repetitions", "3"],
-    [...args, "--max-calls", "23"],
+    [...args, "--max-calls", "31"],
     [...args, "--max-calls", "73"],
     [...args, "--fixtures", "clear,unknown"],
     [...args, "--fixtures", "clear,clear"],
@@ -280,11 +355,11 @@ describe("cast keeper evaluation", () => {
       env,
       fetch,
     });
-    expect(fetch).toHaveBeenCalledTimes(12);
+    expect(fetch).toHaveBeenCalledTimes(16);
     expect(report).toMatchObject({
       code: "finished",
-      calls: 12,
-      totals: { valid: 12, invalid: 0, valuesOverBound: 0, evidenced: { sent: 6, kept: 6 } },
+      calls: 16,
+      totals: { valid: 16, invalid: 0, valuesOverBound: 0, evidenced: { sent: 9, kept: 9 } },
     });
     for (const row of fixtureRows(report)) {
       expect(Object.keys(row.checks).length).toBeGreaterThan(0);
@@ -311,7 +386,7 @@ describe("cast keeper evaluation", () => {
       fetch,
     });
     expect(report).toMatchObject({
-      totals: { valid: 12, valuesOverBound: 2, evidenced: { sent: 1, kept: 1 } },
+      totals: { valid: 16, valuesOverBound: 4, evidenced: { sent: 1, kept: 1 } },
     });
     for (const row of fixtureRows(report))
       for (const [check, counts] of Object.entries(row.checks))
@@ -334,8 +409,8 @@ describe("cast keeper evaluation", () => {
   it("never calls past --max-calls and stops at the run's deadline", async () => {
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(GOOD[fixtureOf(init)]));
     for (const [input, planned] of [
-      [[], 24],
-      [["--repetitions", "3", "--max-calls", "36"], 36],
+      [[], 32],
+      [["--repetitions", "3", "--max-calls", "48"], 48],
       [["--fixtures", "quiet,leaves", "--repetitions", "1", "--max-calls", "2"], 2],
     ] as const) {
       fetch.mockClear();

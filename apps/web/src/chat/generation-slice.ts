@@ -27,7 +27,7 @@ import {
   type UpstreamFailure,
 } from "@ephemera/core";
 import type { StoreApi } from "zustand/vanilla";
-import { type CastTaken, registerAt } from "./cast-slice.ts";
+import { type CastTaken, castBehindAt, registerAt } from "./cast-slice.ts";
 import {
   canGenerateAlternate,
   history,
@@ -193,10 +193,14 @@ export function createGenerationSlice(
   /** Both are looked at once, after the change under way. */
   let settling = false;
 
-  /** The register a request before message `index` carries; nothing while it is empty. */
+  /**
+   * The register a request before message `index` carries, and whether it
+   * was read before the newest reply there; nothing while it is empty.
+   */
   const castBefore = (index: number) => {
     const register = registerAt(get(), index);
-    return register.entries.length === 0 ? {} : { cast: register };
+    if (register.entries.length === 0) return {};
+    return { cast: register, ...(castBehindAt(get(), index) ? { castBehind: true } : {}) };
   };
 
   /**

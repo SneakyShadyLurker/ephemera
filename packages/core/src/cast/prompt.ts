@@ -5,7 +5,7 @@ import { CREATOR_TAGS } from "../creator/sheet.ts";
 import { canonFields } from "../memory/canon.ts";
 import { transcriptLines } from "../memory/prompt.ts";
 import { tagged } from "../prompt/tagged.ts";
-import { effectiveCastAnchor } from "./effective.ts";
+import { effectiveCastAnchor, namedInTurns } from "./effective.ts";
 import { CAST_LIMITS as L } from "./limits.ts";
 import { type CastRegister, setAnchorFields } from "./register.ts";
 
@@ -48,7 +48,7 @@ const KEEPER_INSTRUCTIONS = `${KEEPER_OPENING} The model that tells the story re
 The register holds one entry per NPC, male and female, and never the player, whose name the message gives. An entry has a role, "principal" or "minor"; a gender, "female", "male" or "other"; an anchor, written once and fixed after; and a state that follows the scene. An entry's key is the NPC's full name as the story writes it.
 
 The anchor's keys, in this order:
-${anchorKeys("For a man, his cock and balls. Outside a Scenario's new-NPC canonical completion, only once a turn shows them; until then leave it empty.")}
+${anchorKeys("For a man, his cock and balls. Outside a Scenario principal's canonical completion, only once a turn shows them; until then leave it empty.")}
 
 The state's keys:
 - "present": true while the NPC is in the scene, false once they left it. Whoever you give a state is taken as present, so someone the turns only speak of gets no state, and a new NPC in the scene always gets one.
@@ -65,11 +65,13 @@ Each state value reads on its own as well and names what it describes, as in "gr
 Rules:
 - Answer only with changes. Every entry, key and field you leave out stays as it is; a state field that no longer holds is sent as "", such as arousal that has passed, an injury healed or clothes set right again.
 - The canonical anchor is the NPC's complete truth, not what the player knows. An anchor field once set is fixed: never send it again, never paraphrase or correct it. Fill an empty one only.
-- Except for a new NPC in a Scenario, an anchor comes only from explicit canon and turn evidence. ${EXTRACTED} Leave every field they do not settle empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
-- For a new NPC in a Scenario, create one complete, coherent canonical anchor at introduction: preserve every established fact and invent what remains hidden, including anatomy, personality and preferences. This is the only permitted gap filling. Invented canon is not player discovery.
+- Outside a Scenario's invention, an anchor comes only from explicit canon and turn evidence. ${EXTRACTED} Leave every field they do not settle empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
+- For a new NPC in a Scenario (the message then opens with "Kind: Scenario"), invent the anchor by role at introduction, preserving every established fact. A new principal gets one complete, coherent canonical anchor: invent what remains hidden, including anatomy, personality and preferences. A new minor gets the looks alone: "age", "ethnicity", "skin", "face", "height", "weight", "build", "hair" and "eyes", invented where the turns leave them open. A minor's "experience", "relationship", "intimate", "personality" and "fetishes" hold only what the turns show and stay empty otherwise. When you promote a Scenario's minor to "principal", complete the anchor in the same answer: fill every field still empty, coherent with what is set. This is the only permitted gap filling. Invented canon is not player discovery.
 - Name everyone who left the scene in "absent".
 - When a known NPC is named more fully, such as "Ilse" becoming "Ilse Brandt", key the change by the full name and give the earlier one in "was".
 - Never write an entry for the player, by any of their names.
+- Role: "principal" is a continuing figure, such as a subject of the card, a recurring relationship or someone with goals of their own; "minor" is everyone else. A new NPC starts minor unless the introduction clearly establishes a continuing principal figure. Promote an NPC to "principal" when later turns establish recurring importance, a developing relationship, independent goals or sustained narrative focus. Name, gender, age, physical detail and sexual relevance alone never decide role.
+- The message's register writes out in full only who is in the scene or named in the turns. Everyone else is listed by "name", "role" and "gender" alone, with "aka" and "introduced" where set: their anchor and state stand as recorded. Leave such an entry unchanged unless the turns involve them after all.
 
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
@@ -77,7 +79,7 @@ Each cast change may also have:
 Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning.
 
 The Cast panel shows player knowledge, never hidden canon:
-- "introduce": {"evidence":"exact short quote"} for each NPC the shown turns let the player meet, see, hear or learn of, named or not. The register marks who is introduced with "introduced": true. Anyone without it has not been, a card's own subjects included, however long they have been in the register: introduce them with the first turns that show them to the player. Only an NPC the turns keep out of the player's sight and knowledge stays unintroduced. Once introduced, omit this key.
+- "introduce": {"evidence":"exact short quote"} for each NPC the shown turns let the player meet, see, hear or learn of, named or not. The register marks who is introduced with "introduced": true. Anyone without it has not been, a card's own subjects included, however long they have been in the register: introduce them with the first turns that show them to the player. Only an NPC the turns keep out of the player's sight and knowledge stays unintroduced. Once introduced, omit this key. Whatever those turns show or tell the player of them goes under "discovered" in the same change.
 - "discovered": an object keyed only by the anchor's text fields. Each populated field is {"value":"what the player now knows", "basis":"seen", "told" or "demonstrated", "evidence":"exact short quote from these turns"}. Omit undiscovered and unchanged fields. A discovery may refine an earlier approximation.
 - Canon and durable developments never reveal themselves. Every introduction and discovery needs player-accessible evidence in the shown batch, not the card, private NPC thoughts or speculation.
 - "seen" is direct observation, "told" preserves what someone said as a claim when appropriate, and "demonstrated" is a trait or preference established by conduct.
@@ -110,28 +112,40 @@ export function castCanon(
   return fields === "" ? null : fields;
 }
 
-/** The register as the keeper reads it: compact JSON by entry, ids and empty fields left out. */
-function registerJson(register: CastRegister): string {
+/**
+ * The register as the keeper reads it: compact JSON by entry, ids and empty
+ * fields left out. An entry in the scene or named in `shown` (the batch's
+ * turns, by `namedInTurns`) is written whole; the rest by name, role, gender,
+ * earlier names and introduction alone, since the register goes out again
+ * with every call and a batch seldom concerns those it does not name.
+ */
+function registerJson(register: CastRegister, shown: readonly string[], player: string): string {
   const filled = (fields: Record<string, string | boolean>) =>
     Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== ""));
+  const named = namedInTurns(register.entries, shown, player);
   return JSON.stringify(
-    register.entries.map((entry) => {
+    register.entries.map((entry, at) => {
       const { role, aka, state, continuity } = entry;
       const anchor = effectiveCastAnchor(entry);
+      const identity = {
+        name: anchor.name,
+        role,
+        gender: anchor.gender,
+        ...(aka.length === 0 ? {} : { aka }),
+      };
+      const introduced = entry.introduced === true ? { introduced: true } : {};
+      if (!state.present && !named.has(at)) return { ...identity, ...introduced };
       const discovered = Object.fromEntries(
         Object.entries(entry.discovered ?? {}).flatMap(([field, item]) =>
           item === undefined ? [] : [[field, { value: item.value, basis: item.basis }]],
         ),
       );
       return {
-        name: anchor.name,
-        role,
-        gender: anchor.gender,
-        ...(aka.length === 0 ? {} : { aka }),
+        ...identity,
         anchor: setAnchorFields(anchor),
         state: filled(state),
         ...(continuity === undefined ? {} : { continuity: filled(continuity) }),
-        ...(entry.introduced === true ? { introduced: true } : {}),
+        ...introduced,
         ...(Object.keys(discovered).length === 0 ? {} : { discovered }),
       };
     }),
@@ -158,7 +172,7 @@ export function keeperMessage({
   register: CastRegister;
   turns: readonly Pick<ChatTurn, "role" | "content" | "scanText" | "name">[];
   mode: "seed" | "update";
-  /** Whether the register holds `CAST_LIMITS.entries`. */
+  /** Whether the register can take no one new (`castAdmitsNew`). */
   full: boolean;
   /** The card's creator kind, when it has one. */
   kind?: string | null;
@@ -167,27 +181,23 @@ export function keeperMessage({
     mode === "seed"
       ? "This is the opening. Set who is present and their state, introduce everyone it shows the player and add anyone new."
       : "These are the newest turns. Answer with what changed.";
+  const read = turns.map((turn) => ({ ...turn, content: turn.scanText ?? turn.content }));
   return [
     ...(kind === null ? [] : [`Kind: ${kind}`]),
     ...(canon === null ? [] : [tagged("canon", canon)]),
     tagged("player", `The player is ${names.user}: never an entry.`),
     tagged(
       "register",
-      register.entries.length === 0 ? "The register is empty." : registerJson(register),
+      register.entries.length === 0
+        ? "The register is empty."
+        : registerJson(
+            register,
+            read.map((turn) => turn.content),
+            names.user,
+          ),
     ),
-    tagged(
-      "turn",
-      transcriptLines(
-        turns.map((turn) => ({ ...turn, content: turn.scanText ?? turn.content })),
-        names,
-      ),
-    ),
+    tagged("turn", transcriptLines(read, names)),
     task,
-    ...(kind === "Scenario"
-      ? [
-          "For this Scenario, a new NPC starts minor unless the introduction clearly establishes a continuing principal figure. Promote an NPC when later turns establish recurring importance, a developing relationship, independent goals or sustained narrative focus. Name, gender, age, physical detail and sexual relevance alone never decide role.",
-        ]
-      : []),
     ...(full ? ["The register is full: add no one; update and mark absent only."] : []),
   ].join("\n\n");
 }
