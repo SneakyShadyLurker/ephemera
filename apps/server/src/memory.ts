@@ -294,18 +294,23 @@ function writeRefusal(
   );
 }
 
-/**
- * A memory call's canon, fitted to its target's window as the target's
- * model counts. Not ok when names filled into it pass the macro bound or
- * its lorebooks exhaust their work allowance: no prompt can be built.
- */
+/** A memory call's canon, fitted to its target's window as the target's model counts. */
 const canonFor = (
   call: ObjectCallTarget,
   input: Omit<Parameters<typeof memoryCanon>[0], "window" | "count">,
+) => memoryCanon({ ...input, window: call.window, count: (text) => countText(text) * call.ratio });
+
+/**
+ * A call's canon before any model call, or not ok when none can be built:
+ * names filled into it pass the macro bound, or its lorebooks exhaust their
+ * work allowance. The call is then refused as `prompt_too_long`, as the
+ * keeper route refuses a description it cannot fill.
+ */
+const builtCanon = (
+  build: () => string | null,
 ): { ok: true; canon: string | null } | { ok: false } => {
   try {
-    const count = (text: string) => countText(text) * call.ratio;
-    return { ok: true, canon: memoryCanon({ ...input, window: call.window, count }) };
+    return { ok: true, canon: build() };
   } catch (error) {
     if (!(error instanceof MacroLimitError)) throw error;
     return { ok: false };
@@ -404,7 +409,7 @@ export function createMemoryApi(deps: MemoryDeps) {
         linked,
         turns,
       });
-    const canon = canonOf(request.turns);
+    const canon = builtCanon(() => canonOf(request.turns));
     if (!canon.ok) {
       log.warn({ event: "memory.remember", model, errorClass: "prompt_too_long" });
       return { ok: false, error: "prompt_too_long" };
@@ -490,19 +495,17 @@ export function createMemoryApi(deps: MemoryDeps) {
       const summaryRoom = chapterRoom(budget);
       const chapterSystem = chapterInstructions(names, summaryRoom);
       // Too much to merge in this window (a long book's oldest half): the oldest part that fits.
-      // A canon that cannot be built for some part is a part that does not fit.
       const fitted = fitChapterMembers(
         members,
-        (merged) => {
-          const canon = canonOf(memberTurns(merged, names.user));
-          return canon.ok
-            ? chapterMessage({ canon: canon.canon, notebook: notebook.notebook, members: merged })
-            : null;
-        },
-        (chapterInput) =>
-          chapterInput === null ? null : roomFor(call, [chapterSystem, chapterInput]),
+        (merged) =>
+          chapterMessage({
+            canon: canonOf(memberTurns(merged, names.user)),
+            notebook: notebook.notebook,
+            members: merged,
+          }),
+        (chapterInput) => roomFor(call, [chapterSystem, chapterInput]),
       );
-      if (fitted === null || fitted.input === null) {
+      if (fitted === null) {
         log.warn({ event: "memory.chapter", model, errorClass: "prompt_too_long" });
         return unrolled;
       }
@@ -602,13 +605,15 @@ export function createMemoryApi(deps: MemoryDeps) {
     const persona = chosenPersona(stores.personas, request.personaId);
     const names: SpeakerNames = { char: character.name, user: persona?.name ?? NO_PERSONA_NAME };
     // Canon: input for this request only, never stored, kept or logged; no turns, so constant entries only.
-    const canon = canonFor(call, {
-      card: character,
-      names,
-      ...(persona === null ? {} : { persona: persona.description }),
-      linked: stores.lorebooks.booksOf(characterId),
-      turns: [],
-    });
+    const canon = builtCanon(() =>
+      canonFor(call, {
+        card: character,
+        names,
+        ...(persona === null ? {} : { persona: persona.description }),
+        linked: stores.lorebooks.booksOf(characterId),
+        turns: [],
+      }),
+    );
     if (!canon.ok) {
       log.warn({ event: "memory.opening", model, errorClass: "prompt_too_long" });
       return { ok: false, error: "prompt_too_long" };

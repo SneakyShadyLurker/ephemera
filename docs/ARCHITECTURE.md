@@ -675,8 +675,7 @@ replay carries it.
    names filled into the description pass the macro bound, or the
    lorebooks' macros exhaust their work allowance (`MacroLimitError` from
    `memoryCanon`), as the keeper route refuses a description it cannot
-   fill. A chapter's canon that cannot be built counts as a part that does
-   not fit: the episode stays written and no chapter is. A queued request answers 200 with
+   fill. A queued request answers 200 with
    `application/json` at once, before waiting for the preceding write and
    running these checks; its refusals arrive as `{ error }` in that body.
    An unqueued request keeps the checks' HTTP refusal statuses and, past
@@ -1232,7 +1231,10 @@ people's records directly and folds the records of away people under their names
    person is and their fixed baseline could carry another branch's future
    into this scene. A removed entry that was retired resolves through the
    index too and stays removed: its name mints no new id, and it rejoins the
-   register only while there is room, the first to leave again. Everyone present after the batch then takes the next `seen`
+   register only while there is room, the first to leave again. The index
+   keeps it as recorded, without the owner's anchor corrections, as a
+   snapshot keeps its entries, and a name the owner gave it as an earlier
+   name, so the story's use of either name finds it. Everyone present after the batch then takes the next `seen`
    count. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
    continuity without overriding owner corrections (a knowledge item joins

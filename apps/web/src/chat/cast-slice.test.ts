@@ -1602,6 +1602,42 @@ describe("cast snapshots", () => {
     expect(names(chat.state())).toHaveLength(CAST_LIMITS.entries);
   });
 
+  it("keep a renamed, removed person removed under either name once a newcomer took her place", async () => {
+    const chat = castChat();
+    const guests = Array.from({ length: CAST_LIMITS.entries }, (_, n) => `Guest ${n}`);
+    await chat.say("Hi");
+    await chat.answer({
+      cast: Object.fromEntries(
+        guests.map((name) => [name, { gender: "female" as const, state: { present: false } }]),
+      ),
+      absent: [],
+    });
+    const removed = entry(chat.state(), "Guest 7")?.id ?? "";
+    chat.state().correctCast(removed, { anchor: { name: "Odette Marsh" } });
+    chat.state().removeCast(removed);
+    const others = guests.filter((name) => name !== "Guest 7");
+    await chat.say("Who is at the door?");
+    await chat.answer({
+      cast: { "Tilda Marek": { gender: "female", state: { position: "in the doorway" } } },
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual([...others, "Tilda Marek"]);
+    // The story may use the name she had or the one the owner gave her: neither adds her back.
+    for (const name of ["Guest 7", "Odette Marsh"]) {
+      await chat.say(`And ${name}?`);
+      await chat.answer({
+        cast: { [name]: { gender: "female", state: { position: "outside" } } },
+        absent: [],
+      });
+      expect(names(chat.state())).toEqual([...others, "Tilda Marek"]);
+    }
+    // Restored, she is the entry she was, under the owner's name for her.
+    chat.state().restoreCast(removed);
+    await chat.say("Guest 7, come in.");
+    await chat.answer({ cast: { "Guest 7": { state: { position: "in the hall" } } }, absent: [] });
+    expect(entry(chat.state(), "Odette Marsh")?.id).toBe(removed);
+  });
+
   it("spare the person of a sheet that lands while the keeper's call runs", async () => {
     const chat = castChat();
     await chat.say("Hi");
