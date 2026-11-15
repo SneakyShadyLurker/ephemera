@@ -1503,6 +1503,8 @@ for (const hasTouch of [false, true]) {
           page,
           policyViolations,
         }, testInfo) => {
+          // Some five thousand locator calls: more than the default budget on a loaded machine.
+          test.setTimeout(90_000);
           await page.setViewportSize({ width, height: 1000 });
           await page.emulateMedia({ reducedMotion });
           const base = canary("inline");

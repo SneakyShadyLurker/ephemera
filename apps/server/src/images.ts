@@ -1,4 +1,4 @@
-import { CARD_LIMITS } from "@ephemera/core";
+import { CARD_LIMITS, PORTRAIT_RENDITIONS } from "@ephemera/core";
 import sharp, { type Metadata } from "sharp";
 import type { Portrait } from "./persistence/store.ts";
 import { isPng, pngChunks, pngPortraitInput } from "./png.ts";
@@ -23,7 +23,10 @@ export const IMAGE_LIMITS = {
   /** Largest decoded image: 25 megapixels, about 100 MB as RGBA. */
   inputPixels: 25_000_000,
   portrait: { width: 1024, height: 1536 },
-  thumb: { width: 256, height: 384 },
+  /** The WebP renditions' boxes: the thumbnail fits inside its own, the medium covers its own. */
+  ...PORTRAIT_RENDITIONS,
+  /** WebP quality of the thumbnail and the medium. */
+  webpQuality: 82,
   /**
    * The copy of a portrait a model reads: a JPEG within 1024 px on the long
    * edge. Worst case, noise filling 1024 x 1024 with every channel 0 or 255,
@@ -91,7 +94,7 @@ async function readImageHeader(
 /**
  * Turns an uploaded image into a stored portrait: oriented, fitted inside
  * 1024 × 1536 (never enlarged), re-encoded as PNG with nothing but pixels,
- * plus a WebP thumbnail.
+ * plus its two WebP renditions, the medium and the thumbnail.
  */
 export async function toPortrait(bytes: Uint8Array): Promise<Portrait> {
   const input = portraitInput(bytes);
@@ -104,14 +107,32 @@ export async function toPortrait(bytes: Uint8Array): Promise<Portrait> {
       .toBuffer({ resolveWithObject: true });
     const thumb = await sharp(png, decodeOptions)
       .resize({ ...IMAGE_LIMITS.thumb, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 82 })
+      .webp({ quality: IMAGE_LIMITS.webpQuality })
       .toBuffer();
     return {
       png: new Uint8Array(png),
+      medium: await toMediumImage(png),
       thumb: new Uint8Array(thumb),
       width: info.width,
       height: info.height,
     };
+  } catch {
+    throw new ImageError("invalid_image");
+  }
+}
+
+/**
+ * The medium WebP of a stored portrait PNG: the smallest that covers
+ * `IMAGE_LIMITS.medium`, never enlarged, so art narrower or shorter than the
+ * box keeps its size.
+ */
+export async function toMediumImage(portraitPng: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const medium = await sharp(portraitPng, decodeOptions)
+      .resize({ ...IMAGE_LIMITS.medium, fit: "outside", withoutEnlargement: true })
+      .webp({ quality: IMAGE_LIMITS.webpQuality })
+      .toBuffer();
+    return new Uint8Array(medium);
   } catch {
     throw new ImageError("invalid_image");
   }

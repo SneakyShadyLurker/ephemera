@@ -50,7 +50,7 @@ export function Presence({
   if (character === undefined) return null;
   const name = character.name;
 
-  const size = placement === "float" && desktop ? "full" : "thumb";
+  const size = placement === "float" && desktop ? "full" : "fit";
   const portrait = character.portrait !== null && (
     // On phones the band's portrait drives the header's: its exit is a view timeline.
     <div
@@ -69,6 +69,8 @@ export function Presence({
           name={character.name}
           version={character.portrait}
           size={size}
+          // The chat's one portrait: there whenever the story is scrolled back to it.
+          lazy={false}
         />
       </PortraitViewer>
       {/* The reply's one light on tablet and desktop; phones carry it on the nameplate's hairline. */}

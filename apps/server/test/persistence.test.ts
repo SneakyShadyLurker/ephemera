@@ -898,6 +898,56 @@ describe("database", () => {
     reopened.close();
   });
 
+  it("upgrades a database from before medium portraits: rows keep no medium file and derive one", async () => {
+    const migrations = join(dir, "medium-migrations");
+    await mkdir(join(migrations, "meta"), { recursive: true });
+    const source = join(import.meta.dirname, "../drizzle");
+    const journal = JSON.parse(await readFile(join(source, "meta/_journal.json"), "utf8"));
+    journal.entries = journal.entries.slice(
+      0,
+      journal.entries.findIndex((entry: { tag: string }) =>
+        entry.tag.endsWith("_portrait_medium_file"),
+      ),
+    );
+    for (const entry of journal.entries) {
+      await copyFile(join(source, `${entry.tag}.sql`), join(migrations, `${entry.tag}.sql`));
+    }
+    await writeFile(join(migrations, "meta/_journal.json"), JSON.stringify(journal));
+
+    const old = new Database(":memory:", { strict: true });
+    migrate(drizzle({ client: old }), { migrationsFolder: migrations });
+    const files = createMemoryPortraitFiles();
+    const image = await samplePortrait();
+    const file = files.put(image.png);
+    const id = crypto.randomUUID();
+    old
+      .query(
+        "INSERT INTO personas (id, name, description, created_at, updated_at) VALUES (?, 'Aria', '', 1, 1)",
+      )
+      .run(id);
+    old
+      .query(
+        "INSERT INTO portraits (persona_id, thumb, width, height, version, file) VALUES (?, ?, 20, 30, 7, ?)",
+      )
+      .run(id, image.thumb, file);
+    const upgraded = openUserDatabase(old.serialize());
+    old.close();
+    const mediumFile = () =>
+      upgraded.client
+        .query<{ medium_file: string | null }, [string]>(
+          "SELECT medium_file FROM portraits WHERE persona_id = ?",
+        )
+        .get(id)?.medium_file;
+    expect(mediumFile()).toBeNull();
+    const stores = createStores(upgraded.db, files);
+    const medium = await stores.personas.portrait(id, "medium");
+    expect(medium?.version).toBe(7);
+    const meta = await sharp(medium?.bytes).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(["webp", 20, 30]);
+    expect(mediumFile()).toEqual(expect.any(String));
+    upgraded.close();
+  });
+
   it("migrates with foreign keys off, so rebuilding a referenced table keeps what refers to it", async () => {
     // A later migration in drizzle-kit's rebuild form for `characters`.
     const source = join(import.meta.dirname, "../drizzle");
@@ -1059,15 +1109,19 @@ describe("portrait files behind the stores", () => {
     const stores = createStores(opened.db, files);
     const row = (id: string) =>
       opened.client
-        .query<{ file: string }, [string]>("SELECT file FROM portraits WHERE character_id = ?")
+        .query<{ file: string; medium_file: string | null }, [string]>(
+          "SELECT file, medium_file FROM portraits WHERE character_id = ?",
+        )
         .get(id);
     return { ...opened, files, ids, stores, row };
   };
 
-  it("replaces a portrait with a new file", async () => {
+  it("replaces a portrait with new files", async () => {
     const { client, files, stores, row, close } = setup();
     const id = stores.characters.create(card(), portrait);
     const first = row(id)?.file;
+    const firstMedium = row(id)?.medium_file;
+    expect(firstMedium).toEqual(expect.any(String));
     const black = sharp({ create: { width: 2, height: 2, channels: 3, background: "#000" } });
     const other = { ...portrait, png: new Uint8Array(await black.png().toBuffer()) };
     stores.characters.setPortrait(id, other);
@@ -1077,9 +1131,12 @@ describe("portrait files behind the stores", () => {
     expect(Buffer.from((await stores.characters.portrait(id, "full"))?.bytes ?? [])).toEqual(
       Buffer.from(other.png),
     );
+    expect(replaced?.medium_file).not.toBe(firstMedium);
     await files.collect(referencedFiles(client));
     expect(files.read(first ?? "")).toBeUndefined();
+    expect(files.read(firstMedium ?? "")).toBeUndefined();
     expect(files.read(replaced?.file ?? "")).toBeDefined();
+    expect(files.read(replaced?.medium_file ?? "")).toBeDefined();
     close();
   });
 
@@ -1088,9 +1145,72 @@ describe("portrait files behind the stores", () => {
     const id = stores.characters.create(card(), portrait);
     const copy = stores.characters.duplicate(id) ?? "";
     expect(row(copy)?.file).not.toBe(row(id)?.file);
-    expect(referencedFiles(client).size).toBe(2);
+    expect(row(copy)?.medium_file).not.toBe(row(id)?.medium_file);
+    expect(referencedFiles(client).size).toBe(4);
     expect(Buffer.from((await stores.characters.portrait(copy, "full"))?.bytes ?? [])).toEqual(
       Buffer.from(portrait.png),
+    );
+    expect(Buffer.from((await stores.characters.portrait(copy, "medium"))?.bytes ?? [])).toEqual(
+      Buffer.from(portrait.medium),
+    );
+    close();
+  });
+
+  it("duplicates a portrait stored without a medium into a copy without one", async () => {
+    const { client, stores, row, close } = setup();
+    const id = stores.characters.create(card(), portrait);
+    client.run("UPDATE portraits SET medium_file = NULL");
+    const copy = stores.characters.duplicate(id) ?? "";
+    expect(row(copy)?.medium_file).toBeNull();
+    expect(referencedFiles(client).size).toBe(2);
+    close();
+  });
+
+  it("derives a missing medium from the PNG once and keeps it", async () => {
+    const { client, stores, row, close } = setup();
+    const id = stores.characters.create(card(), portrait);
+    const version = stores.characters.portraitVersion(id);
+    const updatedAt = stores.characters.get(id)?.updatedAt;
+    client.run("UPDATE portraits SET medium_file = NULL");
+
+    const first = await stores.characters.portrait(id, "medium");
+    expect(first?.version).toBe(version);
+    const meta = await sharp(first?.bytes).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(["webp", 20, 30]);
+    const kept = row(id)?.medium_file;
+    expect(kept).toEqual(expect.any(String));
+    expect(referencedFiles(client).has(kept ?? "")).toBe(true);
+    const second = await stores.characters.portrait(id, "medium");
+    expect(Buffer.from(second?.bytes ?? [])).toEqual(Buffer.from(first?.bytes ?? []));
+    expect(row(id)?.medium_file).toBe(kept);
+    // Neither the version nor the owner moves.
+    expect(stores.characters.portraitVersion(id)).toBe(version);
+    expect(stores.characters.get(id)?.updatedAt).toBe(updatedAt);
+    close();
+  });
+
+  it("derives one medium for concurrent requests", async () => {
+    const { client, stores, ids, close } = setup();
+    const id = stores.characters.create(card(), portrait);
+    client.run("UPDATE portraits SET medium_file = NULL");
+    const before = ids.length;
+    const [a, b] = await Promise.all([
+      stores.characters.portrait(id, "medium"),
+      stores.characters.portrait(id, "medium"),
+    ]);
+    expect(Buffer.from(a?.bytes ?? [])).toEqual(Buffer.from(b?.bytes ?? []));
+    expect(ids.length - before).toBe(1);
+    expect(referencedFiles(client).size).toBe(2);
+    close();
+  });
+
+  it("answers the thumb for a medium whose PNG is missing", async () => {
+    const { client, stores, close } = setup();
+    const id = stores.characters.create(card(), portrait);
+    client.run("UPDATE portraits SET medium_file = NULL, file = ?", [crypto.randomUUID()]);
+    expect(await stores.characters.portrait(id, "full")).toBeUndefined();
+    expect(Buffer.from((await stores.characters.portrait(id, "medium"))?.bytes ?? [])).toEqual(
+      Buffer.from(portrait.thumb),
     );
     close();
   });
@@ -1100,12 +1220,11 @@ describe("portrait files behind the stores", () => {
     const character = stores.characters.create(card(), portrait);
     const persona = stores.personas.create({ name: "Aria", description: "" }, crypto.randomUUID());
     stores.personas.setPortrait(persona, portrait);
-    const [characterFile, personaFile] = ids;
+    expect(ids).toHaveLength(4);
     stores.characters.remove(character);
     stores.personas.remove(persona);
     await files.collect(referencedFiles(client));
-    expect(files.read(characterFile ?? "")).toBeUndefined();
-    expect(files.read(personaFile ?? "")).toBeUndefined();
+    for (const file of ids) expect(files.read(file)).toBeUndefined();
     close();
   });
 
@@ -1116,11 +1235,11 @@ describe("portrait files behind the stores", () => {
       "CREATE TRIGGER refuse BEFORE INSERT ON portraits BEGIN SELECT RAISE(ABORT, 'refused'); END",
     );
     expect(() => stores.characters.setPortrait(id, portrait)).toThrow();
-    expect(ids).toHaveLength(1);
+    expect(ids).toHaveLength(2);
     expect(referencedFiles(client).size).toBe(0);
     expect(stores.characters.get(id)?.portrait).toBeNull();
     await files.writeStaged(referencedFiles(client));
-    expect(files.read(ids[0] ?? "")).toBeUndefined();
+    for (const file of ids) expect(files.read(file)).toBeUndefined();
     close();
   });
 });

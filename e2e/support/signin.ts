@@ -70,6 +70,32 @@ export async function expire(
 }
 
 /**
+ * Sends `text` into a session that goes just before Send. The draft is typed
+ * and its prompt preview answered while still signed in, so the first refusal
+ * belongs to Send: a draft typed after the expiry has its preview refused,
+ * and once that lands the composer no longer sends, which a loaded machine
+ * lets happen before Enter does.
+ */
+export async function sendExpired(
+  page: Page,
+  context: BrowserContext,
+  text: string,
+): Promise<{ chat: () => number }> {
+  const message = page.getByLabel("Message", { exact: true });
+  const previewed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/chat/preview" &&
+      (response.request().postData() ?? "").includes(text) &&
+      response.ok(),
+  );
+  await message.fill(text);
+  await previewed;
+  const routes = await expire(context);
+  await message.press("Enter");
+  return routes;
+}
+
+/**
  * The owner signs in: the session is back, and the portal sends the window to
  * its `rd`. `from`: the notice signed in from, where a modal holds its own;
  * `origin`: the app server the page is on.

@@ -355,6 +355,63 @@ test("imports PNG and JSON cards, reports each file and shows their portraits", 
   await expect(tile(page, withoutArt).locator("svg[data-icon='Mark']")).toBeVisible();
 });
 
+/** The pixels a tile's portrait is drawn from, against the device pixels it covers. */
+const artPixels = (page: Page, name: string) =>
+  tile(page, name)
+    .locator("img")
+    .evaluate((img: HTMLImageElement) => ({
+      natural: { width: img.naturalWidth, height: img.naturalHeight },
+      covered: {
+        width: img.clientWidth * devicePixelRatio,
+        height: img.clientHeight * devicePixelRatio,
+      },
+    }));
+
+test.describe("on a large dense screen", () => {
+  test.use({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2 });
+
+  test("a gallery tile draws its portrait from at least the pixels it covers", async ({ page }) => {
+    const name = uniqueName("Wren");
+    await importCards(page, [await pngCard("wren.png", card(name), 1024, 1536)]);
+    const art = tile(page, name).locator("img");
+    await expect(art).toHaveAttribute("src", /\/portrait\/image\?size=medium&v=\d+$/);
+    await expect(art).toHaveJSProperty("complete", true);
+    const { natural, covered } = await artPixels(page, name);
+    // The thumbnail's 256 pixels would be stretched over nearly twice as many.
+    expect(covered.width).toBeGreaterThan(400);
+    expect(natural.width).toBeGreaterThanOrEqual(covered.width - 1);
+    expect(natural.height).toBeGreaterThanOrEqual(covered.height - 1);
+    const response = await page.request.get((await art.getAttribute("src")) ?? "");
+    expect(response.headers()["content-type"]).toBe("image/webp");
+    expect(response.headers()["cache-control"]).toBe("private, no-cache, no-transform");
+
+    // Opened again, the gallery asks for that one image and never for the thumbnail under it.
+    const asked: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.endsWith("/portrait/image")) asked.push(url.searchParams.get("size") ?? "");
+    });
+    await page.reload();
+    await expect(art).toHaveJSProperty("complete", true);
+    await expect(art).toHaveAttribute("src", /size=medium/);
+    expect(new Set(asked)).toEqual(new Set(["medium"]));
+  });
+});
+
+test("square art in a small tile trades its thumbnail for the pixels the tile's height needs", async ({
+  page,
+}) => {
+  const name = uniqueName("Wren");
+  await importCards(page, [await pngCard("wren.png", card(name), 800, 800)]);
+  const art = tile(page, name).locator("img");
+  // The tile is within the thumbnail's width, so that loads first; filled from its 256 rows, it falls short.
+  await expect(art).toHaveAttribute("src", /\/portrait\/image\?size=medium&v=\d+$/);
+  await expect(art).toHaveJSProperty("complete", true);
+  const { natural, covered } = await artPixels(page, name);
+  expect(covered.width).toBeLessThanOrEqual(256);
+  expect(natural.height).toBeGreaterThanOrEqual(covered.height - 1);
+});
+
 test("a SillyTavern card's personality, scenario, examples and prompts fold into its description, and the report says so", async ({
   page,
 }) => {

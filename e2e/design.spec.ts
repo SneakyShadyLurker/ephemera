@@ -4401,6 +4401,49 @@ for (const { width, height, root, columns } of [
   });
 }
 
+test.describe("on a dense screen", () => {
+  test.use({ deviceScaleFactor: 3 });
+
+  test("the chat's portrait keeps its art while a narrowed window waits for the size it then draws", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const characterId = await createCharacterViaApi(request, uniqueName("Tail"), {
+      firstMessage: "The harbour light crosses the water.",
+    });
+    await setPortraitViaApi(request, characterId, portraitPng("Tail"));
+    await patchSettings(request, { characterId, model: "mock-fast" });
+    await page.goto("/");
+    const art = page.locator("[data-presence] img");
+    await expect(art).toHaveAttribute("src", /size=full/);
+    await expect(art).toHaveJSProperty("complete", true);
+
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let asked = false;
+    await page.route("**/portrait/image?size=medium**", async (route) => {
+      asked = true;
+      await held;
+      await route.continue();
+    });
+    try {
+      // Below the desktop width the portrait fits its leaf, which the thumbnail cannot fill here.
+      await page.setViewportSize({ width: 1000, height: 900 });
+      await expect.poll(() => asked).toBe(true);
+      await expect(art).toHaveCount(1);
+      await expect(art).toHaveAttribute("src", /size=full/);
+      expect(await art.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    } finally {
+      release();
+    }
+    await expect(art).toHaveAttribute("src", /size=medium/);
+    await expect(art).toHaveJSProperty("complete", true);
+  });
+});
+
 test("on a large display the header's controls sit on the edges of the body they act on", async ({
   page,
 }) => {

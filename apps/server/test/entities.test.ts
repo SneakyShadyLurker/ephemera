@@ -65,9 +65,11 @@ describe("persona store", () => {
       name: "Aria (copy)",
       description: "Now a captain.",
     });
-    expect((await s.personas.portrait(copy ?? "", "thumb"))?.bytes).toEqual(
-      (await s.personas.portrait(id, "thumb"))?.bytes,
-    );
+    for (const size of ["thumb", "medium"] as const) {
+      expect((await s.personas.portrait(copy ?? "", size))?.bytes).toEqual(
+        (await s.personas.portrait(id, size))?.bytes,
+      );
+    }
     expect(
       s.personas
         .list()

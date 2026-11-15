@@ -204,6 +204,13 @@
       "when": 1794150465106,
       "tag": "0028_atmosphere_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1794696250774,
+      "tag": "0029_portrait_medium_file",
+      "breakpoints": true
     }
   ]
 }

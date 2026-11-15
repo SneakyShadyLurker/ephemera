@@ -172,11 +172,12 @@ export function promptPart(parts: Record<string, unknown>[]): InspectedPrompt {
   );
 }
 
-/** A small stored portrait of one colour, with its thumbnail, as the image pipeline keeps it. */
+/** A small stored portrait of one colour, with its medium and thumbnail, as the image pipeline keeps it. */
 export async function samplePortrait(): Promise<Portrait> {
   const image = sharp({ create: { width: 20, height: 30, channels: 3, background: "#406080" } });
   return {
     png: new Uint8Array(await image.clone().png().toBuffer()),
+    medium: new Uint8Array(await image.clone().webp({ lossless: true }).toBuffer()),
     thumb: new Uint8Array(await image.clone().webp().toBuffer()),
     width: 20,
     height: 30,

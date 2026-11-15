@@ -49,7 +49,8 @@ import {
  * a graph template whose prompt is a placeholder, never text). There is no
  * table, column or code path for chat content. Card data and portrait images are separate rows
  * (PRINCIPLES.md 3); a portrait row keeps the thumbnail and names the
- * encrypted file under `users/<username>/portraits/` that holds the PNG.
+ * encrypted files under `users/<username>/portraits/` that hold the PNG and
+ * its medium WebP.
  * Column names are snake_case through Drizzle's casing.
  */
 
@@ -261,6 +262,11 @@ export const portraits = sqliteTable(
      * re-encoded PNG, metadata stripped, also the image of PNG exports.
      */
     file: text().notNull(),
+    /**
+     * The file id of the medium WebP, which covers 768 x 1152. Null for a
+     * portrait stored without one; its first request derives it from the PNG.
+     */
+    mediumFile: text(),
   },
   (table) => [
     check(

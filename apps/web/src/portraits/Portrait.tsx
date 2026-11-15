@@ -4,6 +4,7 @@ import { useOnScreen } from "@/app/KeptScroll.tsx";
 import { MarkIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { useRenewals } from "../signin/hooks.ts";
+import { fittedSize, useFitted } from "./fit.ts";
 import { type PortraitOwner, type PortraitSize, portraitUrl } from "./queries.ts";
 
 /** A 10% ink hairline inside the edge, so pale art keeps its shape on the canvas. */
@@ -19,11 +20,14 @@ function KeptImage({
   arriving = false,
   lazy = false,
   unavailable,
+  onDrawn,
 }: {
   src: string | null;
   arriving?: boolean;
   lazy?: boolean;
   unavailable?: ReactNode;
+  /** Each image once it has loaded in its place. */
+  onDrawn?: (image: HTMLImageElement) => void;
 }) {
   const renewals = useRenewals();
   const current = `${renewals}:${src}`;
@@ -86,6 +90,7 @@ function KeptImage({
             loading={lazy ? "lazy" : "eager"}
             decoding="async"
             draggable={false}
+            onLoad={(event) => onDrawn?.(event.currentTarget)}
             onError={() => setFailed(drawn.key)}
             className={cn(
               "absolute inset-0 size-full object-cover object-top",
@@ -130,6 +135,9 @@ function UnavailablePortrait({
   );
 }
 
+/** One portrait across its versions and sizes. */
+const portraitKey = (owner: PortraitOwner, id: string) => `${owner}:${id}`;
+
 /** The shared-element name that carries a portrait from a gallery into its sheet. */
 export const PORTRAIT_TRANSITION = "character-portrait";
 
@@ -138,13 +146,16 @@ export const PORTRAIT_TRANSITION = "character-portrait";
  * filled from the top, never cropped to a face. Without art the leaf keeps
  * its quiet ground with the mark's crescent and lamp low in it, one faint
  * glyph: the name is said once, by the caption or heading beside it.
+ * `fit` draws the smallest WebP that has the leaf's device pixels, so the
+ * art is as sharp in a wide tile on a dense screen as in a small one.
  */
 export function Portrait({
   owner = "characters",
   name,
   id,
   version,
-  size = "thumb",
+  size = "fit",
+  lazy,
   arriving = false,
   transition = false,
   className,
@@ -153,7 +164,14 @@ export function Portrait({
   name?: string;
   id: string;
   version: number | null;
-  size?: PortraitSize;
+  size?: "fit" | "full";
+  /**
+   * Loads once near the screen, as a gallery's tiles do: the default for a
+   * fitted leaf. A portrait that stands alone turns it off: lazily, one above
+   * the fold of a scroller that opens on its end would stay unloaded until it
+   * is scrolled to.
+   */
+  lazy?: boolean;
   /** Just imported or uploaded: surfaces out of blur once. */
   arriving?: boolean;
   /** Carries the view-transition name for the gallery-to-sheet morph. */
@@ -166,7 +184,12 @@ export function Portrait({
   const shown = useOnScreen(frame, transition);
   const style: CSSProperties | undefined =
     transition && shown ? { viewTransitionName: PORTRAIT_TRANSITION } : undefined;
-  const src = version === null ? null : portraitUrl(owner, id, version, size);
+  const fitted = useFitted(
+    frame,
+    size === "fit" && version !== null ? portraitKey(owner, id) : null,
+  );
+  const src =
+    version === null ? null : portraitUrl(owner, id, version, size === "full" ? size : fitted.size);
   return (
     <div
       ref={frame}
@@ -191,12 +214,14 @@ export function Portrait({
           className="absolute bottom-[9cqi] left-[9cqi] text-reed opacity-45 [&_[data-lamp]]:fill-current"
         />
       )}
+      {/* Keyed on the size as first measured, before any paint: the image starts at that size. */}
       <KeptImage
-        key={`${owner}:${id}`}
+        key={`${portraitKey(owner, id)}:${fitted.start}`}
         src={src}
         arriving={arriving}
-        lazy={size !== "full"}
+        lazy={lazy ?? size === "fit"}
         unavailable={<UnavailablePortrait name={name} caption />}
+        onDrawn={fitted.drawn}
       />
     </div>
   );
@@ -204,7 +229,8 @@ export function Portrait({
 
 /**
  * The portrait at full size for the viewer, laid over the size already shown,
- * which holds its place until the full one arrives.
+ * which holds its place until the full one arrives. `fit`: the rendition its
+ * fitted leaf settled on.
  */
 export function FullPortrait({
   owner = "characters",
@@ -216,17 +242,18 @@ export function FullPortrait({
   id: string;
   version: number;
   /** The size already on screen, so already loaded. */
-  shown: PortraitSize;
+  shown: PortraitSize | "fit";
 }) {
+  const under = shown === "fit" ? fittedSize(portraitKey(owner, id)) : shown;
   return (
     <span className="relative block size-full">
-      {shown !== "full" && (
-        <KeptImage key={`shown:${owner}:${id}`} src={portraitUrl(owner, id, version, shown)} />
+      {under !== "full" && (
+        <KeptImage key={`shown:${owner}:${id}`} src={portraitUrl(owner, id, version, under)} />
       )}
       <KeptImage
         key={`full:${owner}:${id}`}
         src={portraitUrl(owner, id, version, "full")}
-        {...(shown !== "full" ? { unavailable: null } : {})}
+        {...(under !== "full" ? { unavailable: null } : {})}
       />
     </span>
   );
@@ -257,7 +284,7 @@ export function Leaf({
       )}
     >
       <KeptImage
-        key={`${owner}:${id}`}
+        key={portraitKey(owner, id)}
         src={src}
         unavailable={<UnavailablePortrait name={name} compact />}
       />

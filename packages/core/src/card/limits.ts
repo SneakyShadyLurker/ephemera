@@ -19,6 +19,21 @@ export const CARD_LIMITS = {
   jsonDepth: 64,
 } as const;
 
+/**
+ * The pixel boxes of a stored portrait's two WebP renditions (never enlarged).
+ * One owner: the server's image pipeline cuts them, the web picks between them.
+ */
+export const PORTRAIT_RENDITIONS = {
+  /** The whole art fitted inside this box: small leaves and galleries of small tiles. */
+  thumb: { width: 256, height: 384 },
+  /**
+   * The art covering this box, so a 2:3 leaf up to its width in device pixels
+   * is filled from enough pixels whatever the art's proportions: three
+   * quarters of a full portrait, a 384 CSS px leaf at 2x.
+   */
+  medium: { width: 768, height: 1152 },
+} as const;
+
 /** Multipart overhead allowed on top of the file itself. */
 const MULTIPART_SLACK = 64 * 1024;
 

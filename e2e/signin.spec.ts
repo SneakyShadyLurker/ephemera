@@ -16,7 +16,7 @@ import {
   seriousAxeViolations,
 } from "./support/entities.ts";
 import { APP_ORIGIN, CANARY_MARKER, canary } from "./support/env.ts";
-import { expire, notice, signInThroughPortal } from "./support/signin.ts";
+import { expire, notice, sendExpired, signInThroughPortal } from "./support/signin.ts";
 import { expect, test } from "./support/test.ts";
 import { codeArrived } from "./support/waits.ts";
 
@@ -72,9 +72,8 @@ test.describe("sign-in expiry", () => {
     await expect(lastReply(page)).toHaveAttribute("data-status", "complete");
     await expect(page.locator("[data-reply-actions]")).toContainText("2 / 2");
 
-    const routes = await expire(context);
     const line = canary("in");
-    await send(page, line);
+    const routes = await sendExpired(page, context, line);
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
     await expect(lastReply(page)).toContainText("The reply hasn't started yet.");
     await expect(lastReply(page)).not.toContainText("sign in");
@@ -538,17 +537,7 @@ for (const width of [360, 390]) {
       await page.emulateMedia({ reducedMotion });
       await openChat(page, "mock-slow");
       const line = canary("in");
-      const message = page.getByLabel("Message", { exact: true });
-      const previewed = page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === "/api/chat/preview" &&
-          (response.request().postData() ?? "").includes(line) &&
-          response.ok(),
-      );
-      await message.fill(line);
-      await previewed;
-      const routes = await expire(context);
-      await message.press("Enter");
+      const routes = await sendExpired(page, context, line);
       await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
       expect(routes.chat()).toBe(1);
       const note = lastReply(page).getByText("The reply hasn't started yet.", { exact: true });
@@ -709,8 +698,7 @@ for (const { name, width, height, scheme } of FORM_FACTORS) {
     await page.setViewportSize({ width, height });
     await page.emulateMedia({ colorScheme: scheme });
     await openChat(page, "mock-fast");
-    await expire(context);
-    await send(page, canary("in"));
+    await sendExpired(page, context, canary("in"));
     await expect(notice(page)).toContainText("Your sign-in has expired");
     await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
     await expect(lastReply(page)).toContainText("The reply hasn't started yet.");

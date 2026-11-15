@@ -1855,6 +1855,7 @@ describe("POST /api/creator/rework", () => {
   /** A PNG header and a WebP header: what the portrait schema checks. */
   const portrait = {
     png: new Uint8Array(fakePng(20, 30)),
+    medium: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
     thumb: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
     width: 20,
     height: 30,

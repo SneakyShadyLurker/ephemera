@@ -91,10 +91,23 @@ describe("avatar pipeline: caps", () => {
     expect([large.width, large.height]).toEqual([1024, 1024]);
     const thumb = await sharp(large.thumb).metadata();
     expect([thumb.width, thumb.height]).toEqual([256, 256]);
+    // The medium covers its box: square art would need enlarging to, so it keeps the portrait's size.
+    const medium = await sharp(large.medium).metadata();
+    expect([medium.format, medium.width, medium.height]).toEqual(["webp", 1024, 1024]);
+    const leaf = await toPortrait(new Uint8Array(await plainPng(2048, 3072)));
+    const leafMedium = await sharp(leaf.medium).metadata();
+    expect([leafMedium.format, leafMedium.width, leafMedium.height]).toEqual(["webp", 768, 1152]);
+    const narrow = await toPortrait(new Uint8Array(await plainPng(1000, 1536)));
+    const narrowMedium = await sharp(narrow.medium).metadata();
+    expect([narrowMedium.width, narrowMedium.height]).toEqual([768, 1180]);
     const tall = await toPortrait(new Uint8Array(await plainPng(800, 4000)));
     expect(tall.height).toBe(IMAGE_LIMITS.portrait.height);
+    const tallMedium = await sharp(tall.medium).metadata();
+    expect([tallMedium.width, tallMedium.height]).toEqual([tall.width, tall.height]);
     const small = await toPortrait(new Uint8Array(await plainPng(10, 15)));
     expect([small.width, small.height]).toEqual([10, 15]);
+    const smallMedium = await sharp(small.medium).metadata();
+    expect([smallMedium.format, smallMedium.width, smallMedium.height]).toEqual(["webp", 10, 15]);
   });
 });
 
@@ -134,7 +147,7 @@ describe("avatar pipeline: metadata stripped", () => {
     expect(input.includes("metadata-canary")).toBe(true);
 
     const portrait = await toPortrait(new Uint8Array(input));
-    for (const image of [portrait.png, portrait.thumb]) {
+    for (const image of [portrait.png, portrait.medium, portrait.thumb]) {
       const meta = await sharp(image).metadata();
       expect(meta.exif).toBeUndefined();
       expect(meta.xmp).toBeUndefined();
@@ -191,7 +204,7 @@ describe("avatar pipeline: metadata stripped", () => {
     expect([...native]).toEqual([200, 100, 51]);
     const portrait = await toPortrait(input);
     expect(await sharp(portrait.png).raw().toBuffer()).toEqual(native);
-    for (const output of [portrait.png, portrait.thumb]) {
+    for (const output of [portrait.png, portrait.medium, portrait.thumb]) {
       expect((await sharp(output).metadata()).icc).toBeUndefined();
     }
     expect(pngChunks(portrait.png)?.some((chunk) => chunk.type === "iCCP")).toBe(false);
