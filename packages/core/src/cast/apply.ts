@@ -284,7 +284,7 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * A newcomer to a full register retires the away minor last in the scene
  * longest ago (`withinCapacity`): never a principal, someone present, a
  * sheet entry, one the owner corrected or removed, or one this batch
- * changed or named; with no such entry the newcomer is refused. A retired
+ * changed, marked away or named; with no such entry the newcomer is refused. A retired
  * entry stays in `previous`, so a return restores its id and anchor.
  * Everyone present after the batch is marked `seen`.
  */
@@ -365,6 +365,7 @@ export function applyCastChanges(
     const at = resolve(entries, name);
     const entry = entries[at];
     if (entry === undefined || removed.has(entry.id)) continue;
+    spared.add(entry.id);
     entries[at] = { ...entry, state: { ...entry.state, present: false } };
   }
   // Whoever the batch names is introduced, with or without the keeper's own `introduce`.

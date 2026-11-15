@@ -306,6 +306,23 @@ describe("a full register", () => {
     expect(gone(base, result)).toEqual(["Guest 2"]);
   });
 
+  it("spares someone the batch marks away, by whatever name the turns use", () => {
+    // Only Guest 4 could go, and she leaves the scene in this very batch: the newcomer is refused.
+    const everyone = Object.fromEntries(
+      Array.from({ length: CAST_LIMITS.entries - 2 }, (_, at) => [
+        at,
+        at === 4 ? { state: emptyCastState(true) } : { role: "principal" as const },
+      ]),
+    );
+    const base = crowd([], everyone);
+    const { result } = apply(base, { ...newcomer, absent: ["Guest 4"] }, { shown: ["She left."] });
+    expect(gone(base, result)).toEqual([]);
+    expect(names(result)).not.toContain("Tilda Marek");
+    expect(result.entries.find((item) => item.anchor.name === "Guest 4")?.state.present).toBe(
+      false,
+    );
+  });
+
   it("refuses the newcomers no one can be retired for, newest first", () => {
     const everyone = Object.fromEntries(
       Array.from({ length: CAST_LIMITS.entries - 2 }, (_, at) => [

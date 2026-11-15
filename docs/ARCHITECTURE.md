@@ -1167,10 +1167,10 @@ people's records directly and folds the records of away people under their names
    (never present first, ties in register order): never a principal, an
    entry that is present, removed or corrected by the owner, one a sheet
    entry names by id or name (the web passes the acknowledged sheet), or one
-   the batch changed or named. With no one left to retire, the batch's newest
+   the batch changed, marked away or named. With no one left to retire, the batch's newest
    additions are refused. A retired entry stays in the slice's identity
-   index, so a later change that names it restores its id and anchor through
-   `previous`. Everyone present after the batch then takes the next `seen`
+   index (one an earlier batch of the same run retired included), so a later
+   change that names it restores its id and anchor through `previous`. Everyone present after the batch then takes the next `seen`
    count. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
    continuity without overriding owner corrections, merges grounded discoveries
