@@ -51,7 +51,7 @@ import {
   serverHopsHolding,
 } from "./support/retention.ts";
 import { dataDirContaining, filesContaining } from "./support/scan.ts";
-import { expire, notice, signInThroughPortal } from "./support/signin.ts";
+import { notice, sendExpired, signInThroughPortal } from "./support/signin.ts";
 import { appOrigin, expect, test, unsafe } from "./support/test.ts";
 import { letPass } from "./support/waits.ts";
 
@@ -760,9 +760,8 @@ matrixRow(
 
 matrixRow("expiry", async ({ context, page }) => {
   await openChat(page, "mock-fast");
-  const routes = await expire(context);
   const line = canary("expiry");
-  await send(page, line);
+  const routes = await sendExpired(page, context, line);
   await expect(lastReply(page)).toHaveAttribute("data-status", "waiting");
   await expect(notice(page)).toContainText("Your sign-in has expired");
   await composer(page).fill(canary("expiry"));
