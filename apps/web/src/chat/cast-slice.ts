@@ -21,7 +21,6 @@ import {
   clampCastCorrection,
   emptyCastState,
   fillMemoryCastEntries,
-  groundedCastChanges,
   memoryCastContext,
   memoryCastEntries,
   memoryIsOn,
@@ -1089,15 +1088,14 @@ export function createCastSlice(
         usage = outcome.response.usage;
         for (const entry of body.register.entries) sent.add(entry.id);
         const before = progress.chain;
-        const shown = batch.map((turn) => turn.scanText ?? turn.content);
-        progress.chain = applyCastChanges(before, changes, {
+        const applying = {
           player,
           newId: deps.newId,
           removed: removedIds(get().cast.corrections),
           previous: progress.previous,
           // Read now, as the corrections are: a sheet may land while a single call runs.
           sheet: get().cast.sheet?.entries ?? [],
-          shown,
+          shown: batch.map((turn) => turn.scanText ?? turn.content),
           corrected: Object.fromEntries(
             [...new Set([...Object.keys(corrections), ...Object.keys(get().cast.corrections)])].map(
               (id) => [
@@ -1108,7 +1106,24 @@ export function createCastSlice(
               ],
             ),
           ),
-        });
+        };
+        progress.chain = applyCastChanges(before, changes, applying);
+        // Which ended hidden fields the answer wrote is the applicator's own word: the same
+        // changes over the register the keeper read, where such a field is there afterwards
+        // only if this batch set it. Never told by the value's words, which may be the very
+        // ones the owner ended, nor by resolving the answer's names again.
+        if (Object.keys(corrections).some((id) => endedBefore(id).length > 0)) {
+          const written = applyCastChanges(withoutEndedHidden(before, endedBefore), changes, {
+            ...applying,
+            // Ids of entries this reading adds are never looked at.
+            newId: () => crypto.randomUUID(),
+          });
+          for (const entry of written.entries) {
+            for (const field of endedBefore(entry.id)) {
+              if (entry.hidden?.[field] !== undefined) rewritten.add(`${entry.id}:${field}`);
+            }
+          }
+        }
         // Whoever the batch retired for a newcomer stays known: a later batch of this run that
         // names them gives them their id and anchor back, as a later run does once this one commits.
         // They are kept as recorded, as a snapshot keeps its entries: the chain carries the owner's
@@ -1133,16 +1148,6 @@ export function createCastSlice(
         for (const name of [...Object.keys(changes.cast), ...changes.absent]) {
           const entry = resolveCastEntry(progress.chain, name);
           if (entry !== undefined) affirmed.add(entry.id);
-        }
-        // A hidden value the answer set was written by this run: told from one left untouched
-        // by the write itself, as `applyCastChanges` took it (grounded in the batch), never by
-        // its words, which may be the very ones the owner ended.
-        for (const [name, change] of Object.entries(groundedCastChanges(changes, shown).cast)) {
-          const entry = resolveCastEntry(progress.chain, name);
-          if (entry === undefined) continue;
-          for (const [field, item] of Object.entries(change.hidden ?? {})) {
-            if (item !== undefined && item !== "") rewritten.add(`${entry.id}:${field}`);
-          }
         }
         // A turn that names someone introduces her without the keeper's word: she is the chat's too.
         for (const entry of progress.chain.entries) {

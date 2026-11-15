@@ -1969,6 +1969,51 @@ describe("cast corrections", () => {
     expect(loose.state().cast.corrections).toEqual({});
   });
 
+  it("know a hidden field's rewrite by the entry it was applied to, not by the answer's names", async () => {
+    // A full-name entry rewritten under her first name, before the same answer adds someone who
+    // shares it: read again afterwards, the first name would mean no one.
+    const chat = castChat();
+    await chat.say("Hi");
+    const mood = { value: "furious behind the smile", evidence: "reply 1" };
+    await chat.answer({
+      cast: {
+        "Ilse Brandt": { gender: "female", state: { mood: "smiling" }, hidden: { mood } },
+      },
+      absent: [],
+    });
+    chat.state().endCastHidden(uuid(100), "mood");
+    await chat.say("Next");
+    await chat.answer({
+      cast: {
+        Ilse: { hidden: { mood: { ...mood, evidence: "reply 2" } } },
+        "Ilse Berg": { gender: "female", state: { position: "in the doorway" } },
+      },
+      absent: [],
+    });
+    expect(names(chat.state())).toEqual(["Ilse Brandt", "Ilse Berg"]);
+    expect(entry(chat.state(), "Ilse Brandt")?.hidden).toEqual({ mood: mood.value });
+    expect(chat.state().cast.corrections).toEqual({});
+  });
+
+  it("end a hidden field of an entry removed while the call runs, whatever the answer says of her", async () => {
+    const chat = await withHidden();
+    chat.state().endCastHidden(uuid(100), "mood");
+    await chat.say("Third");
+    chat.state().removeCast(uuid(100));
+    // The answer is not applied to a removed entry, so it wrote nothing: the ending takes the
+    // field, and a restore shows her without it.
+    await chat.answer({
+      cast: { Ilse: { hidden: { mood: { value: "afraid", evidence: "reply 3" } } } },
+      absent: [],
+    });
+    expect(chat.state().cast.corrections).toEqual({
+      [uuid(100)]: { anchor: {}, state: {}, removed: true },
+    });
+    chat.state().restoreCast(uuid(100));
+    expect(entry(chat.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+    expect(recordedHidden(chat.state(), uuid(100))).toEqual({ injuries: HELD.injuries });
+  });
+
   it("keep a hidden field's ending made while a call runs, until a call built after it", async () => {
     const chat = await withHidden();
     await chat.say("Third");
