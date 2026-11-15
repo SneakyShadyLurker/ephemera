@@ -36,13 +36,16 @@ const fileOf = (dataDir: string, username: string) =>
 const portraitsOf = (dataDir: string, username: string) =>
   join(dataDir, "users", username, PORTRAITS_DIR);
 
-/** A portrait the schema accepts: a PNG signature and `size` random bytes. */
+/** A portrait the schema accepts: a PNG signature and `size` random bytes, a WebP header and 8. */
 const portraitOf = (size = 64): Portrait => ({
   png: new Uint8Array(
     Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       randomBytes(size),
     ]),
+  ),
+  medium: new Uint8Array(
+    Buffer.concat([Buffer.from("RIFF\0\0\0\0WEBP", "latin1"), randomBytes(8)]),
   ),
   thumb: new Uint8Array(Buffer.from("RIFF\0\0\0\0WEBP", "latin1")),
   width: 1,
@@ -551,33 +554,63 @@ describe("instance registry", () => {
     const reopened = registry(dataDir).instance(user("alice"));
     expect(performance.now() - started).toBeLessThan(2_000);
     expect(statSync(fileOf(dataDir, "alice")).size).toBeLessThan(1024 * 1024);
+    // Each portrait's PNG and its medium WebP.
     const files = await readdir(portraitsOf(dataDir, "alice"));
-    expect(files).toHaveLength(4);
-    for (const name of files) {
-      expect(statSync(join(portraitsOf(dataDir, "alice"), name)).size).toBeGreaterThan(
-        16 * 1024 * 1024,
-      );
-    }
+    expect(files).toHaveLength(8);
+    const big = files.filter(
+      (name) => statSync(join(portraitsOf(dataDir, "alice"), name)).size > 16 * 1024 * 1024,
+    );
+    expect(big).toHaveLength(4);
     expect(reopened.stores.characters.list()).toHaveLength(4);
   }, 30_000);
 
   const events = (name: string) =>
     lines.map((line) => JSON.parse(line)).filter((line) => line.event === name);
 
-  it("writes a portrait's file before the database file that names it", async () => {
+  it("writes a portrait's files before the database file that names them", async () => {
     const dataDir = await dataDirectory();
     const counted = writer();
     const alice = registry(dataDir, { write: counted.write }).instance(user("alice"));
     const id = alice.stores.characters.create(blankCard("Wren"), portraitOf());
     await alice.flushIfDirty();
     const raw = await databaseOnDisk(dataDir, "alice");
-    const [file] = referencedFiles(raw);
+    const files = [...referencedFiles(raw)];
     raw.close();
-    expect(counted.state.paths).toEqual([
-      join(portraitsOf(dataDir, "alice"), portraitFileName(file ?? "")),
-      fileOf(dataDir, "alice"),
-    ]);
+    expect(files).toHaveLength(2);
+    expect(counted.state.paths.slice(0, 2).sort()).toEqual(
+      files.map((file) => join(portraitsOf(dataDir, "alice"), portraitFileName(file))).sort(),
+    );
+    expect(counted.state.paths.slice(2)).toEqual([fileOf(dataDir, "alice")]);
     expect(await alice.stores.characters.portrait(id, "full")).toBeDefined();
+  });
+
+  it("keeps a portrait's PNG and medium files through later flushes and a reopen", async () => {
+    const dataDir = await dataDirectory();
+    const portrait = portraitOf();
+    const first = registry(dataDir);
+    const alice = first.instance(user("alice"));
+    const id = alice.stores.characters.create(blankCard("Wren"));
+    alice.stores.characters.setPortrait(id, portrait);
+    await alice.flushIfDirty();
+    const raw = await databaseOnDisk(dataDir, "alice");
+    const files = [...referencedFiles(raw)].map(portraitFileName).sort();
+    raw.close();
+    expect(files).toHaveLength(2);
+    expect((await readdir(portraitsOf(dataDir, "alice"))).sort()).toEqual(files);
+
+    alice.stores.characters.create(blankCard("Ines"));
+    await alice.flushIfDirty();
+    expect((await readdir(portraitsOf(dataDir, "alice"))).sort()).toEqual(files);
+    await first.close();
+
+    const reopened = registry(dataDir).instance(user("alice")).stores.characters;
+    expect((await readdir(portraitsOf(dataDir, "alice"))).sort()).toEqual(files);
+    expect(Buffer.from((await reopened.portrait(id, "medium"))?.bytes ?? [])).toEqual(
+      Buffer.from(portrait.medium),
+    );
+    expect(Buffer.from((await reopened.portrait(id, "full"))?.bytes ?? [])).toEqual(
+      Buffer.from(portrait.png),
+    );
   });
 
   it("keeps a replaced portrait's file until a database file without it is written", async () => {
@@ -586,24 +619,29 @@ describe("instance registry", () => {
     const alice = registry(dataDir, { write: counted.write }).instance(user("alice"));
     const id = alice.stores.characters.create(blankCard("Wren"), portraitOf());
     await alice.flushIfDirty();
-    const [old] = await readdir(portraitsOf(dataDir, "alice"));
+    const old = (await readdir(portraitsOf(dataDir, "alice"))).sort();
+    expect(old).toHaveLength(2);
 
     const replacement = portraitOf();
     alice.stores.characters.setPortrait(id, replacement);
     counted.state.failOn = (path) => path === fileOf(dataDir, "alice");
     await expect(alice.flushIfDirty()).rejects.toThrow("disk full");
-    expect(await readdir(portraitsOf(dataDir, "alice"))).toHaveLength(2);
+    expect(await readdir(portraitsOf(dataDir, "alice"))).toHaveLength(4);
     const raw = await databaseOnDisk(dataDir, "alice");
-    expect([...referencedFiles(raw)].map(portraitFileName)).toEqual([old]);
+    expect([...referencedFiles(raw)].map(portraitFileName).sort()).toEqual(old);
     raw.close();
 
+    // The old PNG and the old medium both go.
     await alice.flushIfDirty();
     const remaining = await readdir(portraitsOf(dataDir, "alice"));
-    expect(remaining).toHaveLength(1);
-    expect(remaining).not.toContain(old);
+    expect(remaining).toHaveLength(2);
+    for (const name of old) expect(remaining).not.toContain(name);
     expect(Buffer.from((await alice.stores.characters.portrait(id, "full"))?.bytes ?? [])).toEqual(
       Buffer.from(replacement.png),
     );
+    expect(
+      Buffer.from((await alice.stores.characters.portrait(id, "medium"))?.bytes ?? []),
+    ).toEqual(Buffer.from(replacement.medium));
   });
 
   it("never writes a database file naming a portrait file not yet written", async () => {
@@ -634,7 +672,7 @@ describe("instance registry", () => {
     await alice.flushIfDirty();
     expect(checked.length).toBeGreaterThan(0);
     const raw = await databaseOnDisk(dataDir, "alice");
-    expect(referencedFiles(raw).size).toBe(2);
+    expect(referencedFiles(raw).size).toBe(4);
     raw.close();
     for (const id of [first, second]) {
       expect(await alice.stores.characters.portrait(id, "full")).toBeDefined();
@@ -664,8 +702,10 @@ describe("instance registry", () => {
     const first = registry(dataDir);
     const id = first.instance(user("alice")).stores.characters.create(blankCard("Wren"), portrait);
     await first.close();
-    const [name] = await readdir(portraitsOf(dataDir, "alice"));
-    const path = join(portraitsOf(dataDir, "alice"), name ?? "");
+    const raw = await databaseOnDisk(dataDir, "alice");
+    const png = raw.query<{ file: string }, []>("SELECT file FROM portraits").get()?.file;
+    raw.close();
+    const path = join(portraitsOf(dataDir, "alice"), portraitFileName(png ?? ""));
     const bytes = await readFile(path);
     await rm(path);
 

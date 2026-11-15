@@ -1,0 +1,1 @@
+ALTER TABLE `portraits` ADD `medium_file` text;

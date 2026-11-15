@@ -55,6 +55,7 @@ const isWebp = (bytes: Uint8Array) =>
 /** A portrait as the image pipeline produces it; nothing else is stored as an image. */
 export const portraitSchema = z.strictObject({
   png: z.instanceof(Uint8Array).refine(isPng, "png must be a PNG"),
+  medium: z.instanceof(Uint8Array).refine(isWebp, "medium must be a WebP"),
   thumb: z.instanceof(Uint8Array).refine(isWebp, "thumb must be a WebP"),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
@@ -63,8 +64,8 @@ export type Portrait = z.infer<typeof portraitSchema>;
 
 export type { StoredCharacter, StoredLorebook, StoredPersona };
 
-/** The two images every portrait is stored as: the PNG and its WebP thumbnail. */
-export const PORTRAIT_SIZES = ["full", "thumb"] as const;
+/** The images every portrait is served as: the PNG, its medium WebP and its WebP thumbnail. */
+export const PORTRAIT_SIZES = ["full", "medium", "thumb"] as const;
 export type PortraitSize = (typeof PORTRAIT_SIZES)[number];
 
 /**

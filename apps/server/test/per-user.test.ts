@@ -430,6 +430,7 @@ describe("isolation between users", () => {
     const characterId = mine.characters.create({ ...blankCard("Ada"), description: marker });
     mine.characters.setPortrait(characterId, {
       png: new Uint8Array(await plainPng()),
+      medium: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
       thumb: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]),
       width: 30,
       height: 45,

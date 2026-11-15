@@ -346,6 +346,7 @@ describe("portraits", () => {
     const tags = new Set<string>();
     for (const [size, type] of [
       ["full", "image/png"],
+      ["medium", "image/webp"],
       ["thumb", "image/webp"],
     ] as const) {
       const url = `/api/characters/${id}/portrait/image?size=${size}&v=${portrait}`;
@@ -372,7 +373,8 @@ describe("portraits", () => {
       expect(stale.status).toBe(200);
       expect((await stale.arrayBuffer()).byteLength).toBeGreaterThan(0);
     }
-    expect(tags.size).toBe(2);
+    // Every size has its own validator.
+    expect(tags.size).toBe(3);
 
     for (const query of ["", `?v=${portrait - 1}`, "?v=abc", "?size=full"]) {
       const stale = await app.request(`/api/characters/${id}/portrait/image${query}`, {

@@ -17,7 +17,14 @@ export {
   upgradeLegacyLorebook,
 } from "./import.ts";
 export { isRecord } from "./json.ts";
-export { CARD_LIMITS, clipText, MAX_JSON_BYTES, MAX_REQUEST_BYTES, textLength } from "./limits.ts";
+export {
+  CARD_LIMITS,
+  clipText,
+  MAX_JSON_BYTES,
+  MAX_REQUEST_BYTES,
+  PORTRAIT_RENDITIONS,
+  textLength,
+} from "./limits.ts";
 export { applySheetPatch } from "./patch.ts";
 export {
   blankCard,

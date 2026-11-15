@@ -1,6 +1,8 @@
 import type { Database } from "bun:sqlite";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
+import { createGate } from "../gate.ts";
+import { toMediumImage } from "../images.ts";
 import type { Db } from "./db.ts";
 import type { PortraitFiles } from "./portrait-files.ts";
 import { portraits } from "./schema.ts";
@@ -12,23 +14,47 @@ export type PortraitOwner = "characterId" | "personaId";
 /** A version that only grows: the time, or one past the previous version. */
 const nextVersion = (previous: number | undefined) => Math.max(Date.now(), (previous ?? 0) + 1);
 
-/** A portrait that passed `portraitSchema`, now or when it was first written. */
-type Checked = Omit<Portrait, "png" | "thumb"> & { png: Uint8Array; thumb: Uint8Array };
+/**
+ * A portrait that passed `portraitSchema`, now or when it was first written;
+ * only a copy of a portrait stored without a medium WebP lacks one.
+ */
+type Checked = Omit<Portrait, "png" | "medium" | "thumb"> & {
+  png: Uint8Array;
+  medium?: Uint8Array;
+  thumb: Uint8Array;
+};
 
-/** The file ids the database's portrait rows name. */
+/** The file ids the database's portrait rows name: every PNG and every medium WebP. */
 export function referencedFiles(client: Database): Set<string> {
-  const rows = client.query<{ file: string }, []>("SELECT file FROM portraits").all();
-  return new Set(rows.map((row) => row.file));
+  const rows = client
+    .query<{ file: string; medium_file: string | null }, []>(
+      "SELECT file, medium_file FROM portraits",
+    )
+    .all();
+  const ids = new Set<string>();
+  for (const row of rows) {
+    ids.add(row.file);
+    if (row.medium_file !== null) ids.add(row.medium_file);
+  }
+  return ids;
 }
+
+/**
+ * Medium WebPs derived from a PNG at once, across all users: each decodes a
+ * PNG of up to a few megabytes, and a first gallery visit asks for many.
+ */
+const derivations = createGate(2);
+/** A derivation's place in line is never given up. */
+const stay = new AbortController().signal;
 
 /**
  * Portrait rows for one kind of owner: the one owner of portrait storage for
  * characters and personas alike. Every write parses the portrait schema, so
  * only what the image pipeline produced is stored. `owners` is the owning
- * table, whose `updatedAt` moves with its portrait. The PNG goes to `files`;
- * the row keeps its file id, the thumb and the dimensions. A replaced or
- * removed portrait's file is not touched here: the flush collects every file
- * the written image no longer names.
+ * table, whose `updatedAt` moves with its portrait. The PNG and the medium
+ * WebP go to `files`; the row keeps their file ids, the thumb and the
+ * dimensions. A replaced or removed portrait's files are not touched here:
+ * the flush collects every file the written image no longer names.
  */
 export function createPortraitRows(
   db: Db,
@@ -44,12 +70,14 @@ export function createPortraitRows(
   /** Inserts or replaces a parsed portrait; call inside a transaction that checked the owner exists. */
   const put = (id: string, portrait: Checked, next: number) => {
     const file = files.put(portrait.png);
+    const mediumFile = portrait.medium === undefined ? null : files.put(portrait.medium);
     const image = {
       thumb: Buffer.from(portrait.thumb),
       width: portrait.width,
       height: portrait.height,
       version: next,
       file,
+      mediumFile,
     };
     db.insert(portraits)
       .values({ [owner]: id, ...image })
@@ -62,6 +90,44 @@ export function createPortraitRows(
 
   const touch = (id: string) =>
     db.update(owners).set({ updatedAt: Date.now() }).where(eq(owners.id, id)).run();
+
+  /** Derivations under way, by the PNG's file id: concurrent requests share one. */
+  const deriving = new Map<string, Promise<Uint8Array | undefined>>();
+
+  /**
+   * Derives the medium WebP from the PNG `file` and keeps it as the row's
+   * medium file, unless the portrait was replaced in the meantime. Neither
+   * the owner's `updatedAt` nor the version moves. Undefined when the PNG is
+   * missing or cannot be decoded.
+   */
+  const deriveMedium = (id: string, file: string) => {
+    const running = deriving.get(file);
+    if (running !== undefined) return running;
+    const derived = (async () => {
+      const release = await derivations.enter(stay);
+      try {
+        const png = await files.load(file);
+        if (png === undefined) return undefined;
+        let medium: Uint8Array;
+        try {
+          medium = await toMediumImage(png);
+        } catch {
+          return undefined;
+        }
+        // File ids are never reused; an unmatched staged file is dropped by the next flush.
+        db.update(portraits)
+          .set({ mediumFile: files.put(medium) })
+          .where(and(eq(column, id), eq(portraits.file, file)))
+          .run();
+        return medium;
+      } finally {
+        release?.();
+        deriving.delete(file);
+      }
+    })();
+    deriving.set(file, derived);
+    return derived;
+  };
 
   const store: PortraitStore = {
     setPortrait(id, input) {
@@ -89,14 +155,28 @@ export function createPortraitRows(
 
     async portrait(id, size) {
       const row = db
-        .select({ file: portraits.file, thumb: portraits.thumb, version: portraits.version })
+        .select({
+          file: portraits.file,
+          mediumFile: portraits.mediumFile,
+          thumb: portraits.thumb,
+          version: portraits.version,
+        })
         .from(portraits)
         .where(eq(column, id))
         .get();
       if (row === undefined) return undefined;
-      if (size === "thumb") return { bytes: row.thumb, version: row.version };
-      const bytes = await files.load(row.file);
-      return bytes === undefined ? undefined : { bytes, version: row.version };
+      const { version } = row;
+      if (size === "thumb") return { bytes: row.thumb, version };
+      if (size === "full") {
+        const bytes = await files.load(row.file);
+        return bytes === undefined ? undefined : { bytes, version };
+      }
+      if (row.mediumFile !== null) {
+        const bytes = await files.load(row.mediumFile);
+        if (bytes !== undefined) return { bytes, version };
+      }
+      // Without a readable medium file it is derived once; without a readable PNG, the thumb stands in.
+      return { bytes: (await deriveMedium(id, row.file)) ?? row.thumb, version };
     },
   };
 
@@ -110,12 +190,14 @@ export function createPortraitRows(
      * Copies one owner's portrait into a new file for another (duplicate);
      * inside its transaction. The bytes passed the schema when first written
      * and come from an authenticated file, so they are not parsed again. A
-     * source whose file is missing yields a copy without a portrait.
+     * source whose PNG is missing yields a copy without a portrait; one whose
+     * medium file is missing or unreadable, a copy without a medium file.
      */
     copy(from: string, to: string) {
       const image = db
         .select({
           file: portraits.file,
+          mediumFile: portraits.mediumFile,
           thumb: portraits.thumb,
           width: portraits.width,
           height: portraits.height,
@@ -126,8 +208,13 @@ export function createPortraitRows(
       if (image === undefined) return;
       const png = files.read(image.file);
       if (png === undefined) return;
+      const medium = image.mediumFile === null ? undefined : files.read(image.mediumFile);
       const { thumb, width, height } = image;
-      put(to, { png, thumb, width, height }, nextVersion(undefined));
+      put(
+        to,
+        { png, ...(medium !== undefined && { medium }), thumb, width, height },
+        nextVersion(undefined),
+      );
     },
   };
 }

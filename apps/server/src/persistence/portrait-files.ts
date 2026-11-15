@@ -13,10 +13,11 @@ import {
 } from "./encrypted-file.ts";
 
 /**
- * A user's portrait PNGs, one encrypted file each under
- * `users/<username>/portraits/`, named by an id the store assigns. A row in
- * the user's database names its file; a file is written before any image
- * that names it, and deleted only once a durable image no longer names it.
+ * A user's portrait images (each PNG and its medium WebP), one encrypted
+ * file each under `users/<username>/portraits/`, named by an id the store
+ * assigns. A row in the user's database names its files; a file is written
+ * before any image that names it, and deleted only once a durable image no
+ * longer names it.
  */
 export interface PortraitFiles {
   /** Stages the bytes under a new id; durable at the next flush. */
