@@ -64,10 +64,12 @@ const pixelsOf = (leaf: HTMLElement): Pixels => ({
  * the thumbnail serves must not cause. A leaf that took the medium keeps it:
  * it never trades a sharp image for a soft one.
  *
- * `start` is the size as of the first measurement. Until then nothing of the
- * leaf was painted, so its image may be swapped whole (the caller keys the
- * image on it); a later change of `size` keeps the image drawn until the
- * sharper one has loaded. `drawn` takes each image as it loads.
+ * `start` is the size as of the measurement in the leaf's first commit.
+ * Until then nothing of the leaf was painted, so its image may be swapped
+ * whole (the caller keys the image on it). Any later change, one of a leaf
+ * that only then starts fitting included (the chat's portrait as a window
+ * narrows), moves `size` alone, and the image drawn stays until the sharper
+ * one has loaded. `drawn` takes each image as it loads.
  */
 export function useFitted(
   frame: RefObject<HTMLElement | null>,
@@ -79,6 +81,8 @@ export function useFitted(
   });
   /** The thumbnail's own pixels once it loaded. */
   const thumb = useRef<Pixels | null>(null);
+  /** Past the leaf's first commit, after which it may show an image. */
+  const committed = useRef(false);
   const sharp = fit.size === "medium";
   useLayoutEffect(() => {
     const leaf = frame.current;
@@ -87,8 +91,10 @@ export function useFitted(
     thumb.current = null;
     const short = () => thumbFallsShort(pixelsOf(leaf), thumb.current);
     if (short()) {
+      // Read now: by the time the update runs, the first commit is over.
+      const first = !committed.current;
       settle(portrait, "medium");
-      setFit({ size: "medium", start: "medium" });
+      setFit((last) => ({ size: "medium", start: first ? "medium" : last.start }));
       return;
     }
     settle(portrait, "thumb");
@@ -106,6 +112,10 @@ export function useFitted(
     }
     return () => observer.disconnect();
   }, [frame, portrait, sharp]);
+  // After the measuring effect, so that one still sees the first commit as the first.
+  useLayoutEffect(() => {
+    committed.current = true;
+  }, []);
   return {
     ...fit,
     drawn(image) {
