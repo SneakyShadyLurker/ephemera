@@ -282,6 +282,10 @@ describe("evidence quotes", () => {
   it("takes an elided quote whose parts stand in one turn in that order", () => {
     expect(grounds("Mara sets the lantern down ... her copper hair loose")).toBe(true);
     expect(grounds("sets the lantern down… looks out […] copper hair")).toBe(true);
+    // An elision at the quote's edge says nothing, bracketed or not.
+    expect(grounds("Mara sets the lantern down [...]")).toBe(true);
+    expect(grounds("[…] copper hair loose")).toBe(true);
+    expect(grounds("[...] red hair loose")).toBe(false);
     expect(grounds("her copper hair loose ... Mara sets the lantern down")).toBe(false);
     expect(grounds("Mara sets the lantern down ... her red hair loose")).toBe(false);
   });

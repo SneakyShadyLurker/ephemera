@@ -75,8 +75,8 @@ const quoteKey = (text: string): string =>
     .trim()
     .toLowerCase();
 
-/** What a quote opens and closes with beyond its words: its own quotation marks, an elision. */
-const QUOTE_EDGE = /^[\s"'.,;:!?-]+|[\s"'.,;:!?-]+$/g;
+/** What a quote opens and closes with beyond its words: its own quotation marks, an elision, bracketed or not. */
+const QUOTE_EDGE = /^[\s"'.,;:!?[\]-]+|[\s"'.,;:!?[\]-]+$/g;
 
 /** An elision inside a quote, as `quoteKey` spells it: three dots or more, bracketed or not. */
 const ELISION = /\s*\[?\.{3,}\]?\s*/;
