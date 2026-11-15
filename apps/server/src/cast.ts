@@ -13,6 +13,7 @@ import {
   castCardKind,
   castChangesSchema,
   castFingerprintInput,
+  castLore,
   castSheetAnswerSchema,
   castSheetRequestSchema,
   castUpdateRequestSchema,
@@ -22,6 +23,7 @@ import {
   keeperInstructions,
   keeperMessage,
   MAX_CHAT_BODY_BYTES,
+  MacroLimitError,
   NO_CHARACTER_NAME,
   NO_PERSONA_NAME,
   sheetEntriesFromAnswer,
@@ -46,6 +48,7 @@ import {
   refusedBeforeCall,
 } from "./routes.ts";
 import { streamedResponse, streamSignal } from "./streams.ts";
+import { countText } from "./tokens.ts";
 import { refusalBody, type Upstream } from "./upstream.ts";
 import { type CallRecorder, callRecorder, reportedUsage } from "./usage.ts";
 import type { UserEnv } from "./user.ts";
@@ -115,7 +118,9 @@ export function createCastApi(deps: CastDeps) {
    * A keeper call's checks that need no model call, then the call to run:
    * the character there when named, a model with a known window and a
    * prompt that fits it. Canon goes in unless the chat acknowledged the
-   * stored sheet and that sheet is the card's current one.
+   * stored sheet and that sheet is the card's current one. The lorebook
+   * entries the batch's turns bring in go either way: a sheet is read from
+   * the card's description, never from a lorebook.
    */
   async function prepareUpdate(
     request: CastUpdateRequest,
@@ -141,6 +146,7 @@ export function createCastApi(deps: CastDeps) {
     const persona = chosenPersona(stores.personas, request.personaId);
     const names = { char: card?.name ?? NO_CHARACTER_NAME, user: persona?.name ?? NO_PERSONA_NAME };
     let canon: string | null = null;
+    let lore: string | null = null;
     if (card !== undefined && characterId !== undefined) {
       const sheet = stores.castSheets.get(characterId);
       // The sheet stands in for canon only when the chat acknowledged it, it is the card's current
@@ -151,12 +157,36 @@ export function createCastApi(deps: CastDeps) {
         sheet.entries.length > 0 &&
         request.sheetFingerprint === sheet.fingerprint &&
         sheet.fingerprint === fingerprintOf(card);
-      // Canon: input for this request only, never stored, kept or logged.
-      if (!covered) canon = castCanon(card, names, persona?.description);
+      // Canon and lore: input for this request only, never stored, kept or logged.
+      const count = (text: string) => countText(text) * call.ratio;
+      try {
+        if (!covered) canon = castCanon(card, names, persona?.description);
+      } catch (error) {
+        // Names filled into the description past the macro bound: no prompt can be built.
+        if (!(error instanceof MacroLimitError)) throw error;
+        log.warn({ event: "cast.update", model: call.model, errorClass: "prompt_too_long" });
+        return { ok: false, error: "prompt_too_long" };
+      }
+      try {
+        lore = castLore({
+          card,
+          names,
+          linked: stores.lorebooks.booksOf(characterId),
+          turns: request.turns,
+          window: call.window,
+          count,
+          taken: canon === null ? 0 : count(canon),
+        });
+      } catch (error) {
+        // Lorebooks whose macros exhaust their work allowance: the keeper reads on without lore.
+        if (!(error instanceof MacroLimitError)) throw error;
+        log.warn({ event: "cast.update", model: call.model, errorClass: "LoreMacroLimit" });
+      }
     }
     const instructions = keeperInstructions();
     const message = keeperMessage({
       canon,
+      lore,
       names,
       register: request.register,
       turns: request.turns,

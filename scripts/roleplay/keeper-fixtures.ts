@@ -1,3 +1,4 @@
+import type { CharacterCard } from "../../packages/core/src/card/schema.ts";
 import { resolveCastEntry } from "../../packages/core/src/cast/apply.ts";
 import {
   CAST_ANCHOR_FIELDS,
@@ -30,6 +31,8 @@ export interface KeeperFixture {
   /** The card's kind, or null. */
   kind: string | null;
   canon: string | null;
+  /** The card's lorebook, when the fixture has one: the call's lore is what the turns bring in of it. */
+  lorebook?: NonNullable<CharacterCard["lorebook"]>;
   names: SpeakerNames;
   register: CastRegister;
   turns: { role: "user" | "assistant"; content: string }[];
@@ -39,13 +42,13 @@ export interface KeeperFixture {
 const names: SpeakerNames = { char: "Narrator", user: "Felix Arden" };
 
 let ids = 0;
-/** A register entry with fixed id, the anchor fields given and the state given; `more` sets its role and recency. */
+/** A register entry with fixed id, the anchor fields given and the state given; `more` sets its role, recency, cues and hidden state. */
 function entry(
   name: string,
   gender: CastAnchor["gender"],
   state: Partial<CastState>,
   anchor: Partial<CastAnchor> = {},
-  more: Partial<Pick<CastEntry, "role" | "seen">> = {},
+  more: Partial<Pick<CastEntry, "role" | "seen" | "continuity" | "hidden">> = {},
 ): CastEntry {
   ids++;
   return {
@@ -65,6 +68,20 @@ const has = (text: string | undefined, ...words: string[]) =>
   text !== undefined && words.every((word) => text.toLowerCase().includes(word));
 const lacks = (text: string | undefined, ...words: string[]) =>
   text !== undefined && words.every((word) => !text.toLowerCase().includes(word));
+/** The knowledge items of `name` that hold one of `words`. */
+const knows = (result: KeeperResult, name: string, ...words: string[]) =>
+  (find(result, name)?.continuity?.knowledge ?? []).filter((item) =>
+    words.some((word) => has(item, word)),
+  );
+/** A lorebook entry: constant, or keyed by `keys`. */
+const loreEntry = (content: string, keys: string[]) => ({
+  keys,
+  content,
+  enabled: true,
+  insertionOrder: 100,
+  useRegex: false,
+  ...(keys.length === 0 ? { constant: true } : {}),
+});
 const withinBound: Check = (result) => result.overBound === 0;
 
 /** The looks a Scenario's walk-on is given, and the fields left for a promotion or the turns to fill. */
@@ -400,8 +417,139 @@ export const KEEPER_FIXTURES = {
       },
     ],
     checks: {
-      "knowledge.secret": (result) =>
-        has(find(result, "Hanna Brix")?.continuity?.knowledge, "ledger"),
+      "knowledge.secret": (result) => knows(result, "Hanna Brix", "ledger").length > 0,
+    },
+  },
+  "knowledge-second": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry(
+        "Odile Marchand",
+        "female",
+        { position: "at the cellar door" },
+        {},
+        {
+          continuity: {
+            knowledge: ["knows the ledger is hidden behind the loose brick in the cellar wall"],
+          },
+        },
+      ),
+    ),
+    turns: [
+      {
+        role: "user",
+        content:
+          'I add quietly: "One more thing. The night guard leaves his post at two, and the yard stays empty until three."',
+      },
+      {
+        role: "assistant",
+        content:
+          'Odile nods. "Two until three. I will remember that." She glances back at the cellar door.',
+      },
+    ],
+    checks: {
+      // The second fact joins the first: the list grows, nothing is rewritten.
+      "knowledge-second.both": (result) =>
+        knows(result, "Odile Marchand", "guard", "two", "yard").length > 0 &&
+        find(result, "Odile Marchand")?.continuity?.knowledge?.[0] ===
+          "knows the ledger is hidden behind the loose brick in the cellar wall",
+      // The register lists the first fact, so the answer has no call to send it again.
+      "knowledge-second.not-repeated": (result) =>
+        knows(result, "Odile Marchand", "ledger").length === 1,
+    },
+  },
+  hidden: {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry("Mirela Dragan", "female", { position: "at the stove", activity: "peeling apples" }),
+    ),
+    turns: [
+      { role: "user", content: "I turn away to watch the rain run down the window." },
+      {
+        role: "assistant",
+        content:
+          "While your back is turned, the paring knife slips and Mirela cuts her left palm open. She bites back a gasp, winds a dish towel tight around the cut and pushes the hand deep into her apron pocket before you look round. When you turn back she is stirring the pot with her other hand, smiling as if nothing had happened.",
+      },
+    ],
+    checks: {
+      "hidden.recorded": (result) => {
+        const injuries = find(result, "Mirela Dragan")?.hidden?.injuries;
+        return has(injuries, "cut") || has(injuries, "palm");
+      },
+      "hidden.not-in-state": (result) => find(result, "Mirela Dragan")?.state.injuries === "",
+    },
+  },
+  "hidden-revealed": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry(
+        "Tamsin Reeve",
+        "female",
+        { position: "at the stove", activity: "stirring the pot with her right hand" },
+        {},
+        {
+          hidden: {
+            injuries:
+              "deep cut across her left palm, wrapped in a dish towel and kept in her apron pocket",
+          },
+        },
+      ),
+    ),
+    turns: [
+      { role: "user", content: 'I hold out my hand. "Tamsin, show me your other hand."' },
+      {
+        role: "assistant",
+        content:
+          'Tamsin hesitates, then draws her left hand out of the apron pocket and lets you unwind the towel. The cut across her palm is deep and still bleeding. "It is nothing," she says, wincing while you look at it.',
+      },
+    ],
+    checks: {
+      "hidden-revealed.in-state": (result) => {
+        const injuries = find(result, "Tamsin Reeve")?.state.injuries;
+        return has(injuries, "cut") || has(injuries, "palm");
+      },
+      "hidden-revealed.ended": (result) =>
+        find(result, "Tamsin Reeve")?.hidden?.injuries === undefined,
+    },
+  },
+  lore: {
+    kind: null,
+    canon: null,
+    lorebook: {
+      entries: [
+        loreEntry(
+          "Brenna Ashdown keeps the lighthouse at Gull Point. She is 58, a Scottish woman of 181cm with a white braid down to her waist, grey deep-set eyes and wind-reddened skin.",
+          ["Brenna"],
+        ),
+        loreEntry(
+          "Corwin Pike is the harbour pilot of Gull Point: a stocky man of 44 with a black beard, who guides the ships past the reef.",
+          [],
+        ),
+      ],
+    },
+    names,
+    register: register(),
+    turns: [
+      { role: "user", content: "I knock on the lighthouse door." },
+      {
+        role: "assistant",
+        content:
+          'The door swings open and Brenna Ashdown looks you up and down. "You are late," she says, wiping her hands on her apron, and waves you in out of the wind.',
+      },
+    ],
+    checks: {
+      "lore.anchor-from-lore": (result) => {
+        const anchor = find(result, "Brenna Ashdown")?.anchor;
+        return has(anchor?.hair, "white", "braid") && has(anchor?.age, "58");
+      },
+      "lore.unshown-not-added": (result) =>
+        find(result, "Brenna Ashdown") !== undefined && find(result, "Corwin Pike") === undefined,
     },
   },
   player: {

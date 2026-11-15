@@ -1,11 +1,13 @@
+import search from "approx-string-match";
 import { z } from "zod";
 import { withoutHighlights } from "../preset/highlight.ts";
-import { givenName, wholeName } from "../prompt/names.ts";
+import { givenName, WORD, wholeName } from "../prompt/names.ts";
 import { castKey } from "./key.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
   CAST_ANCHOR_FIELDS,
   type CastAnchor,
+  type CastChange,
   type CastChanges,
   type CastEntry,
   type CastRegister,
@@ -37,22 +39,23 @@ export const discoveredCastAnchor = (
   return { ...anchor, ...correction };
 };
 
-/** A panel entry: public discoveries and corrections, with canonical overrides left out. */
+/** A panel entry: public discoveries and corrections, with canonical overrides, cues and hidden state left out. */
 export const discoveredCastEntry = (
   entry: CastEntry,
   correction: Partial<CastAnchor> = {},
 ): CastEntry => {
-  const { developments: _developments, continuity: _continuity, ...rest } = entry;
+  const { developments: _developments, continuity: _continuity, hidden: _hidden, ...rest } = entry;
   return { ...rest, anchor: discoveredCastAnchor(entry, correction) };
 };
 
-/** Identity recovery must never borrow knowledge, developments or recency from a future scene. */
+/** Identity recovery must never borrow knowledge, developments, hidden state or recency from a future scene. */
 export const castIdentity = ({
   developments: _developments,
   continuity: _continuity,
   introduced: _introduced,
   discovered: _discovered,
   seen: _seen,
+  hidden: _hidden,
   ...entry
 }: CastEntry): CastEntry => entry;
 
@@ -72,34 +75,93 @@ const quoteKey = (text: string): string =>
     .trim()
     .toLowerCase();
 
-/** What a quote opens and closes with beyond its words: its own quotation marks, an elision. */
-const QUOTE_EDGE = /^[\s"'.,;:!?-]+|[\s"'.,;:!?-]+$/g;
+/** What a quote opens and closes with beyond its words: its own quotation marks, an elision, bracketed or not. */
+const QUOTE_EDGE = /^[\s"'.,;:!?[\]-]+|[\s"'.,;:!?[\]-]+$/g;
+
+/** An elision inside a quote, as `quoteKey` spells it: three dots or more, bracketed or not. */
+const ELISION = /\s*\[?\.{3,}\]?\s*/;
+
+/** A text's words, as a near-exact quote is compared: punctuation between them says nothing. */
+const WORDS = new RegExp(`${WORD}+(?:'${WORD}+)*`, "gu");
+
+/** The fewest words a quote has to be compared nearly: a shorter one stays exact. */
+const NEAR_WORDS = 6;
 
 /**
- * Whether `evidence` quotes one of the shown turns: its whole words in
- * their order, within one turn, compared as `quoteKey` reads both. This is
- * grounding, not semantic proof.
+ * Whether the words `quote` are a run of the words `turn` with at most one
+ * word in ten missing, added or different: one word for a quote of up to
+ * nineteen, two from twenty. Each of the quote's distinct words is one
+ * symbol and every other word of the turn another, so the approximate
+ * search counts whole words, never letters.
+ */
+function nearlyQuoted(turn: readonly string[], quote: readonly string[]): boolean {
+  const symbols = new Map<string, string>();
+  for (const word of quote)
+    if (!symbols.has(word)) symbols.set(word, String.fromCharCode(0x100 + symbols.size));
+  const symbolsOf = (words: readonly string[]) =>
+    words.map((word) => symbols.get(word) ?? "\u00ff").join("");
+  const allowed = Math.max(1, Math.floor(quote.length / 10));
+  return search(symbolsOf(turn), symbolsOf(quote), allowed).length > 0;
+}
+
+/**
+ * Whether `evidence` quotes one of the shown turns, compared as `quoteKey`
+ * reads both: its whole words in their order; or, around an elision, every
+ * part so in that turn, in the quote's order; or, for a quote of at least
+ * `NEAR_WORDS` words, nearly so (`nearlyQuoted`). Always within one turn:
+ * words of two turns ground nothing. This is grounding, not semantic proof.
  */
 const quotedIn = (keys: readonly string[], evidence: string): boolean => {
   const quote = quoteKey(evidence).replace(QUOTE_EDGE, "");
   if (quote === "") return false;
-  // Whole words at both ends: "red" is not quoted by "tired".
-  const pattern = wholeName(quote);
-  return keys.some((key) => pattern.test(key));
+  const parts = quote
+    .split(ELISION)
+    .map((part) => part.replace(QUOTE_EDGE, ""))
+    .filter((part) => part !== "");
+  const words = quote.match(WORDS) ?? [];
+  return keys.some((key) => {
+    // Whole words at both ends: "red" is not quoted by "tired".
+    if (wholeName(quote).test(key)) return true;
+    if (parts.length > 1) {
+      let from = 0;
+      const inOrder = parts.every((part) => {
+        const pattern = wholeName(part, "gu");
+        pattern.lastIndex = from;
+        const found = pattern.exec(key);
+        if (found !== null) from = found.index + found[0].length;
+        return found !== null;
+      });
+      if (inOrder) return true;
+    }
+    return words.length >= NEAR_WORDS && nearlyQuoted(key.match(WORDS) ?? [], words);
+  });
 };
 
-/** The keeper's changes with every introduction and evidenced field a shown turn does not quote left out. */
+/**
+ * The keeper's changes with every introduction and evidenced item a shown
+ * turn does not quote left out: developments, continuity cues, knowledge
+ * items, hidden fields and discoveries. A hidden field sent as "" ends one
+ * and needs no quote.
+ */
 export function groundedCastChanges(changes: CastChanges, shown: readonly string[]): CastChanges {
   const keys = shown.map(quoteKey);
-  const grounded = <T extends Record<string, { value: string; evidence: string } | undefined>>(
+  const quoted = (item: { value: string; evidence: string }): boolean =>
+    item.value.trim() !== "" && quotedIn(keys, item.evidence);
+  const grounded = <T extends Record<string, { value: string; evidence: string } | "" | undefined>>(
     fields: T,
   ): T =>
     Object.fromEntries(
       Object.entries(fields).filter(
-        ([, item]) =>
-          item !== undefined && item.value.trim() !== "" && quotedIn(keys, item.evidence),
+        ([, item]) => item !== undefined && (item === "" || quoted(item)),
       ),
     ) as T;
+  const groundedContinuity = ({
+    knowledge,
+    ...cues
+  }: NonNullable<CastChange["continuity"]>): NonNullable<CastChange["continuity"]> => ({
+    ...grounded(cues),
+    ...(knowledge === undefined ? {} : { knowledge: knowledge.filter(quoted) }),
+  });
   return {
     ...changes,
     cast: Object.fromEntries(
@@ -117,7 +179,10 @@ export function groundedCastChanges(changes: CastChanges, shown: readonly string
             ...(change.developments === undefined
               ? {}
               : { developments: grounded(change.developments) }),
-            ...(change.continuity === undefined ? {} : { continuity: grounded(change.continuity) }),
+            ...(change.continuity === undefined
+              ? {}
+              : { continuity: groundedContinuity(change.continuity) }),
+            ...(change.hidden === undefined ? {} : { hidden: grounded(change.hidden) }),
             ...(change.discovered === undefined ? {} : { discovered: grounded(change.discovered) }),
           },
         ];

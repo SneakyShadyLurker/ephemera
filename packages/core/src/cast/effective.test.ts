@@ -48,7 +48,7 @@ const changes = castChangesSchema.parse({
       continuity: {
         voice: { value: "calls Ilse captain", evidence: "Captain, come home." },
         goals: { value: "return home with Ilse", evidence: "come home" },
-        knowledge: { value: "knows the hidden password", evidence: "unshown secret" },
+        knowledge: [{ value: "knows the hidden password", evidence: "unshown secret" }],
       },
     },
   },
@@ -238,6 +238,309 @@ describe("durable developments and compact continuity", () => {
   });
 });
 
+describe("evidence quotes", () => {
+  const turns = [
+    "Mara sets the lantern down on the wet quay and looks out at the grey water, her copper hair loose.",
+    "Ilse laughs, and the gulls scatter from the harbour wall behind her.",
+  ];
+  const grounds = (evidence: string, shown: readonly string[] = turns) =>
+    groundedCastChanges(
+      castChangesSchema.parse({ cast: { Mara: { introduce: { evidence } } }, absent: [] }),
+      shown,
+    ).cast.Mara?.introduce !== undefined;
+
+  it("takes a near-exact quote of six words or more: one word in ten missing, added or different", () => {
+    // Exact, then one word dropped, one swapped, one added, and punctuation that differs.
+    expect(grounds("sets the lantern down on the wet quay")).toBe(true);
+    expect(grounds("sets the lantern down on the quay")).toBe(true);
+    expect(grounds("sets the lantern down on the cold quay")).toBe(true);
+    expect(grounds("sets the old lantern down on the wet quay")).toBe(true);
+    expect(grounds("the wet quay, and looks out at the grey water; her copper hair loose")).toBe(
+      true,
+    );
+    // Two words off are one too many below twenty words; from twenty, two are allowed.
+    expect(grounds("sets the lamp down on the cold quay")).toBe(false);
+    expect(grounds("sets the lamp down on the cold quay and looks out at the grey water")).toBe(
+      false,
+    );
+    const long = "down on the cold quay and looks out at the grey water, her copper hair loose";
+    expect(grounds(`Mara sets the lamp ${long}`)).toBe(true);
+    expect(grounds(`Mara puts the lamp ${long}`)).toBe(false);
+  });
+
+  it("keeps a shorter quote exact", () => {
+    expect(grounds("her copper hair loose")).toBe(true);
+    expect(grounds("her red hair loose")).toBe(false);
+    expect(grounds("the lantern on the quay")).toBe(false);
+  });
+
+  it("refuses a paraphrase", () => {
+    expect(grounds("she puts her lamp on the damp dock and gazes at the sea")).toBe(false);
+    expect(grounds("Mara has loose copper-coloured hair and watches the grey harbour")).toBe(false);
+  });
+
+  it("takes an elided quote whose parts stand in one turn in that order", () => {
+    expect(grounds("Mara sets the lantern down ... her copper hair loose")).toBe(true);
+    expect(grounds("sets the lantern down… looks out […] copper hair")).toBe(true);
+    // An elision at the quote's edge says nothing, bracketed or not.
+    expect(grounds("Mara sets the lantern down [...]")).toBe(true);
+    expect(grounds("[…] copper hair loose")).toBe(true);
+    expect(grounds("[...] red hair loose")).toBe(false);
+    expect(grounds("her copper hair loose ... Mara sets the lantern down")).toBe(false);
+    expect(grounds("Mara sets the lantern down ... her red hair loose")).toBe(false);
+  });
+
+  it("never grounds a quote stitched from two turns", () => {
+    expect(grounds("her copper hair loose. Ilse laughs, and the gulls scatter")).toBe(false);
+    expect(grounds("her copper hair loose ... Ilse laughs")).toBe(false);
+    expect(grounds("looks out at the grey water and the gulls scatter from the harbour wall")).toBe(
+      false,
+    );
+    // The same words in one turn are a quote.
+    expect(grounds("her copper hair loose ... Ilse laughs", [turns.join(" ")])).toBe(true);
+  });
+});
+
+describe("knowledge as a list", () => {
+  const turn =
+    "Ilse whispers that the ledger is behind the loose brick and the guard changes at two.";
+  const learn = (...items: [value: string, evidence: string][]) =>
+    castChangesSchema.parse({
+      cast: {
+        "Mara Holt": {
+          continuity: { knowledge: items.map(([value, evidence]) => ({ value, evidence })) },
+        },
+      },
+    });
+  const options = { player: null, newId: () => "unused", shown: [turn] };
+  const knowledgeOf = (register: CastRegister) => firstEntry(register).continuity?.knowledge;
+
+  it("adds each grounded item and keeps the earlier ones", () => {
+    const first = applyCastChanges(
+      { entries: [person()] },
+      learn(["knows the ledger is behind the loose brick", "the ledger is behind the loose brick"]),
+      options,
+    );
+    const second = applyCastChanges(
+      first,
+      learn(
+        ["knows the guard changes at two", "the guard changes at two"],
+        ["believes the cellar is empty", "never shown"],
+      ),
+      options,
+    );
+    expect(knowledgeOf(second)).toEqual([
+      "knows the ledger is behind the loose brick",
+      "knows the guard changes at two",
+    ]);
+    const text = castStateText(second);
+    expect(text).toContain(
+      "Mara Holt continuity: knowledge: knows the ledger is behind the loose brick; knowledge: knows the guard changes at two",
+    );
+    const message = keeperMessage({
+      canon: null,
+      names: { char: "Mara", user: "Rowan" },
+      register: second,
+      turns: [],
+      mode: "update",
+      full: false,
+    });
+    expect(message).toContain(
+      '"knowledge":["knows the ledger is behind the loose brick","knows the guard changes at two"]',
+    );
+    expect(memoryCastContextSchema.parse(memoryCastContext(second))[0]?.continuity).toEqual({
+      knowledge: knowledgeOf(second),
+    });
+  });
+
+  it("does not add an item twice, whatever its case, marks or spacing", () => {
+    const known = person();
+    known.continuity = { knowledge: ["Knows the café ledger is hidden"] };
+    const next = applyCastChanges(
+      { entries: [known] },
+      learn(
+        ["knows  the cafe ledger is HIDDEN", "the ledger"],
+        ["knows the guard changes at two", "the guard changes at two"],
+      ),
+      options,
+    );
+    expect(knowledgeOf(next)).toEqual([
+      "Knows the café ledger is hidden",
+      "knows the guard changes at two",
+    ]);
+  });
+
+  it("drops the oldest past eight items and records a correction as a new item", () => {
+    const known = person();
+    known.continuity = { knowledge: Array.from({ length: 8 }, (_, at) => `fact ${at + 1}`) };
+    const next = applyCastChanges(
+      { entries: [known] },
+      learn(["no longer believes the ledger is in the cellar", "the ledger"]),
+      options,
+    );
+    expect(knowledgeOf(next)).toEqual([
+      ...Array.from({ length: 7 }, (_, at) => `fact ${at + 2}`),
+      "no longer believes the ledger is in the cellar",
+    ]);
+    expect(
+      castEntrySchema.safeParse({
+        ...known,
+        continuity: { knowledge: Array.from({ length: 9 }, (_, at) => `fact ${at}`) },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("reads one item written alone as a list of one, cuts a long item and keeps four per change", () => {
+    const item = (value: string) => ({ value, evidence: "the ledger" });
+    const single = castChangesSchema.parse(
+      clampCastChanges({ cast: { Mara: { continuity: { knowledge: item("x".repeat(300)) } } } }),
+    );
+    expect(single.cast.Mara?.continuity?.knowledge).toHaveLength(1);
+    expect(single.cast.Mara?.continuity?.knowledge?.[0]?.value).toHaveLength(160);
+    const many = castChangesSchema.parse(
+      clampCastChanges({
+        cast: {
+          Mara: {
+            continuity: {
+              goals: item("find the ledger"),
+              knowledge: [
+                item("one"),
+                "no evidence",
+                { value: "no quote" },
+                ...["two", "three", "four", "five"].map(item),
+              ],
+            },
+          },
+        },
+      }),
+    );
+    expect(many.cast.Mara?.continuity?.goals?.value).toBe("find the ledger");
+    expect(many.cast.Mara?.continuity?.knowledge?.map(({ value }) => value)).toEqual([
+      "one",
+      "two",
+      "three",
+      "four",
+    ]);
+    expect(
+      castChangesSchema.safeParse({
+        cast: {
+          Mara: { continuity: { knowledge: ["one", "two", "three", "four", "five"].map(item) } },
+        },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("hidden state", () => {
+  const turn =
+    "While Rowan looks away, Mara tugs her sleeve down over the fresh cut on her forearm and smiles.";
+  const conceal = castChangesSchema.parse({
+    cast: {
+      "Mara Holt": {
+        state: { mood: "smiling, at ease" },
+        hidden: {
+          injuries: {
+            value: "fresh cut on her forearm, covered by her sleeve",
+            evidence: "tugs her sleeve down over the fresh cut on her forearm",
+          },
+          intoxication: { value: "drunk without showing it", evidence: "never written" },
+        },
+      },
+    },
+  });
+  const options = { player: null, newId: () => "unused", shown: [turn] };
+  const concealed = () => applyCastChanges({ entries: [person()] }, conceal, options);
+  const then = (register: CastRegister, change: unknown, shown = [turn]) =>
+    firstEntry(
+      applyCastChanges(
+        register,
+        castChangesSchema.parse(clampCastChanges({ cast: { "Mara Holt": change } })),
+        { ...options, shown },
+      ),
+    );
+
+  it("keeps a grounded hidden fact apart from the state and drops an ungrounded one", () => {
+    const entry = firstEntry(concealed());
+    expect(entry.hidden).toEqual({ injuries: "fresh cut on her forearm, covered by her sleeve" });
+    expect(entry.state.injuries).toBe("");
+    expect(castEntrySchema.parse(entry)).toEqual(entry);
+    expect(castEntrySchema.safeParse({ ...entry, hidden: { present: true } }).success).toBe(false);
+    expect(castEntrySchema.safeParse({ ...entry, hidden: { injuries: "" } }).success).toBe(false);
+  });
+
+  it("tells the narrator and the keeper, on a line after the state line of someone present", () => {
+    const register = concealed();
+    expect(castStateText(register).split("\n")).toEqual([
+      "[Cast now:",
+      "Mara Holt; present; mood: smiling, at ease",
+      "Mara Holt hidden from the player: injuries: fresh cut on her forearm, covered by her sleeve]",
+    ]);
+    const minor = { ...firstEntry(register), role: "minor" as const };
+    expect(castStateText({ entries: [minor] }).split("\n")[2]).toMatch(/^Mara Holt hidden from/);
+    expect(castStateText({ entries: [minor] }).split("\n")[3]).toMatch(/^Mara Holt details: /);
+    const away = { ...firstEntry(register), state: emptyCastState(false) };
+    expect(castStateText({ entries: [away] })).not.toContain("hidden");
+    const message = keeperMessage({
+      canon: null,
+      names: { char: "Mara", user: "Rowan" },
+      register,
+      turns: [],
+      mode: "update",
+      full: false,
+    });
+    expect(message).toContain(
+      '"hidden":{"injuries":"fresh cut on her forearm, covered by her sleeve"}',
+    );
+  });
+
+  it("never reaches the panel, a scene picture, a memory call, identity recovery or a sheet", () => {
+    const register = concealed();
+    const entry = firstEntry(register);
+    expect(discoveredCastEntry(entry).hidden).toBeUndefined();
+    expect(castIdentity(entry).hidden).toBeUndefined();
+    expect(firstEntry(withKnownIdentities({ entries: [] }, register)).hidden).toBeUndefined();
+    expect(castPeopleNotes(register)).not.toContain("cut");
+    expect(castAnchorsText(register)).not.toContain("cut");
+    expect(JSON.stringify(memoryCastContext(register))).not.toContain("cut");
+    expect(
+      memoryCastContextSchema.safeParse([
+        { ...memoryCastContext(register)[0], hidden: entry.hidden },
+      ]).success,
+    ).toBe(false);
+    const { state: _state, ...sheet } = castIdentity(entry);
+    expect(castSheetEntrySchema.safeParse(sheet).success).toBe(true);
+    expect(castSheetEntrySchema.safeParse({ ...sheet, hidden: entry.hidden }).success).toBe(false);
+  });
+
+  it("ends when the keeper writes the field in the state or sends it empty", () => {
+    const revealed = then(concealed(), { state: { injuries: "fresh cut on her left forearm" } });
+    expect(revealed.hidden).toBeUndefined();
+    expect(revealed.state.injuries).toBe("fresh cut on her left forearm");
+    expect(then(concealed(), { hidden: { injuries: "" } }).hidden).toBeUndefined();
+    expect(
+      then(concealed(), { hidden: { injuries: { value: " ", evidence: "" } } }).hidden,
+    ).toBeUndefined();
+    // Another state field, or a hidden value without a quote, leaves it as it was.
+    expect(then(concealed(), { state: { position: "by the window" } }).hidden).toEqual(
+      firstEntry(concealed()).hidden,
+    );
+    expect(then(concealed(), { hidden: { injuries: "healed" } }).hidden).toEqual(
+      firstEntry(concealed()).hidden,
+    );
+  });
+
+  it("stands beside a state value of the same change", () => {
+    const both = then(concealed(), {
+      state: { injuries: "bruised cheek" },
+      hidden: {
+        injuries: { value: "cut on her forearm under the sleeve", evidence: "the fresh cut" },
+      },
+    });
+    expect(both.state.injuries).toBe("bruised cheek");
+    expect(both.hidden).toEqual({ injuries: "cut on her forearm under the sleeve" });
+  });
+});
+
 describe("player discoveries", () => {
   const shown = ["Mara arrives in a long coat. She says, ‘I am 31.’"];
   const answer = castChangesSchema.parse({
@@ -352,12 +655,15 @@ describe("a quote as evidence", () => {
     expect(grounds(evidence)).toBe(true);
   });
 
-  it.each(["Mara leaves in a long coat.", "Stay a while. She pours the tea", '"…"', "*"])(
-    "is refused when no shown turn has its words: %s",
-    (evidence) => {
-      expect(grounds(evidence)).toBe(false);
-    },
-  );
+  it.each([
+    "Mara leaves in a coat.",
+    "Mara leaves wearing a long coat.",
+    "Stay a while. She drinks the tea",
+    '"…"',
+    "*",
+  ])("is refused when no shown turn has its words: %s", (evidence) => {
+    expect(grounds(evidence)).toBe(false);
+  });
 
   it.each(["red", '"Red"', "long co", "rrives in a long coat", "wine - slow"])(
     "is refused when its words only sit inside longer ones: %s",
@@ -368,6 +674,11 @@ describe("a quote as evidence", () => {
 
   it("is never found across two turns", () => {
     expect(grounds("laughs. Lena (24)")).toBe(false);
+  });
+
+  it("holds with one word of six or more off, as a model copies", () => {
+    expect(grounds("Mara leaves in a long coat.")).toBe(true);
+    expect(grounds("Stay a while. She pours the tea")).toBe(true);
   });
 });
 

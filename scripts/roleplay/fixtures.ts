@@ -22,6 +22,8 @@ export const FIXTURE_IDS = [
   "hidden-code",
   "agency-injury",
   "cast-recall",
+  "hidden-fact",
+  "knowledge-two",
 ] as const;
 export type FixtureId = (typeof FIXTURE_IDS)[number];
 
@@ -32,6 +34,8 @@ export const CHECK_IDS = {
   "hidden-code": ["code-withheld"],
   "agency-injury": ["injury", "no-player-speech-cue"],
   "cast-recall": ["away-principal", "present-minor"],
+  "hidden-fact": ["burn", "bandage"],
+  "knowledge-two": ["pier", "suspect"],
 } as const;
 
 export function score(id: FixtureId, text: string): Record<string, boolean> {
@@ -68,6 +72,19 @@ export function score(id: FixtureId, text: string): Record<string, boolean> {
       return {
         "away-principal": /\bamber\b/i.test(text),
         "present-minor": /\bhazel\b/i.test(text) && /\bgreen\b/i.test(text),
+      };
+    case "hidden-fact":
+      // The burn and its dressing are written once in the fixture, in the register's hidden state
+      // alone; a reply may name either in its own words.
+      return {
+        burn: /\b(?:burn\w*|blister\w*|scald\w*|sear\w*)\b/i.test(text),
+        bandage: /\b(?:bandag\w*|gauze|dressing|wrapp\w*)\b/i.test(text),
+      };
+    case "knowledge-two":
+      // One check per knowledge item; each fact is written in the register alone.
+      return {
+        pier: /\b(?:fourteen|14)\b/i.test(text),
+        suspect: /\bharbou?r[- ]?master\b/i.test(text),
       };
   }
 }
@@ -321,10 +338,12 @@ export function fixture(id: FixtureId, variant: Variant): AssemblyInput {
                   value: "Finish her shift and meet Ilse.",
                   evidence: "Mara wants to finish her shift and meet Ilse.",
                 },
-                knowledge: {
-                  value: "Knows the ferry timetable, not Aria's private history.",
-                  evidence: "Mara knows the ferry timetable, not Aria's private history.",
-                },
+                knowledge: [
+                  {
+                    value: "Knows the ferry timetable, not Aria's private history.",
+                    evidence: "Mara knows the ferry timetable, not Aria's private history.",
+                  },
+                ],
               },
             },
           },
@@ -392,6 +411,63 @@ export function fixture(id: FixtureId, variant: Variant): AssemblyInput {
           role: "user",
           content:
             "I remain silent. Continue the scene from Mara's current position and condition.",
+        },
+      ];
+      break;
+    case "hidden-fact":
+      input.cast = {
+        entries: [
+          {
+            id: "94f3d513-f7ac-4e14-9ab0-6d553265f69e",
+            role: "principal",
+            aka: [],
+            anchor: emptyCastAnchor("Mara", "female"),
+            state: {
+              ...emptyCastState(true),
+              outfit: "navy uniform jacket over a white shirt, black trousers, grey wool gloves",
+              position: "behind the ferry counter",
+              activity: "stamping tickets",
+            },
+            hidden: { injuries: "fresh burn across her left palm, bandaged under her glove" },
+          },
+        ],
+      };
+      input.history = [
+        {
+          role: "assistant",
+          content:
+            "Mara stamps tickets behind the ferry counter, her grey wool gloves still on despite the warm office.",
+        },
+        {
+          role: "user",
+          content:
+            "I catch Mara's left wrist and gently pull her glove off. Describe exactly what I see on her hand.",
+        },
+      ];
+      break;
+    case "knowledge-two":
+      input.cast = {
+        entries: [
+          {
+            id: "94f3d513-f7ac-4e14-9ab0-6d553265f69e",
+            role: "principal",
+            aka: [],
+            anchor: emptyCastAnchor("Mara", "female"),
+            continuity: {
+              knowledge: [
+                "knows Aria's ferry leaves from pier fourteen",
+                "believes the harbour master pocketed the missing fares",
+              ],
+            },
+            state: { ...emptyCastState(true), position: "behind the ferry counter" },
+          },
+        ],
+      };
+      input.history = [
+        {
+          role: "user",
+          content:
+            "Mara, remind me: which pier does my ferry leave from? And who do you think took the missing fares?",
         },
       ];
       break;

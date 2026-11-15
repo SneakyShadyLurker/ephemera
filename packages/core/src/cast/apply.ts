@@ -215,7 +215,10 @@ function withAka(entry: CastEntry, earlier: string): string[] {
   return [...entry.aka, earlier].slice(-L.aka);
 }
 
-/** `entry` with the change's anchor filled where empty, its role and state written. */
+/**
+ * `entry` with the change's anchor filled where empty, its role and state
+ * written, its knowledge items added and its hidden fields set or ended.
+ */
 function changed(
   entry: CastEntry,
   change: CastChange,
@@ -239,17 +242,31 @@ function changed(
     if (anchor[field] !== "") developments[field] = update.value;
   }
   const continuity = { ...entry.continuity };
-  for (const field of ["voice", "goals", "knowledge"] as const) {
+  for (const field of ["voice", "goals"] as const) {
     const update = change.continuity?.[field];
     if (update !== undefined) continuity[field] = update.value;
+  }
+  const knowledge = withKnowledge(continuity.knowledge ?? [], change.continuity?.knowledge ?? []);
+  if (knowledge.length > 0) continuity.knowledge = knowledge;
+  const hidden = { ...entry.hidden };
+  for (const field of CAST_STATE_FIELDS) {
+    // What the keeper writes in the state is shown now, so it is hidden no longer; a hidden
+    // value of the same change stands beside it.
+    if (change.state?.[field] !== undefined) delete hidden[field];
+    const update = change.hidden?.[field];
+    if (update === undefined) continue;
+    if (update === "") delete hidden[field];
+    else hidden[field] = update.value;
   }
   const discovered = { ...entry.discovered };
   for (const field of CAST_ANCHOR_FIELDS) {
     const update = change.discovered?.[field];
     if (update !== undefined) discovered[field] = update;
   }
+  // An entry whose last hidden field ended carries none.
+  const { hidden: _hidden, ...rest } = entry;
   return {
-    ...entry,
+    ...rest,
     role: change.role ?? entry.role,
     anchor,
     ...(Object.keys(developments).length === 0 ? {} : { developments }),
@@ -261,7 +278,26 @@ function changed(
       ...definedState(change.state),
       present: change.state?.present ?? (holdsState(change.state) || entry.state.present),
     },
+    ...(Object.keys(hidden).length === 0 ? {} : { hidden }),
   };
+}
+
+/**
+ * An entry's knowledge with a change's items added in order: one whose text
+ * an item already has, as `castKey` reads both, is not added again, and past
+ * `knowledgeItems` the oldest go. Nothing is removed otherwise: a fact that
+ * ended is added as its correction.
+ */
+function withKnowledge(known: readonly string[], added: readonly { value: string }[]): string[] {
+  const items = [...known];
+  const keys = new Set(items.map(castKey));
+  for (const { value } of added) {
+    const key = castKey(value);
+    if (keys.has(key)) continue;
+    keys.add(key);
+    items.push(value);
+  }
+  return items.slice(-L.knowledgeItems);
 }
 
 /** Whether a change's state sets at least one text field; `""` clears say nothing of presence. */
@@ -279,7 +315,8 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * the chat knew before (`previous`), else a new entry; the player's names dropped; a set anchor field never
  * rewritten; state written as given; an entry present when its change says so or
  * sets a state field, otherwise keeping its presence (a new one away);
- * `absent` names marked away. An entry is introduced by the keeper's
+ * a hidden field set by its grounded value and ended by `""` or by a write of
+ * the same state field; `absent` names marked away. An entry is introduced by the keeper's
  * grounded `introduce` or by a shown turn writing its name (`namedInTurns`).
  * A newcomer to a full register retires the away minor last in the scene
  * longest ago (`withinCapacity`): never a principal, someone present, a

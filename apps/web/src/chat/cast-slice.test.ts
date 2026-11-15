@@ -7,7 +7,9 @@ import {
   type CastUpdateRequest,
   type CharacterMemory,
   castAnchorsText,
+  castPeopleNotes,
   castRegisterSchema,
+  castStateText,
   effectiveCastAnchor,
   emptyNotebook,
   type GenerateRequest,
@@ -19,6 +21,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CastFailure, CastSheetOutcome, CastUpdateOutcome } from "../cast/queries.ts";
 import { tick } from "../testing.ts";
 import { currentRegister, memoryContextAt, stale } from "./cast-slice.ts";
+import { discoveredRegister } from "./cast-ui.ts";
 import type { StreamScene } from "./scene-slice.ts";
 import {
   type AssistantMessage,
@@ -2892,6 +2895,50 @@ describe("development ownership", () => {
       expect(entry(chat.state(), "Noor")?.anchor.relationship).toBe("owner's bond");
     });
   }
+
+  it("keeps hidden state and the knowledge list for the narrator, and hidden state from every other reader", async () => {
+    const chat = castChat();
+    await chat.say(
+      "Noor hides the cut on her wrist under her cuff and says the ferry leaves at nine.",
+    );
+    await chat.answer({
+      cast: {
+        Noor: {
+          gender: "female",
+          state: { mood: "bright" },
+          introduce: { evidence: "Noor hides the cut" },
+          continuity: {
+            knowledge: [
+              { value: "knows the ferry leaves at nine", evidence: "the ferry leaves at nine" },
+            ],
+          },
+          hidden: {
+            injuries: {
+              value: "cut on her wrist under her cuff",
+              evidence: "hides the cut on her wrist",
+            },
+          },
+        },
+      },
+      absent: [],
+    });
+    const register = currentRegister(chat.state());
+    expect(entry(chat.state(), "Noor")?.hidden).toEqual({
+      injuries: "cut on her wrist under her cuff",
+    });
+    const narrator = castStateText(register);
+    expect(narrator).toContain(
+      "Noor hidden from the player: injuries: cut on her wrist under her cuff",
+    );
+    expect(narrator).toContain("Noor continuity: knowledge: knows the ferry leaves at nine");
+    const panel = discoveredRegister(chat.state());
+    expect(panel.entries.map((item) => item.anchor.name)).toEqual(["Noor"]);
+    expect(JSON.stringify(panel)).not.toContain("cut on her wrist");
+    expect(castPeopleNotes(register)).not.toContain("cut on her wrist");
+    const context = memoryContextAt(chat.state(), 2);
+    expect(context?.[0]?.continuity?.knowledge).toEqual(["knows the ferry leaves at nine"]);
+    expect(JSON.stringify(context)).not.toContain("cut on her wrist");
+  });
 
   it("archival context uses the newest shown snapshot at/before the boundary and owner precedence", async () => {
     const { chat } = await establish();

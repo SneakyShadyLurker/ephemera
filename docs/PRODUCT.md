@@ -718,18 +718,40 @@ Version 1.0 holds everything below.
   injuries, intoxication). A field holds up to 240 characters; the
   intimate body, outfit and clothes' state hold up to 480. The fixed anchor is the
   card or initial baseline. Evidence-backed developments can change current
-  durable facts, and short voice, goals and knowledge cues carry continuity.
+  durable facts, and short voice and goals cues and a list of knowledge items
+  carry continuity. Knowledge says who knows what: up to eight items of up to
+  160 characters each. A new fact joins the list instead of replacing it, the
+  same fact is not listed twice, the oldest leaves past eight, and a fact that
+  was disproven or has ended is added as its correction.
   Owner corrections take precedence over developments and the baseline.
+  An entry can also hold hidden state, under the state's field names: what
+  the turns established of someone that the player cannot perceive, such as
+  a concealed injury or object, arousal or intoxication that does not show,
+  an unseen action, or a feeling they do not show. Only the narrator and the
+  keeper read it. The cast panel, scene pictures, memory calls and cast
+  sheets never carry it. A hidden field ends when the keeper records that
+  field in the visible state or reports that it no longer holds. Thoughts
+  and motives stay with goals and knowledge.
   The keeper and sheet reader are instructed to leave unknown details empty,
-  never invent missing anatomy, history or psychology. Development and continuity
-  updates require a quote from a shown turn, matched by its words whatever
-  the markup, typography, case or spacing; matching that quote grounds
+  never invent missing anatomy, history or psychology. Development, continuity
+  and hidden updates require a quote from a shown turn, matched by its words
+  whatever the markup, typography, case or spacing. A quote with an elision
+  holds when every part beside it stands in the same turn in that order, and
+  a quote of six words or more holds with at most one word in ten missing,
+  added or different (one word below twenty words). Shorter quotes stay
+  exact, and words from two turns never make a quote. Matching a quote grounds
   an update but does not prove its meaning. After each reply or
   Continue that completes, a keeper call reads the turns since its last
   answer in chronological batches, covering the entire gap before publishing
   a snapshot, and answers with what changed. Each call carries the whole record
   of everyone in the scene or named in its turns, and only the name, role and
-  gender of everyone else. Completed batches stay private and
+  gender of everyone else. It also carries the lorebook entries that are
+  constant or keyed by its turns (the greeting for the opening), chosen as
+  for memory calls: by the lorebook's own activation without chance or timed
+  effects, inside the lorebook budget. Lore goes whether or not a cast sheet
+  stands in for the card's description. A person a lore entry describes
+  takes fixed details from it once the turns bring them in, and nobody is
+  added for a lore person the turns do not show. Completed batches stay private and
   retries resume at the first unfinished batch while their source and context
   remain unchanged. Appended replies queue behind the active work. Changes to
   the chat epoch, character, persona, model, effort, player name, sheet, notebook
@@ -766,7 +788,9 @@ Version 1.0 holds everything below.
   other fields go with the Cast now message, which changes with every reply
   anyway, so the block stays the same from reply to reply and a provider can
   cache it. The baseline stays in the stable block; current durable overrides
-  and continuity join the dynamic state message. When the newest reply has
+  and continuity join the dynamic state message, each knowledge item as a
+  pair of its own, and a present person's hidden state follows their state
+  on a line labelled as hidden from the player. When the newest reply has
   no snapshot yet as a message is sent (the keeper is still reading it,
   failed on it, or the reply ended partial), the message says that the cast
   was recorded before the latest reply and that the latest turns win where
@@ -809,7 +833,7 @@ Version 1.0 holds everything below.
   keeper quotes the turn that brings them to the player unnamed. A gender the card leaves open is
   the keeper's to say. Only their discovered or
   owner-corrected details are visible; hidden canonical anatomy, personality and
-  preferences stay out until play reveals them, and later discoveries can refine
+  preferences and hidden state stay out until play reveals them, and later discoveries can refine
   an approximation. While she stays dressed, her figure shows as her clothes
   suggest it, which a binder or padded bra can make misleading, until undressing
   reveals it. Under the portrait, up

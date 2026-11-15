@@ -12,6 +12,12 @@ export const CAST_LIMITS = {
   field: 240,
   /** Characters of the densest fields: `intimate`, `outfit` and `disarray`. */
   longField: 480,
+  /** Characters of one knowledge item. */
+  knowledge: 160,
+  /** Knowledge items an entry keeps; the oldest goes past it. */
+  knowledgeItems: 8,
+  /** Knowledge items one keeper change may add. */
+  knowledgeAdded: 4,
   /** Earlier names an entry remembers (`aka`). */
   aka: 4,
   /** Entries a cast sheet holds (Scenario: up to five principals; room for Group cards). */
@@ -20,8 +26,14 @@ export const CAST_LIMITS = {
   turns: 12,
 } as const;
 
-/** The characters an anchor or state field holds, by its key: `longField` for the densest, `field` for the rest. */
+/**
+ * The characters a field's text holds, by its key: `longField` for the
+ * densest anchor and state fields, `knowledge` for one knowledge item,
+ * `field` for the rest.
+ */
 export const castFieldLimit = (key: string): number =>
   key === "intimate" || key === "outfit" || key === "disarray"
     ? CAST_LIMITS.longField
-    : CAST_LIMITS.field;
+    : key === "knowledge"
+      ? CAST_LIMITS.knowledge
+      : CAST_LIMITS.field;
