@@ -314,9 +314,15 @@ export function createCastApi(deps: CastDeps) {
     if (!target.ok) return target;
     const { call } = target;
     const instructions = sheetInstructions();
-    const message = sheetMessage(card);
-    const room = roomFor(call, [instructions, message]);
-    if (room === null) {
+    let message: string | null = null;
+    try {
+      message = sheetMessage(card);
+    } catch (error) {
+      // The card's name filled into its description past the macro bound: no prompt can be built.
+      if (!(error instanceof MacroLimitError)) throw error;
+    }
+    const room = message === null ? null : roomFor(call, [instructions, message]);
+    if (message === null || room === null) {
       log.warn({ event: "cast.sheet", model: call.model, errorClass: "prompt_too_long" });
       return { ok: false, error: "prompt_too_long" };
     }

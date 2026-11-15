@@ -1280,7 +1280,9 @@ people's records directly and folds the records of away people under their names
    and `force` answers the stored sheet at once when it is current and
    not forced; otherwise it joins the character's running job or starts
    one, then answers 200 at once, keepalives, and the sheet or the
-   refusal. The job reads the card by id, never a request body, runs
+   refusal. A prompt that cannot be built, the card's name filled into its
+   description past the macro bound, is refused as `prompt_too_long` before
+   a job starts, as one that leaves the answer no room is. The job reads the card by id, never a request body, runs
    under its own lifetime rather than any caller's, keeps the instance in
    use until it settles and stores the clamped answer with ids and the
    fingerprint read before the call (nothing when the character was

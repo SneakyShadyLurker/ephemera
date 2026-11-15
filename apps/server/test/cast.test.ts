@@ -498,6 +498,19 @@ describe("cast keeper", () => {
     expect(calls()).toBe(0);
   });
 
+  it("refuses to read a sheet from such a description, before any call and storing nothing", async () => {
+    const { app, stores, calls } = setup();
+    const characterId = stores.characters.create({
+      ...blankCard("M".repeat(200)),
+      description: "{{char}} ".repeat(8000),
+    });
+    const response = await postSheet(app, characterId);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "prompt_too_long" });
+    expect(calls()).toBe(0);
+    expect(stores.castSheets.get(characterId)).toBeNull();
+  });
+
   it("runs without a character, and tells a full register to add no one", async () => {
     const { app, upstream } = setup();
     const full = { entries: Array.from({ length: CAST_LIMITS.entries }, (_, i) => entry(i)) };
