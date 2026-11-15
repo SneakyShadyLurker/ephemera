@@ -1233,8 +1233,10 @@ people's records directly and folds the records of away people under their names
    index too and stays removed: its name mints no new id, and it rejoins the
    register only while there is room, the first to leave again. The index
    keeps it as recorded, without the owner's anchor corrections, as a
-   snapshot keeps its entries, and a name the owner gave it as an earlier
-   name, so the story's use of either name finds it. Everyone present after the batch then takes the next `seen`
+   snapshot keeps its entries. A name the owner gave it still finds it:
+   the search through `previous` reads a corrected name as one more earlier
+   name, for the search alone, so nothing is stored and no earlier name
+   gives way. Everyone present after the batch then takes the next `seen`
    count. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
    continuity without overriding owner corrections (a knowledge item joins

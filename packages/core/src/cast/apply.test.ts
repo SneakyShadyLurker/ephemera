@@ -316,6 +316,33 @@ describe("a full register", () => {
     expect(names(result).slice(-3)).toEqual(["Tilda Marek", "Bruno Castell", "Edda Lindholm"]);
   });
 
+  it("finds a retired removed entry by the name the owner gave it, and by every earlier one", () => {
+    const base = crowd([1, 2, 3]);
+    const removed = new Set([uuid(8)]);
+    const first = apply(base, newcomer, { removed }).result;
+    // As recorded: her own name, and as many earlier ones as an entry holds.
+    const aka = ["Mara One", "Mara Two", "Mara Three", "Mara Four"];
+    expect(aka).toHaveLength(CAST_LIMITS.aka);
+    const previous = register(entry(8, "Guest 5", { aka }));
+    const corrected = { [uuid(8)]: { anchor: { name: "Odette Marsh" } } };
+    for (const name of ["Odette Marsh", "Guest 5", ...aka]) {
+      const { result, calls } = apply(
+        first,
+        { cast: { [name]: { gender: "female", state: { position: "in the doorway" } } } },
+        { removed, previous, corrected },
+      );
+      expect({ name, calls, names: names(result) }).toEqual({
+        name,
+        calls: 0,
+        names: names(first),
+      });
+    }
+    // Someone else by a name no one had is new, as ever.
+    expect(
+      apply(first, { cast: { "Odette Vane": {} } }, { removed, previous, corrected }).calls,
+    ).toBe(1);
+  });
+
   it("leaves a removed entry in a register that has room", () => {
     const base = register(entry(1, "Mara Battin"), entry(2, "Ilse Brandt"));
     const { result } = apply(base, newcomer, { removed: new Set([uuid(2)]) });

@@ -45,7 +45,10 @@ interface ApplyOptions {
   shown?: readonly string[];
   /**
    * The owner's corrections by entry id. Their anchor fields are locked even
-   * when explicitly cleared, and an entry with one is never retired.
+   * when explicitly cleared, and an entry with one is never retired unless
+   * it was removed. A corrected name is one of the entry's names where
+   * `previous` is searched: `previous` holds entries as recorded, and the
+   * story may use the name the owner gave.
    */
   corrected?: Readonly<Record<string, { anchor: Partial<CastEntry["anchor"]> }>>;
   /** The card's sheet entries: whoever one of them is, by id or by name, is never retired. */
@@ -362,6 +365,14 @@ export function applyCastChanges(
   // depends on where everyone stands at its end.
   const added: string[] = [];
   const spared = new Set([...Object.keys(corrected), ...sheet.map((item) => item.id)]);
+  // `previous` as names are found in it, index for index: an owner's corrected name counts as an
+  // earlier name, for the search alone, so nothing is stored and no earlier name gives way.
+  const knownAs = (previous?.entries ?? []).map((entry) => {
+    const name = corrected[entry.id]?.anchor.name ?? "";
+    return castKey(name) === "" || named(entry, castKey(name))
+      ? entry
+      : { ...entry, aka: [...entry.aka, name] };
+  });
   for (const [name, change] of Object.entries(changes.cast)) {
     if (isPlayer(name, player)) continue;
     // A fuller name for a one-word entry is that entry learning its name, as `was` says.
@@ -380,7 +391,7 @@ export function applyCastChanges(
     // Known to the chat before (`previous`): the entry keeps its id, found as above (a `was` and a
     // rename included); in the register under another name, that entry; a removed one stays.
     // What it lends is who she is and her looks, never her state: the turns read describe that.
-    const earlier = previous === undefined ? undefined : locate(previous.entries, name, change);
+    const earlier = previous === undefined ? undefined : locate(knownAs, name, change);
     const found = earlier === undefined ? undefined : previous?.entries[earlier.at];
     if (found !== undefined) {
       const known: CastEntry = { ...castIdentity(found), state: emptyCastState(false) };

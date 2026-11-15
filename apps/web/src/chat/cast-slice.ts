@@ -1024,24 +1024,14 @@ export function createCastSlice(
         // Whoever the batch retired for a newcomer stays known: a later batch of this run that
         // names them gives them their id and anchor back, as a later run does once this one commits.
         // They are kept as recorded, as a snapshot keeps its entries: the chain carries the owner's
-        // anchor corrections, and only a removed entry leaves it corrected. A corrected name stays
-        // as an earlier one, so the story's use of either name still finds who was removed.
+        // anchor corrections, and only a removed entry leaves it corrected. Its corrected name
+        // still finds it: `applyCastChanges` reads the corrections it is given as names too.
         const held = new Set(progress.chain.entries.map((entry) => entry.id));
-        const gone = before.entries
-          .filter((entry) => !held.has(entry.id))
-          .map((entry) => {
-            const [recorded = entry] = withoutAnchorCorrections(
-              { entries: [entry] },
-              [progress.recorded, progress.previous],
-              corrections,
-            ).entries;
-            const corrected = castKey(entry.anchor.name);
-            return [recorded.anchor.name, ...recorded.aka].some(
-              (name) => castKey(name) === corrected,
-            )
-              ? recorded
-              : { ...recorded, aka: [...recorded.aka, entry.anchor.name].slice(-CAST_LIMITS.aka) };
-          });
+        const gone = withoutAnchorCorrections(
+          { entries: before.entries.filter((entry) => !held.has(entry.id)) },
+          [progress.recorded, progress.previous],
+          corrections,
+        ).entries;
         if (gone.length > 0) {
           const ids = new Set(gone.map((entry) => entry.id));
           progress.retired.push(...gone);
