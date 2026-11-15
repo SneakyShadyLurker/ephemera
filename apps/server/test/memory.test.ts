@@ -153,7 +153,7 @@ it("passes validated cast context to the archivist without copying it to persist
       continuity: {
         voice: "calls Maren captain",
         goals: "return to harbour",
-        knowledge: "does not know about the letter",
+        knowledge: ["does not know about the letter", "knows the tide tables"],
       },
     },
   ];
@@ -167,7 +167,13 @@ it("passes validated cast context to the archivist without copying it to persist
   expect(
     JSON.stringify([stores.memory.state(characterId), stores.memory.list(characterId), lines]),
   ).not.toContain(canary);
-  for (const extra of [{ id: randomUUID() }, { aka: ["Alias"] }, { state: { present: true } }]) {
+  expect(sent).toContain("knows the tide tables");
+  for (const extra of [
+    { id: randomUUID() },
+    { aka: ["Alias"] },
+    { state: { present: true } },
+    { hidden: { injuries: "a concealed cut" } },
+  ]) {
     const invalid = await remember(
       app,
       request(characterId, { castContext: [{ ...castContext[0], ...extra }] }),

@@ -48,6 +48,9 @@ const MINOR_IDENTITY: readonly CastAnchorField[] = ["age", "build", "hair"];
 /** A minor's other anchor fields: the narrator reads them in `Cast now` while the entry is present. */
 const MINOR_DETAILS = CAST_ANCHOR_FIELDS.filter((field) => !MINOR_IDENTITY.includes(field));
 
+/** What follows the name on the line of an entry's hidden state. */
+const HIDDEN_LABEL = "hidden from the player";
+
 /** An entry's baseline line: the name, the gender once known, then the fields its role carries. */
 const anchorLine = ({ anchor, role }: CastEntry): string =>
   line([
@@ -72,7 +75,11 @@ export function castAnchorsText(register: CastRegister): string {
   ].join("\n");
 }
 
-/** A present entry's lines: its state in state order, then for a minor the anchor fields `<cast>` leaves out, as they stand now. */
+/**
+ * A present entry's lines: its state in state order, then what the turns
+ * established beyond the player's perception, then for a minor the anchor
+ * fields `<cast>` leaves out, as they stand now.
+ */
 function presentLines(entry: CastEntry): string[] {
   const { name } = entry.anchor;
   const state = line([
@@ -80,15 +87,23 @@ function presentLines(entry: CastEntry): string[] {
     "present",
     ...CAST_STATE_FIELDS.map((field) => labelled(field, entry.state[field])),
   ]);
-  if (entry.role !== "minor") return [state];
-  const details = line(anchorParts(effectiveCastAnchor(entry), MINOR_DETAILS));
-  return details === "" ? [state] : [state, `${name} details: ${details}`];
+  const hidden = line(
+    CAST_STATE_FIELDS.map((field) => labelled(field, entry.hidden?.[field] ?? "")),
+  );
+  const details =
+    entry.role === "minor" ? line(anchorParts(effectiveCastAnchor(entry), MINOR_DETAILS)) : "";
+  return [
+    state,
+    ...(hidden === "" ? [] : [`${name} ${HIDDEN_LABEL}: ${hidden}`]),
+    ...(details === "" ? [] : [`${name} details: ${details}`]),
+  ];
 }
 
 /**
  * The `Cast now` message the narrator reads at depth 1: every entry's
- * durable overrides and continuity cues, a state line per present entry
- * (with a present minor's remaining details), then the away ones by name.
+ * durable overrides and continuity cues (each knowledge item a pair of its
+ * own), a state line per present entry (with what is hidden from the player
+ * and a present minor's remaining details), then the away ones by name.
  * "" for an empty register. `behind` says the register was read before the
  * newest reply: the opening line then puts the latest turns first.
  */
@@ -103,9 +118,12 @@ export function castStateText(register: CastRegister, behind = false): string {
         const field = key as keyof NonNullable<CastEntry["developments"]>;
         return `${field}: ${effective[field] || "unknown"}`;
       });
-      const cues = Object.entries(entry.continuity ?? {})
-        .filter(([, value]) => value !== "")
-        .map(([key, value]) => `${key}: ${value}`);
+      const { voice = "", goals = "", knowledge = [] } = entry.continuity ?? {};
+      const cues = [
+        labelled("voice", voice),
+        labelled("goals", goals),
+        ...knowledge.map((item) => labelled("knowledge", item)),
+      ].filter((cue) => cue !== "");
       return [
         ...(overrides.length === 0
           ? []

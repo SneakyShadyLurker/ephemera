@@ -1,8 +1,13 @@
+import { countText } from "../../apps/server/src/tokens.ts";
 import { isRecord } from "../../packages/core/src/card/json.ts";
 import { applyCastChanges, castAdmitsNew } from "../../packages/core/src/cast/apply.ts";
 import { groundedCastChanges } from "../../packages/core/src/cast/effective.ts";
 import { castFieldLimit } from "../../packages/core/src/cast/limits.ts";
-import { keeperInstructions, keeperMessage } from "../../packages/core/src/cast/prompt.ts";
+import {
+  castLore,
+  keeperInstructions,
+  keeperMessage,
+} from "../../packages/core/src/cast/prompt.ts";
 import {
   type CastChanges,
   castChangesSchema,
@@ -44,7 +49,7 @@ export function parseKeeperOptions(args: string[]): KeeperOptions {
     live: false,
     model: "",
     repetitions: 2,
-    maxCalls: 32,
+    maxCalls: 40,
     timeoutMs: 75000,
     deadlineMs: 1800000,
     outputCap: 8192,
@@ -62,15 +67,33 @@ export function parseKeeperOptions(args: string[]): KeeperOptions {
   return options;
 }
 
-/** The keeper call as the product sends it: its instructions, then one update message. */
+/** The context window a fixture's lore is fitted to: a common size, far above any fixture's lorebook. */
+const LORE_WINDOW = 32768;
+
+/**
+ * The keeper call as the product sends it: its instructions, then one update
+ * message, with the lore the fixture's turns bring in of its lorebook.
+ */
 function keeperWire(id: KeeperFixtureId): WireMessage[] {
-  const { canon, names, register, turns, kind } = keeperFixture(id);
+  const { canon, lorebook, names, register, turns, kind } = keeperFixture(id);
+  const lore =
+    lorebook === undefined
+      ? null
+      : castLore({
+          card: { lorebook },
+          names,
+          linked: [],
+          turns,
+          window: LORE_WINDOW,
+          count: countText,
+        });
   return [
     { role: "system", content: keeperInstructions() },
     {
       role: "user",
       content: keeperMessage({
         canon,
+        lore,
         names,
         register,
         turns,
@@ -82,7 +105,7 @@ function keeperWire(id: KeeperFixtureId): WireMessage[] {
   ];
 }
 
-/** Text values of a parsed answer past their field's bound: anchor and state fields, evidenced items' values. */
+/** Text values of a parsed answer past their field's bound: anchor and state fields, evidenced items' values, a list's items each. */
 function valuesOverBound(value: unknown): number {
   if (!isRecord(value) || !isRecord(value.cast)) return 0;
   // Measured as the clamp reads it: a field written as a list of strings is its joined text.
@@ -97,26 +120,29 @@ function valuesOverBound(value: unknown): number {
       const fields = change[key];
       if (isRecord(fields)) count += Object.entries(fields).filter(over).length;
     }
-    for (const key of ["developments", "continuity", "discovered"]) {
+    for (const key of ["developments", "continuity", "hidden", "discovered"]) {
       const fields = change[key];
       if (isRecord(fields))
-        count += Object.entries(fields).filter(
-          ([field, item]) => isRecord(item) && over([field, item.value]),
-        ).length;
+        count += Object.entries(fields)
+          .flatMap(([field, item]) =>
+            (Array.isArray(item) ? item : [item]).map((one) => [field, one] as const),
+          )
+          .filter(([field, item]) => isRecord(item) && over([field, item.value])).length;
     }
   }
   return count;
 }
 
-/** Introductions and evidenced fields the changes carry. */
+/** Introductions and evidenced items the changes carry: fields, knowledge items and hidden values, not a hidden field's end. */
 const evidenced = (changes: CastChanges): number =>
   Object.values(changes.cast).reduce(
     (sum, change) =>
       sum +
       (change.introduce === undefined ? 0 : 1) +
-      [change.developments, change.continuity, change.discovered]
-        .map((fields) => Object.values(fields ?? {}).filter((item) => item !== undefined).length)
-        .reduce((a, b) => a + b, 0),
+      [change.developments, change.continuity, change.hidden, change.discovered]
+        .flatMap((fields) => Object.values(fields ?? {}))
+        .flat()
+        .filter((item) => item !== undefined && item !== "").length,
     0,
   );
 

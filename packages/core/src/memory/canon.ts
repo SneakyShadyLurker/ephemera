@@ -68,80 +68,90 @@ export function canonFields({
 }
 
 /**
- * The canon text for one call, or null when there is none. The card's
- * fields go in whole; the entries share the lorebook budget for `window`
- * (`combineLorebooks`) less what the fields take. Every entry reads the
- * whole of `turns`, chance and sticky, cooldown and delay set aside, so the
- * same input always gives the same canon.
+ * The lorebook entries one call reads as canon, in book order, or none: the
+ * constant ones and those whose keys `turns` match, within the lorebook
+ * budget for `window` (`combineLorebooks`) less `taken`, the tokens the
+ * call's canon fields take. Every entry reads the whole of `turns`, chance
+ * and sticky, cooldown and delay set aside, so the same input always gives
+ * the same entries. The lore part of every canon (`memoryCanon`, the cast
+ * keeper's `<lore>`).
  */
-export function memoryCanon({
+export function canonLore({
   card,
   names,
-  persona = "",
   linked,
   turns,
   window,
   count,
-}: CanonInput): string | null {
-  const fields = canonFields({ card, names, persona });
-
+  taken = 0,
+}: Omit<CanonInput, "card" | "persona"> & {
+  card: Pick<CharacterCard, "lorebook">;
+  taken?: number;
+}): string[] {
   const book = card.lorebook;
   const sources: LorebookSource[] = [
     ...(book === undefined ? [] : [{ id: null, name: book.name ?? "", book }]),
     ...linked,
   ];
-  let entries: string[] = [];
-  if (sources.length > 0) {
-    const { books, budget } = combineLorebooks(sources, window);
-    const depth = turns.length;
-    // No turns, no keys: only constant entries take part, keeping their places in the books.
-    const constantOnly = turns.length === 0;
-    const steady = {
-      ...books,
+  if (sources.length === 0) return [];
+  const { books, budget } = combineLorebooks(sources, window);
+  const depth = turns.length;
+  // No turns, no keys: only constant entries take part, keeping their places in the books.
+  const constantOnly = turns.length === 0;
+  const steady = {
+    ...books,
+    scanDepth: depth,
+    entries: books.entries.map((at) => ({
+      ...at,
       scanDepth: depth,
-      entries: books.entries.map((at) => ({
-        ...at,
-        scanDepth: depth,
-        entry: withEntrySettings(
-          constantOnly
-            ? { ...at.entry, enabled: at.entry.enabled && at.entry.constant === true }
-            : at.entry,
-          {
-            scanDepth: null,
-            useProbability: false,
-            sticky: 0,
-            cooldown: 0,
-            delay: 0,
-          },
-        ),
-      })),
-    };
-    const sent = activateLorebooks({
-      books: steady,
-      turns: [...turns],
-      names,
-      macros: (text, limit) => fillNames(text, names, limit),
-      count,
-      budget: Math.max(0, budget - (fields === "" ? 0 : count(fields))),
-      blocks: { before: true, after: true, examples: true, authorsNote: true },
-      timed: null,
-      random: () => 0,
-    });
-    const all: SentEntry[] = [
-      ...sent.before,
-      ...sent.after,
-      ...sent.depth.flatMap((group) => group.entries),
-      ...sent.authorsNote.top,
-      ...sent.authorsNote.bottom,
-      ...sent.examples.before,
-      ...sent.examples.after,
-    ];
-    entries = all
-      .sort((a, b) => a.index - b.index)
-      .map((entry) => entry.content.trim())
-      .filter((content) => content !== "");
-  }
+      entry: withEntrySettings(
+        constantOnly
+          ? { ...at.entry, enabled: at.entry.enabled && at.entry.constant === true }
+          : at.entry,
+        {
+          scanDepth: null,
+          useProbability: false,
+          sticky: 0,
+          cooldown: 0,
+          delay: 0,
+        },
+      ),
+    })),
+  };
+  const sent = activateLorebooks({
+    books: steady,
+    turns: [...turns],
+    names,
+    macros: (text, limit) => fillNames(text, names, limit),
+    count,
+    budget: Math.max(0, budget - taken),
+    blocks: { before: true, after: true, examples: true, authorsNote: true },
+    timed: null,
+    random: () => 0,
+  });
+  const all: SentEntry[] = [
+    ...sent.before,
+    ...sent.after,
+    ...sent.depth.flatMap((group) => group.entries),
+    ...sent.authorsNote.top,
+    ...sent.authorsNote.bottom,
+    ...sent.examples.before,
+    ...sent.examples.after,
+  ];
+  return all
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.content.trim())
+    .filter((content) => content !== "");
+}
 
+/**
+ * The canon text for one call, or null when there is none. The card's
+ * fields go in whole; the entries (`canonLore`) share the lorebook budget
+ * for `window` less what the fields take.
+ */
+export function memoryCanon({ persona = "", ...input }: CanonInput): string | null {
+  const fields = canonFields({ card: input.card, names: input.names, persona });
+  const entries = canonLore({ ...input, taken: fields === "" ? 0 : input.count(fields) });
   const sections = [
     fields === "" ? null : fields,
     entries.length === 0 ? null : `Lorebook:\n${entries.join("\n\n")}`,

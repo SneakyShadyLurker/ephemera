@@ -37,6 +37,7 @@ export { CAST_LIMITS, castFieldLimit } from "./limits.ts";
 export {
   castCanon,
   castCardKind,
+  castLore,
   KEEPER_OPENING,
   keeperInstructions,
   keeperMessage,

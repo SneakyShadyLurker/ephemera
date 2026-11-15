@@ -78,6 +78,7 @@ Major versions are architectural choices; exact versions live in
 | Cards | Own PNG chunk walker, own Zod schemas | Native character JSON uses a strict versioned envelope. Native PNG reads and writes one base64 `ephemera` text chunk. Import-only readers accept foreign V2/V3 `ccv3` then `chara` chunks. Native data takes precedence; duplicates, unsupported versions, mixed shapes and malformed native markers fail closed. Recognized foreign fields become typed camelCase data and unknown metadata is dropped with an import report. Import fits lorebook keywords, names and tags to their limits. Compact serialization and UTF-8 limits live in `packages/core`. The bounded PNG walker strips compressed text before portrait decoding and validates at most one ICC profile within a 1 MiB inflation limit; portrait output strips metadata |
 | Images | sharp | Portraits: only the PNG, JPEG and WebP loaders unblocked, header-checked pixel cap, re-encoded to PNG plus two WebPs (a thumbnail inside 256 x 384 and a medium covering 768 x 1152, neither enlarged, their boxes in core's `PORTRAIT_RENDITIONS`; a leaf asks for `?size=medium` when the thumbnail has fewer pixels than it draws, `portraits/Portrait.tsx`), metadata stripped; a JPEG vision copy for model calls; prebuilt for linux-arm64. A portrait upload or a card import takes one of two turns across all users before its body is read (`uploadTurn`, `routes.ts`), so a burst waits in line instead of buffering and decoding side by side |
 | Lorebook keys | re2js, `Intl.Segmenter` | A character book's regex keys run only on re2js, a linear-time RE2 port, never on the native `RegExp` (card patterns are untrusted; JavaScriptCore's backtracking limit answers "no match" instead of failing). Plain keys match with `includes`; whole words by `Intl.Segmenter` boundaries or punctuation beside the key, so scripts without spaces and possessives work. Every assembly's scan has a deterministic work bound, and entry text is filled and counted only up to the budget's cutoff, within a per-assembly allowance; entries past either are reported, not scanned. A request assembles at most `MEMORY_LIMITS.held` plus three times (Memory, step 9), each attempt with its own bounds so a fold never changes which entries activate. Secondary keys match on the same rules; recursive passes test each key against each chat or entry text once, charged to the same bound, and entries a bound kept a pass from reaching are reported unscanned. An entry's sparse native settings are read and written through one core owner (`entrySettings` and `withEntrySettings` in `lorebook/settings.ts`), and timed effects by another (`lorebook/timed.ts`), whose per-chat state names entries by their library book (absent for the book in the card), their index inside it and a digest of the entry (`Bun.hash`, injected by the server) so an edited entry loses its effect and an effect never moves to another book. re2js reaches the browser only in the lorebook editor's chunks, where the editor flags keys that never match |
+| Evidence quotes | approx-string-match | The cast keeper's near-exact evidence quotes (Cast register, step 4): an approximate substring search by Myers' bit-parallel algorithm, run over words by giving each of the quote's words one symbol. Pure, without dependencies; it reaches the browser with core's cast module |
 | Tokens | gpt-tokenizer (server only) | Budget estimates against the context in use: each model's window as the upstream catalog reports it (or as the owner set it for a model it reports none for), capped by the owner's limit for that model (131,072 tokens unless set; `effectiveWindow` in `packages/core` is the one place the two meet), less the reply length and no margin, calibrated per model from streamed usage. History is trimmed in blocks, whose boundaries a byte estimate places (four UTF-8 bytes a token), so history left out is never tokenized; selection counts native messages and the reply primer. The final wire estimate counts each message's role and text, plus the global primer; the tokenizer's merge cache is off, and a request's fit attempts reuse counts by text only within that request, so no counted text outlives it |
 | Quality | TypeScript 7, Biome 2, Vitest 5, Playwright | Types, lint and format, unit tests, browser flows and the retention test matrix |
 
@@ -739,7 +740,7 @@ replay carries it.
    kept or logged. The optional `castContext` comes only from the newest
    valid snapshot at or before the remembered span's boundary, or is omitted.
    It carries effective anchors and voice/goals/knowledge continuity, without
-   scene ids, aliases, roles or volatile state. The archivist reads it as
+   scene ids, aliases, roles, volatile or hidden state. The archivist reads it as
    context that may lag, never as a direct persistence write. Only the
    validated memory answer can change the notebook. The answer is read by core's
    `repairObject`: the last
@@ -1027,8 +1028,12 @@ people's records directly and folds the records of away people under their names
 1. **Entries.** An entry has an id assigned once by an injected id
    function, a role (`principal` or `minor`), a fixed anchor (the name,
    gender and the record's fields), earlier names (`aka`, at most four),
-   optional durable `developments`, short `continuity` cues (`voice`, `goals`,
-   `knowledge`), a volatile state (`present` and the scene's fields) and an
+   optional durable `developments`, short `continuity` cues (`voice` and
+   `goals` as one text each, `knowledge` as a list of at most
+   `CAST_LIMITS.knowledgeItems`, 8, items of at most `CAST_LIMITS.knowledge`,
+   160 characters), a volatile state (`present` and the scene's fields), an
+   optional `hidden` object under the state's text keys (what the turns
+   established beyond the player's perception) and an
    optional `seen` count: the keeper batch after which the entry was last
    present, one past the register's highest, which orders retirement and
    which no prompt and no sheet carries. The
@@ -1038,8 +1043,12 @@ people's records directly and folds the records of away people under their names
    `demonstrated`, with evidence): the complete canonical profile stays intact,
    while the in-chat panel reads a projection containing only introduced people
    and discovered or owner-corrected fields. The narrator, scene and memory keep
-   canonical context. Identity recovery strips discoveries, developments,
-   continuity and `seen` so future-scene facts and knowledge cannot leak back. A register
+   canonical context. `hidden` reaches two readers alone, the narrator's Cast
+   now message and the keeper's register: the panel projection
+   (`discoveredCastEntry`), the scene notes (`castPeopleNotes`), the memory
+   context (`memoryCastContext`) and the sheet schema leave it out. Identity
+   recovery strips discoveries, developments, continuity, `hidden` and `seen`
+   so future-scene facts and knowledge cannot leak back. A register
    holds at most `CAST_LIMITS.entries`, 40, in introduction order. A field
    holds at most `CAST_LIMITS.field`, 240 characters, and `intimate`,
    `outfit` and `disarray` at most `CAST_LIMITS.longField`, 480
@@ -1125,8 +1134,14 @@ people's records directly and folds the records of away people under their names
    `{ changes, usage }` or `{ error }` once the call settles. The call is
    memory's (`objectCall` in `object-call.ts`) with the keeper's static
    instructions, so the provider's prefix cache covers them, and a message
-   of canon, the player, the register as compact JSON (ids and empty
-   fields left out) and the turns. The register goes out again with every
+   of canon, the batch's lore, the player, the register as compact JSON
+   (ids and empty fields left out, hidden state included) and the turns.
+   Lore is the lorebook entries that are constant or keyed by the batch's
+   turns (`castLore` over `canonLore` in `memory/canon.ts`, the memory
+   canon's own activation and budget for the call's window, less what canon
+   takes), in a `<lore>` block of its own after `<canon>`: canon is the
+   stable prefix, lore follows the batch. It goes whether or not a sheet
+   stands in for canon. The register goes out again with every
    call, so only an entry that is present or named in the batch's turns
    (`namedInTurns`) is written whole; every other entry goes by name, role,
    gender, `aka` and `introduced` alone, and the instructions say that such
@@ -1137,17 +1152,28 @@ people's records directly and folds the records of away people under their names
    card's, sends canon. The answer is changes only (`castChangesSchema`: by
    full name, fields to set, a `was` for a fuller name; `absent` names),
    clamped to the limits (`clampCastChanges`) before it is validated; an
-   introduction, discovery, development or continuity item it cannot use,
+   introduction, discovery, development, continuity or hidden item it cannot use,
    or a gender it cannot read,
    is dropped without losing the rest of the change, and a gender written in
-   another case or as "woman" or "man" is read as the schema names it. Its
+   another case or as "woman" or "man" is read as the schema names it. A
+   change's `continuity.knowledge` lists items to add, at most
+   `CAST_LIMITS.knowledgeAdded`, 4 (one item written alone is read as a list
+   of one), and its `hidden` fields are each a grounded value or `""` to end
+   one. Its
    cache key is the instance's `cast:<characterId>`. Development, continuity,
-   introduction and discovery fields each require a nonempty value and a
+   hidden, introduction and discovery items each require a nonempty value and a
    short quote found in one shown turn (`groundedCastChanges`). The quote is
    compared by its whole words: highlight markup, Markdown emphasis, the
    spelling of quotation marks, dashes and ellipses, case and spacing are
    set aside, as are the quote's own surrounding marks, and a quote that
-   only sits inside longer words ("red" in "tired") grounds nothing. This grounds the
+   only sits inside longer words ("red" in "tired") grounds nothing. Two
+   near-exact forms ground as well, since models drop or swap a word now and
+   then: a quote with an elision whose parts each stand in the same turn in
+   the quote's order, and a quote of at least six words that matches a run of
+   one turn's words with at most one word in ten missing, added or different
+   (one word below twenty), found by an approximate search over words
+   (approx-string-match, each word one symbol). A shorter quote stays exact,
+   and no quote is ever assembled from two turns. This grounds the
    update, not its semantic correctness. Discovery values may be less exact than
    canon and refine as the player learns more; canon alone never reveals them.
    Keeper and sheet instructions forbid inventing gaps except for a
@@ -1178,7 +1204,11 @@ people's records directly and folds the records of away people under their names
    change that names it restores its id and anchor through `previous`. Everyone present after the batch then takes the next `seen`
    count. It drops the player's names, never
    rewrites a set baseline anchor field, applies grounded developments and
-   continuity without overriding owner corrections, merges grounded discoveries
+   continuity without overriding owner corrections (a knowledge item joins
+   the list unless one with the same `castKey` text is there, and the oldest
+   leave past the bound), sets a grounded hidden field and ends one on `""`
+   or on a write of the same state field in a later or the same change
+   (a hidden value of the same change stands beside it), merges grounded discoveries
    monotonically within the branch, writes the state as given (`""` clears
    a field), takes `present` from the change when it says so, else marks
    an entry present when its state sets a field and otherwise keeps its
@@ -2392,12 +2422,13 @@ the image the server names no build and no tab is asked to reload.
 
 `bun scripts/roleplay/compare.ts --model <id>` compares the current and
 concise behavioral reminders and two authored lorebook placements on synthetic
-fixtures, one of which asks the narrator to recall details from a six-entry
-cast register (an away principal's, a present minor's). It defaults to offline
+fixtures: one asks the narrator to recall details from a six-entry
+cast register (an away principal's, a present minor's), one to stay
+consistent with a hidden fact and one for two knowledge items. It defaults to offline
 prompt and prefix estimates, with no model
 calls. `--live` explicitly enables calls and requires
 `EPHEMERA_UPSTREAM_BASE_URL` and `EPHEMERA_UPSTREAM_API_KEY` in the environment.
-The default matrix is 24 calls, which is also the cap; `--fixtures` selects a
+The default matrix is 32 calls, which is also the cap; `--fixtures` selects a
 subset, which leaves room for a third repetition; repetitions, output,
 per-request time and the overall run have bounds. Scores are bounded heuristic checks, never
 proof of immersion, and local prefix estimates are not provider cache evidence.
@@ -2408,11 +2439,12 @@ bundling with `write: false` keeps the executable in memory too. Neither entry
 changes saved settings or prompt defaults.
 
 `bun scripts/roleplay/keeper.ts --model <id>` runs the product's cast keeper
-prompt over sixteen synthetic fixtures and reads each answer as the product
+prompt over twenty synthetic fixtures and reads each answer as the product
 does: object repair with the keeper's clamp and schema, then
-`applyCastChanges` over the fixture's register and turns. It defaults to
+`applyCastChanges` over the fixture's register and turns. A fixture with a
+lorebook sends the lore its turns bring in, as the route does. It defaults to
 offline prompt estimates, with no model calls; `--live` requires the same two
-environment variables. Calls are capped at 32 by default and 72 at most, with
+environment variables. Calls are capped at 40 by default and 72 at most, with
 bounded repetitions and per-request and whole-run time limits; `--fixtures`
 selects a subset. The report holds numbers and fixed identifiers only: check
 pass counts over completed, valid answers, every other outcome counted apart,

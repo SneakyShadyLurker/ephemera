@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   applyCastChanges,
   blankCard,
+  blankLorebook,
   CAST_LIMITS,
   type CastEntry,
   type CastRegister,
@@ -33,6 +34,7 @@ import { until } from "./vitest-helpers.ts";
 
 const TURN_CANARY = "turn-canary-3b91";
 const CANON_CANARY = "canon-canary-c7d2";
+const LORE_CANARY = "lore-canary-51fa";
 const BODY_CANARY = "upstream-body-canary-9e04";
 
 const card: CharacterCard = {
@@ -126,6 +128,7 @@ const noCanary = (lines: string[]) => {
   for (const line of lines) {
     expect(line).not.toContain(TURN_CANARY);
     expect(line).not.toContain(CANON_CANARY);
+    expect(line).not.toContain(LORE_CANARY);
     expect(line).not.toContain(BODY_CANARY);
     expect(line).not.toContain("Ilse");
   }
@@ -423,6 +426,78 @@ describe("cast keeper", () => {
     expect(await canonOf("0".repeat(64))).toBe(true);
   });
 
+  it("sends the lorebook entries the batch's turns bring in, with or without canon", async () => {
+    const { app, lines, stores, upstream } = setup();
+    const lore = (content: string, keys: string[], constant = false) => ({
+      keys,
+      content,
+      enabled: true,
+      insertionOrder: 100,
+      useRegex: false,
+      ...(constant ? { constant: true } : {}),
+    });
+    const withBook: CharacterCard = {
+      ...card,
+      lorebook: {
+        ...blankLorebook("Harbour"),
+        entries: [
+          lore(`Ilse Brandt pilots the ferry. ${LORE_CANARY}`, ["Ilse"]),
+          lore("Pavel Novak mends nets on the far quay.", ["Pavel"]),
+          lore("The harbour freezes over every winter.", [], true),
+        ],
+      },
+    };
+    const characterId = stores.characters.create(withBook);
+    const linked = stores.lorebooks.create(
+      {
+        name: "Town",
+        book: {
+          ...blankLorebook("Town"),
+          entries: [lore("{{char}} owes Ilse a favour.", ["drink"])],
+        },
+      },
+      randomUUID(),
+    );
+    expect(stores.lorebooks.link(linked, characterId)).toBe("linked");
+    const userOf = async (sheetFingerprint: string | null, extra: Record<string, unknown> = {}) => {
+      const index = upstream.records.length;
+      const response = await postUpdate(app, update(characterId, { sheetFingerprint, ...extra }));
+      castUpdateResponseSchema.parse(await response.json());
+      return sent(upstream, index).user;
+    };
+    const block =
+      `<lore>\nIlse Brandt pilots the ferry. ${LORE_CANARY}\n\n` +
+      "The harbour freezes over every winter.\n\nMaren owes Ilse a favour.\n</lore>";
+    // No sheet: canon first, then the lore, then the player.
+    const open = await userOf(null);
+    expect(open).toContain(block);
+    expect(open).not.toContain("Pavel Novak");
+    expect(open.indexOf("<canon>")).toBeLessThan(open.indexOf("<lore>"));
+    expect(open.indexOf("</lore>")).toBeLessThan(open.indexOf("<player>"));
+    // A current sheet that names someone stands in for the card's description, never the lore.
+    const current = fingerprintOf(withBook);
+    stores.castSheets.put(characterId, { fingerprint: current, entries: [SHEET_PERSON] });
+    const covered = await userOf(current);
+    expect(covered).not.toContain("<canon>");
+    expect(covered).toContain(block);
+    // Turns that key nothing leave the constant entry alone.
+    const quiet = await userOf(current, { turns: [{ role: "user", content: "Rain again." }] });
+    expect(quiet).toContain("<lore>\nThe harbour freezes over every winter.\n</lore>");
+    noCanary(lines);
+  });
+
+  it("refuses a description whose filled names pass the macro bound, before any call", async () => {
+    const { app, stores, calls } = setup();
+    const characterId = stores.characters.create({
+      ...blankCard("M".repeat(200)),
+      description: "{{char}} ".repeat(8000),
+    });
+    const response = await postUpdate(app, update(characterId));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "prompt_too_long" });
+    expect(calls()).toBe(0);
+  });
+
   it("runs without a character, and tells a full register to add no one", async () => {
     const { app, upstream } = setup();
     const full = { entries: Array.from({ length: CAST_LIMITS.entries }, (_, i) => entry(i)) };
@@ -430,6 +505,7 @@ describe("cast keeper", () => {
     castUpdateResponseSchema.parse(await response.json());
     const { user } = sent(upstream, 0);
     expect(user).not.toContain("<canon>");
+    expect(user).not.toContain("<lore>");
     expect(user).toContain("The register is full");
     expect(user).toContain("This is the opening");
     // A full register that holds an away minor has someone to retire for a newcomer.

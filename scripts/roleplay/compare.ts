@@ -41,7 +41,7 @@ const planned = (options: ComparisonOptions): number =>
 
 /**
  * No flag reads config or writes anything. Repetitions 3 exceeds the full
- * matrix's 24-call ceiling; `--fixtures` narrows the matrix, so a few
+ * matrix's 32-call ceiling; `--fixtures` narrows the matrix, so a few
  * fixtures can run three times.
  */
 export function parseOptions(args: string[]): ComparisonOptions {
@@ -49,14 +49,14 @@ export function parseOptions(args: string[]): ComparisonOptions {
     live: false,
     model: "",
     repetitions: 2,
-    maxCalls: 24,
+    maxCalls: 32,
     timeoutMs: 75000,
     deadlineMs: 1800000,
     outputCap: 1536,
     settings: { reasoning: "low", temperature: 1, topP: 0.95 },
     fixtures: [...FIXTURE_IDS],
   };
-  parseFlags(args, options, 24, (flag, value) => {
+  parseFlags(args, options, 32, (flag, value) => {
     if (flag === "--fixtures") {
       options.fixtures = chosenFixtures(value, FIXTURE_IDS);
       return true;

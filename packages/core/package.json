@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "approx-string-match": "2.0.1",
     "dayjs": "1.11.23",
     "re2js": "2.8.6",
     "zod": "^4.6.5"

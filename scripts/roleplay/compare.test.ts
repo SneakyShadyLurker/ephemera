@@ -40,6 +40,8 @@ const answers = [
   "I know the timetable, but you never told me your code.",
   'Mara rests her bandaged ankle. "We have time."',
   "Ilse's eyes are amber. Tobin has one green eye and one hazel.",
+  "A bandaged burn crosses her left palm.",
+  "Pier fourteen. And I would say the harbour master took them.",
 ];
 const privateMark = "PRIVATE_RESPONSE_AND_REASONING_MARKER";
 
@@ -61,7 +63,7 @@ describe("synthetic prompt comparison", () => {
     expect(report).toMatchObject({
       code: "offline",
       calls: 0,
-      plannedCalls: 24,
+      plannedCalls: 32,
       quality: "not_run",
       repetitions: 2,
     });
@@ -74,9 +76,9 @@ describe("synthetic prompt comparison", () => {
     [],
     [...args, "--live", "--repetitions", "0"],
     [...args, "--repetitions", "4"],
-    [...args, "--repetitions", "3", "--max-calls", "24"],
-    [...args, "--max-calls", "25"],
-    [...args, "--max-calls", "23"],
+    [...args, "--repetitions", "3", "--max-calls", "32"],
+    [...args, "--max-calls", "33"],
+    [...args, "--max-calls", "31"],
     [...args, "--fixtures", "callback,unknown"],
     [...args, "--fixtures", "callback,callback"],
     [...args, "--timeout-ms", "75001"],
@@ -103,7 +105,7 @@ describe("synthetic prompt comparison", () => {
         "--repetitions",
         "1",
         "--max-calls",
-        "14",
+        "18",
         "--output-cap",
         "2048",
         "--reasoning",
@@ -154,7 +156,7 @@ describe("synthetic prompt comparison", () => {
       continuity: {
         voice: expect.any(String),
         goals: expect.any(String),
-        knowledge: expect.any(String),
+        knowledge: [expect.any(String)],
       },
     });
     const wire = messages(input)
@@ -219,6 +221,18 @@ describe("synthetic prompt comparison", () => {
       "away-principal": false,
       "present-minor": false,
     });
+    expect(score("hidden-fact", "Her palm is smooth and unmarked.")).toEqual({
+      burn: false,
+      bandage: false,
+    });
+    expect(score("hidden-fact", "Gauze is wrapped over blistered skin.")).toEqual({
+      burn: true,
+      bandage: true,
+    });
+    expect(score("knowledge-two", "Pier 19, and the mate of the 14:10 took them.")).toEqual({
+      pier: true,
+      suspect: false,
+    });
     expect(score("agency-injury", 'Aria says: "I agree." Mara runs upstairs.')).toEqual({
       injury: false,
       "no-player-speech-cue": false,
@@ -257,7 +271,7 @@ describe("synthetic prompt comparison", () => {
     expect(usageTotals([]).inputTokens).toEqual({ total: null, reportedCalls: 0 });
   });
 
-  it("runs exactly 24 sequential interleaved calls with shared affinity and no billing flags", async () => {
+  it("runs exactly 32 sequential interleaved calls with shared affinity and no billing flags", async () => {
     const requests: { headers: Headers; body: Record<string, unknown> }[] = [];
     let active = false;
     const fetch = vi.fn<ComparisonFetch>(async (url, init) => {
@@ -276,23 +290,27 @@ describe("synthetic prompt comparison", () => {
             ? answers[3]
             : wire.includes("unusual about his eyes")
               ? answers[4]
-              : answers[0];
+              : wire.includes("pull her glove off")
+                ? answers[5]
+                : wire.includes("missing fares")
+                  ? answers[6]
+                  : answers[0];
       await Promise.resolve();
       active = false;
       return reply(`${text} ${privateMark}`);
     });
     const report = await runComparison([...args, "--live"], { env, fetch });
-    expect(fetch).toHaveBeenCalledTimes(24);
+    expect(fetch).toHaveBeenCalledTimes(32);
     expect(report).toMatchObject({
-      calls: 24,
+      calls: 32,
       quality: "no_checked_regression",
       regressions: [],
       variants: {
         current: {
-          calls: 10,
-          usage: { inputTokens: { total: 1000 }, cachedTokens: { total: 800 } },
+          calls: 14,
+          usage: { inputTokens: { total: 1400 }, cachedTokens: { total: 1120 } },
         },
-        concise: { calls: 10 },
+        concise: { calls: 14 },
       },
     });
     const keys = requests.map(({ body, headers }) => {
@@ -310,10 +328,10 @@ describe("synthetic prompt comparison", () => {
       return body.prompt_cache_key;
     });
     expect(keys[0]).not.toBe(keys[1]);
-    expect(keys[0]).toBe(keys[11]); // repetition 2 reverses the first pair
-    expect(keys[20]).toBe(keys[22]);
-    expect(keys[21]).toBe(keys[23]);
-    expect(keys[20]).not.toBe(keys[21]);
+    expect(keys[0]).toBe(keys[15]); // repetition 2 reverses the first pair
+    expect(keys[28]).toBe(keys[30]);
+    expect(keys[29]).toBe(keys[31]);
+    expect(keys[28]).not.toBe(keys[29]);
     const output = JSON.stringify(report);
     expect(output).not.toContain(privateMark);
     expect(output).not.toContain(env.EPHEMERA_UPSTREAM_API_KEY);
@@ -330,7 +348,7 @@ describe("synthetic prompt comparison", () => {
     for (const local of [keyless, { ...keyless, EPHEMERA_UPSTREAM_API_KEY: "" }]) {
       authorizations.length = 0;
       expect(await runComparison([...args, "--live"], { env: local, fetch })).toMatchObject({
-        calls: 24,
+        calls: 32,
       });
       expect(new Set(authorizations)).toEqual(new Set([null]));
     }
@@ -367,7 +385,7 @@ describe("synthetic prompt comparison", () => {
       return reply("Rook nine", "stop", {});
     });
     const report = await runComparison([...args, "--live"], { env, fetch });
-    expect(fetch).toHaveBeenCalledTimes(24);
+    expect(fetch).toHaveBeenCalledTimes(32);
     expect(report).toMatchObject({
       quality: "incomplete",
       fixtures: [
@@ -391,6 +409,8 @@ describe("synthetic prompt comparison", () => {
         },
         { fixture: "agency-injury" },
         { fixture: "cast-recall" },
+        { fixture: "hidden-fact" },
+        { fixture: "knowledge-two" },
       ],
     });
     expect(JSON.stringify(report)).not.toContain(privateMark);

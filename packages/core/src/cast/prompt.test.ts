@@ -3,6 +3,7 @@ import { blankCard } from "../card/index.ts";
 import { CAST_LIMITS } from "./limits.ts";
 import {
   castCanon,
+  castLore,
   KEEPER_OPENING,
   keeperInstructions,
   keeperMessage,
@@ -63,6 +64,58 @@ describe("the keeper prompt", () => {
     expect(text).toContain('"name":"Mara Battin"');
     expect(text).not.toContain("00000000-0000");
     expect(text).not.toContain("The register is full");
+  });
+
+  it("puts the batch's lore after canon and before the player, with or without canon", () => {
+    const lorebook = {
+      entries: [
+        {
+          keys: ["Mara"],
+          content: "{{char}} drives the night bus.",
+          enabled: true,
+          insertionOrder: 100,
+          useRegex: false,
+        },
+        {
+          keys: ["harbour"],
+          content: "The harbour is closed.",
+          enabled: true,
+          insertionOrder: 100,
+          useRegex: false,
+        },
+        {
+          keys: [],
+          content: "It always rains here.",
+          enabled: true,
+          insertionOrder: 100,
+          useRegex: false,
+          constant: true,
+        },
+      ],
+    };
+    const lore = castLore({
+      card: { lorebook },
+      names,
+      linked: [],
+      turns,
+      window: 8192,
+      count: (text) => text.length,
+    });
+    expect(lore).toBe("Mara drives the night bus.\n\nIt always rains here.");
+    // No turns key nothing: the constant entry alone. No lorebook, or no room: none.
+    const quiet = { card: { lorebook }, names, linked: [], turns: [], window: 8192 };
+    expect(castLore({ ...quiet, count: (text) => text.length })).toBe("It always rains here.");
+    expect(castLore({ ...quiet, card: {}, count: (text) => text.length })).toBeNull();
+    expect(castLore({ ...quiet, count: () => 1_000_000 })).toBeNull();
+    const base = { names, register, turns, mode: "update" as const, full: false };
+    const both = keeperMessage({ ...base, canon: "Mara Battin is 18.", lore });
+    const block = `<lore>\n${lore}\n</lore>`;
+    expect(both).toContain(block);
+    expect(both.indexOf("</canon>")).toBeLessThan(both.indexOf("<lore>"));
+    expect(both.indexOf("</lore>")).toBeLessThan(both.indexOf("<player>"));
+    expect(keeperMessage({ ...base, canon: null, lore }).startsWith(block)).toBe(true);
+    expect(keeperMessage({ ...base, canon: null, lore: null })).not.toContain("<lore>");
+    expect(keeperInstructions()).toContain("add no entry for a lore person the turns do not show");
   });
 
   it("leaves canon out when there is none, and says when the register is full", () => {
@@ -184,6 +237,7 @@ describe("the keeper prompt", () => {
     for (const key of [
       '- "developments":',
       '- "continuity":',
+      '- "hidden":',
       '- "introduce":',
       '- "discovered":',
     ]) {

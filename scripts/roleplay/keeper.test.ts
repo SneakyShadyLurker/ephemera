@@ -25,6 +25,10 @@ const MARKS: Record<KeeperFixtureId, string> = {
   "extract-only": "Greta Holm",
   quote: "Vera Lund",
   knowledge: "Hanna Brix",
+  "knowledge-second": "Odile Marchand",
+  hidden: "Mirela Dragan",
+  "hidden-revealed": "Tamsin Reeve",
+  lore: "Brenna Ashdown",
   player: "Rosa Quill",
   quiet: "Ada Brenner",
   "scenario-walk-on": "Dieter Lorenz",
@@ -114,6 +118,7 @@ const GOOD: Record<KeeperFixtureId, string> = {
       },
     },
   }),
+  // One item written alone, as a model may: read as a list of one.
   knowledge: json({
     "Hanna Brix": {
       continuity: {
@@ -122,6 +127,47 @@ const GOOD: Record<KeeperFixtureId, string> = {
           evidence: "The ledger is hidden behind the loose brick in the cellar wall",
         },
       },
+    },
+  }),
+  "knowledge-second": json({
+    "Odile Marchand": {
+      continuity: {
+        knowledge: [
+          {
+            value: "knows the night guard leaves his post at two and the yard is empty until three",
+            evidence: "The night guard leaves his post at two",
+          },
+        ],
+      },
+    },
+  }),
+  hidden: json({
+    "Mirela Dragan": {
+      state: { activity: "stirring the pot with her other hand", mood: "smiling" },
+      hidden: {
+        injuries: {
+          value: "cut across her left palm, wrapped in a dish towel in her apron pocket",
+          evidence: "Mirela cuts her left palm open",
+        },
+      },
+    },
+  }),
+  "hidden-revealed": json({
+    "Tamsin Reeve": { state: { injuries: "deep cut across her left palm, still bleeding" } },
+  }),
+  lore: json({
+    "Brenna Ashdown": {
+      gender: "female",
+      anchor: {
+        age: "58",
+        ethnicity: "Scottish",
+        skin: "wind-reddened skin",
+        height: "181cm",
+        hair: "white braid down to her waist",
+        eyes: "grey deep-set eyes",
+      },
+      state: { position: "in the lighthouse doorway" },
+      introduce: { evidence: "Brenna Ashdown looks you up and down" },
     },
   }),
   player: json({ "Rosa Quill": { state: { activity: "reading at the table" } } }),
@@ -214,8 +260,27 @@ const BAD: Record<KeeperFixtureId, string> = {
   quote: json({}),
   knowledge: json({
     "Hanna Brix": {
-      continuity: { knowledge: { value: "likes quiet evenings", evidence: "Hanna's eyes widen" } },
+      continuity: {
+        knowledge: [{ value: "likes quiet evenings", evidence: "Hanna's eyes widen" }],
+      },
     },
+  }),
+  "knowledge-second": json({
+    "Odile Marchand": {
+      continuity: {
+        knowledge: [
+          { value: "knows the ledger is behind the loose brick", evidence: "Odile nods" },
+        ],
+      },
+    },
+  }),
+  hidden: json({
+    "Mirela Dragan": { state: { injuries: "cut left palm, wrapped in a dish towel" } },
+  }),
+  "hidden-revealed": json({ "Tamsin Reeve": { state: { mood: "wincing" } } }),
+  lore: json({
+    "Brenna Ashdown": { gender: "female", anchor: { hair: "grey hair" } },
+    "Corwin Pike": { gender: "male", anchor: { age: "44" } },
   }),
   player: json({ "Felix Arden": { state: { position: "by the window" } } }),
   quiet: json({
@@ -279,7 +344,7 @@ describe("cast keeper evaluation", () => {
       ),
     });
     expect(fetch).not.toHaveBeenCalled();
-    expect(report).toMatchObject({ code: "offline", calls: 0, plannedCalls: 32, outputCap: 8192 });
+    expect(report).toMatchObject({ code: "offline", calls: 0, plannedCalls: 40, outputCap: 8192 });
     if (!("diagnostics" in report)) throw new Error("no diagnostics");
     expect(report.diagnostics.map((row) => row.fixture)).toEqual(KEEPER_FIXTURE_IDS);
     for (const row of report.diagnostics) expect(row.estimatedPromptTokens).toBeGreaterThan(0);
@@ -289,7 +354,7 @@ describe("cast keeper evaluation", () => {
   it("leaves reasoning and sampler unset by default and reads its bounds", () => {
     expect(parseKeeperOptions(args)).toMatchObject({
       repetitions: 2,
-      maxCalls: 32,
+      maxCalls: 40,
       outputCap: 8192,
       settings: {},
     });
@@ -321,7 +386,7 @@ describe("cast keeper evaluation", () => {
     [],
     [...args, "--repetitions", "4"],
     [...args, "--repetitions", "3"],
-    [...args, "--max-calls", "31"],
+    [...args, "--max-calls", "39"],
     [...args, "--max-calls", "73"],
     [...args, "--fixtures", "clear,unknown"],
     [...args, "--fixtures", "clear,clear"],
@@ -355,11 +420,11 @@ describe("cast keeper evaluation", () => {
       env,
       fetch,
     });
-    expect(fetch).toHaveBeenCalledTimes(16);
+    expect(fetch).toHaveBeenCalledTimes(20);
     expect(report).toMatchObject({
       code: "finished",
-      calls: 16,
-      totals: { valid: 16, invalid: 0, valuesOverBound: 0, evidenced: { sent: 9, kept: 9 } },
+      calls: 20,
+      totals: { valid: 20, invalid: 0, valuesOverBound: 0, evidenced: { sent: 12, kept: 12 } },
     });
     for (const row of fixtureRows(report)) {
       expect(Object.keys(row.checks).length).toBeGreaterThan(0);
@@ -386,7 +451,7 @@ describe("cast keeper evaluation", () => {
       fetch,
     });
     expect(report).toMatchObject({
-      totals: { valid: 16, valuesOverBound: 4, evidenced: { sent: 1, kept: 1 } },
+      totals: { valid: 20, valuesOverBound: 4, evidenced: { sent: 2, kept: 2 } },
     });
     for (const row of fixtureRows(report))
       for (const [check, counts] of Object.entries(row.checks))
@@ -409,8 +474,8 @@ describe("cast keeper evaluation", () => {
   it("never calls past --max-calls and stops at the run's deadline", async () => {
     const fetch = vi.fn<ComparisonFetch>(async (_url, init) => reply(GOOD[fixtureOf(init)]));
     for (const [input, planned] of [
-      [[], 32],
-      [["--repetitions", "3", "--max-calls", "48"], 48],
+      [[], 40],
+      [["--repetitions", "3", "--max-calls", "60"], 60],
       [["--fixtures", "quiet,leaves", "--repetitions", "1", "--max-calls", "2"], 2],
     ] as const) {
       fetch.mockClear();

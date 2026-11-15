@@ -60,13 +60,16 @@ export const rememberedCastAnchorSchema = castAnchorSchema.partial().extend({
 });
 export type RememberedCastAnchor = z.infer<typeof rememberedCastAnchorSchema>;
 
-/** Compact continuity cues, never part of a stored sheet or memory Cast line. */
+/**
+ * Compact continuity cues, never part of a stored sheet or memory Cast line.
+ * Voice and goals are one text each, rewritten whole; knowledge is a list
+ * that grows by item, oldest first.
+ */
 export const castContinuitySchema = z.strictObject({
   voice: field.exactOptional(),
   goals: field.exactOptional(),
-  knowledge: field.exactOptional(),
+  knowledge: z.array(text("knowledge").min(1)).max(L.knowledgeItems).exactOptional(),
 });
-type CastContinuity = z.infer<typeof castContinuitySchema>;
 
 /** A grounded value for the field `key`: its text within the key's bound, evidence within `field`. */
 const groundedValue = (key: string) =>
@@ -75,6 +78,9 @@ const groundedValue = (key: string) =>
     evidence: z.string().trim().min(1).max(L.field),
   });
 type GroundedValue = ReturnType<ReturnType<typeof groundedValue>["exactOptional"]>;
+type HiddenValue = z.ZodExactOptional<
+  z.ZodUnion<readonly [ReturnType<typeof groundedValue>, z.ZodLiteral<"">]>
+>;
 const discoveryValue = (key: string) =>
   groundedValue(key).extend({
     basis: z.enum(["seen", "told", "demonstrated"]),
@@ -98,11 +104,12 @@ const developmentsChange = z.strictObject(
     ]),
   ) as Record<keyof CastDevelopments, GroundedValue>,
 );
-const continuityChange = z.strictObject(
-  Object.fromEntries(
-    Object.keys(castContinuitySchema.shape).map((key) => [key, groundedValue(key).exactOptional()]),
-  ) as Record<keyof CastContinuity, GroundedValue>,
-);
+const continuityChange = z.strictObject({
+  voice: groundedValue("voice").exactOptional(),
+  goals: groundedValue("goals").exactOptional(),
+  /** Items to add; the entry keeps the ones it has. */
+  knowledge: z.array(groundedValue("knowledge")).max(L.knowledgeAdded).exactOptional(),
+});
 
 /** Volatile: the keeper rewrites what changed. */
 export const castStateSchema = z.strictObject({
@@ -119,6 +126,32 @@ export const castStateSchema = z.strictObject({
   intoxication: text("intoxication"),
 });
 export type CastState = z.infer<typeof castStateSchema>;
+
+/** The state's text fields, in state order. */
+export type CastStateField = Exclude<keyof CastState, "present">;
+export const CAST_STATE_FIELDS = Object.keys(castStateSchema.shape).filter(
+  (key): key is CastStateField => key !== "present",
+);
+
+/**
+ * What the turns established of an NPC beyond the player's perception, by
+ * the state's text keys: read by the narrator and the keeper alone, never
+ * by the panel, a scene picture, a memory call or a stored sheet.
+ */
+const castHiddenSchema = z.strictObject(
+  Object.fromEntries(CAST_STATE_FIELDS.map((key) => [key, text(key).min(1).exactOptional()])) as {
+    [K in CastStateField]: z.ZodExactOptional<z.ZodString>;
+  },
+);
+/** A hidden field as a change writes it: a grounded value, or "" once it no longer holds. */
+const hiddenChange = z.strictObject(
+  Object.fromEntries(
+    CAST_STATE_FIELDS.map((key) => [
+      key,
+      z.union([groundedValue(key), z.literal("")]).exactOptional(),
+    ]),
+  ) as Record<CastStateField, HiddenValue>,
+);
 
 export const castEntrySchema = z.strictObject({
   /** Assigned once at creation (an injected id function); never changes, renames included. */
@@ -140,6 +173,7 @@ export const castEntrySchema = z.strictObject({
    */
   seen: z.number().int().nonnegative().exactOptional(),
   state: castStateSchema,
+  hidden: castHiddenSchema.exactOptional(),
 });
 export type CastEntry = z.infer<typeof castEntrySchema>;
 
@@ -153,12 +187,6 @@ export type CastRegister = z.infer<typeof castRegisterSchema>;
 export type CastAnchorField = Exclude<keyof CastAnchor, "name" | "gender">;
 export const CAST_ANCHOR_FIELDS = Object.keys(castAnchorSchema.shape).filter(
   (key): key is CastAnchorField => key !== "name" && key !== "gender",
-);
-
-/** The state's text fields, in state order. */
-export type CastStateField = Exclude<keyof CastState, "present">;
-export const CAST_STATE_FIELDS = Object.keys(castStateSchema.shape).filter(
-  (key): key is CastStateField => key !== "present",
 );
 
 /** An anchor with every text field empty. */
@@ -189,6 +217,7 @@ const changeSchema = z.strictObject({
   state: castStateSchema.partial().exactOptional(),
   developments: developmentsChange.exactOptional(),
   continuity: continuityChange.exactOptional(),
+  hidden: hiddenChange.exactOptional(),
   introduce: introduction.exactOptional(),
   discovered: discoveriesChange.exactOptional(),
 });
@@ -241,27 +270,34 @@ const clampName = (value: unknown): unknown => clampText(value, L.name);
 
 /** One change within bounds: unknown keys dropped, strings cut, a blank `was` and an unreadable gender none. */
 function clampChange(value: unknown): unknown {
+  const groundedClamp = (key: string) => (item: unknown) =>
+    clampKeys(item, {
+      value: (value) => clampText(value, castFieldLimit(key)),
+      evidence: (value) => clampText(value, L.field),
+    });
   const groundedClamps = (keys: readonly string[]) =>
-    Object.fromEntries(
-      keys.map((key) => [
-        key,
-        (item: unknown) =>
-          clampKeys(item, {
-            value: (value) => clampText(value, castFieldLimit(key)),
-            evidence: (value) => clampText(value, L.field),
-          }),
-      ]),
-    );
+    Object.fromEntries(keys.map((key) => [key, groundedClamp(key)]));
+  const usable = (key: string) => (item: unknown) => groundedValue(key).safeParse(item).success;
   // An ungrounded development or continuity cue says nothing, but must not discard
   // the NPC's valid anchor, state or other cues.
   const grounded = (fields: unknown): unknown =>
     isRecord(fields)
-      ? Object.fromEntries(
-          Object.entries(fields).filter(
-            ([key, item]) => groundedValue(key).safeParse(item).success,
-          ),
-        )
+      ? Object.fromEntries(Object.entries(fields).filter(([key, item]) => usable(key)(item)))
       : fields;
+  // Knowledge is a list of items to add: one item written alone is a list of one, an unusable
+  // item says nothing, and the first `knowledgeAdded` are kept.
+  const knowledge = (items: unknown): unknown =>
+    (Array.isArray(items) ? items : [items])
+      .map(groundedClamp("knowledge"))
+      .filter(usable("knowledge"))
+      .slice(0, L.knowledgeAdded);
+  // A hidden field ends as "": so does a blank string and an item whose value is blank. Any
+  // other string has no evidence and says nothing.
+  const hidden = (key: string) => (item: unknown) => {
+    if (typeof item === "string") return item.trim() === "" ? "" : undefined;
+    const clamped = groundedClamp(key)(item);
+    return isRecord(clamped) && clamped.value === "" ? "" : clamped;
+  };
   const clamped = clampKeys(value, {
     was: clampName,
     role: keep,
@@ -269,8 +305,23 @@ function clampChange(value: unknown): unknown {
     anchor: (anchor) => clampKeys(anchor, anchorClamps),
     state: (state) => clampKeys(state, { present: keep, ...fieldClamps(CAST_STATE_FIELDS) }),
     developments: (fields) => grounded(clampKeys(fields, groundedClamps(CAST_ANCHOR_FIELDS))),
-    continuity: (fields) =>
-      grounded(clampKeys(fields, groundedClamps(Object.keys(castContinuitySchema.shape)))),
+    continuity: (fields) => {
+      const cues = grounded(clampKeys(fields, groundedClamps(["voice", "goals"])));
+      return isRecord(cues) && isRecord(fields) && "knowledge" in fields
+        ? { ...cues, knowledge: knowledge(fields.knowledge) }
+        : cues;
+    },
+    hidden: (fields) => {
+      const clamped = clampKeys(
+        fields,
+        Object.fromEntries(CAST_STATE_FIELDS.map((key) => [key, hidden(key)])),
+      );
+      return isRecord(clamped)
+        ? Object.fromEntries(
+            Object.entries(clamped).filter(([key, item]) => item === "" || usable(key)(item)),
+          )
+        : clamped;
+    },
     introduce: (item) => clampKeys(item, { evidence: (value) => clampText(value, L.field) }),
     discovered: (fields) => {
       const clamped = clampKeys(
@@ -313,8 +364,12 @@ function clampChange(value: unknown): unknown {
 /**
  * The keeper's answer, parsed from JSON, brought within `CAST_LIMITS` before
  * `castChangesSchema` reads it: strings cut, keys the schema does not name
- * dropped, blank names, unreadable genders and unusable introductions, discovery items, developments and continuity cues dropped, a field written as a list of strings joined, a change that is no object dropped, an `absent` list inside `cast` moved out, `cast` capped
- * at `entries`. Other values it cannot mend still fail the schema.
+ * dropped, blank names, unreadable genders and unusable introductions,
+ * discovery items, developments, continuity cues and hidden fields dropped, a
+ * knowledge item written alone read as a list of one and the list cut to
+ * `knowledgeAdded`, a field written as a list of strings joined, a change
+ * that is no object dropped, an `absent` list inside `cast` moved out, `cast`
+ * capped at `entries`. Other values it cannot mend still fail the schema.
  */
 /**
  * An answer whose `cast` object holds the `absent` list: what a model one
@@ -369,6 +424,7 @@ export const castSheetEntrySchema = castEntrySchema.omit({
   introduced: true,
   discovered: true,
   seen: true,
+  hidden: true,
 });
 export type CastSheetEntry = z.infer<typeof castSheetEntrySchema>;
 

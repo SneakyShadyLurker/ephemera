@@ -85,6 +85,7 @@
     "packages/core": {
       "name": "@ephemera/core",
       "dependencies": {
+        "approx-string-match": "2.0.1",
         "dayjs": "1.11.23",
         "re2js": "2.8.6",
         "zod": "^4.6.5",
@@ -471,6 +472,8 @@
     "ai": ["ai@7.0.143", "", { "dependencies": { "@ai-sdk/gateway": "4.0.116", "@ai-sdk/provider": "4.0.29", "@ai-sdk/provider-utils": "5.0.62" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-y9QNgCK9QRHRCcHEUNoU2vemJ+q2zFX5M9T7xHCMZutfcWCqZPckkAfDbp+KHwqZDiJs5AqoKazj64cb20m5PA=="],
 
     "ansis": ["ansis@4.4.0", "", {}, "sha512-9k3v7xcHwgdO/DruxGIg4HtjvlAZlcnsX/mzqUb1t3NkYnl9kK2UJ+Gq0io+vQf7iT//BD/HB/NBkUR1LWxoeA=="],
+
+    "approx-string-match": ["approx-string-match@2.0.1", "", {}, "sha512-unV/ad/piRV6X3QARSB9Y8q4qgFVZu39xwBla8X2GufemgYUEGKvXlndkqKJUr3iWufpvtU4+cGyeTvc006ynA=="],
 
     "array-iterate": ["array-iterate@2.0.1", "", {}, "sha512-I1jXZMjAgCMmxT4qxXfPXa6SthSoE8h6gkSI9BGGNv8mP8G/v0blc+qFnZu6K42vTOiuME596QaLO0TP3Lk0xg=="],
 

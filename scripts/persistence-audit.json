@@ -93,6 +93,10 @@
       "persistsByDefault": false,
       "note": "Streams in memory. Telemetry stays off (no registerTelemetry), DevTools is never registered (it would write prompts to .devtools/), request and response bodies are excluded from results by default, warnings go to the operational log as type and feature or setting only (never their message or details), and the server replaces the console.error default of onError. The web uses readUIMessageStream, not useChat."
     },
+    "approx-string-match": {
+      "persistsByDefault": false,
+      "note": "Approximate substring search (Myers' bit-parallel algorithm) for the cast keeper's near-exact evidence quotes, in core: one pure function over two strings. Build scanned 2026-11-15 (build/src/index.js, 2.0.1): no storage, eval, Function, DOM, network or global state; no dependencies."
+    },
     "class-variance-authority": {
       "persistsByDefault": false,
       "note": "Class name composition only."

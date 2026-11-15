@@ -2,7 +2,7 @@ import type { CharacterCard } from "../card/schema.ts";
 import type { ChatTurn, SpeakerNames } from "../chat.ts";
 import { taggedCardKind } from "../creator/saved-art-source.ts";
 import { CREATOR_TAGS } from "../creator/sheet.ts";
-import { canonFields } from "../memory/canon.ts";
+import { canonFields, canonLore } from "../memory/canon.ts";
 import { transcriptLines } from "../memory/prompt.ts";
 import { tagged } from "../prompt/tagged.ts";
 import { effectiveCastAnchor, namedInTurns } from "./effective.ts";
@@ -43,6 +43,14 @@ const EXTRACTED = `Record only what the source states and add nothing. Keep its 
 export const KEEPER_OPENING =
   "You keep the cast register of a private roleplay; you do not write the story.";
 
+/*
+ * Where a rule stands decides whether a model follows it, so new rules join
+ * the rule list or the key they govern, and the worked example changes only
+ * with a measurement (`scripts/roleplay/keeper.ts`): a knowledge item and a
+ * hidden field added to it made one model send fewer discoveries at an
+ * introduction and more unusable answers. The knowledge shape is shown
+ * inline beside its key instead.
+ */
 const KEEPER_INSTRUCTIONS = `${KEEPER_OPENING} The model that tells the story reads the register with every reply in place of describing people again, so the register keeps every detail of every person consistent for the rest of the story.
 
 The register holds one entry per NPC, male and female, and never the player, whose name the message gives. An entry has a role, "principal" or "minor"; a gender, "female", "male" or "other"; an anchor, written once and fixed after; and a state that follows the scene. An entry's key is the NPC's full name as the story writes it.
@@ -66,6 +74,7 @@ Rules:
 - Answer only with changes. Every entry, key and field you leave out stays as it is; a state field that no longer holds is sent as "", such as arousal that has passed, an injury healed or clothes set right again.
 - The canonical anchor is the NPC's complete truth, not what the player knows. An anchor field once set is fixed: never send it again, never paraphrase or correct it. Fill an empty one only.
 - Outside a Scenario's invention, an anchor comes only from explicit canon and turn evidence. ${EXTRACTED} Leave every field they do not settle empty or omitted, regardless of role. Never invent details to complete a record or expose hidden anatomy or history.
+- <lore>, when the message has it, is canon about the world and its people. An NPC a lore entry describes takes anchor fields from it once the turns bring them in; add no entry for a lore person the turns do not show.
 - For a new NPC in a Scenario (the message then opens with "Kind: Scenario"), invent the anchor by role at introduction, preserving every established fact. A new principal gets one complete, coherent canonical anchor: invent what remains hidden, including anatomy, personality and preferences. A new minor gets the looks alone: "age", "ethnicity", "skin", "face", "height", "weight", "build", "hair" and "eyes", invented where the turns leave them open. A minor's "experience", "relationship", "intimate", "personality" and "fetishes" hold only what the turns show and stay empty otherwise. When you promote a Scenario's minor to "principal", complete the anchor in the same answer: fill every field still empty, coherent with what is set. This is the only permitted gap filling. Invented canon is not player discovery.
 - Name everyone who left the scene in "absent".
 - When a known NPC is named more fully, such as "Ilse" becoming "Ilse Brandt", key the change by the full name and give the earlier one in "was".
@@ -75,8 +84,9 @@ Rules:
 
 Each cast change may also have:
 - "developments": an object keyed only by the anchor's text fields (never name or gender). Use it for explicit durable transitions to already established facts, such as changed age, relationship, experience, hair or physique. The anchor remains the card/initial baseline; the register shows effective current values. Empty baseline fields still use "anchor".
-- "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge.
-Each populated field in either object is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal or disproven belief may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning.
+- "continuity": optional "voice", "goals" and "knowledge" cues. Preserve distinctive speech and forms of address, motivations, and who knows what without inventing psychology or shared knowledge. "voice" and "goals" are one value each, rewritten whole. "knowledge" is a list of the new items alone, at most ${L.knowledgeAdded}, one fact each, written as "knowledge":[{"value":"knows where the spare key is kept","evidence":"the key is under the third step"}]. The register lists the items already known as plain text: they stay, so never repeat them. A fact that was disproven or has ended is added as its correction, never removed.
+- "hidden": an object keyed only by the state's text keys, for what these turns establish of the NPC that the player cannot perceive: a concealed injury or object, arousal or intoxication that does not show, an unseen action, a feeling the turns state while the NPC shows another. The storyteller alone reads it; the Cast panel never shows it. A hidden field stays until you write the same field in "state", once the turns reveal it to the player, or send the hidden field as "", once it no longer holds. Clothes, underwear included, always go in "outfit" and "disarray". Thoughts and motives are no state: they stay with "goals" and "knowledge".
+Each populated field in these objects, and each knowledge item, is {"value":"short current fact", "evidence":"exact short quote from these turns"}, both nonempty and at most ${L.field} characters, a knowledge item's value at most ${L.knowledge}. Only update from the shown batch, never canon alone or speculation. Omitted cues stay unchanged; an explicitly ended goal may be recorded as such. Evidence must quote the text exactly; it grounds the update without proving its meaning.
 
 The Cast panel shows player knowledge, never hidden canon:
 - "introduce": {"evidence":"exact short quote"} for each NPC the shown turns let the player meet, see, hear or learn of, named or not. The register marks who is introduced with "introduced": true. Anyone without it has not been, a card's own subjects included, however long they have been in the register: introduce them with the first turns that show them to the player. Only an NPC the turns keep out of the player's sight and knowledge stays unintroduced. Once introduced, omit this key. Whatever those turns show or tell the player of them goes under "discovered" in the same change.
@@ -85,10 +95,10 @@ The Cast panel shows player knowledge, never hidden canon:
 - "seen" is direct observation, "told" preserves what someone said as a claim when appropriate, and "demonstrated" is a trait or preference established by conduct.
 - Record visible looks only when seen. Exact measurements require explicit knowledge; otherwise use a visual approximation. Before exposure, a discovered "build" holds the figure as the clothes show it, chest, hips and ass included, written as an impression through the garment, such as "slim, chest flat under a tight hoodie" or "deep cleavage pushed up in a lace bra"; never nipples, genitals, a cup size or other concealed "intimate" detail. That impression records what the clothes suggest, which may be false. Intimate anatomy requires actual exposure and observation; once seen, record "intimate" and refine "build" without the clothed guess. An exact cup size requires it to be stated or otherwise established.
 - Personality, experience, relationships, fetishes, taboos, goals and private knowledge enter only when learned through dialogue or demonstrated conduct. Mood and arousal must be perceptible or communicated. Once discovered, a field stays known while the NPC is away.
-- State is what the player can observe now: keep private thoughts, unseen actions and concealed injuries out of it as well.
+- State is what the player can observe now: keep private thoughts, unseen actions and concealed injuries out of it as well. What the turns establish beyond the player's perception goes under "hidden".
 
 Return one JSON object with exactly these keys:
-- "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys), "state" (the state's keys), "developments", "continuity", "introduce" and "discovered". {} when nothing changed.
+- "cast": an object keyed by full name; each value an object with any of "was", "role", "gender", "anchor" (the anchor's keys), "state" (the state's keys), "developments", "continuity", "hidden", "introduce" and "discovered". {} when nothing changed.
 - "absent": the names of the NPCs no longer in the scene at the end of the turns; [] when none.
 
 For example, where Mara Battin was introduced before, the turns bring in Jonas Reyes, and Mara, sober again, speaks of her sister Ana Pires, who is elsewhere:
@@ -113,19 +123,29 @@ export function castCanon(
 }
 
 /**
+ * The keeper's lore for one batch: the lorebook entries that are constant or
+ * that the batch's turns key (`canonLore`, the memory canon's own rule and
+ * budget), a blank line between them. Null when none goes in.
+ */
+export function castLore(input: Parameters<typeof canonLore>[0]): string | null {
+  const entries = canonLore(input);
+  return entries.length === 0 ? null : entries.join("\n\n");
+}
+
+/**
  * The register as the keeper reads it: compact JSON by entry, ids and empty
  * fields left out. An entry in the scene or named in `shown` (the batch's
- * turns, by `namedInTurns`) is written whole; the rest by name, role, gender,
+ * turns, by `namedInTurns`) is written whole, hidden state included; the rest by name, role, gender,
  * earlier names and introduction alone, since the register goes out again
  * with every call and a batch seldom concerns those it does not name.
  */
 function registerJson(register: CastRegister, shown: readonly string[], player: string): string {
-  const filled = (fields: Record<string, string | boolean>) =>
+  const filled = (fields: Record<string, string | boolean | readonly string[]>) =>
     Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== ""));
   const named = namedInTurns(register.entries, shown, player);
   return JSON.stringify(
     register.entries.map((entry, at) => {
-      const { role, aka, state, continuity } = entry;
+      const { role, aka, state, continuity, hidden } = entry;
       const anchor = effectiveCastAnchor(entry);
       const identity = {
         name: anchor.name,
@@ -144,6 +164,7 @@ function registerJson(register: CastRegister, shown: readonly string[], player: 
         ...identity,
         anchor: setAnchorFields(anchor),
         state: filled(state),
+        ...(hidden === undefined ? {} : { hidden }),
         ...(continuity === undefined ? {} : { continuity: filled(continuity) }),
         ...introduced,
         ...(Object.keys(discovered).length === 0 ? {} : { discovered }),
@@ -154,11 +175,13 @@ function registerJson(register: CastRegister, shown: readonly string[], player: 
 
 /**
  * The keeper call's message (user): canon when the chat has no current
- * sheet, the player, the register, the turns, then the task. Canon sits
- * first: it is stable per character, the register changes every call.
+ * sheet, the batch's lore, the player, the register, the turns, then the
+ * task. Canon sits first: it is stable per character, while the lore
+ * follows the batch's turns and the register changes every call.
  */
 export function keeperMessage({
   canon,
+  lore = null,
   names,
   register,
   turns,
@@ -167,6 +190,8 @@ export function keeperMessage({
   kind = null,
 }: {
   canon: string | null;
+  /** The lorebook entries this batch brings in (`castLore`), when there are any. */
+  lore?: string | null;
   /** The character's and the player's names; the turns' speakers fall back to them. */
   names: SpeakerNames;
   register: CastRegister;
@@ -185,6 +210,7 @@ export function keeperMessage({
   return [
     ...(kind === null ? [] : [`Kind: ${kind}`]),
     ...(canon === null ? [] : [tagged("canon", canon)]),
+    ...(lore === null ? [] : [tagged("lore", lore)]),
     tagged("player", `The player is ${names.user}: never an entry.`),
     tagged(
       "register",
