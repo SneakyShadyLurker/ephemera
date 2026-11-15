@@ -1,7 +1,14 @@
 import { foldLegacyFields } from "../../packages/core/src/card/fold.ts";
 import { blankCard } from "../../packages/core/src/card/schema.ts";
 import { applyCastChanges } from "../../packages/core/src/cast/apply.ts";
-import { emptyCastAnchor, emptyCastState } from "../../packages/core/src/cast/register.ts";
+import {
+  type CastAnchor,
+  type CastEntry,
+  type CastRegister,
+  type CastState,
+  emptyCastAnchor,
+  emptyCastState,
+} from "../../packages/core/src/cast/register.ts";
 import { defaultPromptPreset, type PromptPreset } from "../../packages/core/src/preset/prompt.ts";
 import type { AssemblyInput } from "../../packages/core/src/prompt/assemble.ts";
 
@@ -9,7 +16,13 @@ export const CONCISE_NOTE =
   "[Author's note: Preserve player agency. Keep each NPC's psychology, voice, knowledge and current state consistent with canon and established events, including earned relationships and lasting consequences. Show only perceivable details. Give NPCs initiative and advance the scene without writing {{user}}'s actions or choices.]";
 export type Variant = "current" | "concise";
 export type Layout = "current-layout" | "tail-layout";
-export const FIXTURE_IDS = ["callback", "developments", "hidden-code", "agency-injury"] as const;
+export const FIXTURE_IDS = [
+  "callback",
+  "developments",
+  "hidden-code",
+  "agency-injury",
+  "cast-recall",
+] as const;
 export type FixtureId = (typeof FIXTURE_IDS)[number];
 
 /** Machine result v1: these fixed check IDs are bounded lexical heuristics, not immersion proof. */
@@ -18,6 +31,7 @@ export const CHECK_IDS = {
   developments: ["spouse", "short-hair"],
   "hidden-code": ["code-withheld"],
   "agency-injury": ["injury", "no-player-speech-cue"],
+  "cast-recall": ["away-principal", "present-minor"],
 } as const;
 
 export function score(id: FixtureId, text: string): Record<string, boolean> {
@@ -49,8 +63,172 @@ export function score(id: FixtureId, text: string): Record<string, boolean> {
             text,
           ),
       };
+    case "cast-recall":
+      // Each colour is written once in the fixture, in the register alone.
+      return {
+        "away-principal": /\bamber\b/i.test(text),
+        "present-minor": /\bhazel\b/i.test(text) && /\bgreen\b/i.test(text),
+      };
   }
 }
+
+/** A register entry of the recall fixture: a fixed id by position, the anchor and state given. */
+function person(
+  at: number,
+  name: string,
+  gender: CastAnchor["gender"],
+  role: CastEntry["role"],
+  anchor: Partial<CastAnchor>,
+  state: Partial<CastState> | null,
+): CastEntry {
+  return {
+    id: `94f3d513-f7ac-4e14-9ab0-${String(at).padStart(12, "0")}`,
+    role,
+    aka: [],
+    anchor: { ...emptyCastAnchor(name, gender), ...anchor },
+    introduced: true,
+    state: { ...emptyCastState(state !== null), ...state },
+  };
+}
+
+/**
+ * Six people at the ferry office: two principals (one away) and four minors
+ * (two away), every anchor filled. The eye colours asked for are written
+ * nowhere else in the fixture.
+ */
+const recallCast = (): CastRegister => ({
+  entries: [
+    person(
+      1,
+      "Mara",
+      "female",
+      "principal",
+      {
+        age: "32",
+        ethnicity: "Swedish",
+        skin: "fair skin with light freckles",
+        face: "oval face, straight nose, full lips",
+        relationship: "single",
+        height: "168cm",
+        weight: "60kg",
+        build: "slim, narrow-shouldered build",
+        hair: "long brown hair in a low ponytail",
+        eyes: "dark blue round eyes",
+        personality: "dry humor, concise, observant, patient",
+      },
+      {
+        outfit: "navy uniform jacket over a white shirt, black trousers, black lace-up shoes",
+        position: "behind the ferry counter",
+        activity: "stamping tickets",
+        mood: "calm",
+      },
+    ),
+    person(
+      2,
+      "Ilse Brandt",
+      "female",
+      "principal",
+      {
+        age: "41",
+        ethnicity: "Dutch",
+        skin: "pale skin, freckled across the nose",
+        face: "heart-shaped face, small upturned nose, thin lips",
+        relationship: "widowed",
+        height: "172cm",
+        weight: "61kg",
+        build: "lean, wiry build",
+        hair: "copper-red braid down to her waist",
+        eyes: "amber almond-shaped eyes",
+        personality: "blunt, loyal, quick to laugh",
+      },
+      null,
+    ),
+    person(
+      3,
+      "Tobin Hale",
+      "male",
+      "minor",
+      {
+        age: "26",
+        ethnicity: "Welsh",
+        skin: "tanned, weathered skin",
+        face: "square face, crooked nose, wide mouth",
+        relationship: "engaged",
+        height: "185cm",
+        weight: "90kg",
+        build: "broad, heavy-shouldered build",
+        hair: "cropped black hair",
+        eyes: "one green eye and one hazel eye",
+        personality: "quiet, steady, shy with strangers",
+      },
+      {
+        outfit: "orange safety vest over a charcoal hoodie, canvas work trousers, steel-toed boots",
+        position: "by the door",
+        activity: "stacking crates",
+      },
+    ),
+    person(
+      4,
+      "Greta Holm",
+      "female",
+      "minor",
+      {
+        age: "55",
+        ethnicity: "German",
+        skin: "ruddy, lined skin",
+        face: "round face, broad nose, thin lips",
+        relationship: "married",
+        height: "160cm",
+        weight: "72kg",
+        build: "short, sturdy build",
+        hair: "silver bob with a blunt fringe",
+        eyes: "dark brown round eyes",
+        personality: "brisk, exacting, kind underneath",
+      },
+      { position: "at the boarding gate", activity: "checking the passenger list" },
+    ),
+    person(
+      5,
+      "Pavel Novak",
+      "male",
+      "minor",
+      {
+        age: "63",
+        ethnicity: "Czech",
+        skin: "sun-browned, creased skin",
+        face: "long face, hooked nose, thin lips",
+        relationship: "divorced",
+        height: "178cm",
+        weight: "84kg",
+        build: "stocky, barrel-chested build",
+        hair: "white-blond crew cut",
+        eyes: "pale blue deep-set eyes",
+        personality: "gruff, superstitious, generous",
+      },
+      null,
+    ),
+    person(
+      6,
+      "Jonas Reyes",
+      "male",
+      "minor",
+      {
+        age: "34",
+        ethnicity: "Mexican-American",
+        skin: "warm tan skin",
+        face: "square face, broken nose, thin lips",
+        relationship: "single",
+        height: "183cm",
+        weight: "88kg",
+        build: "broad, heavy-set build",
+        hair: "short black curls",
+        eyes: "black hooded eyes",
+        personality: "easygoing, talkative, protective",
+      },
+      null,
+    ),
+  ],
+});
 
 export function comparisonPreset(
   variant: Variant,
@@ -214,6 +392,21 @@ export function fixture(id: FixtureId, variant: Variant): AssemblyInput {
           role: "user",
           content:
             "I remain silent. Continue the scene from Mara's current position and condition.",
+        },
+      ];
+      break;
+    case "cast-recall":
+      input.cast = recallCast();
+      input.history = [
+        {
+          role: "assistant",
+          content:
+            "Mara stamps a ticket at the ferry counter while Tobin stacks crates by the door and Greta checks the passenger list at the boarding gate.",
+        },
+        {
+          role: "user",
+          content:
+            "Mara, two things before I board. What colour are Ilse's eyes again? And look at Tobin over there: what is unusual about his eyes?",
         },
       ];
       break;

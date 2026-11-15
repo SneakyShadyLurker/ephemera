@@ -72,6 +72,55 @@ describe("the keeper prompt", () => {
     expect(text).toContain("The register is full: add no one; update and mark absent only.");
   });
 
+  it("writes whole only who is in the scene or named in the turns; the rest by name, role and gender", () => {
+    const away = (id: number, name: string, more: object = {}) => ({
+      id: `00000000-0000-4000-8000-00000000000${id}`,
+      role: "minor" as const,
+      anchor: { ...emptyCastAnchor(name, "male"), hair: `hair of ${name}` },
+      aka: [],
+      state: { ...emptyCastState(false), outfit: `outfit of ${name}` },
+      ...more,
+    });
+    const text = keeperMessage({
+      canon: null,
+      names,
+      register: {
+        entries: [
+          ...register.entries,
+          away(2, "Jonas Reyes", {
+            introduced: true,
+            aka: ["Jo"],
+            continuity: { goals: "sell the bar" },
+          }),
+          away(3, "Tomas Vidal"),
+          away(4, "Ash Okoro"),
+        ],
+      },
+      turns: [
+        { role: "assistant" as const, content: "Mara waits. Tomas is late again, she says." },
+        { role: "user" as const, content: "I shrug.", name: "Ash" },
+      ],
+      mode: "update",
+      full: false,
+    });
+    // Present: whole. Named by his given name: whole, though away.
+    expect(text).toContain(
+      '"name":"Mara Battin","role":"principal","gender":"female","anchor":{"age":"18"}',
+    );
+    expect(text).toContain('"hair":"hair of Tomas Vidal"');
+    expect(text).toContain('"outfit":"outfit of Tomas Vidal"');
+    // Away and unnamed: identity alone. The player's name names no entry.
+    expect(text).toContain(
+      '{"name":"Jonas Reyes","role":"minor","gender":"male","aka":["Jo"],"introduced":true}',
+    );
+    expect(text).toContain('{"name":"Ash Okoro","role":"minor","gender":"male"}');
+    expect(text).not.toContain("hair of Jonas Reyes");
+    expect(text).not.toContain("sell the bar");
+    expect(keeperInstructions()).toContain(
+      'Everyone else is listed by "name", "role" and "gender" alone',
+    );
+  });
+
   it("asks a seed call to set who is present", () => {
     expect(
       keeperMessage({ canon: null, names, register, turns, mode: "seed", full: false }),
@@ -106,7 +155,14 @@ describe("the keeper prompt", () => {
     expect(text).toContain('"introduced":true');
     expect(text).toContain('"discovered":{"age":{"value":"late teens","basis":"seen"}}');
     expect(text).not.toContain("test discovery");
-    expect(text).toContain("a new NPC starts minor");
+    // The role rule is the instructions' own, for every kind of card: no call repeats it.
+    expect(text).not.toContain("starts minor");
+    expect(keeperInstructions()).toContain("A new NPC starts minor");
+    expect(keeperInstructions()).toContain('"principal" is a continuing figure');
+    // An introduction brings its discoveries along: a model otherwise sends the one without the other.
+    expect(keeperInstructions()).toContain('goes under "discovered" in the same change');
+    expect(keeperInstructions()).toContain("A new minor gets the looks alone");
+    expect(keeperInstructions()).toContain("complete the anchor in the same answer");
     expect(keeperInstructions()).toContain("Invented canon is not player discovery");
     expect(keeperInstructions()).toContain("Intimate anatomy requires actual exposure");
   });

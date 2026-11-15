@@ -40,8 +40,13 @@ interface ApplyOptions {
   previous?: CastRegister;
   /** Exact shown text of this batch, required for development and continuity updates. */
   shown?: readonly string[];
-  /** Owner anchor fields are locked even when explicitly cleared. */
+  /**
+   * The owner's corrections by entry id. Their anchor fields are locked even
+   * when explicitly cleared, and an entry with one is never retired.
+   */
   corrected?: Readonly<Record<string, { anchor: Partial<CastEntry["anchor"]> }>>;
+  /** The card's sheet entries: whoever one of them is, by id or by name, is never retired. */
+  sheet?: readonly CastSheetEntry[];
 }
 
 /** Whether the entry's name or an earlier one has `key`. */
@@ -147,6 +152,55 @@ const renamedTo = (entry: CastEntry, name: string): CastEntry => ({
 /** Whether a register has room for one more entry: the one capacity rule. */
 const hasRoom = (entries: readonly CastEntry[]): boolean => entries.length < L.entries;
 
+/** Whether a newcomer may take the entry's place in a full register: a minor who is away. */
+const retirable = (entry: CastEntry): boolean => entry.role === "minor" && !entry.state.present;
+
+/**
+ * Whether a register can take someone new: it has room, or holds someone a
+ * newcomer may retire. What a keeper call is told; whom the owner's
+ * corrections and the sheet spare besides is known only where the changes
+ * are applied.
+ */
+export const castAdmitsNew = (register: CastRegister): boolean =>
+  hasRoom(register.entries) || register.entries.some(retirable);
+
+/**
+ * `entries` back within `CAST_LIMITS.entries` after a batch that added
+ * `added` (ids, in order): for each entry over, the retirable one known
+ * before the batch and last in the scene longest ago goes (never seen
+ * first, ties in register order), `spared` ids excepted. With no one left
+ * to retire, the batch's newest additions are refused instead.
+ */
+function withinCapacity(
+  entries: readonly CastEntry[],
+  added: readonly string[],
+  spared: ReadonlySet<string>,
+): readonly CastEntry[] {
+  const over = entries.length - L.entries;
+  if (over <= 0) return entries;
+  const fresh = new Set(added);
+  const out = new Set(
+    entries
+      .filter((entry) => !fresh.has(entry.id) && !spared.has(entry.id) && retirable(entry))
+      .toSorted((a, b) => (a.seen ?? -1) - (b.seen ?? -1))
+      .slice(0, over)
+      .map((entry) => entry.id),
+  );
+  for (const id of added.toReversed().slice(0, over - out.size)) out.add(id);
+  return entries.filter((entry) => !out.has(entry.id));
+}
+
+/**
+ * Everyone in the scene marked as seen now: one past the highest count the
+ * register holds. An entry the owner removed stays as it was.
+ */
+function seenNow(entries: readonly CastEntry[], removed: ReadonlySet<string>): CastEntry[] {
+  const now = entries.reduce((latest, entry) => Math.max(latest, entry.seen ?? 0), 0) + 1;
+  return entries.map((entry) =>
+    entry.state.present && !removed.has(entry.id) ? { ...entry, seen: now } : entry,
+  );
+}
+
 /** Whether `name` is the player: the whole name, or one word that is the player's first. */
 function isPlayer(name: string, player: string | null): boolean {
   if (player === null || castKey(player) === "") return false;
@@ -225,17 +279,34 @@ const definedState = (state: CastChange["state"]): Partial<CastEntry["state"]> =
  * the chat knew before (`previous`), else a new entry; the player's names dropped; a set anchor field never
  * rewritten; state written as given; an entry present when its change says so or
  * sets a state field, otherwise keeping its presence (a new one away);
- * `absent` names marked away; new entries past
- * `CAST_LIMITS.entries` refused. An entry is introduced by the keeper's
+ * `absent` names marked away. An entry is introduced by the keeper's
  * grounded `introduce` or by a shown turn writing its name (`namedInTurns`).
+ * A newcomer to a full register retires the away minor last in the scene
+ * longest ago (`withinCapacity`): never a principal, someone present, a
+ * sheet entry, one the owner corrected or removed, or one this batch
+ * changed or named; with no such entry the newcomer is refused. A retired
+ * entry stays in `previous`, so a return restores its id and anchor.
+ * Everyone present after the batch is marked `seen`.
  */
 export function applyCastChanges(
   register: CastRegister,
   changes: CastChanges,
-  { player, newId, removed = new Set(), previous, shown = [], corrected = {} }: ApplyOptions,
+  {
+    player,
+    newId,
+    removed = new Set(),
+    previous,
+    shown = [],
+    corrected = {},
+    sheet = [],
+  }: ApplyOptions,
 ): CastRegister {
   changes = groundedCastChanges(changes, shown);
   const entries = [...register.entries];
+  // New entries may overfill the register until the batch is read whole: who is retired for them
+  // depends on where everyone stands at its end.
+  const added: string[] = [];
+  const spared = new Set([...removed, ...Object.keys(corrected), ...sheet.map((item) => item.id)]);
   for (const [name, change] of Object.entries(changes.cast)) {
     if (isPlayer(name, player)) continue;
     // A fuller name for a one-word entry is that entry learning its name, as `was` says.
@@ -243,6 +314,7 @@ export function applyCastChanges(
     const entry = entries[at];
     if (entry !== undefined) {
       if (removed.has(entry.id)) continue;
+      spared.add(entry.id);
       entries[at] = changed(
         renamed ? renamedTo(entry, name) : entry,
         change,
@@ -264,15 +336,21 @@ export function applyCastChanges(
         continue;
       }
       const next = changed(reconciled(target, known, name), change, corrected[target.id]?.anchor);
-      if (here !== -1) entries[here] = next;
-      else if (hasRoom(entries)) entries.push(next);
+      if (here !== -1) {
+        spared.add(next.id);
+        entries[here] = next;
+      } else {
+        added.push(next.id);
+        entries.push(next);
+      }
       continue;
     }
-    if (!hasRoom(entries)) continue;
+    const id = newId();
+    added.push(id);
     entries.push(
       changed(
         {
-          id: newId(),
+          id,
           role: change.role ?? "minor",
           anchor: emptyCastAnchor(name, change.gender ?? "other"),
           aka: [],
@@ -292,10 +370,18 @@ export function applyCastChanges(
   // Whoever the batch names is introduced, with or without the keeper's own `introduce`.
   for (const at of namedInTurns(entries, shown, player)) {
     const entry = entries[at];
-    if (entry === undefined || entry.introduced === true || removed.has(entry.id)) continue;
+    if (entry === undefined) continue;
+    spared.add(entry.id);
+    if (entry.introduced === true || removed.has(entry.id)) continue;
     entries[at] = { ...entry, introduced: true };
   }
-  return { entries };
+  for (const item of sheet) {
+    for (const name of [item.anchor.name, ...item.aka]) {
+      const entry = entries[resolve(entries, name)];
+      if (entry !== undefined) spared.add(entry.id);
+    }
+  }
+  return { entries: seenNow(withinCapacity(entries, added, spared), removed) };
 }
 
 /**

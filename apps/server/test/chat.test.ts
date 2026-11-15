@@ -380,14 +380,27 @@ describe("the chat's cast register", () => {
     expect(sent.filter((message) => message.content.startsWith("<cast>\n"))).toEqual([
       expect.objectContaining({
         role: "system",
-        content: expect.stringContaining(`Ilse ${CANARY}, 29`),
+        content: expect.stringContaining(`Ilse ${CANARY}; gender: female; age: 29 years old`),
       }),
     ]);
     expect(sent.at(-2)).toEqual({
       role: "user",
-      content: `[Cast now:\nIlse ${CANARY}: present, wary]`,
+      content: `[Cast now:\nIlse ${CANARY}; present; mood: wary]`,
     });
     expect(lines.join("\n")).not.toContain(CANARY);
+  });
+
+  it("says in the state message when the tab read the register before the newest reply", async () => {
+    const upstream = fakeUpstream({ chunks: ["Aye."] });
+    const { app, lines } = testApp({ fetch: upstream.fetch });
+    await readAll(await app.request("/api/chat", postJson({ ...request, cast, castBehind: true })));
+    await until(() => lines.some((line) => line.includes("generation.end")));
+    const body = upstream.records[0]?.body as
+      | { messages: { role: string; content: string }[] }
+      | undefined;
+    expect(body?.messages.at(-2)?.content).toBe(
+      `[Cast now, recorded before the latest reply; where the latest turns differ, they win:\nIlse ${CANARY}; present; mood: wary]`,
+    );
   });
 
   it("is labelled in the preview, and a malformed one is refused without an echo", async () => {

@@ -201,7 +201,7 @@ describe("memory in assembly", () => {
       "memory",
       "castState",
     ]);
-    expect(messages[at + 2]?.content).toBe("[Cast now:\nIlse Brandt: present]");
+    expect(messages[at + 2]?.content).toBe("[Cast now:\nIlse Brandt; present]");
   });
 
   it("keeps recall within the memory's share of the window", () => {

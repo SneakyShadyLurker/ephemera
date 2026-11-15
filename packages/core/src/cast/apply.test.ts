@@ -37,19 +37,28 @@ const apply = (
   value: unknown,
   {
     player = null,
-    removed,
-    previous,
-  }: { player?: string | null; removed?: Set<string>; previous?: CastRegister } = {},
+    ...options
+  }: Partial<Omit<Parameters<typeof applyCastChanges>[2], "newId">> = {},
 ) => {
   const counter = ids();
   const result = applyCastChanges(base, changes(value), {
     player,
     newId: counter.newId,
-    ...(removed === undefined ? {} : { removed }),
-    ...(previous === undefined ? {} : { previous }),
+    ...options,
   });
   return { result, calls: counter.calls() };
 };
+
+/** `base` with its present entries marked as seen at `count`: what a batch leaves of the ones it does not change. */
+const seenAt = (
+  base: CastRegister,
+  count: number,
+  removed: readonly string[] = [],
+): CastRegister => ({
+  entries: base.entries.map((item) =>
+    item.state.present && !removed.includes(item.id) ? { ...item, seen: count } : item,
+  ),
+});
 
 const names = (value: CastRegister) => value.entries.map((at) => at.anchor.name);
 
@@ -119,7 +128,7 @@ describe("resolving a change to an entry", () => {
     // The one `was` names is removed: she stays as she was, and the guess takes no one.
     const removed = apply(both, answer, { removed: new Set([uuid(2)]) });
     expect(removed.calls).toBe(0);
-    expect(removed.result).toEqual(both);
+    expect(removed.result).toEqual(seenAt(both, 1, [uuid(2)]));
     // As for what the chat knew before: `was` finds Voss, not the guess Maren.
     const earlier = apply(register(), answer, { previous: both });
     expect(earlier.result.entries.map((at) => [at.id, at.anchor.name])).toEqual([
@@ -184,6 +193,7 @@ describe("anchors and state", () => {
       role: "minor",
       anchor: { ...emptyCastAnchor("Jonas Reyes", "other"), age: "34" },
       aka: [],
+      seen: 1,
       state: { ...emptyCastState(true), activity: "polishing a glass" },
     });
     expect(result.entries[1]).toMatchObject({
@@ -208,16 +218,143 @@ describe("anchors and state", () => {
     expect(result.entries[1]?.state.outfit).toBe("coat");
   });
 
-  it("refuses new entries past the cap and still updates known ones", () => {
+  it("refuses new entries past the cap when no one may be retired, and still updates known ones", () => {
     const full = register(
       ...Array.from({ length: CAST_LIMITS.entries }, (_, n) => entry(n + 1, `Person ${n}`)),
     );
-    const { result, calls } = apply(full, {
+    const { result } = apply(full, {
       cast: { "Someone New": {}, "Person 0": { state: { mood: "tired" } } },
     });
-    expect(calls).toBe(0);
     expect(result.entries).toHaveLength(CAST_LIMITS.entries);
+    expect(names(result)).not.toContain("Someone New");
     expect(result.entries[0]?.state.mood).toBe("tired");
+  });
+});
+
+describe("a full register", () => {
+  const minor = (n: number, name: string, seen?: number, more: Partial<CastEntry> = {}) =>
+    entry(n, name, {
+      role: "minor",
+      state: emptyCastState(false),
+      ...(seen === undefined ? {} : { seen }),
+      ...more,
+    });
+  /** A full register: two present principals, then away minors seen at the counts given (undefined for never). */
+  const crowd = (seen: (number | undefined)[], more: Record<number, Partial<CastEntry>> = {}) =>
+    register(
+      entry(1, "Mara Battin", { seen: 50 }),
+      entry(2, "Ilse Brandt", { seen: 50 }),
+      ...Array.from({ length: CAST_LIMITS.entries - 2 }, (_, at) =>
+        minor(at + 3, `Guest ${at}`, at < seen.length ? seen[at] : 40, more[at]),
+      ),
+    );
+  const newcomer = { cast: { "Tilda Marek": { state: { position: "at the bar" } } } };
+  const gone = (before: CastRegister, after: CastRegister) =>
+    names(before).filter((name) => !names(after).includes(name));
+
+  it("retires the away minor last in the scene longest ago for a newcomer", () => {
+    const base = crowd([7, 3, 9]);
+    const { result } = apply(base, newcomer);
+    expect(result.entries).toHaveLength(CAST_LIMITS.entries);
+    expect(gone(base, result)).toEqual(["Guest 1"]);
+    expect(result.entries.at(-1)).toMatchObject({ anchor: { name: "Tilda Marek" }, seen: 51 });
+  });
+
+  it("takes someone never in a scene first, and the earlier entry of two alike", () => {
+    expect(
+      gone(crowd([7, undefined, 3]), apply(crowd([7, undefined, 3]), newcomer).result),
+    ).toEqual(["Guest 1"]);
+    expect(gone(crowd([5, 5, 5]), apply(crowd([5, 5, 5]), newcomer).result)).toEqual(["Guest 0"]);
+  });
+
+  it("never retires a principal, someone present, a sheet entry, or one the owner corrected or removed", () => {
+    const spared = {
+      0: { role: "principal" as const },
+      1: { state: emptyCastState(true) },
+    };
+    // Guests 0 to 5 are the oldest; each is spared for another reason, so Guest 6 goes.
+    const base = crowd([1, 1, 1, 1, 1, 1, 2], spared);
+    const sheet: CastSheetEntry[] = [
+      {
+        id: uuid(5),
+        role: "principal",
+        anchor: emptyCastAnchor("Someone Else", "female"),
+        aka: [],
+      },
+      { id: uuid(999), role: "principal", anchor: emptyCastAnchor("Guest 3", "female"), aka: [] },
+    ];
+    const { result } = apply(base, newcomer, {
+      sheet,
+      corrected: { [uuid(7)]: { anchor: {} } },
+      removed: new Set([uuid(8)]),
+    });
+    expect(gone(base, result)).toEqual(["Guest 6"]);
+  });
+
+  it("spares whoever the batch changes or names", () => {
+    const base = crowd([1, 2, 3]);
+    const { result } = apply(
+      base,
+      {
+        cast: {
+          ...newcomer.cast,
+          "Guest 0": { continuity: { goals: { value: "wants to leave", evidence: "I want out" } } },
+        },
+      },
+      { shown: ['"I want out," Guest 0 wrote. Guest 1 had said the same.'] },
+    );
+    expect(gone(base, result)).toEqual(["Guest 2"]);
+  });
+
+  it("refuses the newcomers no one can be retired for, newest first", () => {
+    const everyone = Object.fromEntries(
+      Array.from({ length: CAST_LIMITS.entries - 2 }, (_, at) => [
+        at,
+        at === 4 ? {} : { role: "principal" as const },
+      ]),
+    );
+    const base = crowd([], everyone);
+    const { result } = apply(base, {
+      cast: { "Tilda Marek": {}, "Bruno Castell": {}, "Edda Lindholm": {} },
+    });
+    expect(result.entries).toHaveLength(CAST_LIMITS.entries);
+    expect(gone(base, result)).toEqual(["Guest 4"]);
+    expect(names(result).slice(-1)).toEqual(["Tilda Marek"]);
+  });
+
+  it("gives a retired entry who returns their id and anchor back, retiring the next", () => {
+    const base = crowd([1, 2, 3]);
+    const first = apply(base, newcomer).result;
+    expect(gone(base, first)).toEqual(["Guest 0"]);
+    const known = base.entries[2];
+    if (known === undefined) throw new Error("Expected the retired entry");
+    const previous = register({ ...known, anchor: { ...known.anchor, hair: "red bob" } });
+    const { result, calls } = apply(
+      first,
+      { cast: { "Guest 0": { state: { position: "in the doorway" } } } },
+      { previous },
+    );
+    expect(calls).toBe(0);
+    expect(gone(first, result)).toEqual(["Guest 1"]);
+    expect(result.entries.at(-1)).toMatchObject({
+      id: known.id,
+      anchor: { name: "Guest 0", hair: "red bob" },
+      state: { present: true, position: "in the doorway" },
+    });
+  });
+});
+
+describe("when an entry was last in the scene", () => {
+  it("marks everyone present after a batch one past the register's highest count", () => {
+    const base = register(
+      entry(1, "Mara Battin", { seen: 4 }),
+      entry(2, "Ilse Brandt", { state: emptyCastState(false), seen: 6 }),
+      entry(3, "Jonas Reyes", { state: emptyCastState(false) }),
+    );
+    const { result } = apply(base, { cast: { "Jonas Reyes": { state: { mood: "wry" } } } });
+    expect(result.entries.map((item) => item.seen)).toEqual([7, 6, 7]);
+    const left = apply(result, { cast: {}, absent: ["Mara Battin"] }).result;
+    expect(left.entries.map((item) => item.seen)).toEqual([7, 6, 8]);
   });
 });
 
@@ -356,6 +493,7 @@ describe("removed entries", () => {
     );
     expect(calls).toBe(0);
     expect(result).toEqual(base);
+    expect(result.entries[0]).not.toHaveProperty("seen");
   });
 });
 

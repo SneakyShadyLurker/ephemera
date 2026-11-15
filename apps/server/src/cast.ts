@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import {
-  CAST_LIMITS,
   type CallAccounting,
   type CallUsage,
   type CastChanges,
@@ -9,6 +8,7 @@ import {
   type CastSheetRequest,
   type CastUpdateRequest,
   type CharacterCard,
+  castAdmitsNew,
   castCanon,
   castCardKind,
   castChangesSchema,
@@ -161,7 +161,7 @@ export function createCastApi(deps: CastDeps) {
       register: request.register,
       turns: request.turns,
       mode: request.mode,
-      full: request.register.entries.length >= CAST_LIMITS.entries,
+      full: !castAdmitsNew(request.register),
       kind: castCardKind(card?.tags ?? []),
     });
     const room = roomFor(call, [instructions, message]);

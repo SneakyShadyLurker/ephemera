@@ -727,7 +727,9 @@ Version 1.0 holds everything below.
   an update but does not prove its meaning. After each reply or
   Continue that completes, a keeper call reads the turns since its last
   answer in chronological batches, covering the entire gap before publishing
-  a snapshot, and answers with what changed. Completed batches stay private and
+  a snapshot, and answers with what changed. Each call carries the whole record
+  of everyone in the scene or named in its turns, and only the name, role and
+  gender of everyone else. Completed batches stay private and
   retries resume at the first unfinished batch while their source and context
   remain unchanged. Appended replies queue behind the active work. Changes to
   the chat epoch, character, persona, model, effort, player name, sheet, notebook
@@ -738,11 +740,17 @@ Version 1.0 holds everything below.
   switching branches or changing character or persona cancels work without
   automatically recomputing it. A context change with no active or queued work
   starts nothing and leaves any failure visible for Try again. It fills empty baseline fields
-  without rewriting set ones; developments are held separately. A newly introduced
-  Scenario NPC receives one complete hidden canonical profile, while only facts
+  without rewriting set ones; developments are held separately. Every entry has
+  a role, whatever the card's kind: a principal is a continuing figure (a subject
+  of the card, a recurring relationship, someone with goals of their own), a
+  minor is everyone else, and a minor becomes principal as the story establishes
+  their importance. In a Scenario the keeper invents what a new NPC's record
+  leaves open, by role: a principal receives one complete hidden canonical
+  profile at introduction, a minor only their looks (age, ethnicity, skin, face,
+  height, weight, build, hair, eyes). A minor's other fields hold what the turns
+  show, and the keeper completes the record when it promotes them. Only facts
   grounded in what the player sees, is told or observes in conduct become public
-  discoveries. A minor NPC can become principal as the story establishes their
-  importance. Someone the keeper gives a state counts as present, so a
+  discoveries. Someone the keeper gives a state counts as present, so a
   person the story only speaks of stays away. A person who left the scene stays in the register as away. Each reply variant keeps its own
   snapshot: a swipe shows the cast as it stood after that variant, and
   editing or deleting history invalidates dependent snapshots, so catch-up
@@ -751,14 +759,30 @@ Version 1.0 holds everything below.
   the preset's Cast block, after the description in the default preset (a
   preset without the block gets them at the same place, and the preset
   editor can add it back), and who is present and how as a "Cast now"
-  line just before the latest turn. The baseline stays in the stable block;
-  current durable overrides and continuity join the dynamic state line.
-  The default preset does not ask the model to write a present block.
+  message just before the latest turn. Every line names its fields ("hair:
+  short black curls; eyes: dark brown hooded eyes"), so a value that holds
+  commas stays one value. The Cast block holds a principal's whole record
+  and, of a minor, the name, gender, age, build and hair; a present minor's
+  other fields go with the Cast now message, which changes with every reply
+  anyway, so the block stays the same from reply to reply and a provider can
+  cache it. The baseline stays in the stable block; current durable overrides
+  and continuity join the dynamic state message. When the newest reply has
+  no snapshot yet as a message is sent (the keeper is still reading it,
+  failed on it, or the reply ended partial), the message says that the cast
+  was recorded before the latest reply and that the latest turns win where
+  they differ. The default preset does not ask the model to write a present
+  block.
 - A new chat seeds recurring NPCs from the enabled memory notebook, after
   reading the card's cast sheet. Card anchors win over remembered lines.
   Remembered people get fresh chat ids, minor roles and empty, absent state
-  until the story places them. The register admits at most 40 people and
-  never evicts a known entry to make room. Editing Cast lines, turning memory
+  until the story places them. The register holds at most 40 people. When it
+  is full and someone new arrives, the away minor who was in the scene longest
+  ago is retired for them: never a principal, someone present, a person of
+  the card's sheet, one the owner corrected or removed, or one the newest
+  turns concern. With no such entry the newcomer is not recorded. A retired
+  person stays known to the chat, so a return restores their identity and
+  fixed record. Seeds and sheets retire no one: they join only while there is
+  room. Editing Cast lines, turning memory
   off or Forget everything replaces the notebook overlay; people already
   established in this chat remain. Overlay changes preserve narration and scene
   painting already in progress. The narrator reads remembered anchors

@@ -766,8 +766,9 @@ describe("cast register", () => {
     ],
   };
   const anchors =
-    "<cast>\nEvery NPC's card or initial baseline, the player excepted. Preserve these details unless current durable overrides in Cast now take precedence for changed fields; the current state is in the chat.\nIlse Brandt, 29 years old, red bob\nJonas Reyes, 34 years old\n</cast>";
-  const state = "[Cast now:\nIlse Brandt: present, grey coat, wary\nAway: Jonas Reyes]";
+    "<cast>\nEvery NPC's card or initial baseline, the player excepted and minor figures in brief: preserve these details unless current durable overrides in Cast now take precedence for changed fields.\nIlse Brandt; gender: female; age: 29 years old; hair: red bob\nJonas Reyes; gender: male; age: 34 years old\n</cast>";
+  const state =
+    "[Cast now:\nIlse Brandt; present; outfit: grey coat; mood: wary\nAway: Jonas Reyes]";
   const sources = (value: AssemblyInput) =>
     flatten(assemblePrompt(value)).map((message) => message.source);
   const at = (value: AssemblyInput, id: string) =>
@@ -837,6 +838,21 @@ describe("cast register", () => {
   it("puts the state last when the preset sends no history", () => {
     const preset = withBlocks(plainPromptPreset().blocks.filter((b) => b.kind !== "chatHistory"));
     expect(sent(input({ preset, cast: register })).at(-1)).toBe(`user: ${state}`);
+  });
+
+  it("says in the state message when the register was read before the newest reply", () => {
+    const behind = flatten(assemblePrompt(input({ cast: register, castBehind: true })));
+    expect(behind.find((message) => message.source.kind === "castState")?.content).toBe(
+      state.replace(
+        "[Cast now:",
+        "[Cast now, recorded before the latest reply; where the latest turns differ, they win:",
+      ),
+    );
+    // Every other message keeps its bytes, and a register that is current says nothing of it.
+    const current = sent(input({ cast: register }));
+    const lagging = sent(input({ cast: register, castBehind: true }));
+    expect(lagging.filter((line, index) => line !== current[index])).toHaveLength(1);
+    expect(sent(input({ cast: register, castBehind: false }))).toEqual(current);
   });
 
   it("keeps the state as a fixed injection when the history is trimmed to its latest turn", () => {

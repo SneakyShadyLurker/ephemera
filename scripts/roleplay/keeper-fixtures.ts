@@ -39,12 +39,13 @@ export interface KeeperFixture {
 const names: SpeakerNames = { char: "Narrator", user: "Felix Arden" };
 
 let ids = 0;
-/** A register entry with fixed id, the anchor fields given and the state given. */
+/** A register entry with fixed id, the anchor fields given and the state given; `more` sets its role and recency. */
 function entry(
   name: string,
   gender: CastAnchor["gender"],
   state: Partial<CastState>,
   anchor: Partial<CastAnchor> = {},
+  more: Partial<Pick<CastEntry, "role" | "seen">> = {},
 ): CastEntry {
   ids++;
   return {
@@ -54,6 +55,7 @@ function entry(
     introduced: true,
     aka: [],
     state: { ...emptyCastState(true), ...state },
+    ...more,
   };
 }
 const register = (...entries: CastEntry[]): CastRegister => ({ entries });
@@ -64,6 +66,106 @@ const has = (text: string | undefined, ...words: string[]) =>
 const lacks = (text: string | undefined, ...words: string[]) =>
   text !== undefined && words.every((word) => !text.toLowerCase().includes(word));
 const withinBound: Check = (result) => result.overBound === 0;
+
+/** The looks a Scenario's walk-on is given, and the fields left for a promotion or the turns to fill. */
+const LOOKS = [
+  "age",
+  "ethnicity",
+  "skin",
+  "face",
+  "height",
+  "weight",
+  "build",
+  "hair",
+  "eyes",
+] as const;
+const BEYOND_LOOKS = ["experience", "relationship", "intimate", "fetishes"] as const;
+const looks = (anchor: Partial<CastAnchor>): Partial<CastAnchor> => ({
+  ethnicity: "Norwegian",
+  skin: "fair skin with a ruddy undertone",
+  face: "long face, straight nose, thin lips",
+  height: "176cm",
+  weight: "70kg",
+  build: "rangy, long-limbed build",
+  eyes: "pale blue deep-set eyes",
+  ...anchor,
+});
+
+/** A full register: an innkeeper and three more with her, an away principal and 36 away minors of mixed recency. */
+const CROWD = [
+  "Anke Dekker",
+  "Bram Voss",
+  "Cato Halvorsen",
+  "Dries Nyberg",
+  "Elin Aalto",
+  "Fenna Brandt",
+  "Gijs Dekker",
+  "Hanne Voss",
+  "Ivo Halvorsen",
+  "Jorn Nyberg",
+  "Kaja Aalto",
+  "Lars Brandt",
+  "Mette Dekker",
+  "Niels Voss",
+  "Oda Halvorsen",
+  "Pim Nyberg",
+  "Quirin Aalto",
+  "Runa Brandt",
+  "Sten Dekker",
+  "Tove Voss",
+  "Ulf Halvorsen",
+  "Vigdis Nyberg",
+  "Wim Aalto",
+  "Xander Brandt",
+  "Ylva Dekker",
+  "Zeno Voss",
+  "Arvid Halvorsen",
+  "Birte Nyberg",
+  "Corin Aalto",
+  "Dagny Brandt",
+  "Emil Dekker",
+  "Frida Voss",
+  "Gorm Halvorsen",
+  "Hilde Nyberg",
+  "Isak Aalto",
+  "Jytte Brandt",
+] as const;
+/** The away minor of `CROWD` present longest ago: the one a newcomer retires. */
+const OLDEST = "Zeno Voss";
+const crowded = (): CastEntry[] => [
+  entry("Edda Lindholm", "female", { position: "behind the bar" }, { age: "52" }, { seen: 40 }),
+  // Away longer than anyone, and a principal: never the one retired.
+  entry("Bruno Castell", "male", { present: false }, { age: "47" }, { seen: 1 }),
+  entry(
+    "Solveig Rask",
+    "female",
+    { position: "at the corner table" },
+    { age: "33" },
+    {
+      role: "minor",
+      seen: 40,
+    },
+  ),
+  entry(
+    "Matteo Riva",
+    "male",
+    { position: "by the fireplace" },
+    { age: "29" },
+    {
+      role: "minor",
+      seen: 40,
+    },
+  ),
+  ...CROWD.map((name, at) =>
+    entry(
+      name,
+      at % 2 === 0 ? "female" : "male",
+      { present: false },
+      { age: String(24 + at) },
+      { role: "minor", seen: ((at * 7 + 5) % CROWD.length) + 2 },
+    ),
+  ),
+];
 
 export const KEEPER_FIXTURES = {
   clear: {
@@ -218,7 +320,7 @@ export const KEEPER_FIXTURES = {
       {
         role: "assistant",
         content:
-          'A tall woman of about thirty with cropped platinum hair and grey eyes looks up from the radio console. "You must be the new engineer. I\'m Sigrid Aal, the station medic." She offers a firm handshake.',
+          'A tall woman of about thirty with cropped platinum hair and grey eyes looks up from the radio console. "You must be the new engineer. I\'m Sigrid Aal, the station medic." She offers a firm handshake. "You will be working under me in the infirmary all winter, and we share the night watch, so we had better get along."',
       },
     ],
     checks: {
@@ -227,6 +329,7 @@ export const KEEPER_FIXTURES = {
         return anchor !== undefined && CAST_ANCHOR_FIELDS.every((key) => anchor[key] !== "");
       },
       "scenario-new.hair": (result) => has(find(result, "Sigrid Aal")?.anchor.hair, "platinum"),
+      "scenario-new.principal": (result) => find(result, "Sigrid Aal")?.role === "principal",
       "scenario-new.within-bound": withinBound,
     },
   },
@@ -349,6 +452,154 @@ export const KEEPER_FIXTURES = {
           (before) => find(result, before.anchor.name)?.state.present === before.state.present,
         ),
       "quiet.no-anchor": (result) =>
+        Object.values(result.changes.cast).every((change) =>
+          Object.values(change.anchor ?? {}).every((value) => value === undefined || value === ""),
+        ),
+    },
+  },
+  "scenario-walk-on": {
+    kind: "Scenario",
+    canon:
+      "A night train crossing a mountain range, with a staff of adult attendants and a few dozen adult passengers.",
+    names,
+    register: register(
+      entry("Irma Falk", "female", { position: "in the seat opposite" }, { age: "36" }),
+    ),
+    turns: [
+      { role: "user", content: "I ask the attendant in the corridor for a blanket." },
+      {
+        role: "assistant",
+        content:
+          'A sleeping-car attendant in his fifties, grey at the temples, hands you a folded wool blanket. "Dieter Lorenz, if you need anything else," he says, and moves on down the corridor to the next compartment. Irma does not look up from her book.',
+      },
+    ],
+    checks: {
+      "scenario-walk-on.minor": (result) => find(result, "Dieter Lorenz")?.role === "minor",
+      "scenario-walk-on.looks": (result) => {
+        const anchor = find(result, "Dieter Lorenz")?.anchor;
+        return anchor !== undefined && LOOKS.every((key) => anchor[key] !== "");
+      },
+      "scenario-walk-on.rest-empty": (result) => {
+        const anchor = find(result, "Dieter Lorenz")?.anchor;
+        return anchor !== undefined && BEYOND_LOOKS.every((key) => anchor[key] === "");
+      },
+      "scenario-walk-on.within-bound": withinBound,
+    },
+  },
+  "scenario-promotion": {
+    kind: "Scenario",
+    canon:
+      "A remote research station on a frozen coast, staffed by a crew of six adults through the polar winter.",
+    names,
+    register: register(
+      entry("Halvard Rye", "male", { position: "at the radio console" }, { age: "45" }),
+      entry(
+        "Jorun Berg",
+        "female",
+        { position: "at her desk in the generator room" },
+        looks({ age: "34", hair: "dark blonde braid over one shoulder" }),
+        { role: "minor" },
+      ),
+    ),
+    turns: [
+      {
+        role: "user",
+        content: "I ask Jorun why she goes through the fuel logs every night.",
+      },
+      {
+        role: "assistant",
+        content:
+          'Jorun closes the logbook and meets your eyes. "Because someone is siphoning diesel, and I intend to find out who before the supply ship comes. I want you with me on this: every night, after the others turn in, we check the tanks together." She has sought you out three evenings running now, and tonight she pulls a second chair up to her desk as if it had always been yours.',
+      },
+    ],
+    checks: {
+      "scenario-promotion.principal": (result) => find(result, "Jorun Berg")?.role === "principal",
+      "scenario-promotion.anchor-complete": (result) => {
+        const anchor = find(result, "Jorun Berg")?.anchor;
+        return anchor !== undefined && CAST_ANCHOR_FIELDS.every((key) => anchor[key] !== "");
+      },
+      "scenario-promotion.within-bound": withinBound,
+    },
+  },
+  "full-retires": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(...crowded()),
+    turns: [
+      { role: "user", content: "I look up as the door bangs open." },
+      {
+        role: "assistant",
+        content:
+          'A courier in a yellow rain cape steps in out of the storm and sets a crate on the bar. "Parcel for the innkeeper. I\'m Tilda Marek," she says, pushing back her hood. Edda signs for it without a word.',
+      },
+    ],
+    checks: {
+      "full-retires.added": (result) =>
+        find(result, "Tilda Marek") !== undefined &&
+        result.after.entries.length <= result.before.entries.length,
+      // The one retired is the away minor present longest ago; everyone else stays.
+      "full-retires.oldest-retired": (result) =>
+        result.before.entries.every(
+          (before) =>
+            (before.anchor.name === OLDEST) !==
+            result.after.entries.some((entry) => entry.id === before.id),
+        ),
+    },
+  },
+  "away-named": {
+    kind: null,
+    canon: null,
+    names,
+    register: register(
+      entry("Agnes Thorne", "female", { position: "behind the counter" }, { age: "58" }),
+      entry(
+        "Silas Vane",
+        "male",
+        { present: false, outfit: "oilskin coat over a grey jumper" },
+        looks({ age: "49", hair: "thinning grey hair combed back" }),
+      ),
+      entry(
+        "Katla Nyberg",
+        "female",
+        { present: false, outfit: "green raincoat over blue overalls, brown rubber boots" },
+        looks({ age: "27", hair: "short red curls" }),
+        { role: "minor" },
+      ),
+      entry(
+        "Rurik Sand",
+        "male",
+        { present: false },
+        looks({ age: "31", hair: "shaved head with dark stubble" }),
+        { role: "minor" },
+      ),
+      entry(
+        "Ebba Lind",
+        "female",
+        { present: false },
+        looks({ age: "44", hair: "long black hair in a low bun" }),
+        { role: "minor" },
+      ),
+    ),
+    turns: [
+      { role: "user", content: "I warm my hands at the stove." },
+      {
+        role: "assistant",
+        content:
+          "Katla comes back in from the yard, her green raincoat dripping, and drops onto the bench by the stove to pull off her muddy boots. Agnes slides a mug of tea across the counter towards her without a word.",
+      },
+    ],
+    checks: {
+      "away-named.present": (result) => find(result, "Katla Nyberg")?.state.present === true,
+      "away-named.position": (result) => has(find(result, "Katla Nyberg")?.state.position, "bench"),
+      "away-named.others": (result) =>
+        result.after.entries.length === result.before.entries.length &&
+        result.before.entries.every(
+          (before) =>
+            before.anchor.name === "Katla Nyberg" ||
+            find(result, before.anchor.name)?.state.present === before.state.present,
+        ),
+      "away-named.no-anchor": (result) =>
         Object.values(result.changes.cast).every((change) =>
           Object.values(change.anchor ?? {}).every((value) => value === undefined || value === ""),
         ),

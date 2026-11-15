@@ -207,6 +207,19 @@ function baseIndex(state: CastView, index: number): number {
   return -1;
 }
 
+/**
+ * Whether the register before `index` was read before the newest reply
+ * there: a reply with text follows the snapshot it comes from (or no
+ * snapshot exists) and has none of its own, because the keeper has not
+ * read it yet, failed on it, or never reads its kind.
+ */
+export function castBehindAt(state: CastView, index: number): boolean {
+  const end = Math.min(index, state.messages.length);
+  return state.messages
+    .slice(baseIndex(state, index) + 1, end)
+    .some((message) => isAssistant(message) && shownReply(message).text !== "");
+}
+
 const EMPTY_REGISTER: CastRegister = { entries: [] };
 
 /** The register the newest snapshot before `index` holds; empty without one. */
@@ -990,6 +1003,7 @@ export function createCastSlice(
           newId: deps.newId,
           removed: removedIds(get().cast.corrections),
           previous: progress.previous,
+          sheet: progress.sheet?.entries ?? [],
           shown: batch.map((turn) => turn.scanText ?? turn.content),
           corrected: Object.fromEntries(
             [...new Set([...Object.keys(corrections), ...Object.keys(get().cast.corrections)])].map(

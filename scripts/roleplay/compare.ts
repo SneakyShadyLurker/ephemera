@@ -14,6 +14,7 @@ import {
   aggregate,
   type ComparisonFetch,
   callBudget,
+  chosenFixtures,
   estimate,
   type Observation,
   parseFlags,
@@ -30,27 +31,43 @@ export { type ComparisonFetch, numericUsage, usageTotals } from "./transport.ts"
 const VARIANTS: Variant[] = ["current", "concise"];
 const LAYOUTS: Layout[] = ["current-layout", "tail-layout"];
 
-/** No flag reads config or writes anything. Repetitions 3 exceeds the full matrix's 24-call ceiling. */
-export function parseOptions(args: string[]): RunOptions {
-  const options: RunOptions = {
+interface ComparisonOptions extends RunOptions {
+  fixtures: FixtureId[];
+}
+
+/** Both variants of every chosen fixture per repetition, then the four cache-experiment calls. */
+const planned = (options: ComparisonOptions): number =>
+  options.repetitions * options.fixtures.length * VARIANTS.length + 4;
+
+/**
+ * No flag reads config or writes anything. Repetitions 3 exceeds the full
+ * matrix's 24-call ceiling; `--fixtures` narrows the matrix, so a few
+ * fixtures can run three times.
+ */
+export function parseOptions(args: string[]): ComparisonOptions {
+  const options: ComparisonOptions = {
     live: false,
     model: "",
     repetitions: 2,
-    maxCalls: 20,
+    maxCalls: 24,
     timeoutMs: 75000,
     deadlineMs: 1800000,
     outputCap: 1536,
     settings: { reasoning: "low", temperature: 1, topP: 0.95 },
+    fixtures: [...FIXTURE_IDS],
   };
   parseFlags(args, options, 24, (flag, value) => {
+    if (flag === "--fixtures") {
+      options.fixtures = chosenFixtures(value, FIXTURE_IDS);
+      return true;
+    }
     if (flag !== "--output-cap") return false;
     const number = Number(value);
     if (number !== 1536 && number !== 2048) throw new Refusal("invalid_bounds");
     options.outputCap = number;
     return true;
   });
-  if (options.repetitions * FIXTURE_IDS.length * 2 + 4 > options.maxCalls)
-    throw new Refusal("call_budget_exceeded");
+  if (planned(options) > options.maxCalls) throw new Refusal("call_budget_exceeded");
   return options;
 }
 
@@ -114,14 +131,14 @@ async function infer(
  * No prompts, output samples, reasoning, credentials or paths escape.
  */
 export async function runComparison(args: string[], dependencies: Dependencies = {}) {
-  let options: RunOptions;
+  let options: ComparisonOptions;
   try {
     options = parseOptions(args);
   } catch (error) {
     return { version: 1, code: error instanceof Refusal ? error.code : "invalid_arguments" };
   }
-  const plannedCalls = options.repetitions * 8 + 4;
-  const diagnostics = FIXTURE_IDS.map((id) => {
+  const plannedCalls = planned(options);
+  const diagnostics = options.fixtures.map((id) => {
     const current = messages(fixture(id, "current"));
     const concise = messages(fixture(id, "concise"));
     return {
@@ -180,9 +197,7 @@ export async function runComparison(args: string[], dependencies: Dependencies =
   };
   try {
     for (let repetition = 0; repetition < options.repetitions; repetition++) {
-      for (let index = 0; index < FIXTURE_IDS.length; index++) {
-        const id = FIXTURE_IDS[index];
-        if (id === undefined) continue;
+      for (const [index, id] of options.fixtures.entries()) {
         // Alternate the first variant across fixtures and repetitions.
         for (const variant of (repetition + index) % 2 === 0 ? VARIANTS : [...VARIANTS].reverse()) {
           const result = await call(messages(fixture(id, variant)), `${rootKey}-${id}-${variant}`);
@@ -203,7 +218,7 @@ export async function runComparison(args: string[], dependencies: Dependencies =
   } finally {
     budget.close();
   }
-  const regressions = FIXTURE_IDS.flatMap((id) =>
+  const regressions = options.fixtures.flatMap((id) =>
     CHECK_IDS[id].flatMap((check) => {
       let losses = 0;
       for (let repetition = 0; repetition < options.repetitions; repetition++) {
@@ -235,7 +250,7 @@ export async function runComparison(args: string[], dependencies: Dependencies =
     quality:
       regressions.length > 0 ? "regression" : incomplete ? "incomplete" : "no_checked_regression",
     regressions,
-    fixtures: FIXTURE_IDS.map((id) => ({
+    fixtures: options.fixtures.map((id) => ({
       fixture: id,
       variants: Object.fromEntries(
         VARIANTS.map((variant) => [

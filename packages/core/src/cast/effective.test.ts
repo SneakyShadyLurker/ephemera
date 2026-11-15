@@ -87,7 +87,7 @@ describe("durable developments and compact continuity", () => {
       voice: "calls Ilse captain",
       goals: "return home with Ilse",
     });
-    expect(castStateText(next)).toContain("authoritative over <cast> baseline");
+    expect(castStateText(next)).toContain("current durable overrides: ");
     expect(castStateText(next)).toContain(
       "voice: calls Ilse captain; goals: return home with Ilse",
     );

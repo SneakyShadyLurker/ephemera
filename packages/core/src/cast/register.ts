@@ -132,6 +132,13 @@ export const castEntrySchema = z.strictObject({
   discovered: discoveriesChange.exactOptional(),
   /** Earlier names the chat used for this entry, for resolution. */
   aka: z.array(name).max(L.aka).default([]),
+  /**
+   * When the entry was last in the scene, as a count of keeper batches: one
+   * past the register's highest, set on everyone present after a batch;
+   * unset for someone never in a scene. It orders retirement alone: no
+   * prompt and no sheet carries it.
+   */
+  seen: z.number().int().nonnegative().exactOptional(),
   state: castStateSchema,
 });
 export type CastEntry = z.infer<typeof castEntrySchema>;
@@ -361,6 +368,7 @@ export const castSheetEntrySchema = castEntrySchema.omit({
   continuity: true,
   introduced: true,
   discovered: true,
+  seen: true,
 });
 export type CastSheetEntry = z.infer<typeof castSheetEntrySchema>;
 

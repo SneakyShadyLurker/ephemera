@@ -75,23 +75,79 @@ const register: CastRegister = {
   ],
 };
 
+const HEADER =
+  "Every NPC's card or initial baseline, the player excepted and minor figures in brief: preserve these details unless current durable overrides in Cast now take precedence for changed fields.";
+
+/** The register with the minor in the scene, her anchor filled further. */
+const withMinorPresent = (): CastRegister => ({
+  entries: register.entries.map((entry) =>
+    entry.role === "minor"
+      ? {
+          ...entry,
+          anchor: { ...entry.anchor, hair: "long black braid", eyes: "grey almond-shaped eyes" },
+          state: { ...entry.state, present: true },
+        }
+      : entry,
+  ),
+});
+
 describe("the register as the narrator reads it", () => {
-  it("writes the <cast> block with every entry's anchor, outfit and state left out", () => {
+  it("writes the <cast> block: a principal's whole anchor under its keys, a minor's identity", () => {
     expect(castAnchorsText(register)).toBe(
       [
         "<cast>",
-        "Every NPC's card or initial baseline, the player excepted. Preserve these details unless current durable overrides in Cast now take precedence for changed fields; the current state is in the chat.",
-        "Jonas Reyes, 34 years old, Mexican-American, warm tan skin, square face, broken nose, thin lips, experienced, divorced, 183cm, 88kg, broad, short black curls, dark brown hooded eyes, dry, protective, fetishes: none; taboos: none",
-        "Ana Pires, looks 20, is 300 years, Portuguese, willowy",
+        HEADER,
+        "Jonas Reyes; gender: male; age: 34 years old; ethnicity: Mexican-American; skin: warm tan skin; face: square face, broken nose, thin lips; experience: experienced; relationship: divorced; height: 183cm; weight: 88kg; build: broad; hair: short black curls; eyes: dark brown hooded eyes; personality: dry, protective; fetishes: none; taboos: none",
+        "Ana Pires; gender: female; age: looks 20, is 300 years; build: willowy",
         "</cast>",
       ].join("\n"),
     );
   });
 
-  it("writes the Cast now line with the present entries' state, clothes as they are worn, and the away ones by name", () => {
-    expect(castStateText(register)).toBe(
-      "[Cast now:\nJonas Reyes: present, blue denim work shirt, black jeans, brown boots, shirt unbuttoned to the waist, sleeves rolled up, behind the bar, polishing a glass, amused, bruised knuckles, two beers in\nAway: Ana Pires]",
+  it("leaves an unknown gender out and a minor's other fields to Cast now", () => {
+    const text = castAnchorsText({
+      entries: withMinorPresent().entries.map((entry) => ({
+        ...entry,
+        anchor: { ...entry.anchor, gender: "other" as const },
+      })),
+    });
+    expect(text).toContain("\nJonas Reyes; age: 34 years old;");
+    expect(text).toContain(
+      "\nAna Pires; age: looks 20, is 300 years; build: willowy; hair: long black braid\n",
     );
+    expect(text).not.toContain("Portuguese");
+    expect(text).not.toContain("grey almond-shaped eyes");
+  });
+
+  it("writes the Cast now message with the present entries' state under its keys and the away ones by name", () => {
+    expect(castStateText(register)).toBe(
+      "[Cast now:\nJonas Reyes; present; outfit: blue denim work shirt, black jeans, brown boots; disarray: shirt unbuttoned to the waist, sleeves rolled up; position: behind the bar; activity: polishing a glass; mood: amused; injuries: bruised knuckles; intoxication: two beers in\nAway: Ana Pires]",
+    );
+  });
+
+  it("gives a present minor's remaining anchor fields in Cast now, as they stand", () => {
+    const present = withMinorPresent();
+    expect(castStateText(present)).toContain(
+      "\nAna Pires; present; outfit: red coat\nAna Pires details: ethnicity: Portuguese; eyes: grey almond-shaped eyes]",
+    );
+    const developed: CastRegister = {
+      entries: present.entries.map((entry) => ({
+        ...entry,
+        developments: { eyes: "one eye lost" },
+      })),
+    };
+    expect(castStateText(developed)).toContain(
+      "Ana Pires details: ethnicity: Portuguese; eyes: one eye lost]",
+    );
+    // A principal's whole anchor is in <cast>: no details line.
+    expect(castStateText(developed)).not.toContain("Jonas Reyes details");
+  });
+
+  it("opens the message with the lag when the register was read before the newest reply", () => {
+    expect(castStateText(register, true)).toMatch(
+      /^\[Cast now, recorded before the latest reply; where the latest turns differ, they win:\nJonas Reyes; present; /,
+    );
+    expect(castStateText(register, false)).toMatch(/^\[Cast now:\n/);
   });
 
   it("keeps baseline bytes stable while Cast now carries durable overrides", () => {
@@ -103,8 +159,10 @@ describe("the register as the narrator reads it", () => {
     };
     expect(castAnchorsText(developed)).toBe(castAnchorsText(register));
     expect(castStateText(developed)).toContain(
-      "current durable overrides (authoritative over <cast> baseline for these fields): hair: cropped hair",
+      "Jonas Reyes current durable overrides: hair: cropped hair\n",
     );
+    // The precedence rule is stated once, in the <cast> header.
+    expect(castStateText(developed)).not.toContain("authoritative");
   });
 
   it("writes nothing for an empty register", () => {

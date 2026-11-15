@@ -145,6 +145,11 @@ export interface AssemblyInput {
    */
   cast?: CastRegister;
   /**
+   * Whether `cast` was read before the newest reply: the state message then
+   * says so and puts the latest turns first.
+   */
+  castBehind?: boolean;
+  /**
    * The character's memory, when it is on: the notebook and this chat's
    * episodes (`recap`, in order) go in as one system message right before
    * the history; `candidates`, the rest of the book, may be recalled into
@@ -751,7 +756,8 @@ export function assemblePrompt(input: AssemblyInput): Assembly {
       afterMemory += 1;
     }
   }
-  const castState = input.cast === undefined ? "" : castStateText(input.cast);
+  const castState =
+    input.cast === undefined ? "" : castStateText(input.cast, input.castBehind === true);
   if (castState !== "") {
     const message: PromptMessage = {
       role: "user",

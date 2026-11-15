@@ -277,6 +277,7 @@ export function createGeneration(
         mode,
         event: roll?.fired == null ? null : { text: roll.fired.text },
         ...(request.cast === undefined ? {} : { cast: request.cast }),
+        ...(request.castBehind === true ? { castBehind: true } : {}),
       };
       const linked =
         request.characterId === undefined ? [] : stores.lorebooks.booksOf(request.characterId);

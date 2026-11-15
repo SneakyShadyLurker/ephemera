@@ -1,7 +1,7 @@
 import { isRecord } from "../../packages/core/src/card/json.ts";
-import { applyCastChanges } from "../../packages/core/src/cast/apply.ts";
+import { applyCastChanges, castAdmitsNew } from "../../packages/core/src/cast/apply.ts";
 import { groundedCastChanges } from "../../packages/core/src/cast/effective.ts";
-import { CAST_LIMITS, castFieldLimit } from "../../packages/core/src/cast/limits.ts";
+import { castFieldLimit } from "../../packages/core/src/cast/limits.ts";
 import { keeperInstructions, keeperMessage } from "../../packages/core/src/cast/prompt.ts";
 import {
   type CastChanges,
@@ -15,6 +15,7 @@ import {
   aggregate,
   type ComparisonFetch,
   callBudget,
+  chosenFixtures,
   estimate,
   type Observation,
   parseFlags,
@@ -43,7 +44,7 @@ export function parseKeeperOptions(args: string[]): KeeperOptions {
     live: false,
     model: "",
     repetitions: 2,
-    maxCalls: 24,
+    maxCalls: 32,
     timeoutMs: 75000,
     deadlineMs: 1800000,
     outputCap: 8192,
@@ -53,13 +54,7 @@ export function parseKeeperOptions(args: string[]): KeeperOptions {
   };
   parseFlags(args, options, 72, (flag, value) => {
     if (flag !== "--fixtures") return false;
-    const chosen = value.split(",");
-    if (new Set(chosen).size !== chosen.length) throw new Refusal("invalid_arguments");
-    options.fixtures = chosen.map((id) => {
-      const known = KEEPER_FIXTURE_IDS.find((item) => item === id);
-      if (known === undefined) throw new Refusal("unknown_fixture");
-      return known;
-    });
+    options.fixtures = chosenFixtures(value, KEEPER_FIXTURE_IDS);
     return true;
   });
   if (options.fixtures.length * options.repetitions > options.maxCalls)
@@ -80,7 +75,7 @@ function keeperWire(id: KeeperFixtureId): WireMessage[] {
         register,
         turns,
         mode: "update",
-        full: register.entries.length >= CAST_LIMITS.entries,
+        full: !castAdmitsNew(register),
         kind,
       }),
     },
