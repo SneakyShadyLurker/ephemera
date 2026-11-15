@@ -21,6 +21,7 @@ import {
   clampCastCorrection,
   emptyCastState,
   fillMemoryCastEntries,
+  groundedCastChanges,
   memoryCastContext,
   memoryCastEntries,
   memoryIsOn,
@@ -305,22 +306,15 @@ const endedHidden = (correction: CastCorrection | undefined): CastStateField[] =
 /**
  * A register without the hidden fields `ended` names by entry id: the ones
  * the owner ended, out of what the narrator, the keeper and the panel read.
- * `recorded` holds the entries as the endings met them: a field whose value
- * differs from its entry there was written since by the keeper, and stays.
  * An entry whose last hidden field ended carries none.
  */
 function withoutEndedHidden(
   register: CastRegister,
   ended: (entryId: string) => readonly CastStateField[],
-  recorded: CastRegister = register,
 ): CastRegister {
   return {
     entries: register.entries.map((entry) => {
-      const before = recorded === register ? entry : entryIn([recorded], entry.id);
-      const fields = ended(entry.id).filter(
-        (field) =>
-          entry.hidden?.[field] !== undefined && entry.hidden[field] === before?.hidden?.[field],
-      );
+      const fields = ended(entry.id).filter((field) => entry.hidden?.[field] !== undefined);
       if (fields.length === 0) return entry;
       const { hidden: held, ...rest } = entry;
       const hidden = { ...held };
@@ -615,6 +609,11 @@ export function createCastSlice(
     multibatch: boolean;
     sent: Set<string>;
     affirmed: Set<string>;
+    /**
+     * The hidden fields a batch of this run wrote, as `id:field`: an ending the owner made
+     * before the run does not take what the keeper established again, in whatever words.
+     */
+    rewritten: Set<string>;
   };
   // One tab-only prefix, with source object identities rather than another transcript copy.
   let continuation: Continuation | undefined;
@@ -968,6 +967,7 @@ export function createCastSlice(
             multibatch: turns.length > CAST_LIMITS.turns,
             sent: new Set<string>(),
             affirmed: new Set<string>(),
+            rewritten: new Set<string>(),
           };
     progress.source = state.messages.slice(0, index + 1);
     progress.multibatch ||= turns.length > progress.limit;
@@ -1033,7 +1033,10 @@ export function createCastSlice(
       // Only complete batches advance the private prefix. No target snapshot is visible until
       // every preceding turn is covered, including when a retry extends this unchanged source.
       let usage: CallUsage = {};
-      const { sent, affirmed } = progress;
+      const { sent, affirmed, rewritten } = progress;
+      /** The hidden fields the owner ended before this run that no batch of it wrote again. */
+      const endedBefore = (id: string) =>
+        endedHidden(corrections[id]).filter((field) => !rewritten.has(`${id}:${field}`));
       while (progress.offset < turns.length) {
         // A single call may merge a correction or sheet, but shrinking it creates a dependent
         // chain. Recheck before every dispatch so that transition never pays for a stale batch.
@@ -1047,8 +1050,7 @@ export function createCastSlice(
         // answer that ends it, or an ending taken back while the call runs, is read as ever.
         const read = withoutEndedHidden(
           withoutRemoved(progress.chain, removedIds(get().cast.corrections)),
-          (id) => endedHidden(corrections[id]),
-          progress.sheeted,
+          endedBefore,
         );
         const cleared = clearedFields(read, corrections);
         const body = {
@@ -1087,6 +1089,7 @@ export function createCastSlice(
         usage = outcome.response.usage;
         for (const entry of body.register.entries) sent.add(entry.id);
         const before = progress.chain;
+        const shown = batch.map((turn) => turn.scanText ?? turn.content);
         progress.chain = applyCastChanges(before, changes, {
           player,
           newId: deps.newId,
@@ -1094,7 +1097,7 @@ export function createCastSlice(
           previous: progress.previous,
           // Read now, as the corrections are: a sheet may land while a single call runs.
           sheet: get().cast.sheet?.entries ?? [],
-          shown: batch.map((turn) => turn.scanText ?? turn.content),
+          shown,
           corrected: Object.fromEntries(
             [...new Set([...Object.keys(corrections), ...Object.keys(get().cast.corrections)])].map(
               (id) => [
@@ -1131,6 +1134,16 @@ export function createCastSlice(
           const entry = resolveCastEntry(progress.chain, name);
           if (entry !== undefined) affirmed.add(entry.id);
         }
+        // A hidden value the answer set was written by this run: told from one left untouched
+        // by the write itself, as `applyCastChanges` took it (grounded in the batch), never by
+        // its words, which may be the very ones the owner ended.
+        for (const [name, change] of Object.entries(groundedCastChanges(changes, shown).cast)) {
+          const entry = resolveCastEntry(progress.chain, name);
+          if (entry === undefined) continue;
+          for (const [field, item] of Object.entries(change.hidden ?? {})) {
+            if (item !== undefined && item !== "") rewritten.add(`${entry.id}:${field}`);
+          }
+        }
         // A turn that names someone introduces her without the keeper's word: she is the chat's too.
         for (const entry of progress.chain.entries) {
           if (entry.introduced === true) affirmed.add(entry.id);
@@ -1155,11 +1168,10 @@ export function createCastSlice(
         ),
         (id) =>
           sent.has(id)
-            ? endedHidden(corrections[id]).filter(
+            ? endedBefore(id).filter(
                 (field) => standing[id]?.hidden?.[field] === corrections[id]?.hidden?.[field],
               )
             : [],
-        progress.sheeted,
       );
       for (const id of affirmed) established.add(id);
       learn(register.entries.filter((entry) => established.has(entry.id)));

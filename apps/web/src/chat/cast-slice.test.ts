@@ -1942,6 +1942,31 @@ describe("cast corrections", () => {
       injuries: HELD.injuries,
     });
     expect(anew.state().cast.corrections).toEqual({});
+
+    // Also in the very words it had: the keeper never read the ended value, so the same text is
+    // its own fresh record, not the old one left standing.
+    const same = await withHidden();
+    same.state().endCastHidden(uuid(100), "mood");
+    same.state().endCastHidden(uuid(100), "injuries");
+    await same.say("Third");
+    expect(same.keeper[2]?.request.register.entries[0]).not.toHaveProperty("hidden");
+    await same.answer({
+      cast: { Ilse: { hidden: { mood: { value: HELD.mood, evidence: "reply 3" } } } },
+      absent: [],
+    });
+    expect(entry(same.state(), "Ilse")?.hidden).toEqual({ mood: HELD.mood });
+    expect(recordedHidden(same.state(), uuid(100))).toEqual({ mood: HELD.mood });
+    expect(same.state().cast.corrections).toEqual({});
+    // An ungrounded one sets nothing, so the ending takes the field as before.
+    const loose = await withHidden();
+    loose.state().endCastHidden(uuid(100), "mood");
+    await loose.say("Third");
+    await loose.answer({
+      cast: { Ilse: { hidden: { mood: { value: HELD.mood, evidence: "never written" } } } },
+      absent: [],
+    });
+    expect(entry(loose.state(), "Ilse")?.hidden).toEqual({ injuries: HELD.injuries });
+    expect(loose.state().cast.corrections).toEqual({});
   });
 
   it("keep a hidden field's ending made while a call runs, until a call built after it", async () => {
