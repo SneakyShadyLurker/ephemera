@@ -291,10 +291,7 @@ describe("default prompt preset NPC agency", () => {
 
   it("leaves an NPC's response to the NPC when the player's action narrates it", () => {
     expect(DEFAULT_MAIN_PROMPT).toContain(
-      "only {{user}}'s part has happened: the NPC answers as they really would, which may differ.",
-    );
-    expect(DEFAULT_MAIN_PROMPT).toContain(
-      "A direction the player gives in ((double parentheses)) is followed.",
+      "take it as what {{user}} tries: whether it succeeds is judged like any attempt, and the NPC answers as they really would, which may differ.",
     );
   });
 
@@ -309,7 +306,9 @@ describe("default prompt preset NPC agency", () => {
 
   it("has NPCs act on the register's goals, knowledge and hidden lines, in terms the narrator reads", () => {
     expect(DEFAULT_NPC_PROMPT).toContain("they act toward those goals and on that knowledge");
-    expect(DEFAULT_NPC_PROMPT).toContain("A line marked hidden from the player");
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "A line marked hidden from the player holds what is true of that NPC beyond {{user}}'s perception",
+    );
     expect(DEFAULT_NPC_PROMPT).not.toContain("keeper");
     expect(DEFAULT_NPC_PROMPT).not.toContain("card extractor");
   });
@@ -319,7 +318,7 @@ describe("default prompt preset NPC agency", () => {
       "They go after what they want from {{user}} and from one another",
     );
     expect(DEFAULT_NPC_PROMPT).toContain(
-      "write the act itself and stop where {{user}}'s response begins",
+      "An NPC may act on {{user}} directly, with a touch, a grab, a kiss or a blow, without asking first: write the act itself and stop where {{user}}'s response begins.",
     );
     expect(DEFAULT_NPC_PROMPT).toContain("NPCs deal with one another, not only with {{user}}");
     expect(DEFAULT_NPC_PROMPT).toContain(
@@ -328,8 +327,10 @@ describe("default prompt preset NPC agency", () => {
     expect(DEFAULT_NPC_PROMPT).toContain(
       "A refusal, a stall or a silence that holds moves the scene as much as a yes.",
     );
-    expect(DEFAULT_NPC_PROMPT).toContain("Time off the page is lived too");
-    expect(DEFAULT_NOTE_PROMPT).toContain("insisting is no reason to give in");
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "comes back with whatever that time let them do, learn or decide",
+    );
+    expect(DEFAULT_NOTE_PROMPT).toContain("asking again is no new reason");
     expect(DEFAULT_NOTE_PROMPT).toContain(
       "They take initiative and deal with one another, not only with {{user}}.",
     );

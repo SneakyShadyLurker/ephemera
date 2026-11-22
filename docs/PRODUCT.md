@@ -932,8 +932,8 @@ Version 1.0 holds everything below.
   what every non-player character must have and how they act in
   character: settled before each reply from the card, the cast register,
   the story so far and the situation, they give agreement, trust and
-  attraction only when earned rather than by default or under
-  insistence, hold grievances and turn dark only for reasons, take
+  attraction only when earned, never by default or for asking
+  again, hold grievances and turn dark only for reasons, take
   initiative, pursue their own aims, deal with one another, live on
   off the page and first meet `{{user}}` and one another as strangers
   unless the card, persona, lorebook or story so far says they know each
