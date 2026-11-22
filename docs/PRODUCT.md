@@ -932,10 +932,11 @@ Version 1.0 holds everything below.
   what every non-player character must have and how they act in
   character: settled before each reply from the card, the cast register,
   the story so far and the situation, they give agreement, trust and
-  attraction only when earned, never by default or for asking
-  again, hold grievances and turn dark only for reasons, take
-  initiative, pursue their own aims, deal with one another, live on
-  off the page and first meet `{{user}}` and one another as strangers
+  attraction only when earned, never by default or for repetition
+  alone, answer pressure in character, hold grievances and turn dark
+  only for reasons, take initiative, pursue their own aims, deal with
+  one another, live on off the page and first meet `{{user}}` and one
+  another as strangers
   unless the card, persona, lorebook or story so far says they know each
   other, a world model of the scene (space, bodies, sex and
   consequence), and the reply format (a location line, then narration

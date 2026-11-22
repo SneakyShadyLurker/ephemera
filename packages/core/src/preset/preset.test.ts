@@ -307,7 +307,7 @@ describe("default prompt preset NPC agency", () => {
   it("has NPCs act on the register's goals, knowledge and hidden lines, in terms the narrator reads", () => {
     expect(DEFAULT_NPC_PROMPT).toContain("they act toward those goals and on that knowledge");
     expect(DEFAULT_NPC_PROMPT).toContain(
-      "A line marked hidden from the player holds what is true of that NPC beyond {{user}}'s perception",
+      "A line marked hidden from the player holds what is true of that NPC beyond {{user}}'s perception: it affects them as it really would and reaches {{user}} only as the scene uncovers it.",
     );
     expect(DEFAULT_NPC_PROMPT).not.toContain("keeper");
     expect(DEFAULT_NPC_PROMPT).not.toContain("card extractor");
