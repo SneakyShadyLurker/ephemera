@@ -6,7 +6,6 @@ import {
   type ChatMemoryState,
   CONTINUED_SCENE,
   CREATOR_LIMITS,
-  defaultPromptPreset,
   type EventsState,
   inspectedPromptSchema,
   type LorebookEntry,
@@ -26,6 +25,7 @@ import {
   storedEpisodeSchema,
 } from "@ephemera/core";
 import { describe, expect, it, vi } from "vitest";
+import { plainPromptPreset } from "../../../packages/core/test-fixtures/preset.ts";
 import { KEEPALIVE_INTERVAL_MS } from "../src/keepalive.ts";
 import { KEPT_ATTEMPTS } from "../src/memory.ts";
 import type { Stores } from "../src/persistence/index.ts";
@@ -2333,12 +2333,13 @@ describe("memory in the prompt", () => {
   it("keeps Author's Note cadence and its linked lorebook entry across prompt-fit folds", async () => {
     const { app, stores, characterId } = setup([]);
     stores.settings.update({ contextLimits: { "fake-model": window } });
-    const preset = defaultPromptPreset("Every six user turns");
+    const preset = plainPromptPreset("Every six user turns");
     const promptPresetId = stores.presets.prompt.create(
       {
         ...preset,
         authorsNote: {
           ...preset.authorsNote,
+          enabled: true,
           text: "Keep the storm in view.",
           role: "system",
           depth: 0,
@@ -2401,12 +2402,13 @@ describe("memory in the prompt", () => {
     const contents = Array.from({ length: 8 }, (_, index) => long(`turn-${index}:`, 1_100));
     const messages = turnsOf(...contents, "Now.");
     const users = messages.filter((turn) => turn.role === "user").length;
-    const preset = defaultPromptPreset("Note cadence");
+    const preset = plainPromptPreset("Note cadence");
     const promptPresetId = stores.presets.prompt.create(
       {
         ...preset,
         authorsNote: {
           ...preset.authorsNote,
+          enabled: true,
           text: "Keep the storm in view.",
           role: "system",
           depth: 0,

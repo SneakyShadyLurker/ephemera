@@ -278,6 +278,64 @@ describe("default prompt preset scenarios", () => {
   });
 });
 
+describe("default prompt preset NPC agency", () => {
+  it("makes the model the game master on every card, the subjects its leads", () => {
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      "You are the game master: you run the world and play every NPC, each a person in their own right",
+    );
+    expect(DEFAULT_MAIN_PROMPT).toContain("the subjects are the leads you play from the inside");
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      "The world around them and everyone else they meet are yours to play as well.",
+    );
+  });
+
+  it("leaves an NPC's response to the NPC when the player's action narrates it", () => {
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      "only {{user}}'s part has happened: the NPC answers as they really would, which may differ.",
+    );
+    expect(DEFAULT_MAIN_PROMPT).toContain(
+      "A direction the player gives in ((double parentheses)) is followed.",
+    );
+  });
+
+  it("has each NPC settled before writing, from the card, the register and the story, in the block and the note", () => {
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "Before writing, settle for each NPC present, from their card, the cast register and the story so far: what they perceive and know, what they want right now, how they feel about what just happened, and what the situation allows, costs or risks them",
+    );
+    expect(DEFAULT_NOTE_PROMPT).toContain(
+      "Before writing, settle for each NPC present, from their card, the cast register and the story so far, what they know, what they want right now and how they feel about what just happened.",
+    );
+  });
+
+  it("has NPCs act on the register's goals, knowledge and hidden lines, in terms the narrator reads", () => {
+    expect(DEFAULT_NPC_PROMPT).toContain("they act toward those goals and on that knowledge");
+    expect(DEFAULT_NPC_PROMPT).toContain("A line marked hidden from the player");
+    expect(DEFAULT_NPC_PROMPT).not.toContain("keeper");
+    expect(DEFAULT_NPC_PROMPT).not.toContain("card extractor");
+  });
+
+  it("lets NPCs pursue their aims, act on {{user}}, deal with one another and hold under pressure", () => {
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "They go after what they want from {{user}} and from one another",
+    );
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "write the act itself and stop where {{user}}'s response begins",
+    );
+    expect(DEFAULT_NPC_PROMPT).toContain("NPCs deal with one another, not only with {{user}}");
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "Asking again, insisting or rephrasing is not a new reason",
+    );
+    expect(DEFAULT_NPC_PROMPT).toContain(
+      "A refusal, a stall or a silence that holds moves the scene as much as a yes.",
+    );
+    expect(DEFAULT_NPC_PROMPT).toContain("Time off the page is lived too");
+    expect(DEFAULT_NOTE_PROMPT).toContain("insisting is no reason to give in");
+    expect(DEFAULT_NOTE_PROMPT).toContain(
+      "They take initiative and deal with one another, not only with {{user}}.",
+    );
+  });
+});
+
 describe("default prompt preset writing as the player", () => {
   it("writes as {{user}} only when the player asks, alike in Main and the note", () => {
     expect(DEFAULT_MAIN_PROMPT).toContain(

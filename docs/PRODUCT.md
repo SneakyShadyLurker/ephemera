@@ -923,14 +923,19 @@ Version 1.0 holds everything below.
   character sheet's index does; elsewhere it follows them, with the examples
   folded under Show the marks and the help line always visible.
 - The built-in default prompt preset carries Ephemera's own instructions
-  in four blocks: how to play scenario cards as game master and subject
-  cards as their subjects with lean narration and outcomes judged without
+  in four blocks: how to run every card as game master, a scenario's
+  people invented as play needs them and a subject card's subjects
+  played from the inside, with lean narration and outcomes judged without
   plot armor, reading the player's quoted text as speech and asterisked
-  text as action whose wording no one answers as said, what every
-  non-player character must have and how they act in character, give
-  agreement, trust and attraction only when earned rather than by
-  default, hold grievances and turn dark only for reasons, take
-  initiative and first meet `{{user}}` and one another as strangers
+  text as action whose wording no one answers as said and whose narrated
+  response of a non-player character stays that character's to give,
+  what every non-player character must have and how they act in
+  character: settled before each reply from the card, the cast register,
+  the story so far and the situation, they give agreement, trust and
+  attraction only when earned rather than by default or under
+  insistence, hold grievances and turn dark only for reasons, take
+  initiative, pursue their own aims, deal with one another, live on
+  off the page and first meet `{{user}}` and one another as strangers
   unless the card, persona, lorebook or story so far says they know each
   other, a world model of the scene (space, bodies, sex and
   consequence), and the reply format (a location line, then narration
